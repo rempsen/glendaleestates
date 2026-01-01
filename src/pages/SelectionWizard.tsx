@@ -20,8 +20,12 @@ import {
   backsplashOrientations, 
   carpetOptions,
   carpetSpecs,
-  windowCoveringProduct
+  windowCoveringProduct,
+  calculateWindowExtensions
 } from '@/lib/mockData';
+import tileStackedImg from '@/assets/tile-stacked.jpg';
+import tileBrickedImg from '@/assets/tile-bricked.jpg';
+import tileHorizontalImg from '@/assets/tile-horizontal.jpg';
 import { ArrowLeft, ArrowRight, Check, Home, Send, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -38,10 +42,13 @@ interface SelectionState {
   lvpColour: string;
   lvpComments: string;
   spcTileColour: string;
+  spcTileComments: string;
   backsplashOrientation: string;
   stairCarpetColour: string;
   bedroomFlooringChoice: 'carpet' | 'lvp' | '';
   bedroomCarpetColour: string;
+  bedroomLvpColour: string;
+  bedroomLvpSameAsMain: boolean;
   additionalWindowsQty: number;
   patioDoorsQty: number;
   upgradeInterests: Record<string, boolean>;
@@ -62,10 +69,13 @@ export default function SelectionWizard() {
     lvpColour: '',
     lvpComments: '',
     spcTileColour: '',
+    spcTileComments: '',
     backsplashOrientation: '',
     stairCarpetColour: '',
     bedroomFlooringChoice: '',
     bedroomCarpetColour: '',
+    bedroomLvpColour: '',
+    bedroomLvpSameAsMain: true,
     additionalWindowsQty: 0,
     patioDoorsQty: 0,
     upgradeInterests: {
@@ -75,6 +85,7 @@ export default function SelectionWizard() {
       automation: false,
     },
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateSelection = (key: keyof SelectionState, value: any) => {
     setSelections(prev => ({ ...prev, [key]: value }));
@@ -102,11 +113,40 @@ export default function SelectionWizard() {
     }
   };
 
-  const handleSubmit = () => {
-    toast.success('Selections submitted successfully!', {
-      description: 'Your selections have been saved. Our team will review and be in touch.',
-    });
-    navigate('/');
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    try {
+      const { total } = calculateWindowExtensions(selections.additionalWindowsQty, selections.patioDoorsQty);
+      
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-selections-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          ...selections,
+          bedroomLvpColour: selections.bedroomLvpSameAsMain ? selections.lvpColour : selections.bedroomLvpColour,
+          windowTotal: total,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send email');
+      }
+
+      toast.success('Selections submitted successfully!', {
+        description: 'Your selections have been saved and emailed to our team.',
+      });
+      navigate('/');
+    } catch (error) {
+      console.error('Error submitting selections:', error);
+      toast.error('Failed to submit selections', {
+        description: 'Please try again or contact support.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const renderStep = () => {
@@ -296,11 +336,33 @@ export default function SelectionWizard() {
                   />
                 ))}
               </div>
+
+              {/* Comments Section */}
+              <div className="pt-4 border-t border-border">
+                <Label htmlFor="spcTileComments" className="text-foreground">Notes or Comments</Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Add any special requests or notes about your bathroom tile selection
+                </p>
+                <textarea
+                  id="spcTileComments"
+                  rows={3}
+                  placeholder="Optional notes about your bathroom tile preferences..."
+                  value={selections.spcTileComments}
+                  onChange={(e) => updateSelection('spcTileComments', e.target.value)}
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </div>
             </div>
           </StepContainer>
         );
 
       case 3: // Backsplash
+        const backsplashIllustrations: Record<string, string> = {
+          stacked: tileStackedImg,
+          bricked: tileBrickedImg,
+          vertical: tileHorizontalImg,
+        };
+        
         return (
           <StepContainer
             title="Kitchen Backsplash"
@@ -326,15 +388,32 @@ export default function SelectionWizard() {
 
               <div className="grid sm:grid-cols-3 gap-4">
                 {backsplashOrientations.map(option => (
-                  <SelectionCard
+                  <div
                     key={option.id}
-                    id={option.id}
-                    name={option.name}
-                    description={option.description}
-                    selected={selections.backsplashOrientation === option.id}
-                    onSelect={(id) => updateSelection('backsplashOrientation', id)}
-                    variant="text"
-                  />
+                    onClick={() => updateSelection('backsplashOrientation', option.id)}
+                    className={`relative cursor-pointer rounded-xl overflow-hidden border-2 transition-all ${
+                      selections.backsplashOrientation === option.id
+                        ? 'border-primary ring-2 ring-primary/20'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="aspect-[4/3] overflow-hidden">
+                      <img
+                        src={backsplashIllustrations[option.id]}
+                        alt={`${option.name} tile orientation`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="p-4 bg-card">
+                      <div className="flex items-center gap-2">
+                        {selections.backsplashOrientation === option.id && (
+                          <Check className="w-4 h-4 text-primary" />
+                        )}
+                        <h4 className="font-medium text-foreground">{option.name}</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">{option.description}</p>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -420,6 +499,111 @@ export default function SelectionWizard() {
                     ))}
                   </div>
                 </div>
+              )}
+
+              {/* Bedroom LVP Color - show if LVP selected */}
+              {selections.bedroomFlooringChoice === 'lvp' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="p-5 rounded-xl border border-primary/30 bg-primary/5"
+                >
+                  <h3 className="font-medium text-foreground mb-3">Confirm Bedroom LVP Colour</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Select the LVP colour for your bedrooms. By default, it matches your main floor selection.
+                  </p>
+                  
+                  {/* Same as main floor option */}
+                  <div
+                    onClick={() => updateSelection('bedroomLvpSameAsMain', true)}
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all mb-4 ${
+                      selections.bedroomLvpSameAsMain
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        selections.bedroomLvpSameAsMain ? 'border-primary' : 'border-muted-foreground'
+                      }`}>
+                        {selections.bedroomLvpSameAsMain && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+                        )}
+                      </div>
+                      <div>
+                        <span className="font-medium text-foreground">
+                          Same as Main Floor
+                        </span>
+                        {selections.lvpColour && (
+                          <span className="ml-2 text-sm text-muted-foreground">
+                            — {lvpOptions.find(o => o.id === selections.lvpColour)?.name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Different colour option */}
+                  <div
+                    onClick={() => updateSelection('bedroomLvpSameAsMain', false)}
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      !selections.bedroomLvpSameAsMain
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        !selections.bedroomLvpSameAsMain ? 'border-primary' : 'border-muted-foreground'
+                      }`}>
+                        {!selections.bedroomLvpSameAsMain && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+                        )}
+                      </div>
+                      <span className="font-medium text-foreground">Choose a Different Colour</span>
+                    </div>
+                    
+                    {!selections.bedroomLvpSameAsMain && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="grid grid-cols-3 gap-3 mt-4"
+                      >
+                        {lvpOptions.map(option => (
+                          <div
+                            key={option.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateSelection('bedroomLvpColour', option.id);
+                            }}
+                            className={`relative rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${
+                              selections.bedroomLvpColour === option.id
+                                ? 'border-primary ring-2 ring-primary/20'
+                                : 'border-transparent hover:border-primary/50'
+                            }`}
+                          >
+                            <div className="aspect-square overflow-hidden">
+                              <img
+                                src={option.image}
+                                alt={option.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="absolute bottom-0 left-0 right-0 bg-background/90 backdrop-blur-sm p-2">
+                              <p className="text-xs font-medium text-foreground text-center">{option.name}</p>
+                            </div>
+                            {selections.bedroomLvpColour === option.id && (
+                              <div className="absolute top-2 right-2 w-5 h-5 bg-primary rounded-full flex items-center justify-center">
+                                <Check className="w-3 h-3 text-primary-foreground" />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </motion.div>
+                    )}
+                  </div>
+                </motion.div>
               )}
             </div>
           </StepContainer>
@@ -604,6 +788,17 @@ export default function SelectionWizard() {
                       </span>
                     </div>
                   )}
+                  {selections.bedroomFlooringChoice === 'lvp' && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Bedroom LVP Colour</span>
+                      <span className="font-medium">
+                        {selections.bedroomLvpSameAsMain
+                          ? `${lvpOptions.find(o => o.id === selections.lvpColour)?.name || 'Not selected'} (Same as Main Floor)`
+                          : lvpOptions.find(o => o.id === selections.bedroomLvpColour)?.name || 'Not selected'
+                        }
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -713,9 +908,18 @@ export default function SelectionWizard() {
               <ArrowRight className="w-4 h-4" />
             </Button>
           ) : (
-            <Button variant="hero" onClick={handleSubmit} className="gap-2">
-              <Send className="w-4 h-4" />
-              Submit Selections
+            <Button variant="hero" onClick={handleSubmit} disabled={isSubmitting} className="gap-2">
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  Submit Selections
+                </>
+              )}
             </Button>
           )}
         </div>
