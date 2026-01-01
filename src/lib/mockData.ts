@@ -1,4 +1,16 @@
-// Mock data for Glendale Estates - 75 homes
+// Glendale Estates - Phase 1 Data Spec
+// Client: BMD Materials | 75 homes
+
+import flooringCortland from '@/assets/flooring-cortland.jpg';
+import flooringOpal from '@/assets/flooring-opal.jpg';
+import flooringWolfRiver from '@/assets/flooring-wolf-river.jpg';
+import tilePezzo from '@/assets/tile-pezzo.jpg';
+import tilePiccolo from '@/assets/tile-piccolo.jpg';
+import tileVenatino from '@/assets/tile-venatino.jpg';
+import carpetWinterbrooke from '@/assets/carpet-winterbrooke.jpg';
+import carpetMidnight from '@/assets/carpet-midnight.jpg';
+import carpetJetstream from '@/assets/carpet-jetstream.jpg';
+import carpetSawgrass from '@/assets/carpet-sawgrass.jpg';
 
 export type SelectionStatus = 'not_started' | 'in_progress' | 'submitted' | 'reviewed' | 'finalized';
 
@@ -9,126 +21,184 @@ export interface HomeData {
   buyerName: string;
   buyerEmail: string;
   status: SelectionStatus;
+  hasStairs: boolean;
   flooringCompleted: boolean;
   windowExtensions: boolean;
-  estimatedUpgradeValue: number;
+  windowExtensionSubtotal: number;
+  windowExtensionGST: number;
+  windowExtensionTotal: number;
   lastActivityDate: string;
+  selectionVersion: number;
   selections?: SelectionData;
 }
 
 export interface SelectionData {
-  mainFloorLVP: string | null;
-  washroomSPC: string | null;
-  backsplashOrientation: 'stacked' | 'bricked' | 'horizontal' | null;
-  stairsCarpet: string | null;
-  bedroomFlooring: {
-    [key: string]: 'carpet' | 'lvp';
-  };
-  bedroomCarpetColor: string | null;
-  standardWindowCoverings: boolean;
-  additionalWindows: number;
-  patioDoors: number;
-  upgradeInterests: string[];
+  // Main floor LVP
+  lvpColour: 'cortland' | 'opal' | 'wolf-river' | null;
+  // Bathroom/Laundry SPC Tile
+  spcTileColour: 'pezzo' | 'piccolo' | 'venatino-auguste' | null;
+  // Backsplash (fixed product, orientation choice)
+  backsplashTile: 'white-subway-2x12-matte';
+  backsplashOrientation: 'stacked' | 'bricked' | 'vertical' | null;
+  // Stairs carpet
+  stairCarpetColour: 'winterbrooke-898' | 'midnight-shadow-427' | 'jet-stream-200' | 'sawgrass-701' | null;
+  // Bedroom flooring choice
+  bedroomFlooringChoice: 'carpet' | 'lvp' | null;
+  bedroomCarpetColour: 'winterbrooke-898' | 'midnight-shadow-427' | 'jet-stream-200' | 'sawgrass-701' | null;
+  // Window coverings
+  additionalWindowsQty: number;
+  patioDoorsQty: number;
+  // Upgrade interests
+  upgradeInterestFlooring: boolean;
+  upgradeInterestTile: boolean;
+  upgradeInterestHeatedFloor: boolean;
+  upgradeInterestAutomation: boolean;
 }
 
-export const flooringOptions = {
-  mainFloorLVP: [
-    { id: 'oak-natural', name: 'Natural Oak', color: '#C4A77D' },
-    { id: 'walnut-rich', name: 'Rich Walnut', color: '#6B4423' },
-    { id: 'grey-wash', name: 'Grey Wash', color: '#8B8682' },
-  ],
-  washroomSPC: [
-    { id: 'marble-white', name: 'Carrara White', color: '#F5F5F5' },
-    { id: 'slate-grey', name: 'Slate Grey', color: '#708090' },
-    { id: 'travertine', name: 'Travertine Beige', color: '#D4C4A8' },
-  ],
-  carpetColors: [
-    { id: 'cream-comfort', name: 'Cream Comfort', color: '#F5F5DC' },
-    { id: 'warm-grey', name: 'Warm Grey', color: '#A8A39D' },
-    { id: 'charcoal-soft', name: 'Soft Charcoal', color: '#4A4A4A' },
-    { id: 'taupe-blend', name: 'Taupe Blend', color: '#B09A7E' },
-  ],
+// =====================================================
+// PRODUCT DEFINITIONS (Per Phase 1 Spec)
+// =====================================================
+
+// 2.2 Main Floor LVP - 5mm Loose Lay LVP Plank
+export const lvpOptions = [
+  { 
+    id: 'cortland', 
+    name: 'Cortland', 
+    image: flooringCortland,
+    description: 'Warm, natural tones with subtle grain variation for a timeless, inviting aesthetic.'
+  },
+  { 
+    id: 'opal', 
+    name: 'Opal', 
+    image: flooringOpal,
+    description: 'Light, airy character with soft undertones that brighten and expand any space.'
+  },
+  { 
+    id: 'wolf-river', 
+    name: 'Wolf River', 
+    image: flooringWolfRiver,
+    description: 'Rich, sophisticated depth with authentic wood character and modern appeal.'
+  },
+];
+
+export const lvpSpecs = {
+  productType: '5mm Loose Lay LVP Plank',
+  length: '48" (1218mm)',
+  width: '7" (178mm)',
+  thickness: '5mm (0.197")',
+  wearLayer: '20mil',
+  surface: 'Brushed Emboss',
+  backing: 'Acoustic Absorbing',
+};
+
+// 2.3 Bathroom/Laundry SPC Tile - 12"×24"
+export const spcTileOptions = [
+  { 
+    id: 'pezzo', 
+    name: 'Pezzo', 
+    image: tilePezzo,
+    description: 'Terrazzo-inspired design with irregular shapes forming a harmonious, artistic pattern.'
+  },
+  { 
+    id: 'piccolo', 
+    name: 'Piccolo', 
+    image: tilePiccolo,
+    description: 'Rhythmic veining and textured surface echoing the elegance of classical movements.'
+  },
+  { 
+    id: 'venatino-auguste', 
+    name: 'Venatino Auguste', 
+    image: tileVenatino,
+    description: 'Natural marble inspiration with delicate veining for timeless sophistication.'
+  },
+];
+
+export const spcTileSpecs = {
+  productType: 'SPC Click Vinyl Tile',
+  size: '12" × 24"',
+  collection: 'Dante 2.0',
+};
+
+// 2.4 Kitchen Backsplash - White Subway 2"×12"
+export const backsplashProduct = {
+  name: 'Classic White Subway',
+  size: '2" × 12"',
+  finish: 'Matte',
+  collection: 'Essential Tiles',
+  description: 'Timeless white subway tile offering a clean, contemporary aesthetic.',
 };
 
 export const backsplashOrientations = [
-  { id: 'stacked', name: 'Stacked', description: 'Tiles aligned vertically for a modern look' },
-  { id: 'bricked', name: 'Bricked', description: 'Classic offset pattern like traditional brick' },
-  { id: 'horizontal', name: 'Horizontal', description: 'Wide horizontal tiles for spacious feel' },
+  { id: 'stacked', name: 'Stacked', description: 'Modern vertical alignment with clean, contemporary lines' },
+  { id: 'bricked', name: 'Bricked', description: 'Classic offset pattern with timeless appeal' },
+  { id: 'vertical', name: 'Vertical', description: 'Elegant vertical orientation adding height to your space' },
 ];
 
-export const upgradeOptions = [
-  { id: 'upgraded-flooring', name: 'Premium Flooring', description: 'European oak, wide plank options' },
-  { id: 'tile-upgrades', name: 'Designer Tile', description: 'Porcelain and natural stone options' },
-  { id: 'heated-floors', name: 'Heated Tile Floors', description: 'Radiant heating in bathrooms' },
-  { id: 'powered-blinds', name: 'Motorized Blinds', description: 'Smart home integration ready' },
+// 2.5 Stairs & Bedroom Carpet
+export const carpetOptions = [
+  { 
+    id: 'winterbrooke-898', 
+    name: 'Winterbrooke 898', 
+    image: carpetWinterbrooke,
+    description: 'Warm neutral with subtle texture for versatile elegance.'
+  },
+  { 
+    id: 'midnight-shadow-427', 
+    name: 'Midnight Shadow 427', 
+    image: carpetMidnight,
+    description: 'Deep, sophisticated charcoal with luxurious depth.'
+  },
+  { 
+    id: 'jet-stream-200', 
+    name: 'Jet Stream 200', 
+    image: carpetJetstream,
+    description: 'Light, airy grey with contemporary appeal.'
+  },
+  { 
+    id: 'sawgrass-701', 
+    name: 'Sawgrass 701', 
+    image: carpetSawgrass,
+    description: 'Natural beige tones with organic warmth.'
+  },
 ];
 
-export const windowPricing = {
-  additionalWindow: 385,
-  patioDoor: 650,
-  gst: 0.05,
+export const carpetSpecs = {
+  productType: 'Premium Broadloom Carpet',
+  features: ['Advanced stain-resistant technology', 'Dense pile construction', 'Superior sound absorption', 'Exceptional insulation'],
 };
 
-// Generate 75 homes with varied data
-const firstNames = ['James', 'Sarah', 'Michael', 'Jennifer', 'David', 'Emily', 'Robert', 'Amanda', 'William', 'Jessica', 'Christopher', 'Ashley', 'Daniel', 'Stephanie', 'Matthew'];
-const lastNames = ['Thompson', 'Chen', 'Patel', 'Williams', 'Rodriguez', 'Kim', 'Singh', 'Anderson', 'Martinez', 'Garcia', 'Johnson', 'Lee', 'Brown', 'Wilson', 'Taylor'];
-const streets = ['Glendale Way', 'Estates Drive', 'Meadow Lane', 'Summit Court', 'Valley Road'];
+// 2.6 Window Coverings - Standard + Extensions
+export const windowCoveringProduct = {
+  name: 'Roller Shades',
+  features: ['Clean, modern style', 'Cordless Lift System', 'Light filtering or room darkening options', 'Fabric-wrapped flat valance'],
+  includedIn: 'All bedrooms',
+};
 
-const statuses: SelectionStatus[] = ['not_started', 'in_progress', 'submitted', 'reviewed', 'finalized'];
+// Pricing per spec (pre-GST)
+export const windowPricing = {
+  additionalWindow: 585,    // per window
+  patioDoor: 1275,          // per patio door (panel track)
+  gstRate: 0.05,            // 5% GST
+};
 
-function generateRandomDate(daysAgo: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() - Math.floor(Math.random() * daysAgo));
-  return date.toISOString().split('T')[0];
-}
+// 2.7 Upgrade Interest Categories (Phase 2 prep)
+export const upgradeInterestCategories = [
+  { id: 'flooring', name: 'Upgraded Flooring Options', description: 'Premium wide-plank European oak and designer collections' },
+  { id: 'tile', name: 'Tile Upgrades', description: 'Natural stone, porcelain, and designer tile options' },
+  { id: 'heated-floor', name: 'Heated Tile Flooring', description: 'Radiant floor heating for bathrooms and living areas' },
+  { id: 'automation', name: 'Powered / Automated Window Coverings', description: 'Smart home integration with motorized controls' },
+];
 
-function generateSelections(status: SelectionStatus): SelectionData | undefined {
-  if (status === 'not_started') return undefined;
-  
-  const isComplete = ['submitted', 'reviewed', 'finalized'].includes(status);
-  
-  return {
-    mainFloorLVP: isComplete || Math.random() > 0.3 ? flooringOptions.mainFloorLVP[Math.floor(Math.random() * 3)].id : null,
-    washroomSPC: isComplete || Math.random() > 0.3 ? flooringOptions.washroomSPC[Math.floor(Math.random() * 3)].id : null,
-    backsplashOrientation: isComplete || Math.random() > 0.4 ? (['stacked', 'bricked', 'horizontal'] as const)[Math.floor(Math.random() * 3)] : null,
-    stairsCarpet: isComplete || Math.random() > 0.4 ? flooringOptions.carpetColors[Math.floor(Math.random() * 4)].id : null,
-    bedroomFlooring: {
-      'master': Math.random() > 0.5 ? 'carpet' : 'lvp',
-      'bedroom2': Math.random() > 0.5 ? 'carpet' : 'lvp',
-      'bedroom3': Math.random() > 0.5 ? 'carpet' : 'lvp',
-    },
-    bedroomCarpetColor: isComplete || Math.random() > 0.4 ? flooringOptions.carpetColors[Math.floor(Math.random() * 4)].id : null,
-    standardWindowCoverings: true,
-    additionalWindows: Math.random() > 0.5 ? Math.floor(Math.random() * 6) : 0,
-    patioDoors: Math.random() > 0.7 ? Math.floor(Math.random() * 3) : 0,
-    upgradeInterests: upgradeOptions.filter(() => Math.random() > 0.6).map(o => o.id),
-  };
-}
+// =====================================================
+// HELPER FUNCTIONS
+// =====================================================
 
-export const homes: HomeData[] = Array.from({ length: 75 }, (_, i) => {
-  const lot = `${i + 1}`.padStart(3, '0');
-  const streetNum = 100 + i;
-  const street = streets[Math.floor(i / 15)];
-  const status = statuses[Math.floor(Math.random() * 5)];
-  const selections = generateSelections(status);
-  
-  const additionalWindowsValue = (selections?.additionalWindows || 0) * windowPricing.additionalWindow;
-  const patioDoorsValue = (selections?.patioDoors || 0) * windowPricing.patioDoor;
-  
-  return {
-    id: `home-${lot}`,
-    lot: `Lot ${lot}`,
-    address: `${streetNum} ${street}`,
-    buyerName: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
-    buyerEmail: `buyer${lot}@email.com`,
-    status,
-    flooringCompleted: selections?.mainFloorLVP !== null && selections?.washroomSPC !== null,
-    windowExtensions: (selections?.additionalWindows || 0) > 0 || (selections?.patioDoors || 0) > 0,
-    estimatedUpgradeValue: additionalWindowsValue + patioDoorsValue,
-    lastActivityDate: generateRandomDate(60),
-    selections,
-  };
-});
+export const calculateWindowExtensions = (additionalWindows: number, patioDoors: number) => {
+  const subtotal = (additionalWindows * windowPricing.additionalWindow) + (patioDoors * windowPricing.patioDoor);
+  const gst = subtotal * windowPricing.gstRate;
+  const total = subtotal + gst;
+  return { subtotal, gst, total };
+};
 
 export const getStatusLabel = (status: SelectionStatus): string => {
   const labels: Record<SelectionStatus, string> = {
@@ -150,4 +220,119 @@ export const getStatusColor = (status: SelectionStatus): string => {
     finalized: 'bg-success/20 text-success',
   };
   return colors[status];
+};
+
+// =====================================================
+// MOCK DATA - 75 HOMES
+// =====================================================
+
+const firstNames = ['James', 'Sarah', 'Michael', 'Jennifer', 'David', 'Emily', 'Robert', 'Amanda', 'William', 'Jessica', 'Christopher', 'Ashley', 'Daniel', 'Stephanie', 'Matthew', 'Nicole', 'Andrew', 'Michelle', 'Joshua', 'Elizabeth'];
+const lastNames = ['Thompson', 'Chen', 'Patel', 'Williams', 'Rodriguez', 'Kim', 'Singh', 'Anderson', 'Martinez', 'Garcia', 'Johnson', 'Lee', 'Brown', 'Wilson', 'Taylor', 'Moore', 'Jackson', 'White', 'Harris', 'Martin'];
+const streets = ['Glendale Way', 'Estates Drive', 'Meadow Lane', 'Summit Court', 'Valley Road'];
+
+const statuses: SelectionStatus[] = ['not_started', 'in_progress', 'submitted', 'reviewed', 'finalized'];
+
+function generateRandomDate(daysAgo: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() - Math.floor(Math.random() * daysAgo));
+  return date.toISOString().split('T')[0];
+}
+
+function generateSelections(status: SelectionStatus, hasStairs: boolean): SelectionData | undefined {
+  if (status === 'not_started') return undefined;
+  
+  const isComplete = ['submitted', 'reviewed', 'finalized'].includes(status);
+  const lvpColours = ['cortland', 'opal', 'wolf-river'] as const;
+  const spcColours = ['pezzo', 'piccolo', 'venatino-auguste'] as const;
+  const orientations = ['stacked', 'bricked', 'vertical'] as const;
+  const carpetColours = ['winterbrooke-898', 'midnight-shadow-427', 'jet-stream-200', 'sawgrass-701'] as const;
+  
+  const additionalWindowsQty = Math.random() > 0.5 ? Math.floor(Math.random() * 5) : 0;
+  const patioDoorsQty = Math.random() > 0.7 ? Math.floor(Math.random() * 2) + 1 : 0;
+  
+  return {
+    lvpColour: isComplete || Math.random() > 0.3 ? lvpColours[Math.floor(Math.random() * 3)] : null,
+    spcTileColour: isComplete || Math.random() > 0.3 ? spcColours[Math.floor(Math.random() * 3)] : null,
+    backsplashTile: 'white-subway-2x12-matte',
+    backsplashOrientation: isComplete || Math.random() > 0.4 ? orientations[Math.floor(Math.random() * 3)] : null,
+    stairCarpetColour: hasStairs ? (isComplete || Math.random() > 0.4 ? carpetColours[Math.floor(Math.random() * 4)] : null) : null,
+    bedroomFlooringChoice: isComplete || Math.random() > 0.3 ? (Math.random() > 0.6 ? 'carpet' : 'lvp') : null,
+    bedroomCarpetColour: Math.random() > 0.4 ? carpetColours[Math.floor(Math.random() * 4)] : null,
+    additionalWindowsQty,
+    patioDoorsQty,
+    upgradeInterestFlooring: Math.random() > 0.6,
+    upgradeInterestTile: Math.random() > 0.7,
+    upgradeInterestHeatedFloor: Math.random() > 0.75,
+    upgradeInterestAutomation: Math.random() > 0.65,
+  };
+}
+
+export const homes: HomeData[] = Array.from({ length: 75 }, (_, i) => {
+  const lot = `${i + 1}`.padStart(3, '0');
+  const streetNum = 100 + i;
+  const street = streets[Math.floor(i / 15)];
+  const status = statuses[Math.floor(Math.random() * 5)];
+  const hasStairs = Math.random() > 0.15; // 85% of homes have stairs
+  const selections = generateSelections(status, hasStairs);
+  
+  const { subtotal, gst, total } = selections 
+    ? calculateWindowExtensions(selections.additionalWindowsQty, selections.patioDoorsQty)
+    : { subtotal: 0, gst: 0, total: 0 };
+  
+  return {
+    id: `home-${lot}`,
+    lot: `Lot ${lot}`,
+    address: `${streetNum} ${street}`,
+    buyerName: `${firstNames[Math.floor(Math.random() * firstNames.length)]} & ${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
+    buyerEmail: `buyer${lot}@email.com`,
+    status,
+    hasStairs,
+    flooringCompleted: selections?.lvpColour !== null && selections?.spcTileColour !== null,
+    windowExtensions: (selections?.additionalWindowsQty || 0) > 0 || (selections?.patioDoorsQty || 0) > 0,
+    windowExtensionSubtotal: subtotal,
+    windowExtensionGST: gst,
+    windowExtensionTotal: total,
+    lastActivityDate: generateRandomDate(60),
+    selectionVersion: status === 'not_started' ? 0 : Math.floor(Math.random() * 3) + 1,
+    selections,
+  };
+});
+
+// =====================================================
+// DASHBOARD AGGREGATIONS
+// =====================================================
+
+export const getDashboardStats = () => {
+  const statusCounts = homes.reduce((acc, home) => {
+    acc[home.status] = (acc[home.status] || 0) + 1;
+    return acc;
+  }, {} as Record<SelectionStatus, number>);
+
+  const completedCount = (statusCounts.submitted || 0) + (statusCounts.reviewed || 0) + (statusCounts.finalized || 0);
+  const windowExtensionHomes = homes.filter(h => h.windowExtensions).length;
+  
+  const totalWindowSubtotal = homes.reduce((sum, h) => sum + h.windowExtensionSubtotal, 0);
+  const totalWindowGST = homes.reduce((sum, h) => sum + h.windowExtensionGST, 0);
+  const totalWindowRevenue = homes.reduce((sum, h) => sum + h.windowExtensionTotal, 0);
+  
+  const upgradeInterests = {
+    flooring: homes.filter(h => h.selections?.upgradeInterestFlooring).length,
+    tile: homes.filter(h => h.selections?.upgradeInterestTile).length,
+    heatedFloor: homes.filter(h => h.selections?.upgradeInterestHeatedFloor).length,
+    automation: homes.filter(h => h.selections?.upgradeInterestAutomation).length,
+  };
+
+  return {
+    totalHomes: homes.length,
+    statusCounts,
+    completedCount,
+    completionRate: Math.round((completedCount / homes.length) * 100),
+    windowExtensionHomes,
+    windowExtensionRate: Math.round((windowExtensionHomes / homes.length) * 100),
+    totalWindowSubtotal,
+    totalWindowGST,
+    totalWindowRevenue,
+    avgUpgradePerHome: totalWindowRevenue / homes.length,
+    upgradeInterests,
+  };
 };

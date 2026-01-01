@@ -1,18 +1,18 @@
-import { upgradeOptions } from '@/lib/mockData';
+import { upgradeInterestCategories } from '@/lib/mockData';
 import { cn } from '@/lib/utils';
 import { Check, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface UpgradeTeaserProps {
-  selectedInterests: string[];
+  selectedInterests: Record<string, boolean>;
   onToggleInterest: (id: string) => void;
 }
 
 export function UpgradeTeaser({ selectedInterests, onToggleInterest }: UpgradeTeaserProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      {upgradeOptions.map((option, index) => {
-        const isSelected = selectedInterests.includes(option.id);
+      {upgradeInterestCategories.map((option, index) => {
+        const isSelected = selectedInterests[option.id] || false;
         
         return (
           <motion.button

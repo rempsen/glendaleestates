@@ -9,7 +9,7 @@ export function PricingDisplay({ additionalWindows, patioDoors }: PricingDisplay
   const windowsSubtotal = additionalWindows * windowPricing.additionalWindow;
   const patioSubtotal = patioDoors * windowPricing.patioDoor;
   const subtotal = windowsSubtotal + patioSubtotal;
-  const gst = subtotal * windowPricing.gst;
+  const gst = subtotal * windowPricing.gstRate;
   const total = subtotal + gst;
 
   if (subtotal === 0) {
@@ -41,7 +41,7 @@ export function PricingDisplay({ additionalWindows, patioDoors }: PricingDisplay
         
         <div className="border-t border-border pt-2 mt-2">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Subtotal</span>
+            <span className="text-muted-foreground">Subtotal (pre-GST)</span>
             <span>${subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between">
@@ -49,7 +49,7 @@ export function PricingDisplay({ additionalWindows, patioDoors }: PricingDisplay
             <span>${gst.toFixed(2)}</span>
           </div>
           <div className="flex justify-between font-semibold text-foreground pt-1">
-            <span>Total</span>
+            <span>Total (incl. GST)</span>
             <span className="text-primary">${total.toFixed(2)}</span>
           </div>
         </div>
