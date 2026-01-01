@@ -28,9 +28,12 @@ import { toast } from 'sonner';
 const STEPS = ['Home Info', 'Flooring', 'Bathroom', 'Backsplash', 'Bedrooms', 'Windows', 'Upgrades', 'Review'];
 
 interface SelectionState {
-  lot: string;
-  address: string;
-  buyerName: string;
+  unitNumber: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
+  email: string;
+  estimatedPossessionDate: string;
   hasStairs: boolean;
   lvpColour: string;
   spcTileColour: string;
@@ -48,9 +51,12 @@ export default function SelectionWizard() {
   const [currentStep, setCurrentStep] = useState(0);
   
   const [selections, setSelections] = useState<SelectionState>({
-    lot: 'Lot 042',
-    address: '142 Glendale Way',
-    buyerName: 'Sarah & Michael Thompson',
+    unitNumber: '',
+    firstName: '',
+    lastName: '',
+    phoneNumber: '',
+    email: '',
+    estimatedPossessionDate: '',
     hasStairs: true,
     lvpColour: '',
     spcTileColour: '',
@@ -106,31 +112,98 @@ export default function SelectionWizard() {
       case 0: // Home Info
         return (
           <StepContainer
-            title="Confirm Your Home Information"
-            subtitle="Please verify your home details before proceeding"
+            title="Your Home Information"
+            subtitle="Please enter your details to get started"
             badge="Step 1 of 8"
           >
-            <div className="space-y-6 max-w-md">
-              <div className="p-4 rounded-xl bg-secondary/50 border border-border">
-                <div className="flex items-center gap-3 mb-4">
+            <div className="space-y-6 max-w-lg">
+              <div className="p-5 rounded-xl bg-secondary/50 border border-border">
+                <div className="flex items-center gap-3 mb-5">
                   <Home className="w-5 h-5 text-primary" />
-                  <span className="font-medium">Your Home</span>
+                  <span className="font-medium">Home & Buyer Details</span>
                 </div>
-                <div className="grid gap-4">
+                <div className="grid gap-5">
                   <div>
-                    <Label className="text-muted-foreground text-sm">Lot / Address</Label>
-                    <p className="font-medium text-foreground">{selections.lot} — {selections.address}</p>
+                    <Label htmlFor="unitNumber" className="text-foreground">Unit Number</Label>
+                    <Input
+                      id="unitNumber"
+                      placeholder="e.g., Lot 042 or Unit 12A"
+                      value={selections.unitNumber}
+                      onChange={(e) => updateSelection('unitNumber', e.target.value)}
+                      className="mt-1.5"
+                    />
                   </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="firstName" className="text-foreground">First Name</Label>
+                      <Input
+                        id="firstName"
+                        placeholder="First name"
+                        value={selections.firstName}
+                        onChange={(e) => updateSelection('firstName', e.target.value)}
+                        className="mt-1.5"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="lastName" className="text-foreground">Last Name</Label>
+                      <Input
+                        id="lastName"
+                        placeholder="Last name"
+                        value={selections.lastName}
+                        onChange={(e) => updateSelection('lastName', e.target.value)}
+                        className="mt-1.5"
+                      />
+                    </div>
+                  </div>
+
                   <div>
-                    <Label className="text-muted-foreground text-sm">Buyer Name(s)</Label>
-                    <p className="font-medium text-foreground">{selections.buyerName}</p>
+                    <Label htmlFor="phoneNumber" className="text-foreground">Phone Number</Label>
+                    <Input
+                      id="phoneNumber"
+                      type="tel"
+                      placeholder="(403) 555-1234"
+                      value={selections.phoneNumber}
+                      onChange={(e) => updateSelection('phoneNumber', e.target.value)}
+                      className="mt-1.5"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="email" className="text-foreground">Email Address</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={selections.email}
+                      onChange={(e) => updateSelection('email', e.target.value)}
+                      className="mt-1.5"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="possessionDate" className="text-foreground">Estimated Possession Date</Label>
+                    <Input
+                      id="possessionDate"
+                      type="date"
+                      value={selections.estimatedPossessionDate}
+                      onChange={(e) => updateSelection('estimatedPossessionDate', e.target.value)}
+                      className="mt-1.5"
+                    />
                   </div>
                 </div>
               </div>
               
-              <p className="text-sm text-muted-foreground">
-                If any of this information is incorrect, please contact us before proceeding.
-              </p>
+              <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
+                <Switch
+                  id="hasStairs"
+                  checked={selections.hasStairs}
+                  onCheckedChange={(checked) => updateSelection('hasStairs', checked)}
+                />
+                <Label htmlFor="hasStairs" className="text-foreground cursor-pointer">
+                  My home has stairs that require carpet
+                </Label>
+              </div>
             </div>
           </StepContainer>
         );
@@ -443,10 +516,36 @@ export default function SelectionWizard() {
               {/* Home Info */}
               <div className="p-4 rounded-xl border border-border bg-card">
                 <h4 className="font-medium text-foreground mb-3">Home Information</h4>
-                <p className="text-sm text-muted-foreground">
-                  {selections.lot} — {selections.address}<br />
-                  {selections.buyerName}
-                </p>
+                <div className="grid gap-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Unit Number</span>
+                    <span className="font-medium">{selections.unitNumber || 'Not provided'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Buyer</span>
+                    <span className="font-medium">
+                      {selections.firstName || selections.lastName 
+                        ? `${selections.firstName} ${selections.lastName}`.trim() 
+                        : 'Not provided'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Phone</span>
+                    <span className="font-medium">{selections.phoneNumber || 'Not provided'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Email</span>
+                    <span className="font-medium">{selections.email || 'Not provided'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Est. Possession Date</span>
+                    <span className="font-medium">
+                      {selections.estimatedPossessionDate 
+                        ? new Date(selections.estimatedPossessionDate).toLocaleDateString() 
+                        : 'Not provided'}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Flooring */}
