@@ -5,11 +5,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import BuyerWelcome from "./pages/BuyerWelcome";
 import SelectionWizard from "./pages/SelectionWizard";
+import Auth from "./pages/Auth";
+import AdminSubmissions from "./pages/AdminSubmissions";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminHomes from "./pages/AdminHomes";
 import AdminAnalytics from "./pages/AdminAnalytics";
 import AdminReports from "./pages/AdminReports";
 import NotFound from "./pages/NotFound";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -22,10 +25,12 @@ const App = () => (
         <Routes>
           <Route path="/" element={<BuyerWelcome />} />
           <Route path="/select" element={<SelectionWizard />} />
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/homes" element={<AdminHomes />} />
-          <Route path="/admin/analytics" element={<AdminAnalytics />} />
-          <Route path="/admin/reports" element={<AdminReports />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/submissions" element={<ProtectedRoute><AdminSubmissions /></ProtectedRoute>} />
+          <Route path="/admin/homes" element={<ProtectedRoute><AdminHomes /></ProtectedRoute>} />
+          <Route path="/admin/analytics" element={<ProtectedRoute><AdminAnalytics /></ProtectedRoute>} />
+          <Route path="/admin/reports" element={<ProtectedRoute><AdminReports /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

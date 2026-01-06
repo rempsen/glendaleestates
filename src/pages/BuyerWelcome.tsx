@@ -1,7 +1,7 @@
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, Clock, FileText, ArrowRight, Home, Palette, Grid3X3, Blinds } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { CheckCircle2, Clock, FileText, ArrowRight, Home, Palette, Grid3X3, Blinds, Lock } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
 export default function BuyerWelcome() {
@@ -210,9 +210,18 @@ export default function BuyerWelcome() {
         <div className="container max-w-5xl mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <Logo />
-            <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} BMD Materials. All rights reserved.
-            </p>
+            <div className="flex items-center gap-6">
+              <Link 
+                to="/auth" 
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+              >
+                <Lock className="w-3 h-3" />
+                Admin
+              </Link>
+              <p className="text-sm text-muted-foreground">
+                © {new Date().getFullYear()} BMD Materials. All rights reserved.
+              </p>
+            </div>
           </div>
         </div>
       </footer>
