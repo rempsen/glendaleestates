@@ -53,6 +53,7 @@ interface SelectionState {
   bedroomLvpSameAsMain: boolean;
   additionalWindowsQty: number;
   patioDoorsQty: number;
+  windowComments: string;
   upgradeInterests: Record<string, boolean>;
 }
 
@@ -82,6 +83,7 @@ export default function SelectionWizard() {
     bedroomLvpSameAsMain: true,
     additionalWindowsQty: 0,
     patioDoorsQty: 0,
+    windowComments: '',
     upgradeInterests: {
       flooring: false,
       tile: false,
@@ -761,6 +763,22 @@ export default function SelectionWizard() {
                     patioDoors={selections.patioDoorsQty}
                   />
                 </div>
+              </div>
+
+              {/* Comments Section */}
+              <div className="pt-4 border-t border-border">
+                <Label htmlFor="windowComments" className="text-foreground">Notes or Comments</Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Add any special requests or notes about your window covering selection
+                </p>
+                <textarea
+                  id="windowComments"
+                  rows={3}
+                  placeholder="Optional notes about your window covering preferences..."
+                  value={selections.windowComments}
+                  onChange={(e) => updateSelection('windowComments', e.target.value)}
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                />
               </div>
             </div>
           </StepContainer>

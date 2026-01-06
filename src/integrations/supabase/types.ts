@@ -42,6 +42,7 @@ export type Database = {
           unit_type: string | null
           updated_at: string
           upgrade_interests: Json | null
+          window_comments: string | null
           window_total: number | null
         }
         Insert: {
@@ -71,6 +72,7 @@ export type Database = {
           unit_type?: string | null
           updated_at?: string
           upgrade_interests?: Json | null
+          window_comments?: string | null
           window_total?: number | null
         }
         Update: {
@@ -100,6 +102,7 @@ export type Database = {
           unit_type?: string | null
           updated_at?: string
           upgrade_interests?: Json | null
+          window_comments?: string | null
           window_total?: number | null
         }
         Relationships: []

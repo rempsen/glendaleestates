@@ -10,14 +10,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-interface Annotation {
-  id: string;
-  x: number;
-  y: number;
-  label: string;
-  color: string;
-}
-
 interface SelectionEmailRequest {
   unitNumber: string;
   unitType?: string;
@@ -39,9 +31,9 @@ interface SelectionEmailRequest {
   bedroomLvpSameAsMain: boolean;
   additionalWindowsQty: number;
   patioDoorsQty: number;
+  windowComments?: string;
   upgradeInterests: Record<string, boolean>;
   windowTotal: number;
-  annotations?: Annotation[];
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -52,12 +44,10 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const data: SelectionEmailRequest = await req.json();
     
-    // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Save to database
     const { data: savedSelection, error: dbError } = await supabase
       .from("buyer_selections")
       .insert({
@@ -82,8 +72,8 @@ const handler = async (req: Request): Promise<Response> => {
         additional_windows_qty: data.additionalWindowsQty,
         patio_doors_qty: data.patioDoorsQty,
         window_total: data.windowTotal,
+        window_comments: data.windowComments || null,
         upgrade_interests: data.upgradeInterests,
-        floor_plan_annotations: data.annotations || [],
         status: "submitted",
       })
       .select()
@@ -91,7 +81,6 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (dbError) {
       console.error("Database error:", dbError);
-      // Continue with email even if DB fails
     } else {
       console.log("Saved selection to database:", savedSelection?.id);
     }
@@ -100,27 +89,6 @@ const handler = async (req: Request): Promise<Response> => {
       .filter(([_, v]) => v)
       .map(([key]) => key.replace('-', ' '))
       .join(', ') || 'None';
-
-    // Format annotations for email
-    const annotationsHtml = data.annotations && data.annotations.length > 0
-      ? `
-        <div class="section">
-          <h2>📍 Floor Plan Annotations</h2>
-          <p>The buyer marked ${data.annotations.length} area(s) on their floor plan:</p>
-          <table>
-            ${data.annotations.map((ann, i) => `
-              <tr>
-                <td class="label">${i + 1}. ${ann.label}</td>
-                <td class="value" style="color: ${ann.color};">●</td>
-              </tr>
-            `).join('')}
-          </table>
-          <p style="font-size: 12px; color: #666; margin-top: 10px;">
-            <em>Note: Positions are relative to the floor plan image (X: ${data.annotations.map(a => a.x.toFixed(0) + '%').join(', ')})</em>
-          </p>
-        </div>
-      `
-      : '';
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -160,8 +128,6 @@ const handler = async (req: Request): Promise<Response> => {
             </table>
           </div>
 
-          ${annotationsHtml}
-
           <div class="section">
             <h2>Flooring Selections</h2>
             <table>
@@ -169,8 +135,6 @@ const handler = async (req: Request): Promise<Response> => {
               <tr><td class="label">Bathroom/Laundry SPC:</td><td class="value">${data.spcTileColour || 'Not selected'}</td></tr>
               ${data.hasStairs ? `<tr><td class="label">Stairs Carpet:</td><td class="value">${data.stairCarpetColour || 'Not selected'}</td></tr>` : ''}
               <tr><td class="label">Bedroom Flooring:</td><td class="value">${data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : data.bedroomFlooringChoice || 'Not selected'}</td></tr>
-              ${data.bedroomFlooringChoice === 'carpet' && data.bedroomCarpetColour ? `<tr><td class="label">Bedroom Carpet Colour:</td><td class="value">${data.bedroomCarpetColour}</td></tr>` : ''}
-              ${data.bedroomFlooringChoice === 'lvp' ? `<tr><td class="label">Bedroom LVP Colour:</td><td class="value">${data.bedroomLvpSameAsMain ? `Same as Main Floor (${data.lvpColour})` : data.bedroomLvpColour}</td></tr>` : ''}
             </table>
             ${data.lvpComments ? `<div class="comments"><strong>LVP Comments:</strong> ${data.lvpComments}</div>` : ''}
           </div>
@@ -198,6 +162,7 @@ const handler = async (req: Request): Promise<Response> => {
               <tr><td>Patio Doors:</td><td>${data.patioDoorsQty}</td></tr>
               <tr><td><strong>Total (incl. GST):</strong></td><td><strong>$${data.windowTotal.toFixed(2)}</strong></td></tr>
             </table>
+            ${data.windowComments ? `<p style="margin-top: 10px; font-size: 14px;"><em>Notes: ${data.windowComments}</em></p>` : ''}
           </div>
           ` : ''}
 
@@ -230,10 +195,10 @@ const handler = async (req: Request): Promise<Response> => {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in send-selections-email function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
