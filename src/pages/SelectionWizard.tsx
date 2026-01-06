@@ -139,8 +139,10 @@ export default function SelectionWizard() {
         },
         body: JSON.stringify({
           ...selections,
+          unitType: unitInfo?.unitType || null,
           bedroomLvpColour: selections.bedroomLvpSameAsMain ? selections.lvpColour : selections.bedroomLvpColour,
           windowTotal: total,
+          annotations: annotations,
         }),
       });
 

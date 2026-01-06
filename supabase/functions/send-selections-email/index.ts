@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { Resend } from "npm:resend@2.0.0";
+import { Resend } from "https://esm.sh/resend@2.0.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -9,8 +10,17 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+interface Annotation {
+  id: string;
+  x: number;
+  y: number;
+  label: string;
+  color: string;
+}
+
 interface SelectionEmailRequest {
   unitNumber: string;
+  unitType?: string;
   firstName: string;
   lastName: string;
   phoneNumber: string;
@@ -26,10 +36,12 @@ interface SelectionEmailRequest {
   bedroomFlooringChoice: string;
   bedroomCarpetColour: string;
   bedroomLvpColour: string;
+  bedroomLvpSameAsMain: boolean;
   additionalWindowsQty: number;
   patioDoorsQty: number;
   upgradeInterests: Record<string, boolean>;
   windowTotal: number;
+  annotations?: Annotation[];
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -40,10 +52,75 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const data: SelectionEmailRequest = await req.json();
     
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Save to database
+    const { data: savedSelection, error: dbError } = await supabase
+      .from("buyer_selections")
+      .insert({
+        unit_number: data.unitNumber,
+        unit_type: data.unitType || null,
+        first_name: data.firstName,
+        last_name: data.lastName,
+        phone_number: data.phoneNumber || null,
+        email: data.email,
+        estimated_possession_date: data.estimatedPossessionDate || null,
+        has_stairs: data.hasStairs,
+        lvp_colour: data.lvpColour || null,
+        lvp_comments: data.lvpComments || null,
+        spc_tile_colour: data.spcTileColour || null,
+        spc_tile_comments: data.spcTileComments || null,
+        backsplash_orientation: data.backsplashOrientation || null,
+        stair_carpet_colour: data.stairCarpetColour || null,
+        bedroom_flooring_choice: data.bedroomFlooringChoice || null,
+        bedroom_carpet_colour: data.bedroomCarpetColour || null,
+        bedroom_lvp_colour: data.bedroomLvpColour || null,
+        bedroom_lvp_same_as_main: data.bedroomLvpSameAsMain,
+        additional_windows_qty: data.additionalWindowsQty,
+        patio_doors_qty: data.patioDoorsQty,
+        window_total: data.windowTotal,
+        upgrade_interests: data.upgradeInterests,
+        floor_plan_annotations: data.annotations || [],
+        status: "submitted",
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error("Database error:", dbError);
+      // Continue with email even if DB fails
+    } else {
+      console.log("Saved selection to database:", savedSelection?.id);
+    }
+    
     const upgradesList = Object.entries(data.upgradeInterests)
       .filter(([_, v]) => v)
       .map(([key]) => key.replace('-', ' '))
       .join(', ') || 'None';
+
+    // Format annotations for email
+    const annotationsHtml = data.annotations && data.annotations.length > 0
+      ? `
+        <div class="section">
+          <h2>📍 Floor Plan Annotations</h2>
+          <p>The buyer marked ${data.annotations.length} area(s) on their floor plan:</p>
+          <table>
+            ${data.annotations.map((ann, i) => `
+              <tr>
+                <td class="label">${i + 1}. ${ann.label}</td>
+                <td class="value" style="color: ${ann.color};">●</td>
+              </tr>
+            `).join('')}
+          </table>
+          <p style="font-size: 12px; color: #666; margin-top: 10px;">
+            <em>Note: Positions are relative to the floor plan image (X: ${data.annotations.map(a => a.x.toFixed(0) + '%').join(', ')})</em>
+          </p>
+        </div>
+      `
+      : '';
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -61,16 +138,20 @@ const handler = async (req: Request): Promise<Response> => {
           table { width: 100%; border-collapse: collapse; }
           td { padding: 8px 0; border-bottom: 1px solid #eee; }
           .comments { background: #fff3cd; padding: 10px; border-radius: 5px; margin-top: 10px; }
+          .db-id { background: #d4edda; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
         </style>
       </head>
       <body>
         <div class="container">
           <h1>🏠 New Selection Submission</h1>
           
+          ${savedSelection ? `<div class="db-id"><strong>Database ID:</strong> ${savedSelection.id}</div>` : ''}
+          
           <div class="section">
             <h2>Buyer Information</h2>
             <table>
               <tr><td class="label">Unit Number:</td><td class="value">${data.unitNumber || 'Not provided'}</td></tr>
+              ${data.unitType ? `<tr><td class="label">Unit Type:</td><td class="value">${data.unitType}</td></tr>` : ''}
               <tr><td class="label">Name:</td><td class="value">${data.firstName} ${data.lastName}</td></tr>
               <tr><td class="label">Phone:</td><td class="value">${data.phoneNumber || 'Not provided'}</td></tr>
               <tr><td class="label">Email:</td><td class="value">${data.email || 'Not provided'}</td></tr>
@@ -78,6 +159,8 @@ const handler = async (req: Request): Promise<Response> => {
               <tr><td class="label">Has Stairs:</td><td class="value">${data.hasStairs ? 'Yes' : 'No'}</td></tr>
             </table>
           </div>
+
+          ${annotationsHtml}
 
           <div class="section">
             <h2>Flooring Selections</h2>
@@ -87,7 +170,7 @@ const handler = async (req: Request): Promise<Response> => {
               ${data.hasStairs ? `<tr><td class="label">Stairs Carpet:</td><td class="value">${data.stairCarpetColour || 'Not selected'}</td></tr>` : ''}
               <tr><td class="label">Bedroom Flooring:</td><td class="value">${data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : data.bedroomFlooringChoice || 'Not selected'}</td></tr>
               ${data.bedroomFlooringChoice === 'carpet' && data.bedroomCarpetColour ? `<tr><td class="label">Bedroom Carpet Colour:</td><td class="value">${data.bedroomCarpetColour}</td></tr>` : ''}
-              ${data.bedroomFlooringChoice === 'lvp' && data.bedroomLvpColour ? `<tr><td class="label">Bedroom LVP Colour:</td><td class="value">${data.bedroomLvpColour}</td></tr>` : ''}
+              ${data.bedroomFlooringChoice === 'lvp' ? `<tr><td class="label">Bedroom LVP Colour:</td><td class="value">${data.bedroomLvpSameAsMain ? `Same as Main Floor (${data.lvpColour})` : data.bedroomLvpColour}</td></tr>` : ''}
             </table>
             ${data.lvpComments ? `<div class="comments"><strong>LVP Comments:</strong> ${data.lvpComments}</div>` : ''}
           </div>
@@ -134,13 +217,16 @@ const handler = async (req: Request): Promise<Response> => {
     const emailResponse = await resend.emails.send({
       from: "BMD Materials <onboarding@resend.dev>",
       to: ["dan@bmdmaterials.com", "office@bmdmaterials.com"],
-      subject: `New Selection Submission - ${data.unitNumber || 'Unknown Unit'} - ${data.firstName} ${data.lastName}`,
+      subject: `New Selection Submission - Unit ${data.unitNumber || 'Unknown'}${data.unitType ? ` (${data.unitType})` : ''} - ${data.firstName} ${data.lastName}`,
       html: htmlContent,
     });
 
     console.log("Email sent successfully:", emailResponse);
 
-    return new Response(JSON.stringify(emailResponse), {
+    return new Response(JSON.stringify({ 
+      ...emailResponse, 
+      selectionId: savedSelection?.id 
+    }), {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });

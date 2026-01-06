@@ -14,7 +14,96 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      buyer_selections: {
+        Row: {
+          additional_windows_qty: number | null
+          backsplash_orientation: string | null
+          bedroom_carpet_colour: string | null
+          bedroom_flooring_choice: string | null
+          bedroom_lvp_colour: string | null
+          bedroom_lvp_same_as_main: boolean | null
+          created_at: string
+          email: string
+          estimated_possession_date: string | null
+          first_name: string
+          floor_plan_annotations: Json | null
+          has_stairs: boolean | null
+          id: string
+          last_name: string
+          lvp_colour: string | null
+          lvp_comments: string | null
+          patio_doors_qty: number | null
+          phone_number: string | null
+          spc_tile_colour: string | null
+          spc_tile_comments: string | null
+          stair_carpet_colour: string | null
+          status: string | null
+          unit_number: string
+          unit_type: string | null
+          updated_at: string
+          upgrade_interests: Json | null
+          window_total: number | null
+        }
+        Insert: {
+          additional_windows_qty?: number | null
+          backsplash_orientation?: string | null
+          bedroom_carpet_colour?: string | null
+          bedroom_flooring_choice?: string | null
+          bedroom_lvp_colour?: string | null
+          bedroom_lvp_same_as_main?: boolean | null
+          created_at?: string
+          email: string
+          estimated_possession_date?: string | null
+          first_name: string
+          floor_plan_annotations?: Json | null
+          has_stairs?: boolean | null
+          id?: string
+          last_name: string
+          lvp_colour?: string | null
+          lvp_comments?: string | null
+          patio_doors_qty?: number | null
+          phone_number?: string | null
+          spc_tile_colour?: string | null
+          spc_tile_comments?: string | null
+          stair_carpet_colour?: string | null
+          status?: string | null
+          unit_number: string
+          unit_type?: string | null
+          updated_at?: string
+          upgrade_interests?: Json | null
+          window_total?: number | null
+        }
+        Update: {
+          additional_windows_qty?: number | null
+          backsplash_orientation?: string | null
+          bedroom_carpet_colour?: string | null
+          bedroom_flooring_choice?: string | null
+          bedroom_lvp_colour?: string | null
+          bedroom_lvp_same_as_main?: boolean | null
+          created_at?: string
+          email?: string
+          estimated_possession_date?: string | null
+          first_name?: string
+          floor_plan_annotations?: Json | null
+          has_stairs?: boolean | null
+          id?: string
+          last_name?: string
+          lvp_colour?: string | null
+          lvp_comments?: string | null
+          patio_doors_qty?: number | null
+          phone_number?: string | null
+          spc_tile_colour?: string | null
+          spc_tile_comments?: string | null
+          stair_carpet_colour?: string | null
+          status?: string | null
+          unit_number?: string
+          unit_type?: string | null
+          updated_at?: string
+          upgrade_interests?: Json | null
+          window_total?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
