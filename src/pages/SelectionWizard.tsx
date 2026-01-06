@@ -28,7 +28,7 @@ import { getUnitInfo, UnitInfo } from '@/lib/unitData';
 import tileStackedImg from '@/assets/tile-stacked.jpg';
 import tileBrickedImg from '@/assets/tile-bricked.jpg';
 import tileHorizontalImg from '@/assets/tile-horizontal.jpg';
-import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 const STEPS = ['Home Info', 'Floor Plan', 'Flooring', 'Bathroom', 'Backsplash', 'Bedrooms', 'Windows', 'Upgrades', 'Review'];
@@ -285,12 +285,39 @@ export default function SelectionWizard() {
             badge="Interactive"
           >
             {unitInfo ? (
-              <div className="h-[500px] rounded-xl border border-border overflow-hidden">
-                <FloorPlanViewer
-                  unitInfo={unitInfo}
-                  annotations={annotations}
-                  onAnnotationsChange={setAnnotations}
-                />
+              <div className="space-y-4">
+                {/* Unit Info Header */}
+                <div className="flex items-center justify-between p-4 rounded-xl bg-primary/10 border border-primary/30">
+                  <div className="flex items-center gap-3">
+                    <Building2 className="w-6 h-6 text-primary" />
+                    <div>
+                      <p className="font-semibold text-foreground">Unit {unitInfo.unitNumber} — {unitInfo.unitType}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {unitInfo.area} sq ft • {unitInfo.bedrooms} bed • {unitInfo.bathrooms} bath
+                      </p>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={unitInfo.pdfPlanUrl} target="_blank" rel="noopener noreferrer" className="gap-2">
+                      <Download className="w-4 h-4" />
+                      Download PDF
+                    </a>
+                  </Button>
+                </div>
+
+                {/* Interactive Floor Plan */}
+                <div className="h-[500px] rounded-xl border border-border overflow-hidden">
+                  <FloorPlanViewer
+                    unitInfo={unitInfo}
+                    annotations={annotations}
+                    onAnnotationsChange={setAnnotations}
+                  />
+                </div>
+
+                {/* Instructions */}
+                <div className="p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
+                  <p><strong>Tip:</strong> Use Pan mode to navigate, or switch to Annotate mode to mark rooms with your material choices. Annotations will be included in your submission.</p>
+                </div>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -476,7 +503,7 @@ export default function SelectionWizard() {
           </StepContainer>
         );
 
-      case 4: // Bedrooms & Stairs
+      case 5: // Bedrooms & Stairs
         return (
           <StepContainer
             title="Stairs & Bedroom Flooring"
@@ -665,7 +692,7 @@ export default function SelectionWizard() {
           </StepContainer>
         );
 
-      case 5: // Window Coverings
+      case 6: // Window Coverings
         return (
           <StepContainer
             title="Window Coverings"
@@ -744,7 +771,7 @@ export default function SelectionWizard() {
           </StepContainer>
         );
 
-      case 6: // Upgrades
+      case 7: // Upgrades
         return (
           <StepContainer
             title="Explore Premium Upgrades"
@@ -763,7 +790,7 @@ export default function SelectionWizard() {
           </StepContainer>
         );
 
-      case 7: // Review
+      case 8: // Review
         return (
           <StepContainer
             title="Review Your Selections"
