@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
+import { supabase } from '@/integrations/supabase/client';
 import { Logo } from '@/components/Logo';
 import { WizardProgress } from '@/components/WizardProgress';
 import { StepContainer } from '@/components/StepContainer';
@@ -28,8 +29,9 @@ import { getUnitInfo, UnitInfo } from '@/lib/unitData';
 import tileStackedImg from '@/assets/tile-stacked.jpg';
 import tileBrickedImg from '@/assets/tile-bricked.jpg';
 import tileHorizontalImg from '@/assets/tile-horizontal.jpg';
-import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Download } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Download, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
+import { User } from '@supabase/supabase-js';
 
 const STEPS = ['Home Info', 'Floor Plan', 'Flooring', 'Bathroom', 'Backsplash', 'Bedrooms', 'Windows', 'Upgrades', 'Review'];
 
@@ -61,7 +63,8 @@ export default function SelectionWizard() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [unitInfo, setUnitInfo] = useState<UnitInfo | null>(null);
-  
+  const [user, setUser] = useState<User | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   
   const [selections, setSelections] = useState<SelectionState>({
     unitNumber: '',
@@ -93,6 +96,33 @@ export default function SelectionWizard() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Check authentication on mount
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+      if (!session) {
+        navigate('/buyer-auth');
+      } else if (session.user?.email && !selections.email) {
+        // Auto-populate email from authenticated user
+        setSelections(prev => ({ ...prev, email: session.user.email || '' }));
+      }
+      setIsCheckingAuth(false);
+    });
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (!session) {
+        navigate('/buyer-auth');
+      } else if (session.user?.email && !selections.email) {
+        // Auto-populate email from authenticated user
+        setSelections(prev => ({ ...prev, email: session.user.email || '' }));
+      }
+      setIsCheckingAuth(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
   // Auto-detect unit info when unit number changes
   useEffect(() => {
     const info = getUnitInfo(selections.unitNumber);
@@ -101,6 +131,11 @@ export default function SelectionWizard() {
       updateSelection('hasStairs', info.hasStairs);
     }
   }, [selections.unitNumber]);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate('/');
+  };
 
   const updateSelection = (key: keyof SelectionState, value: any) => {
     setSelections(prev => ({ ...prev, [key]: value }));
@@ -237,6 +272,11 @@ export default function SelectionWizard() {
                       onChange={(e) => updateSelection('email', e.target.value)}
                       className="mt-1.5"
                     />
+                    {user?.email && selections.email === user.email && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Auto-filled from your account. You can edit if needed.
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -953,6 +993,18 @@ export default function SelectionWizard() {
     }
   };
 
+  // Show loading state while checking auth
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -960,9 +1012,17 @@ export default function SelectionWizard() {
         <div className="container max-w-5xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Logo />
-            <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
-              Save & Exit
-            </Button>
+            <div className="flex items-center gap-2">
+              {user && (
+                <span className="text-xs text-muted-foreground hidden sm:block">
+                  {user.email}
+                </span>
+              )}
+              <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-1">
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </Button>
+            </div>
           </div>
         </div>
       </header>
