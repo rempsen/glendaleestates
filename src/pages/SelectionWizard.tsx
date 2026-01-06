@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Logo } from '@/components/Logo';
@@ -7,6 +7,7 @@ import { StepContainer } from '@/components/StepContainer';
 import { SelectionCard } from '@/components/SelectionCard';
 import { PricingDisplay } from '@/components/PricingDisplay';
 import { UpgradeTeaser } from '@/components/UpgradeTeaser';
+import { FloorPlanViewer, Annotation } from '@/components/FloorPlanViewer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,13 +24,14 @@ import {
   windowCoveringProduct,
   calculateWindowExtensions
 } from '@/lib/mockData';
+import { getUnitInfo, UnitInfo } from '@/lib/unitData';
 import tileStackedImg from '@/assets/tile-stacked.jpg';
 import tileBrickedImg from '@/assets/tile-bricked.jpg';
 import tileHorizontalImg from '@/assets/tile-horizontal.jpg';
-import { ArrowLeft, ArrowRight, Check, Home, Send, Info } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 
-const STEPS = ['Home Info', 'Flooring', 'Bathroom', 'Backsplash', 'Bedrooms', 'Windows', 'Upgrades', 'Review'];
+const STEPS = ['Home Info', 'Floor Plan', 'Flooring', 'Bathroom', 'Backsplash', 'Bedrooms', 'Windows', 'Upgrades', 'Review'];
 
 interface SelectionState {
   unitNumber: string;
@@ -57,6 +59,8 @@ interface SelectionState {
 export default function SelectionWizard() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
+  const [unitInfo, setUnitInfo] = useState<UnitInfo | null>(null);
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
   
   const [selections, setSelections] = useState<SelectionState>({
     unitNumber: '',
@@ -86,6 +90,15 @@ export default function SelectionWizard() {
     },
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Auto-detect unit info when unit number changes
+  useEffect(() => {
+    const info = getUnitInfo(selections.unitNumber);
+    setUnitInfo(info);
+    if (info) {
+      updateSelection('hasStairs', info.hasStairs);
+    }
+  }, [selections.unitNumber]);
 
   const updateSelection = (key: keyof SelectionState, value: any) => {
     setSelections(prev => ({ ...prev, [key]: value }));
@@ -156,7 +169,7 @@ export default function SelectionWizard() {
           <StepContainer
             title="Your Home Information"
             subtitle="Please enter your details to get started"
-            badge="Step 1 of 8"
+            badge="Step 1 of 9"
           >
             <div className="space-y-6 max-w-lg">
               <div className="p-5 rounded-xl bg-secondary/50 border border-border">
@@ -236,6 +249,20 @@ export default function SelectionWizard() {
                 </div>
               </div>
               
+              {unitInfo && (
+                <div className="p-4 rounded-lg bg-primary/10 border border-primary/30">
+                  <div className="flex items-center gap-3">
+                    <Building2 className="w-5 h-5 text-primary" />
+                    <div>
+                      <p className="font-medium text-foreground">Unit {unitInfo.unitNumber} — {unitInfo.unitType}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {unitInfo.area} sq ft • {unitInfo.bedrooms} bed • {unitInfo.bathrooms} bath • {unitInfo.garage}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
                 <Switch
                   id="hasStairs"
@@ -250,7 +277,36 @@ export default function SelectionWizard() {
           </StepContainer>
         );
 
-      case 1: // Main Floor LVP
+      case 1: // Floor Plan
+        return (
+          <StepContainer
+            title="Your Floor Plan"
+            subtitle={unitInfo ? `Review your ${unitInfo.unitType} layout and mark areas for material selections` : "Enter your unit number to view your floor plan"}
+            badge="Interactive"
+          >
+            {unitInfo ? (
+              <div className="h-[500px] rounded-xl border border-border overflow-hidden">
+                <FloorPlanViewer
+                  unitInfo={unitInfo}
+                  annotations={annotations}
+                  onAnnotationsChange={setAnnotations}
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <MapPin className="w-12 h-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">No Unit Selected</h3>
+                <p className="text-muted-foreground mb-4">Please go back and enter your unit number to view your floor plan.</p>
+                <Button variant="outline" onClick={prevStep}>
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Go Back
+                </Button>
+              </div>
+            )}
+          </StepContainer>
+        );
+
+      case 2: // Main Floor LVP
         return (
           <StepContainer
             title="Main Floor Flooring"
@@ -303,7 +359,7 @@ export default function SelectionWizard() {
           </StepContainer>
         );
 
-      case 2: // Bathroom SPC Tile
+      case 3: // Bathroom SPC Tile
         return (
           <StepContainer
             title="Bathroom & Laundry Flooring"
@@ -356,7 +412,7 @@ export default function SelectionWizard() {
           </StepContainer>
         );
 
-      case 3: // Backsplash
+      case 4: // Backsplash
         const backsplashIllustrations: Record<string, string> = {
           stacked: tileStackedImg,
           bricked: tileBrickedImg,
