@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 import { 
   LayoutDashboard, 
   Home, 
@@ -11,7 +12,9 @@ import {
   Settings,
   Menu,
   X,
-  ChevronRight
+  ChevronRight,
+  Inbox,
+  LogOut
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -20,6 +23,7 @@ interface AdminLayoutProps {
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
+  { icon: Inbox, label: 'Submissions', path: '/admin/submissions' },
   { icon: Home, label: 'All Homes', path: '/admin/homes' },
   { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
   { icon: FileText, label: 'Reports', path: '/admin/reports' },
@@ -28,6 +32,13 @@ const navItems = [
 export function AdminLayout({ children }: AdminLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -95,14 +106,19 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           </nav>
 
           {/* Sidebar Footer */}
-          <div className="p-4 border-t border-border">
-            <Link
-              to="/admin/settings"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          <div className="p-4 border-t border-border space-y-2">
+            {user && (
+              <div className="px-3 py-2 text-xs text-muted-foreground truncate">
+                {user.email}
+              </div>
+            )}
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors w-full"
             >
-              <Settings className="w-5 h-5" />
-              Settings
-            </Link>
+              <LogOut className="w-5 h-5" />
+              Sign Out
+            </button>
           </div>
         </div>
       </aside>
