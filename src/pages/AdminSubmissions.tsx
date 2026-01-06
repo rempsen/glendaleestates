@@ -27,16 +27,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Search, Eye, RefreshCw, FileText, MapPin, Home, Calendar } from 'lucide-react';
+import { Search, Eye, RefreshCw, Home, Download } from 'lucide-react';
+import { generateSubmissionPDF } from '@/lib/submissionPdfGenerator';
 import { format } from 'date-fns';
-
-interface Annotation {
-  id: string;
-  x: number;
-  y: number;
-  label: string;
-  color: string;
-}
 
 interface BuyerSelection {
   id: string;
@@ -63,8 +56,8 @@ interface BuyerSelection {
   additional_windows_qty: number;
   patio_doors_qty: number;
   window_total: number;
+  window_comments?: string | null;
   upgrade_interests: Record<string, boolean>;
-  floor_plan_annotations: Annotation[];
   status: string;
 }
 
@@ -97,7 +90,6 @@ export default function AdminSubmissions() {
       const typedData = (data || []).map(item => ({
         ...item,
         upgrade_interests: (item.upgrade_interests as unknown as Record<string, boolean>) || {},
-        floor_plan_annotations: (item.floor_plan_annotations as unknown as Annotation[]) || [],
       })) as BuyerSelection[];
       
       setSubmissions(typedData);
@@ -207,7 +199,6 @@ export default function AdminSubmissions() {
                 <TableHead>Buyer</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Submitted</TableHead>
-                <TableHead>Annotations</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -215,7 +206,7 @@ export default function AdminSubmissions() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
+                  <TableCell colSpan={6} className="text-center py-8">
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
                       Loading submissions...
@@ -224,7 +215,7 @@ export default function AdminSubmissions() {
                 </TableRow>
               ) : filteredSubmissions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     No submissions found
                   </TableCell>
                 </TableRow>
@@ -245,16 +236,6 @@ export default function AdminSubmissions() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {format(new Date(submission.created_at), 'MMM d, yyyy')}
-                    </TableCell>
-                    <TableCell>
-                      {submission.floor_plan_annotations?.length > 0 ? (
-                        <Badge variant="secondary" className="gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {submission.floor_plan_annotations.length}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">—</span>
-                      )}
                     </TableCell>
                     <TableCell>
                       <Badge className={statusColors[submission.status] || statusColors.draft}>
@@ -298,25 +279,35 @@ export default function AdminSubmissions() {
               </DialogHeader>
 
               <div className="space-y-6 mt-4">
-                {/* Status Control */}
+                {/* Status Control and Download */}
                 <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
                   <div>
                     <p className="text-sm font-medium">Status</p>
                     <p className="text-xs text-muted-foreground">Update the submission status</p>
                   </div>
-                  <Select 
-                    value={selectedSubmission.status} 
-                    onValueChange={(value) => updateStatus(selectedSubmission.id, value)}
-                  >
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="submitted">Submitted</SelectItem>
-                      <SelectItem value="reviewed">Reviewed</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => generateSubmissionPDF(selectedSubmission)}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download PDF
+                    </Button>
+                    <Select 
+                      value={selectedSubmission.status} 
+                      onValueChange={(value) => updateStatus(selectedSubmission.id, value)}
+                    >
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="submitted">Submitted</SelectItem>
+                        <SelectItem value="reviewed">Reviewed</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 {/* Buyer Info */}
@@ -345,27 +336,6 @@ export default function AdminSubmissions() {
                     </div>
                   </div>
                 </div>
-
-                {/* Floor Plan Annotations */}
-                {selectedSubmission.floor_plan_annotations?.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-foreground flex items-center gap-2">
-                      <MapPin className="w-4 h-4" />
-                      Floor Plan Annotations
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedSubmission.floor_plan_annotations.map((ann, i) => (
-                        <Badge key={ann.id || i} variant="secondary" className="gap-2">
-                          <span 
-                            className="w-2 h-2 rounded-full" 
-                            style={{ backgroundColor: ann.color }}
-                          />
-                          {ann.label}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 {/* Flooring */}
                 <div className="space-y-2">
