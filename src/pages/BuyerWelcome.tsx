@@ -52,7 +52,7 @@ export default function BuyerWelcome() {
               <Button 
                 variant="accent" 
                 size="xl"
-                onClick={() => navigate('/select')}
+                onClick={() => navigate('/buyer-auth')}
                 className="gap-2"
               >
                 Begin Your Selections
@@ -196,7 +196,7 @@ export default function BuyerWelcome() {
             <Button 
               variant="hero" 
               size="lg"
-              onClick={() => navigate('/select')}
+              onClick={() => navigate('/buyer-auth')}
             >
               Start Selecting
               <ArrowRight className="w-4 h-4 ml-2" />

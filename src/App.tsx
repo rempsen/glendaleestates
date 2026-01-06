@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import BuyerWelcome from "./pages/BuyerWelcome";
 import SelectionWizard from "./pages/SelectionWizard";
 import Auth from "./pages/Auth";
+import BuyerAuth from "./pages/BuyerAuth";
 import AdminSubmissions from "./pages/AdminSubmissions";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminHomes from "./pages/AdminHomes";
@@ -24,6 +25,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<BuyerWelcome />} />
+          <Route path="/buyer-auth" element={<BuyerAuth />} />
           <Route path="/select" element={<SelectionWizard />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
