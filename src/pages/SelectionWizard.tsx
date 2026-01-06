@@ -7,7 +7,7 @@ import { StepContainer } from '@/components/StepContainer';
 import { SelectionCard } from '@/components/SelectionCard';
 import { PricingDisplay } from '@/components/PricingDisplay';
 import { UpgradeTeaser } from '@/components/UpgradeTeaser';
-import { FloorPlanViewer, Annotation } from '@/components/FloorPlanViewer';
+import { FloorPlanViewer } from '@/components/FloorPlanViewer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -60,7 +60,7 @@ export default function SelectionWizard() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [unitInfo, setUnitInfo] = useState<UnitInfo | null>(null);
-  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  
   
   const [selections, setSelections] = useState<SelectionState>({
     unitNumber: '',
@@ -142,7 +142,6 @@ export default function SelectionWizard() {
           unitType: unitInfo?.unitType || null,
           bedroomLvpColour: selections.bedroomLvpSameAsMain ? selections.lvpColour : selections.bedroomLvpColour,
           windowTotal: total,
-          annotations: annotations,
         }),
       });
 
@@ -307,18 +306,12 @@ export default function SelectionWizard() {
                   </Button>
                 </div>
 
-                {/* Interactive Floor Plan */}
                 <div className="h-[500px] rounded-xl border border-border overflow-hidden">
-                  <FloorPlanViewer
-                    unitInfo={unitInfo}
-                    annotations={annotations}
-                    onAnnotationsChange={setAnnotations}
-                  />
+                  <FloorPlanViewer unitInfo={unitInfo} />
                 </div>
-
                 {/* Instructions */}
                 <div className="p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
-                  <p><strong>Tip:</strong> Use Pan mode to navigate, or switch to Annotate mode to mark rooms with your material choices. Annotations will be included in your submission.</p>
+                  <p><strong>Tip:</strong> Use Pan mode to navigate the floor plan. You can zoom in/out using the controls or scroll wheel.</p>
                 </div>
               </div>
             ) : (

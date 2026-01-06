@@ -21,6 +21,7 @@ export function WizardProgress({ steps, currentStep, onStepClick }: WizardProgre
         {steps.map((step, index) => {
           const isCompleted = index < currentStep;
           const isCurrent = index === currentStep;
+          // Allow clicking on any completed step or current step
           const isClickable = onStepClick && index <= currentStep;
           
           return (
@@ -35,7 +36,7 @@ export function WizardProgress({ steps, currentStep, onStepClick }: WizardProgre
                   isCompleted && "bg-primary text-primary-foreground",
                   isCurrent && "bg-primary text-primary-foreground ring-4 ring-primary/20",
                   !isCompleted && !isCurrent && "bg-muted text-muted-foreground",
-                  isClickable && "cursor-pointer hover:scale-105"
+                  isClickable && "cursor-pointer hover:scale-110 hover:ring-2 hover:ring-primary/30"
                 )}
               >
                 {isCompleted ? <Check className="w-5 h-5" /> : index + 1}
