@@ -108,6 +108,30 @@ const customProperties = [
     fieldType: "date",
     groupName: "contactinformation",
     description: "Date when the selection was submitted"
+  },
+  {
+    name: "bmd_hardwood_upgrade",
+    label: "Hardwood Upgrade",
+    type: "string",
+    fieldType: "text",
+    groupName: "contactinformation",
+    description: "Whether buyer selected hardwood flooring upgrade (Yes/No)"
+  },
+  {
+    name: "bmd_tile_upgrade",
+    label: "Bathroom Tile Upgrade",
+    type: "string",
+    fieldType: "text",
+    groupName: "contactinformation",
+    description: "Whether buyer selected porcelain tile upgrade (Yes/No)"
+  },
+  {
+    name: "bmd_heated_floor_bathrooms",
+    label: "Heated Floor Bathrooms",
+    type: "number",
+    fieldType: "number",
+    groupName: "contactinformation",
+    description: "Number of bathrooms with heated floor upgrade"
   }
 ];
 

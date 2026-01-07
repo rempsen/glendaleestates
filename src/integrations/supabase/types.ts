@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           additional_windows_qty: number | null
           backsplash_orientation: string | null
+          bathroom_tile_selected: boolean | null
           bedroom_carpet_colour: string | null
           bedroom_flooring_choice: string | null
           bedroom_lvp_colour: string | null
@@ -27,7 +28,9 @@ export type Database = {
           estimated_possession_date: string | null
           first_name: string
           floor_plan_annotations: Json | null
+          hardwood_upgrade_selected: boolean | null
           has_stairs: boolean | null
+          heated_floor_bathrooms: number | null
           id: string
           last_name: string
           lvp_colour: string | null
@@ -49,6 +52,7 @@ export type Database = {
         Insert: {
           additional_windows_qty?: number | null
           backsplash_orientation?: string | null
+          bathroom_tile_selected?: boolean | null
           bedroom_carpet_colour?: string | null
           bedroom_flooring_choice?: string | null
           bedroom_lvp_colour?: string | null
@@ -58,7 +62,9 @@ export type Database = {
           estimated_possession_date?: string | null
           first_name: string
           floor_plan_annotations?: Json | null
+          hardwood_upgrade_selected?: boolean | null
           has_stairs?: boolean | null
+          heated_floor_bathrooms?: number | null
           id?: string
           last_name: string
           lvp_colour?: string | null
@@ -80,6 +86,7 @@ export type Database = {
         Update: {
           additional_windows_qty?: number | null
           backsplash_orientation?: string | null
+          bathroom_tile_selected?: boolean | null
           bedroom_carpet_colour?: string | null
           bedroom_flooring_choice?: string | null
           bedroom_lvp_colour?: string | null
@@ -89,7 +96,9 @@ export type Database = {
           estimated_possession_date?: string | null
           first_name?: string
           floor_plan_annotations?: Json | null
+          hardwood_upgrade_selected?: boolean | null
           has_stairs?: boolean | null
+          heated_floor_bathrooms?: number | null
           id?: string
           last_name?: string
           lvp_colour?: string | null

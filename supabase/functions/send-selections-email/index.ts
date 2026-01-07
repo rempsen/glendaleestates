@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
@@ -48,6 +48,9 @@ const SelectionSchema = z.object({
   salesComments: z.string().max(5000).trim().optional().nullable(),
   upgradeInterests: z.record(z.boolean()).default({}),
   windowTotal: z.number().min(0).max(1000000),
+  hardwoodUpgradeSelected: z.boolean().default(false),
+  bathroomTileSelected: z.boolean().default(false),
+  heatedFloorBathrooms: z.number().int().min(0).max(10).default(0),
 });
 
 type ValidatedSelection = z.infer<typeof SelectionSchema>;
@@ -113,6 +116,9 @@ const handler = async (req: Request): Promise<Response> => {
         window_comments: data.windowComments || null,
         sales_comments: data.salesComments || null,
         upgrade_interests: data.upgradeInterests,
+        hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
+        bathroom_tile_selected: data.bathroomTileSelected,
+        heated_floor_bathrooms: data.heatedFloorBathrooms,
         status: "submitted",
       })
       .select()
@@ -147,6 +153,9 @@ const handler = async (req: Request): Promise<Response> => {
           additional_windows_qty: data.additionalWindowsQty,
           patio_doors_qty: data.patioDoorsQty,
           window_total: data.windowTotal,
+          hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
+          bathroom_tile_selected: data.bathroomTileSelected,
+          heated_floor_bathrooms: data.heatedFloorBathrooms,
           status: 'submitted',
           created_at: savedSelection.created_at,
         }),
