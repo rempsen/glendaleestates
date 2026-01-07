@@ -793,7 +793,7 @@ export default function SelectionWizard() {
                       Patio Door Panel Track Systems
                     </Label>
                     <p className="text-sm text-muted-foreground mb-2">
-                      Sliding panel track for patio doors — $1,275 per opening (pre-GST)
+                      Sliding panel track for patio doors — $2,347.80 per opening (pre-GST, installed)
                     </p>
                     <Input
                       id="patioDoors"
