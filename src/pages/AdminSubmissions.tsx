@@ -4,6 +4,8 @@ import { AdminLayout } from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { 
   Table, 
   TableBody, 
@@ -27,7 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Search, Eye, RefreshCw, Home, Download } from 'lucide-react';
+import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X } from 'lucide-react';
 import { generateSubmissionPDF } from '@/lib/submissionPdfGenerator';
 import { format } from 'date-fns';
 
@@ -59,6 +61,7 @@ interface BuyerSelection {
   window_comments?: string | null;
   upgrade_interests: Record<string, boolean>;
   status: string;
+  sales_comments: string | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -75,6 +78,9 @@ export default function AdminSubmissions() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedSubmission, setSelectedSubmission] = useState<BuyerSelection | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editData, setEditData] = useState<Partial<BuyerSelection>>({});
+  const [saving, setSaving] = useState(false);
 
   const fetchSubmissions = async () => {
     setLoading(true);
@@ -145,7 +151,73 @@ export default function AdminSubmissions() {
 
   const openDetails = (submission: BuyerSelection) => {
     setSelectedSubmission(submission);
+    setEditData({
+      first_name: submission.first_name,
+      last_name: submission.last_name,
+      email: submission.email,
+      phone_number: submission.phone_number,
+      unit_number: submission.unit_number,
+      unit_type: submission.unit_type,
+      sales_comments: submission.sales_comments,
+    });
+    setEditMode(false);
     setDetailsOpen(true);
+  };
+
+  const handleEditChange = (field: keyof BuyerSelection, value: string | null) => {
+    setEditData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const saveChanges = async () => {
+    if (!selectedSubmission) return;
+    
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('buyer_selections')
+        .update({
+          first_name: editData.first_name,
+          last_name: editData.last_name,
+          email: editData.email,
+          phone_number: editData.phone_number,
+          unit_number: editData.unit_number,
+          unit_type: editData.unit_type,
+          sales_comments: editData.sales_comments,
+        })
+        .eq('id', selectedSubmission.id);
+
+      if (error) throw error;
+
+      // Update local state
+      const updatedSubmission = { ...selectedSubmission, ...editData };
+      setSubmissions(prev => 
+        prev.map(s => s.id === selectedSubmission.id ? updatedSubmission as BuyerSelection : s)
+      );
+      setSelectedSubmission(updatedSubmission as BuyerSelection);
+      setEditMode(false);
+      toast.success('Changes saved successfully');
+    } catch (error: any) {
+      toast.error('Failed to save changes', {
+        description: error.message,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancelEdit = () => {
+    if (selectedSubmission) {
+      setEditData({
+        first_name: selectedSubmission.first_name,
+        last_name: selectedSubmission.last_name,
+        email: selectedSubmission.email,
+        phone_number: selectedSubmission.phone_number,
+        unit_number: selectedSubmission.unit_number,
+        unit_type: selectedSubmission.unit_type,
+        sales_comments: selectedSubmission.sales_comments,
+      });
+    }
+    setEditMode(false);
   };
 
   return (
@@ -266,13 +338,34 @@ export default function AdminSubmissions() {
           {selectedSubmission && (
             <>
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Home className="w-5 h-5" />
-                  Unit {selectedSubmission.unit_number}
-                  {selectedSubmission.unit_type && (
-                    <Badge variant="outline">{selectedSubmission.unit_type}</Badge>
-                  )}
-                </DialogTitle>
+                <div className="flex items-center justify-between">
+                  <DialogTitle className="flex items-center gap-2">
+                    <Home className="w-5 h-5" />
+                    Unit {selectedSubmission.unit_number}
+                    {selectedSubmission.unit_type && (
+                      <Badge variant="outline">{selectedSubmission.unit_type}</Badge>
+                    )}
+                  </DialogTitle>
+                  <div className="flex items-center gap-2">
+                    {editMode ? (
+                      <>
+                        <Button variant="outline" size="sm" onClick={cancelEdit} disabled={saving}>
+                          <X className="w-4 h-4 mr-1" />
+                          Cancel
+                        </Button>
+                        <Button size="sm" onClick={saveChanges} disabled={saving}>
+                          <Save className="w-4 h-4 mr-1" />
+                          {saving ? 'Saving...' : 'Save'}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button variant="outline" size="sm" onClick={() => setEditMode(true)}>
+                        <Pencil className="w-4 h-4 mr-1" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+                </div>
                 <DialogDescription>
                   Submitted {format(new Date(selectedSubmission.created_at), 'MMMM d, yyyy at h:mm a')}
                 </DialogDescription>
@@ -311,30 +404,84 @@ export default function AdminSubmissions() {
                 </div>
 
                 {/* Buyer Info */}
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <h4 className="font-medium text-foreground">Buyer Information</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Name:</span>
-                      <span className="ml-2">{selectedSubmission.first_name} {selectedSubmission.last_name}</span>
+                  {editMode ? (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="first_name">First Name</Label>
+                        <Input
+                          id="first_name"
+                          value={editData.first_name || ''}
+                          onChange={(e) => handleEditChange('first_name', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="last_name">Last Name</Label>
+                        <Input
+                          id="last_name"
+                          value={editData.last_name || ''}
+                          onChange={(e) => handleEditChange('last_name', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="email">Email</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          value={editData.email || ''}
+                          onChange={(e) => handleEditChange('email', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="phone">Phone</Label>
+                        <Input
+                          id="phone"
+                          value={editData.phone_number || ''}
+                          onChange={(e) => handleEditChange('phone_number', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="unit_number">Unit Number</Label>
+                        <Input
+                          id="unit_number"
+                          value={editData.unit_number || ''}
+                          onChange={(e) => handleEditChange('unit_number', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="unit_type">Unit Type</Label>
+                        <Input
+                          id="unit_type"
+                          value={editData.unit_type || ''}
+                          onChange={(e) => handleEditChange('unit_type', e.target.value)}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Email:</span>
-                      <span className="ml-2">{selectedSubmission.email}</span>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Name:</span>
+                        <span className="ml-2">{selectedSubmission.first_name} {selectedSubmission.last_name}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Email:</span>
+                        <span className="ml-2">{selectedSubmission.email}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Phone:</span>
+                        <span className="ml-2">{selectedSubmission.phone_number || 'Not provided'}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Possession:</span>
+                        <span className="ml-2">
+                          {selectedSubmission.estimated_possession_date 
+                            ? format(new Date(selectedSubmission.estimated_possession_date), 'MMM d, yyyy')
+                            : 'Not provided'}
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Phone:</span>
-                      <span className="ml-2">{selectedSubmission.phone_number || 'Not provided'}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Possession:</span>
-                      <span className="ml-2">
-                        {selectedSubmission.estimated_possession_date 
-                          ? format(new Date(selectedSubmission.estimated_possession_date), 'MMM d, yyyy')
-                          : 'Not provided'}
-                      </span>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Flooring */}
@@ -413,6 +560,26 @@ export default function AdminSubmissions() {
                     </div>
                   </div>
                 )}
+
+                {/* Admin Notes */}
+                <div className="space-y-2">
+                  <h4 className="font-medium text-foreground">Admin Notes & Comments</h4>
+                  {editMode ? (
+                    <Textarea
+                      placeholder="Add internal notes about this client..."
+                      value={editData.sales_comments || ''}
+                      onChange={(e) => handleEditChange('sales_comments', e.target.value)}
+                      rows={4}
+                      className="resize-none"
+                    />
+                  ) : (
+                    <div className="p-3 rounded-lg bg-muted/50 min-h-[80px] text-sm">
+                      {selectedSubmission.sales_comments || (
+                        <span className="text-muted-foreground italic">No notes added yet. Click Edit to add notes.</span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           )}
