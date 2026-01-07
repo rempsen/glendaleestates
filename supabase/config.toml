@@ -1,1 +1,7 @@
 project_id = "adtbjnwaxmxhyjkjxqoz"
+
+[functions.send-selections-email]
+verify_jwt = false
+
+[functions.sync-hubspot]
+verify_jwt = false
