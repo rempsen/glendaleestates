@@ -33,7 +33,7 @@ import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Down
 import { toast } from 'sonner';
 import { User } from '@supabase/supabase-js';
 
-const STEPS = ['Home Info', 'Floor Plan', 'Flooring', 'Bathroom', 'Backsplash', 'Bedrooms', 'Windows', 'Upgrades', 'Review'];
+const STEPS = ['Home Info', 'Floor Plan', 'Flooring', 'Bathroom', 'Backsplash', 'Bedrooms', 'Windows', 'Upgrades', 'Comments', 'Review'];
 
 interface SelectionState {
   unitNumber: string;
@@ -56,6 +56,7 @@ interface SelectionState {
   additionalWindowsQty: number;
   patioDoorsQty: number;
   windowComments: string;
+  salesComments: string;
   upgradeInterests: Record<string, boolean>;
 }
 
@@ -87,6 +88,7 @@ export default function SelectionWizard() {
     additionalWindowsQty: 0,
     patioDoorsQty: 0,
     windowComments: '',
+    salesComments: '',
     upgradeInterests: {
       flooring: false,
       tile: false,
@@ -843,7 +845,36 @@ export default function SelectionWizard() {
           </StepContainer>
         );
 
-      case 8: // Review
+      case 8: // Comments
+        return (
+          <StepContainer
+            title="Sales Comments"
+            subtitle="For office use — add any notes or comments about this selection meeting"
+            badge="Step 9 of 10"
+          >
+            <div className="space-y-6 max-w-2xl">
+              <div className="p-5 rounded-xl bg-secondary/50 border border-border">
+                <div className="flex items-center gap-3 mb-4">
+                  <Info className="w-5 h-5 text-primary" />
+                  <span className="font-medium text-foreground">Meeting Notes</span>
+                </div>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Use this section to record any additional notes, special requests, or details discussed during the selection meeting that should be noted in the record.
+                </p>
+                <textarea
+                  id="salesComments"
+                  rows={6}
+                  placeholder="Enter any notes or comments for the office staff to review..."
+                  value={selections.salesComments}
+                  onChange={(e) => updateSelection('salesComments', e.target.value)}
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </div>
+            </div>
+          </StepContainer>
+        );
+
+      case 9: // Review
         return (
           <StepContainer
             title="Review Your Selections"
