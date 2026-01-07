@@ -775,7 +775,7 @@ export default function SelectionWizard() {
                       Additional Non-Bedroom Windows
                     </Label>
                     <p className="text-sm text-muted-foreground mb-2">
-                      Living room, dining room, kitchen, etc. — $585 per window (pre-GST)
+                      Living room, dining room, kitchen, etc. — $673.50 per window (pre-GST, installed)
                     </p>
                     <Input
                       id="additionalWindows"
