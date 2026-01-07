@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -14,23 +14,35 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+  const hasSignedOut = useRef(false);
 
   useEffect(() => {
-    // Check if already logged in
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        navigate('/admin/submissions');
+    // Sign out any existing session when accessing admin login
+    // This ensures a fresh login without cached credentials
+    const initAuth = async () => {
+      if (!hasSignedOut.current) {
+        hasSignedOut.current = true;
+        await supabase.auth.signOut();
+        setIsReady(true);
       }
-    });
+    };
+    
+    initAuth();
+  }, []);
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
+  useEffect(() => {
+    if (!isReady) return;
+
+    // Only set up auth listener after we've cleared any existing session
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
         navigate('/admin/submissions');
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, isReady]);
 
   const validateForm = () => {
     if (!email || !email.includes('@')) {
@@ -135,11 +147,15 @@ export default function Auth() {
                     <Input
                       id="email"
                       type="email"
+                      name="admin-email-new"
                       placeholder="admin@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="pl-10"
                       required
+                      autoComplete="off"
+                      data-lpignore="true"
+                      data-form-type="other"
                     />
                   </div>
                 </div>
@@ -151,12 +167,16 @@ export default function Auth() {
                     <Input
                       id="password"
                       type="password"
+                      name="admin-password-new"
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="pl-10"
                       required
                       minLength={6}
+                      autoComplete="new-password"
+                      data-lpignore="true"
+                      data-form-type="other"
                     />
                   </div>
                 </div>
