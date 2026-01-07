@@ -69,26 +69,34 @@ serve(async (req) => {
     const searchData = await searchResponse.json();
     console.log('HubSpot search result:', JSON.stringify(searchData));
 
-    // Prepare contact properties
-    const contactProperties = {
+    // Prepare contact properties using BMD custom field names
+    const contactProperties: Record<string, string> = {
       email: submission.email,
       firstname: submission.first_name,
       lastname: submission.last_name,
       phone: submission.phone_number || '',
-      // Custom properties - these should be created in HubSpot first
-      unit_number: submission.unit_number,
-      unit_type: submission.unit_type || '',
-      possession_date: submission.estimated_possession_date || '',
-      lvp_selection: submission.lvp_colour || '',
-      bathroom_tile: submission.spc_tile_colour || '',
-      backsplash: submission.backsplash_orientation || '',
-      bedroom_flooring: submission.bedroom_flooring_choice || '',
-      additional_windows: String(submission.additional_windows_qty || 0),
-      patio_doors: String(submission.patio_doors_qty || 0),
-      window_total: String(submission.window_total || 0),
-      submission_status: submission.status,
-      submission_date: submission.created_at,
+      // BMD custom properties (created via setup-hubspot-properties function)
+      bmd_unit_number: submission.unit_number,
+      bmd_unit_type: submission.unit_type || '',
+      bmd_lvp_selection: submission.lvp_colour || '',
+      bmd_bathroom_tile: submission.spc_tile_colour || '',
+      bmd_backsplash: submission.backsplash_orientation || '',
+      bmd_bedroom_flooring: submission.bedroom_flooring_choice || '',
+      bmd_additional_windows: String(submission.additional_windows_qty || 0),
+      bmd_patio_doors: String(submission.patio_doors_qty || 0),
+      bmd_window_total: String(submission.window_total || 0),
+      bmd_submission_status: submission.status,
     };
+
+    // Add possession date if provided (needs special formatting for HubSpot date field)
+    if (submission.estimated_possession_date) {
+      contactProperties.bmd_possession_date = submission.estimated_possession_date;
+    }
+
+    // Add submission date (convert to Unix timestamp in milliseconds for HubSpot)
+    if (submission.created_at) {
+      contactProperties.bmd_submission_date = String(new Date(submission.created_at).getTime());
+    }
 
     let hubspotResponse;
     let contactId: string | null = null;
