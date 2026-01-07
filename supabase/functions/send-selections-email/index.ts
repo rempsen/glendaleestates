@@ -122,6 +122,41 @@ const handler = async (req: Request): Promise<Response> => {
       console.error("Database error:", dbError);
     } else {
       console.log("Saved selection to database:", savedSelection?.id);
+      
+      // Sync to HubSpot in background
+      const supabaseFunctionsUrl = `${supabaseUrl}/functions/v1/sync-hubspot`;
+      fetch(supabaseFunctionsUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({
+          id: savedSelection.id,
+          unit_number: data.unitNumber,
+          unit_type: data.unitType,
+          first_name: data.firstName,
+          last_name: data.lastName,
+          email: data.email,
+          phone_number: data.phoneNumber,
+          estimated_possession_date: data.estimatedPossessionDate,
+          lvp_colour: data.lvpColour,
+          spc_tile_colour: data.spcTileColour,
+          backsplash_orientation: data.backsplashOrientation,
+          bedroom_flooring_choice: data.bedroomFlooringChoice,
+          additional_windows_qty: data.additionalWindowsQty,
+          patio_doors_qty: data.patioDoorsQty,
+          window_total: data.windowTotal,
+          status: 'submitted',
+          created_at: savedSelection.created_at,
+        }),
+      }).then(res => {
+        if (res.ok) {
+          console.log('HubSpot sync triggered successfully');
+        } else {
+          res.text().then(text => console.error('HubSpot sync failed:', text));
+        }
+      }).catch(err => console.error('HubSpot sync error:', err));
     }
     
     const upgradesList = Object.entries(data.upgradeInterests)
