@@ -55,7 +55,7 @@ const SelectionSchema = z.object({
 
 type ValidatedSelection = z.infer<typeof SelectionSchema>;
 
-const handler = async (req: Request): Promise<Response> => {
+Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -296,6 +296,4 @@ const handler = async (req: Request): Promise<Response> => {
       }
     );
   }
-};
-
-serve(handler);
+});
