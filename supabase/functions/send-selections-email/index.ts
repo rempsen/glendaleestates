@@ -227,7 +227,7 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     const emailResponse = await resend.emails.send({
-      from: "BMD Materials <onboarding@resend.dev>",
+      from: "BMD Materials Portal <selections@bmdmaterials.com>",
       to: ["dan@bmdmaterials.com", "office@bmdmaterials.com"],
       subject: `New Selection Submission - Unit ${escapeHtml(data.unitNumber) || 'Unknown'}${data.unitType ? ` (${escapeHtml(data.unitType)})` : ''} - ${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}`,
       html: htmlContent,
