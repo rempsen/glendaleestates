@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -10,32 +11,46 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-interface SelectionEmailRequest {
-  unitNumber: string;
-  unitType?: string;
-  firstName: string;
-  lastName: string;
-  phoneNumber: string;
-  email: string;
-  estimatedPossessionDate: string;
-  hasStairs: boolean;
-  lvpColour: string;
-  lvpComments: string;
-  spcTileColour: string;
-  spcTileComments: string;
-  backsplashOrientation: string;
-  stairCarpetColour: string;
-  bedroomFlooringChoice: string;
-  bedroomCarpetColour: string;
-  bedroomLvpColour: string;
-  bedroomLvpSameAsMain: boolean;
-  additionalWindowsQty: number;
-  patioDoorsQty: number;
-  windowComments?: string;
-  salesComments?: string;
-  upgradeInterests: Record<string, boolean>;
-  windowTotal: number;
+// HTML escape function to prevent XSS in email content
+function escapeHtml(text: string | undefined | null): string {
+  if (!text) return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
+
+// Zod validation schema for input validation
+const SelectionSchema = z.object({
+  unitNumber: z.string().min(1, "Unit number is required").max(50).trim(),
+  unitType: z.string().max(100).trim().optional().nullable(),
+  firstName: z.string().min(1, "First name is required").max(100).trim(),
+  lastName: z.string().min(1, "Last name is required").max(100).trim(),
+  phoneNumber: z.string().max(30).trim().optional().nullable(),
+  email: z.string().email("Invalid email address").max(255).trim(),
+  estimatedPossessionDate: z.string().max(50).optional().nullable(),
+  hasStairs: z.boolean(),
+  lvpColour: z.string().max(100).trim().optional().nullable(),
+  lvpComments: z.string().max(2000).trim().optional().nullable(),
+  spcTileColour: z.string().max(100).trim().optional().nullable(),
+  spcTileComments: z.string().max(2000).trim().optional().nullable(),
+  backsplashOrientation: z.string().max(100).trim().optional().nullable(),
+  stairCarpetColour: z.string().max(100).trim().optional().nullable(),
+  bedroomFlooringChoice: z.string().max(100).trim().optional().nullable(),
+  bedroomCarpetColour: z.string().max(100).trim().optional().nullable(),
+  bedroomLvpColour: z.string().max(100).trim().optional().nullable(),
+  bedroomLvpSameAsMain: z.boolean(),
+  additionalWindowsQty: z.number().int().min(0).max(100),
+  patioDoorsQty: z.number().int().min(0).max(50),
+  windowComments: z.string().max(2000).trim().optional().nullable(),
+  salesComments: z.string().max(5000).trim().optional().nullable(),
+  upgradeInterests: z.record(z.boolean()).default({}),
+  windowTotal: z.number().min(0).max(1000000),
+});
+
+type ValidatedSelection = z.infer<typeof SelectionSchema>;
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -43,7 +58,29 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const data: SelectionEmailRequest = await req.json();
+    const rawData = await req.json();
+    
+    // Validate input data using Zod
+    const parseResult = SelectionSchema.safeParse(rawData);
+    
+    if (!parseResult.success) {
+      console.error("Validation error:", parseResult.error.errors);
+      return new Response(
+        JSON.stringify({ 
+          error: "Invalid submission data. Please check your inputs and try again.",
+          details: parseResult.error.errors.map(e => ({
+            field: e.path.join('.'),
+            message: e.message
+          }))
+        }),
+        { 
+          status: 400, 
+          headers: { "Content-Type": "application/json", ...corsHeaders } 
+        }
+      );
+    }
+    
+    const data: ValidatedSelection = parseResult.data;
     
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -89,9 +126,10 @@ const handler = async (req: Request): Promise<Response> => {
     
     const upgradesList = Object.entries(data.upgradeInterests)
       .filter(([_, v]) => v)
-      .map(([key]) => key.replace('-', ' '))
+      .map(([key]) => escapeHtml(key.replace('-', ' ')))
       .join(', ') || 'None';
 
+    // Use escaped values in HTML to prevent XSS
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -115,16 +153,16 @@ const handler = async (req: Request): Promise<Response> => {
         <div class="container">
           <h1>🏠 New Selection Submission</h1>
           
-          ${savedSelection ? `<div class="db-id"><strong>Database ID:</strong> ${savedSelection.id}</div>` : ''}
+          ${savedSelection ? `<div class="db-id"><strong>Database ID:</strong> ${escapeHtml(savedSelection.id)}</div>` : ''}
           
           <div class="section">
             <h2>Buyer Information</h2>
             <table>
-              <tr><td class="label">Unit Number:</td><td class="value">${data.unitNumber || 'Not provided'}</td></tr>
-              ${data.unitType ? `<tr><td class="label">Unit Type:</td><td class="value">${data.unitType}</td></tr>` : ''}
-              <tr><td class="label">Name:</td><td class="value">${data.firstName} ${data.lastName}</td></tr>
-              <tr><td class="label">Phone:</td><td class="value">${data.phoneNumber || 'Not provided'}</td></tr>
-              <tr><td class="label">Email:</td><td class="value">${data.email || 'Not provided'}</td></tr>
+              <tr><td class="label">Unit Number:</td><td class="value">${escapeHtml(data.unitNumber) || 'Not provided'}</td></tr>
+              ${data.unitType ? `<tr><td class="label">Unit Type:</td><td class="value">${escapeHtml(data.unitType)}</td></tr>` : ''}
+              <tr><td class="label">Name:</td><td class="value">${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}</td></tr>
+              <tr><td class="label">Phone:</td><td class="value">${escapeHtml(data.phoneNumber) || 'Not provided'}</td></tr>
+              <tr><td class="label">Email:</td><td class="value">${escapeHtml(data.email) || 'Not provided'}</td></tr>
               <tr><td class="label">Est. Possession:</td><td class="value">${data.estimatedPossessionDate ? new Date(data.estimatedPossessionDate).toLocaleDateString() : 'Not provided'}</td></tr>
               <tr><td class="label">Has Stairs:</td><td class="value">${data.hasStairs ? 'Yes' : 'No'}</td></tr>
             </table>
@@ -133,26 +171,26 @@ const handler = async (req: Request): Promise<Response> => {
           <div class="section">
             <h2>Flooring Selections</h2>
             <table>
-              <tr><td class="label">Main Floor LVP:</td><td class="value">${data.lvpColour || 'Not selected'}</td></tr>
-              <tr><td class="label">Bathroom/Laundry SPC:</td><td class="value">${data.spcTileColour || 'Not selected'}</td></tr>
-              ${data.hasStairs ? `<tr><td class="label">Stairs Carpet:</td><td class="value">${data.stairCarpetColour || 'Not selected'}</td></tr>` : ''}
-              <tr><td class="label">Bedroom Flooring:</td><td class="value">${data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : data.bedroomFlooringChoice || 'Not selected'}</td></tr>
+              <tr><td class="label">Main Floor LVP:</td><td class="value">${escapeHtml(data.lvpColour) || 'Not selected'}</td></tr>
+              <tr><td class="label">Bathroom/Laundry SPC:</td><td class="value">${escapeHtml(data.spcTileColour) || 'Not selected'}</td></tr>
+              ${data.hasStairs ? `<tr><td class="label">Stairs Carpet:</td><td class="value">${escapeHtml(data.stairCarpetColour) || 'Not selected'}</td></tr>` : ''}
+              <tr><td class="label">Bedroom Flooring:</td><td class="value">${data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : escapeHtml(data.bedroomFlooringChoice) || 'Not selected'}</td></tr>
             </table>
-            ${data.lvpComments ? `<div class="comments"><strong>LVP Comments:</strong> ${data.lvpComments}</div>` : ''}
+            ${data.lvpComments ? `<div class="comments"><strong>LVP Comments:</strong> ${escapeHtml(data.lvpComments)}</div>` : ''}
           </div>
 
           <div class="section">
             <h2>Bathroom Tile</h2>
             <table>
-              <tr><td class="label">Tile Selection:</td><td class="value">${data.spcTileColour || 'Not selected'}</td></tr>
+              <tr><td class="label">Tile Selection:</td><td class="value">${escapeHtml(data.spcTileColour) || 'Not selected'}</td></tr>
             </table>
-            ${data.spcTileComments ? `<div class="comments"><strong>Tile Comments:</strong> ${data.spcTileComments}</div>` : ''}
+            ${data.spcTileComments ? `<div class="comments"><strong>Tile Comments:</strong> ${escapeHtml(data.spcTileComments)}</div>` : ''}
           </div>
 
           <div class="section">
             <h2>Kitchen Backsplash</h2>
             <table>
-              <tr><td class="label">Orientation:</td><td class="value">${data.backsplashOrientation || 'Not selected'}</td></tr>
+              <tr><td class="label">Orientation:</td><td class="value">${escapeHtml(data.backsplashOrientation) || 'Not selected'}</td></tr>
             </table>
           </div>
 
@@ -164,7 +202,7 @@ const handler = async (req: Request): Promise<Response> => {
               <tr><td>Patio Doors:</td><td>${data.patioDoorsQty}</td></tr>
               <tr><td><strong>Total (incl. GST):</strong></td><td><strong>$${data.windowTotal.toFixed(2)}</strong></td></tr>
             </table>
-            ${data.windowComments ? `<p style="margin-top: 10px; font-size: 14px;"><em>Notes: ${data.windowComments}</em></p>` : ''}
+            ${data.windowComments ? `<p style="margin-top: 10px; font-size: 14px;"><em>Notes: ${escapeHtml(data.windowComments)}</em></p>` : ''}
           </div>
           ` : ''}
 
@@ -176,7 +214,7 @@ const handler = async (req: Request): Promise<Response> => {
           ${data.salesComments ? `
           <div class="section" style="background: #e8f4fd; border-left: 4px solid #2196F3;">
             <h2 style="color: #1565C0; margin-top: 0;">Sales Comments</h2>
-            <p class="value">${data.salesComments}</p>
+            <p class="value">${escapeHtml(data.salesComments)}</p>
           </div>
           ` : ''}
 
@@ -191,7 +229,7 @@ const handler = async (req: Request): Promise<Response> => {
     const emailResponse = await resend.emails.send({
       from: "BMD Materials <onboarding@resend.dev>",
       to: ["dan@bmdmaterials.com", "office@bmdmaterials.com"],
-      subject: `New Selection Submission - Unit ${data.unitNumber || 'Unknown'}${data.unitType ? ` (${data.unitType})` : ''} - ${data.firstName} ${data.lastName}`,
+      subject: `New Selection Submission - Unit ${escapeHtml(data.unitNumber) || 'Unknown'}${data.unitType ? ` (${escapeHtml(data.unitType)})` : ''} - ${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}`,
       html: htmlContent,
     });
 
@@ -207,7 +245,7 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: unknown) {
     console.error("Error in send-selections-email function:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: "An error occurred processing your submission. Please try again." }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
