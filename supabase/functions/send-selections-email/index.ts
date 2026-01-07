@@ -1,10 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { Resend } from "https://esm.sh/resend@2.0.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
-
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -22,38 +15,116 @@ function escapeHtml(text: string | undefined | null): string {
     .replace(/'/g, '&#039;');
 }
 
-// Zod validation schema for input validation
-const SelectionSchema = z.object({
-  unitNumber: z.string().min(1, "Unit number is required").max(50).trim(),
-  unitType: z.string().max(100).trim().optional().nullable(),
-  firstName: z.string().min(1, "First name is required").max(100).trim(),
-  lastName: z.string().min(1, "Last name is required").max(100).trim(),
-  phoneNumber: z.string().max(30).trim().optional().nullable(),
-  email: z.string().email("Invalid email address").max(255).trim(),
-  estimatedPossessionDate: z.string().max(50).optional().nullable(),
-  hasStairs: z.boolean(),
-  lvpColour: z.string().max(100).trim().optional().nullable(),
-  lvpComments: z.string().max(2000).trim().optional().nullable(),
-  spcTileColour: z.string().max(100).trim().optional().nullable(),
-  spcTileComments: z.string().max(2000).trim().optional().nullable(),
-  backsplashOrientation: z.string().max(100).trim().optional().nullable(),
-  stairCarpetColour: z.string().max(100).trim().optional().nullable(),
-  bedroomFlooringChoice: z.string().max(100).trim().optional().nullable(),
-  bedroomCarpetColour: z.string().max(100).trim().optional().nullable(),
-  bedroomLvpColour: z.string().max(100).trim().optional().nullable(),
-  bedroomLvpSameAsMain: z.boolean(),
-  additionalWindowsQty: z.number().int().min(0).max(100),
-  patioDoorsQty: z.number().int().min(0).max(50),
-  windowComments: z.string().max(2000).trim().optional().nullable(),
-  salesComments: z.string().max(5000).trim().optional().nullable(),
-  upgradeInterests: z.record(z.boolean()).default({}),
-  windowTotal: z.number().min(0).max(1000000),
-  hardwoodUpgradeSelected: z.boolean().default(false),
-  bathroomTileSelected: z.boolean().default(false),
-  heatedFloorBathrooms: z.number().int().min(0).max(10).default(0),
-});
+// Simple validation helper
+function validateInput(data: Record<string, unknown>): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  if (!data.unitNumber || typeof data.unitNumber !== 'string') {
+    errors.push('Unit number is required');
+  }
+  if (!data.firstName || typeof data.firstName !== 'string') {
+    errors.push('First name is required');
+  }
+  if (!data.lastName || typeof data.lastName !== 'string') {
+    errors.push('Last name is required');
+  }
+  if (!data.email || typeof data.email !== 'string' || !data.email.includes('@')) {
+    errors.push('Valid email is required');
+  }
+  
+  return { valid: errors.length === 0, errors };
+}
 
-type ValidatedSelection = z.infer<typeof SelectionSchema>;
+// Send email using Resend REST API
+async function sendEmail(options: {
+  from: string;
+  to: string[];
+  subject: string;
+  html: string;
+}): Promise<{ id?: string; error?: string }> {
+  const resendApiKey = Deno.env.get("RESEND_API_KEY");
+  
+  if (!resendApiKey) {
+    throw new Error("RESEND_API_KEY not configured");
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: options.from,
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
+    }),
+  });
+
+  const result = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(result.message || "Failed to send email");
+  }
+  
+  return result;
+}
+
+// Supabase REST API helper
+async function supabaseInsert(table: string, data: Record<string, unknown>): Promise<{ data: Record<string, unknown> | null; error: string | null }> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  const response = await fetch(`${supabaseUrl}/rest/v1/${table}`, {
+    method: "POST",
+    headers: {
+      "apikey": supabaseServiceKey,
+      "Authorization": `Bearer ${supabaseServiceKey}`,
+      "Content-Type": "application/json",
+      "Prefer": "return=representation",
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    return { data: null, error: errorText };
+  }
+
+  const result = await response.json();
+  return { data: Array.isArray(result) ? result[0] : result, error: null };
+}
+
+interface SelectionData {
+  unitNumber: string;
+  unitType?: string | null;
+  firstName: string;
+  lastName: string;
+  phoneNumber?: string | null;
+  email: string;
+  estimatedPossessionDate?: string | null;
+  hasStairs: boolean;
+  lvpColour?: string | null;
+  lvpComments?: string | null;
+  spcTileColour?: string | null;
+  spcTileComments?: string | null;
+  backsplashOrientation?: string | null;
+  stairCarpetColour?: string | null;
+  bedroomFlooringChoice?: string | null;
+  bedroomCarpetColour?: string | null;
+  bedroomLvpColour?: string | null;
+  bedroomLvpSameAsMain: boolean;
+  additionalWindowsQty: number;
+  patioDoorsQty: number;
+  windowComments?: string | null;
+  salesComments?: string | null;
+  upgradeInterests: Record<string, boolean>;
+  windowTotal: number;
+  hardwoodUpgradeSelected?: boolean;
+  bathroomTileSelected?: boolean;
+  heatedFloorBathrooms?: number;
+}
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -63,18 +134,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const rawData = await req.json();
     
-    // Validate input data using Zod
-    const parseResult = SelectionSchema.safeParse(rawData);
+    // Validate input data
+    const validation = validateInput(rawData);
     
-    if (!parseResult.success) {
-      console.error("Validation error:", parseResult.error.errors);
+    if (!validation.valid) {
+      console.error("Validation error:", validation.errors);
       return new Response(
         JSON.stringify({ 
           error: "Invalid submission data. Please check your inputs and try again.",
-          details: parseResult.error.errors.map(e => ({
-            field: e.path.join('.'),
-            message: e.message
-          }))
+          details: validation.errors
         }),
         { 
           status: 400, 
@@ -83,46 +151,66 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
     
-    const data: ValidatedSelection = parseResult.data;
-    
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const data: SelectionData = {
+      unitNumber: String(rawData.unitNumber || '').trim().slice(0, 50),
+      unitType: rawData.unitType ? String(rawData.unitType).trim().slice(0, 100) : null,
+      firstName: String(rawData.firstName || '').trim().slice(0, 100),
+      lastName: String(rawData.lastName || '').trim().slice(0, 100),
+      phoneNumber: rawData.phoneNumber ? String(rawData.phoneNumber).trim().slice(0, 30) : null,
+      email: String(rawData.email || '').trim().slice(0, 255),
+      estimatedPossessionDate: rawData.estimatedPossessionDate ? String(rawData.estimatedPossessionDate).slice(0, 50) : null,
+      hasStairs: Boolean(rawData.hasStairs),
+      lvpColour: rawData.lvpColour ? String(rawData.lvpColour).trim().slice(0, 100) : null,
+      lvpComments: rawData.lvpComments ? String(rawData.lvpComments).trim().slice(0, 2000) : null,
+      spcTileColour: rawData.spcTileColour ? String(rawData.spcTileColour).trim().slice(0, 100) : null,
+      spcTileComments: rawData.spcTileComments ? String(rawData.spcTileComments).trim().slice(0, 2000) : null,
+      backsplashOrientation: rawData.backsplashOrientation ? String(rawData.backsplashOrientation).trim().slice(0, 100) : null,
+      stairCarpetColour: rawData.stairCarpetColour ? String(rawData.stairCarpetColour).trim().slice(0, 100) : null,
+      bedroomFlooringChoice: rawData.bedroomFlooringChoice ? String(rawData.bedroomFlooringChoice).trim().slice(0, 100) : null,
+      bedroomCarpetColour: rawData.bedroomCarpetColour ? String(rawData.bedroomCarpetColour).trim().slice(0, 100) : null,
+      bedroomLvpColour: rawData.bedroomLvpColour ? String(rawData.bedroomLvpColour).trim().slice(0, 100) : null,
+      bedroomLvpSameAsMain: Boolean(rawData.bedroomLvpSameAsMain),
+      additionalWindowsQty: Math.max(0, Math.min(100, Number(rawData.additionalWindowsQty) || 0)),
+      patioDoorsQty: Math.max(0, Math.min(50, Number(rawData.patioDoorsQty) || 0)),
+      windowComments: rawData.windowComments ? String(rawData.windowComments).trim().slice(0, 2000) : null,
+      salesComments: rawData.salesComments ? String(rawData.salesComments).trim().slice(0, 5000) : null,
+      upgradeInterests: typeof rawData.upgradeInterests === 'object' ? rawData.upgradeInterests : {},
+      windowTotal: Math.max(0, Math.min(1000000, Number(rawData.windowTotal) || 0)),
+      hardwoodUpgradeSelected: Boolean(rawData.hardwoodUpgradeSelected),
+      bathroomTileSelected: Boolean(rawData.bathroomTileSelected),
+      heatedFloorBathrooms: Math.max(0, Math.min(10, Number(rawData.heatedFloorBathrooms) || 0)),
+    };
 
-    const { data: savedSelection, error: dbError } = await supabase
-      .from("buyer_selections")
-      .insert({
-        unit_number: data.unitNumber,
-        unit_type: data.unitType || null,
-        first_name: data.firstName,
-        last_name: data.lastName,
-        phone_number: data.phoneNumber || null,
-        email: data.email,
-        estimated_possession_date: data.estimatedPossessionDate || null,
-        has_stairs: data.hasStairs,
-        lvp_colour: data.lvpColour || null,
-        lvp_comments: data.lvpComments || null,
-        spc_tile_colour: data.spcTileColour || null,
-        spc_tile_comments: data.spcTileComments || null,
-        backsplash_orientation: data.backsplashOrientation || null,
-        stair_carpet_colour: data.stairCarpetColour || null,
-        bedroom_flooring_choice: data.bedroomFlooringChoice || null,
-        bedroom_carpet_colour: data.bedroomCarpetColour || null,
-        bedroom_lvp_colour: data.bedroomLvpColour || null,
-        bedroom_lvp_same_as_main: data.bedroomLvpSameAsMain,
-        additional_windows_qty: data.additionalWindowsQty,
-        patio_doors_qty: data.patioDoorsQty,
-        window_total: data.windowTotal,
-        window_comments: data.windowComments || null,
-        sales_comments: data.salesComments || null,
-        upgrade_interests: data.upgradeInterests,
-        hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
-        bathroom_tile_selected: data.bathroomTileSelected,
-        heated_floor_bathrooms: data.heatedFloorBathrooms,
-        status: "submitted",
-      })
-      .select()
-      .single();
+    const { data: savedSelection, error: dbError } = await supabaseInsert("buyer_selections", {
+      unit_number: data.unitNumber,
+      unit_type: data.unitType || null,
+      first_name: data.firstName,
+      last_name: data.lastName,
+      phone_number: data.phoneNumber || null,
+      email: data.email,
+      estimated_possession_date: data.estimatedPossessionDate || null,
+      has_stairs: data.hasStairs,
+      lvp_colour: data.lvpColour || null,
+      lvp_comments: data.lvpComments || null,
+      spc_tile_colour: data.spcTileColour || null,
+      spc_tile_comments: data.spcTileComments || null,
+      backsplash_orientation: data.backsplashOrientation || null,
+      stair_carpet_colour: data.stairCarpetColour || null,
+      bedroom_flooring_choice: data.bedroomFlooringChoice || null,
+      bedroom_carpet_colour: data.bedroomCarpetColour || null,
+      bedroom_lvp_colour: data.bedroomLvpColour || null,
+      bedroom_lvp_same_as_main: data.bedroomLvpSameAsMain,
+      additional_windows_qty: data.additionalWindowsQty,
+      patio_doors_qty: data.patioDoorsQty,
+      window_total: data.windowTotal,
+      window_comments: data.windowComments || null,
+      sales_comments: data.salesComments || null,
+      upgrade_interests: data.upgradeInterests,
+      hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
+      bathroom_tile_selected: data.bathroomTileSelected,
+      heated_floor_bathrooms: data.heatedFloorBathrooms,
+      status: "submitted",
+    });
 
     if (dbError) {
       console.error("Database error:", dbError);
@@ -130,6 +218,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       console.log("Saved selection to database:", savedSelection?.id);
       
       // Sync to HubSpot in background
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const supabaseFunctionsUrl = `${supabaseUrl}/functions/v1/sync-hubspot`;
       fetch(supabaseFunctionsUrl, {
         method: 'POST',
@@ -138,7 +228,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           'Authorization': `Bearer ${supabaseServiceKey}`,
         },
         body: JSON.stringify({
-          id: savedSelection.id,
+          id: savedSelection?.id,
           unit_number: data.unitNumber,
           unit_type: data.unitType,
           first_name: data.firstName,
@@ -157,7 +247,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           bathroom_tile_selected: data.bathroomTileSelected,
           heated_floor_bathrooms: data.heatedFloorBathrooms,
           status: 'submitted',
-          created_at: savedSelection.created_at,
+          created_at: savedSelection?.created_at,
         }),
       }).then(res => {
         if (res.ok) {
@@ -197,7 +287,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         <div class="container">
           <h1>🏠 New Selection Submission</h1>
           
-          ${savedSelection ? `<div class="db-id"><strong>Database ID:</strong> ${escapeHtml(savedSelection.id)}</div>` : ''}
+          ${savedSelection ? `<div class="db-id"><strong>Database ID:</strong> ${escapeHtml(String(savedSelection.id))}</div>` : ''}
           
           <div class="section">
             <h2>Buyer Information</h2>
@@ -270,7 +360,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    const emailResponse = await resend.emails.send({
+    const emailResponse = await sendEmail({
       from: "BMD Materials Portal <selections@bmdmaterials.com>",
       to: ["dan@bmdmaterials.com", "office@bmdmaterials.com"],
       subject: `New Selection Submission - Unit ${escapeHtml(data.unitNumber) || 'Unknown'}${data.unitType ? ` (${escapeHtml(data.unitType)})` : ''} - ${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}`,
