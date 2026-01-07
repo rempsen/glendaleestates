@@ -21,6 +21,9 @@ interface BuyerSelection {
   additional_windows_qty: number;
   patio_doors_qty: number;
   window_total: number;
+  hardwood_upgrade_selected: boolean;
+  bathroom_tile_selected: boolean;
+  heated_floor_bathrooms: number;
   status: string;
   created_at: string;
 }
@@ -85,6 +88,9 @@ serve(async (req) => {
       bmd_additional_windows: String(submission.additional_windows_qty || 0),
       bmd_patio_doors: String(submission.patio_doors_qty || 0),
       bmd_window_total: String(submission.window_total || 0),
+      bmd_hardwood_upgrade: submission.hardwood_upgrade_selected ? 'Yes' : 'No',
+      bmd_tile_upgrade: submission.bathroom_tile_selected ? 'Yes' : 'No',
+      bmd_heated_floor_bathrooms: String(submission.heated_floor_bathrooms || 0),
       bmd_submission_status: submission.status,
     };
 
