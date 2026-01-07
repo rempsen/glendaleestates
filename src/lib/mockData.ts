@@ -177,7 +177,7 @@ export const windowCoveringProduct = {
 // Pricing per spec (pre-GST)
 export const windowPricing = {
   additionalWindow: 585,    // per window
-  patioDoor: 1275,          // per patio door (panel track)
+  patioDoor: 2347.80,       // per patio door (panel track) installed
   gstRate: 0.05,            // 5% GST
 };
 
