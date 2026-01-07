@@ -9,6 +9,7 @@ import { SelectionCard } from '@/components/SelectionCard';
 import { PricingDisplay } from '@/components/PricingDisplay';
 import { UpgradeTeaser } from '@/components/UpgradeTeaser';
 import { HardwoodUpgrade } from '@/components/HardwoodUpgrade';
+import { TileUpgrade } from '@/components/TileUpgrade';
 import { FloorPlanViewer } from '@/components/FloorPlanViewer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,6 +64,8 @@ interface SelectionState {
   salesComments: string;
   upgradeInterests: Record<string, boolean>;
   hardwoodUpgradeSelected: boolean;
+  bathroomTileSelected: boolean;
+  heatedFloorBathrooms: number;
 }
 
 export default function SelectionWizard() {
@@ -95,11 +98,11 @@ export default function SelectionWizard() {
     windowComments: '',
     salesComments: '',
     upgradeInterests: {
-      tile: false,
-      'heated-floor': false,
       automation: false,
     },
     hardwoodUpgradeSelected: false,
+    bathroomTileSelected: false,
+    heatedFloorBathrooms: 0,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -835,7 +838,7 @@ export default function SelectionWizard() {
         return (
           <StepContainer
             title="Premium Upgrades"
-            subtitle="Select premium flooring upgrades or express interest in other options"
+            subtitle="Select premium flooring and tile upgrades or express interest in other options"
             badge="Step 8 of 10"
           >
             <div className="space-y-8">
@@ -846,6 +849,26 @@ export default function SelectionWizard() {
                   unitTypeCode={unitInfo?.typeCode || null}
                   selected={selections.hardwoodUpgradeSelected}
                   onToggle={() => updateSelection('hardwoodUpgradeSelected', !selections.hardwoodUpgradeSelected)}
+                />
+              </div>
+
+              {/* Bathroom Tile Upgrade - Selectable with pricing */}
+              <div>
+                <h3 className="text-lg font-medium text-foreground mb-4">Bathroom Tile Upgrade</h3>
+                <TileUpgrade
+                  unitTypeCode={unitInfo?.typeCode || null}
+                  bathroomTileSelected={selections.bathroomTileSelected}
+                  heatedFloorBathrooms={selections.heatedFloorBathrooms}
+                  maxBathrooms={unitInfo?.bathrooms ? parseFloat(unitInfo.bathrooms) : 2}
+                  onToggleTile={() => {
+                    const newValue = !selections.bathroomTileSelected;
+                    updateSelection('bathroomTileSelected', newValue);
+                    // Reset heated floor count if tile is deselected
+                    if (!newValue) {
+                      updateSelection('heatedFloorBathrooms', 0);
+                    }
+                  }}
+                  onHeatedFloorChange={(count) => updateSelection('heatedFloorBathrooms', count)}
                 />
               </div>
 
@@ -1004,12 +1027,14 @@ export default function SelectionWizard() {
               </div>
 
               {/* Pricing Summary */}
-              {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0 || selections.hardwoodUpgradeSelected) && (
+              {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0 || selections.hardwoodUpgradeSelected || selections.bathroomTileSelected) && (
                 <div className="p-4 rounded-xl border border-primary/30 bg-primary/5">
                   <PricingDisplay
                     additionalWindows={selections.additionalWindowsQty}
                     patioDoors={selections.patioDoorsQty}
                     hardwoodUpgradeSelected={selections.hardwoodUpgradeSelected}
+                    bathroomTileSelected={selections.bathroomTileSelected}
+                    heatedFloorBathrooms={selections.heatedFloorBathrooms}
                     unitTypeCode={unitInfo?.typeCode}
                   />
                 </div>
