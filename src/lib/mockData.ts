@@ -176,9 +176,9 @@ export const windowCoveringProduct = {
 
 // Pricing per spec (pre-GST)
 export const windowPricing = {
-  additionalWindow: 585,    // per window
-  patioDoor: 2347.80,       // per patio door (panel track) installed
-  gstRate: 0.05,            // 5% GST
+  additionalWindow: 673.50,  // per window installed
+  patioDoor: 2347.80,        // per patio door (panel track) installed
+  gstRate: 0.05,             // 5% GST
 };
 
 // 2.7 Hardwood Upgrade Pricing by Unit Type (pre-GST)
