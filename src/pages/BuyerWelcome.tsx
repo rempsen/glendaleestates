@@ -58,6 +58,15 @@ export default function BuyerWelcome() {
                 Begin Your Selections
                 <ArrowRight className="w-5 h-5" />
               </Button>
+              <p className="mt-4 text-primary-foreground/70 text-sm">
+                Already have an account?{' '}
+                <button 
+                  onClick={() => navigate('/buyer-auth?mode=signin')}
+                  className="underline hover:text-primary-foreground transition-colors"
+                >
+                  Sign in here
+                </button>
+              </p>
             </motion.div>
           </div>
         </div>
