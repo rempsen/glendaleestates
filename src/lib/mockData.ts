@@ -203,10 +203,35 @@ export const hardwoodProduct = {
   features: ['25-year residential warranty', 'Genuine hardwood', 'Pre-finished for immediate use', 'Enhanced acoustic properties'],
 };
 
-// 2.8 Upgrade Interest Categories
+// 2.8 Bathroom Tile Upgrade Pricing by Unit Type (pre-GST)
+// Formula: Ensuite = 60 sqft * 1.10 = 66 sqft * $14 = $924 * 1.7 = $1,570.80
+export const bathroomTileUpgradePricing: Record<string, { ensuitePrice: number; sqft: number; description: string }> = {
+  'E': { ensuitePrice: 1571, sqft: 66, description: 'Porcelain Tile Upgrade - Ensuite (66 sq ft)' },
+  'J': { ensuitePrice: 1571, sqft: 66, description: 'Porcelain Tile Upgrade - Ensuite (66 sq ft)' },
+  'G': { ensuitePrice: 1571, sqft: 66, description: 'Porcelain Tile Upgrade - Ensuite (66 sq ft)' },
+  'H': { ensuitePrice: 1571, sqft: 66, description: 'Porcelain Tile Upgrade - Ensuite (66 sq ft)' },
+  'A': { ensuitePrice: 1571, sqft: 66, description: 'Porcelain Tile Upgrade - Ensuite (66 sq ft)' },
+  'B': { ensuitePrice: 1571, sqft: 66, description: 'Porcelain Tile Upgrade - Ensuite (66 sq ft)' },
+  'C': { ensuitePrice: 1571, sqft: 66, description: 'Porcelain Tile Upgrade - Ensuite (66 sq ft)' },
+  'D': { ensuitePrice: 1571, sqft: 66, description: 'Porcelain Tile Upgrade - Ensuite (66 sq ft)' },
+  'F': { ensuitePrice: 1571, sqft: 66, description: 'Porcelain Tile Upgrade - Ensuite (66 sq ft)' },
+};
+
+export const porcelainTileProduct = {
+  name: 'Porcelain Bathroom Floor Tile',
+  description: 'Upgrade from standard LVT to premium porcelain tile for a luxurious, durable bathroom floor.',
+  features: ['Water-resistant', 'Easy to clean', 'Timeless elegance', 'Enhanced durability'],
+};
+
+// 2.9 Heated Tile Floor Pricing (pre-GST)
+export const heatedFloorPricing = {
+  perBathroom: 1650,
+  description: 'Radiant floor heating for bathroom tile floors',
+  note: 'Requires Karma permission to run electrical',
+};
+
+// 2.11 Upgrade Interest Categories
 export const upgradeInterestCategories = [
-  { id: 'tile', name: 'Tile Upgrades', description: 'Natural stone, porcelain, and designer tile options' },
-  { id: 'heated-floor', name: 'Heated Tile Flooring', description: 'Radiant floor heating for bathrooms and living areas' },
   { id: 'automation', name: 'Powered / Automated Window Coverings', description: 'Smart home integration with motorized controls' },
 ];
 

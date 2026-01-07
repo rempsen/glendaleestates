@@ -1,9 +1,11 @@
-import { windowPricing, hardwoodUpgradePricing } from '@/lib/mockData';
+import { windowPricing, hardwoodUpgradePricing, bathroomTileUpgradePricing, heatedFloorPricing } from '@/lib/mockData';
 
 interface PricingDisplayProps {
   additionalWindows: number;
   patioDoors: number;
   hardwoodUpgradeSelected?: boolean;
+  bathroomTileSelected?: boolean;
+  heatedFloorBathrooms?: number;
   unitTypeCode?: string | null;
 }
 
@@ -11,6 +13,8 @@ export function PricingDisplay({
   additionalWindows, 
   patioDoors, 
   hardwoodUpgradeSelected = false,
+  bathroomTileSelected = false,
+  heatedFloorBathrooms = 0,
   unitTypeCode = null
 }: PricingDisplayProps) {
   const windowsSubtotal = additionalWindows * windowPricing.additionalWindow;
@@ -20,7 +24,12 @@ export function PricingDisplay({
   const hardwoodPricing = unitTypeCode && hardwoodUpgradeSelected ? hardwoodUpgradePricing[unitTypeCode] : null;
   const hardwoodSubtotal = hardwoodPricing?.price || 0;
   
-  const subtotal = windowSubtotal + hardwoodSubtotal;
+  const tilePricing = unitTypeCode && bathroomTileSelected ? bathroomTileUpgradePricing[unitTypeCode] : null;
+  const tileSubtotal = tilePricing?.ensuitePrice || 0;
+  
+  const heatedFloorSubtotal = bathroomTileSelected ? heatedFloorBathrooms * heatedFloorPricing.perBathroom : 0;
+  
+  const subtotal = windowSubtotal + hardwoodSubtotal + tileSubtotal + heatedFloorSubtotal;
   const gst = subtotal * windowPricing.gstRate;
   const total = subtotal + gst;
 
@@ -57,6 +66,24 @@ export function PricingDisplay({
               {hardwoodPricing.description}
             </span>
             <span className="font-medium">${hardwoodSubtotal.toLocaleString()}</span>
+          </div>
+        )}
+        
+        {tilePricing && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">
+              {tilePricing.description}
+            </span>
+            <span className="font-medium">${tileSubtotal.toLocaleString()}</span>
+          </div>
+        )}
+        
+        {heatedFloorSubtotal > 0 && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">
+              Heated Tile Floor ({heatedFloorBathrooms} bathroom{heatedFloorBathrooms > 1 ? 's' : ''} × ${heatedFloorPricing.perBathroom.toLocaleString()})
+            </span>
+            <span className="font-medium">${heatedFloorSubtotal.toLocaleString()}</span>
           </div>
         )}
         
