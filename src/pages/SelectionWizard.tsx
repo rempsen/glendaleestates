@@ -8,6 +8,7 @@ import { StepContainer } from '@/components/StepContainer';
 import { SelectionCard } from '@/components/SelectionCard';
 import { PricingDisplay } from '@/components/PricingDisplay';
 import { UpgradeTeaser } from '@/components/UpgradeTeaser';
+import { HardwoodUpgrade } from '@/components/HardwoodUpgrade';
 import { FloorPlanViewer } from '@/components/FloorPlanViewer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +24,10 @@ import {
   carpetOptions,
   carpetSpecs,
   windowCoveringProduct,
-  calculateWindowExtensions
+  calculateWindowExtensions,
+  hardwoodUpgradePricing,
+  hardwoodProduct,
+  windowPricing,
 } from '@/lib/mockData';
 import { getUnitInfo, UnitInfo } from '@/lib/unitData';
 import tileStackedImg from '@/assets/tile-stacked.jpg';
@@ -58,6 +62,7 @@ interface SelectionState {
   windowComments: string;
   salesComments: string;
   upgradeInterests: Record<string, boolean>;
+  hardwoodUpgradeSelected: boolean;
 }
 
 export default function SelectionWizard() {
@@ -90,11 +95,11 @@ export default function SelectionWizard() {
     windowComments: '',
     salesComments: '',
     upgradeInterests: {
-      flooring: false,
       tile: false,
       'heated-floor': false,
       automation: false,
     },
+    hardwoodUpgradeSelected: false,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -829,19 +834,33 @@ export default function SelectionWizard() {
       case 7: // Upgrades
         return (
           <StepContainer
-            title="Explore Premium Upgrades"
-            subtitle="Express interest in premium options — no obligation, we'll provide details later"
-            badge="Coming Soon"
+            title="Premium Upgrades"
+            subtitle="Select premium flooring upgrades or express interest in other options"
+            badge="Step 8 of 10"
           >
-            <UpgradeTeaser
-              selectedInterests={selections.upgradeInterests}
-              onToggleInterest={toggleUpgradeInterest}
-            />
-            
-            <p className="mt-6 text-sm text-muted-foreground">
-              These premium upgrades are available for an additional cost. 
-              Mark any that interest you and our team will reach out with details and pricing.
-            </p>
+            <div className="space-y-8">
+              {/* Hardwood Upgrade - Selectable with pricing */}
+              <div>
+                <h3 className="text-lg font-medium text-foreground mb-4">Hardwood Flooring Upgrade</h3>
+                <HardwoodUpgrade
+                  unitTypeCode={unitInfo?.typeCode || null}
+                  selected={selections.hardwoodUpgradeSelected}
+                  onToggle={() => updateSelection('hardwoodUpgradeSelected', !selections.hardwoodUpgradeSelected)}
+                />
+              </div>
+
+              {/* Other Upgrade Interests */}
+              <div>
+                <h3 className="text-lg font-medium text-foreground mb-4">Express Interest in Other Upgrades</h3>
+                <UpgradeTeaser
+                  selectedInterests={selections.upgradeInterests}
+                  onToggleInterest={toggleUpgradeInterest}
+                />
+                <p className="mt-4 text-sm text-muted-foreground">
+                  Mark any that interest you and our team will reach out with details and pricing.
+                </p>
+              </div>
+            </div>
           </StepContainer>
         );
 
@@ -984,13 +1003,14 @@ export default function SelectionWizard() {
                 </div>
               </div>
 
-              {/* Window Extensions */}
-              {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0) && (
-                <div className="p-4 rounded-xl border border-accent/30 bg-accent/5">
-                  <h4 className="font-medium text-foreground mb-3">Window Covering Extensions</h4>
+              {/* Pricing Summary */}
+              {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0 || selections.hardwoodUpgradeSelected) && (
+                <div className="p-4 rounded-xl border border-primary/30 bg-primary/5">
                   <PricingDisplay
                     additionalWindows={selections.additionalWindowsQty}
                     patioDoors={selections.patioDoorsQty}
+                    hardwoodUpgradeSelected={selections.hardwoodUpgradeSelected}
+                    unitTypeCode={unitInfo?.typeCode}
                   />
                 </div>
               )}
@@ -999,6 +1019,7 @@ export default function SelectionWizard() {
               {Object.values(selections.upgradeInterests).some(v => v) && (
                 <div className="p-4 rounded-xl border border-border bg-card">
                   <h4 className="font-medium text-foreground mb-3">Upgrade Interests</h4>
+                  <p className="text-xs text-muted-foreground mb-2">Our team will contact you about:</p>
                   <div className="flex flex-wrap gap-2">
                     {Object.entries(selections.upgradeInterests)
                       .filter(([_, v]) => v)

@@ -181,9 +181,30 @@ export const windowPricing = {
   gstRate: 0.05,            // 5% GST
 };
 
-// 2.7 Upgrade Interest Categories (Phase 2 prep)
+// 2.7 Hardwood Upgrade Pricing by Unit Type (pre-GST)
+// Formula: LVP Area to Hardwood = SqFt * 1.10 * $9 * 1.5
+export const hardwoodUpgradePricing: Record<string, { price: number; sqft: number; description: string }> = {
+  'E': { price: 13770, sqft: 1020, description: 'Mirage Hardwood Upgrade (1,020 sq ft)' },
+  // Additional unit types to be added
+  'J': { price: 10000, sqft: 740, description: 'Mirage Hardwood Upgrade (740 sq ft)' },
+  'G': { price: 12500, sqft: 920, description: 'Mirage Hardwood Upgrade (920 sq ft)' },
+  'H': { price: 12500, sqft: 920, description: 'Mirage Hardwood Upgrade (920 sq ft)' },
+  'A': { price: 11200, sqft: 820, description: 'Mirage Hardwood Upgrade (820 sq ft)' },
+  'B': { price: 11200, sqft: 820, description: 'Mirage Hardwood Upgrade (820 sq ft)' },
+  'C': { price: 10800, sqft: 790, description: 'Mirage Hardwood Upgrade (790 sq ft)' },
+  'D': { price: 11500, sqft: 850, description: 'Mirage Hardwood Upgrade (850 sq ft)' },
+  'F': { price: 14200, sqft: 1050, description: 'Mirage Hardwood Upgrade (1,050 sq ft)' },
+};
+
+export const hardwoodProduct = {
+  name: 'Mirage Hardwood',
+  brand: 'Mirage',
+  description: 'Premium Canadian-made hardwood flooring with superior durability and timeless elegance.',
+  features: ['25-year residential warranty', 'Genuine hardwood', 'Pre-finished for immediate use', 'Enhanced acoustic properties'],
+};
+
+// 2.8 Upgrade Interest Categories
 export const upgradeInterestCategories = [
-  { id: 'flooring', name: 'Upgraded Flooring Options', description: 'Premium wide-plank European oak and designer collections' },
   { id: 'tile', name: 'Tile Upgrades', description: 'Natural stone, porcelain, and designer tile options' },
   { id: 'heated-floor', name: 'Heated Tile Flooring', description: 'Radiant floor heating for bathrooms and living areas' },
   { id: 'automation', name: 'Powered / Automated Window Coverings', description: 'Smart home integration with motorized controls' },
