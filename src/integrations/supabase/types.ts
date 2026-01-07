@@ -34,6 +34,7 @@ export type Database = {
           lvp_comments: string | null
           patio_doors_qty: number | null
           phone_number: string | null
+          sales_comments: string | null
           spc_tile_colour: string | null
           spc_tile_comments: string | null
           stair_carpet_colour: string | null
@@ -64,6 +65,7 @@ export type Database = {
           lvp_comments?: string | null
           patio_doors_qty?: number | null
           phone_number?: string | null
+          sales_comments?: string | null
           spc_tile_colour?: string | null
           spc_tile_comments?: string | null
           stair_carpet_colour?: string | null
@@ -94,6 +96,7 @@ export type Database = {
           lvp_comments?: string | null
           patio_doors_qty?: number | null
           phone_number?: string | null
+          sales_comments?: string | null
           spc_tile_colour?: string | null
           spc_tile_comments?: string | null
           stair_carpet_colour?: string | null
