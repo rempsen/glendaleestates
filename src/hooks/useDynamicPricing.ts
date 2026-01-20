@@ -28,6 +28,7 @@ interface DatabaseConfig {
   config_key: string;
   config_value: number;
   is_percentage: boolean;
+  is_active: boolean;
 }
 
 interface PricingState {
@@ -104,30 +105,41 @@ export function useDynamicPricing() {
     return config ? config.config_value / 100 : DEFAULT_GST;
   }, [state.config]);
 
-  // Get flat-rate pricing values
+  // Get flat-rate pricing values (returns 0 if disabled)
   const getAdditionalWindowPrice = useCallback((): number => {
     const config = state.config.find(c => c.config_key === 'additional_window_price');
-    return config ? config.config_value : 673.50; // Default from mockData
+    if (!config || config.is_active === false) return 0;
+    return config.config_value;
   }, [state.config]);
 
   const getPatioDoorPrice = useCallback((): number => {
     const config = state.config.find(c => c.config_key === 'patio_door_price');
-    return config ? config.config_value : 2347.80; // Default from mockData
+    if (!config || config.is_active === false) return 0;
+    return config.config_value;
   }, [state.config]);
 
   const getAutomatedMotorPrice = useCallback((): number => {
     const config = state.config.find(c => c.config_key === 'automated_motor_price');
-    return config ? config.config_value : 495.00; // Default from mockData
+    if (!config || config.is_active === false) return 0;
+    return config.config_value;
   }, [state.config]);
 
   const getHeatedFloorPrice = useCallback((): number => {
     const config = state.config.find(c => c.config_key === 'heated_floor_per_bathroom');
-    return config ? config.config_value : 1650.00; // Default from mockData
+    if (!config || config.is_active === false) return 0;
+    return config.config_value;
   }, [state.config]);
 
   const getGroutColorChangePrice = useCallback((): number => {
     const config = state.config.find(c => c.config_key === 'grout_color_change_price');
-    return config ? config.config_value : 300.00; // Default
+    if (!config || config.is_active === false) return 0;
+    return config.config_value;
+  }, [state.config]);
+
+  // Check if a flat-rate pricing item is enabled
+  const isFlatRateEnabled = useCallback((configKey: string): boolean => {
+    const config = state.config.find(c => c.config_key === configKey);
+    return config ? config.is_active !== false : true;
   }, [state.config]);
 
   // Get material cost from DB or fallback to defaults
@@ -270,6 +282,7 @@ export function useDynamicPricing() {
     getAutomatedMotorPrice,
     getHeatedFloorPrice,
     getGroutColorChangePrice,
+    isFlatRateEnabled,
     calculateAreaUpgradePrice,
     calculateBacksplashGroutPrice,
     calculateTotalUpgradeCost,

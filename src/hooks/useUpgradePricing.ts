@@ -22,6 +22,7 @@ export interface PricingConfig {
   config_value: number;
   description: string | null;
   is_percentage: boolean;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -152,17 +153,17 @@ export function useUpgradePricing() {
     return addMaterial(newMaterial);
   };
 
-  const updatePricingConfig = async (id: string, value: number) => {
+  const updatePricingConfig = async (id: string, updates: Partial<Pick<PricingConfig, 'config_value' | 'is_active'>>) => {
     setSaving(true);
     try {
       const { error } = await supabase
         .from('pricing_config')
-        .update({ config_value: value })
+        .update(updates)
         .eq('id', id);
 
       if (error) throw error;
 
-      setPricingConfig(prev => prev.map(c => c.id === id ? { ...c, config_value: value } : c));
+      setPricingConfig(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
       toast.success('Configuration updated');
     } catch (error) {
       console.error('Error updating config:', error);
