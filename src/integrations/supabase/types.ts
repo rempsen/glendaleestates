@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      buyer_selection_drafts: {
+        Row: {
+          created_at: string | null
+          current_step: number | null
+          highest_step_reached: number | null
+          id: string
+          selections: Json
+          unit_number: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          current_step?: number | null
+          highest_step_reached?: number | null
+          id?: string
+          selections?: Json
+          unit_number: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          current_step?: number | null
+          highest_step_reached?: number | null
+          id?: string
+          selections?: Json
+          unit_number?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       buyer_selections: {
         Row: {
           additional_windows_qty: number | null
