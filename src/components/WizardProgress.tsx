@@ -5,9 +5,10 @@ interface WizardProgressProps {
   steps: string[];
   currentStep: number;
   onStepClick?: (step: number) => void;
+  allStepsVisited?: boolean;
 }
 
-export function WizardProgress({ steps, currentStep, onStepClick }: WizardProgressProps) {
+export function WizardProgress({ steps, currentStep, onStepClick, allStepsVisited = false }: WizardProgressProps) {
   return (
     <div className="w-full py-6">
       <div className="flex items-center justify-between relative">
@@ -21,8 +22,8 @@ export function WizardProgress({ steps, currentStep, onStepClick }: WizardProgre
         {steps.map((step, index) => {
           const isCompleted = index < currentStep;
           const isCurrent = index === currentStep;
-          // Allow clicking on any completed step or current step
-          const isClickable = onStepClick && index <= currentStep;
+          // Allow clicking on any step if all steps visited, otherwise only completed/current
+          const isClickable = onStepClick && (allStepsVisited || index <= currentStep);
           
           return (
             <div 
