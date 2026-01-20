@@ -46,6 +46,7 @@ import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Down
 import { toast } from 'sonner';
 import { User } from '@supabase/supabase-js';
 import panelTrackBlindsImg from '@/assets/panel-track-blinds.png';
+import somfyAutomationImg from '@/assets/somfy-automation.jpg';
 
 // Dynamic step configuration based on unit
 const getSteps = (hasStairs: boolean) => {
@@ -76,6 +77,7 @@ interface SelectionState {
   bedroomLvpSameAsMain: boolean;
   additionalWindowsQty: number;
   patioDoorsQty: number;
+  automatedWindowsQty: number;
   windowComments: string;
   salesComments: string;
   upgradeInterests: Record<string, boolean>;
@@ -115,6 +117,7 @@ export default function SelectionWizard() {
     bedroomLvpSameAsMain: true,
     additionalWindowsQty: 0,
     patioDoorsQty: 0,
+    automatedWindowsQty: 0,
     windowComments: '',
     salesComments: '',
     upgradeInterests: {
@@ -328,6 +331,70 @@ export default function SelectionWizard() {
           </div>
         </div>
 
+        {/* Motorized Automation Showcase */}
+        <div className="rounded-2xl overflow-hidden border border-border bg-gradient-to-br from-card to-accent/20">
+          <div className="grid md:grid-cols-2 gap-0">
+            {/* Product Image */}
+            <div className="relative aspect-[4/3] md:aspect-auto overflow-hidden">
+              <img 
+                src={somfyAutomationImg} 
+                alt="Somfy Motorized Smart Window Coverings"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+              <div className="absolute bottom-4 left-4 right-4">
+                <span className="inline-block px-3 py-1 text-xs font-medium bg-accent text-accent-foreground rounded-full">
+                  Smart Home Upgrade
+                </span>
+              </div>
+            </div>
+            
+            {/* Product Details */}
+            <div className="p-6 md:p-8 flex flex-col justify-center">
+              <h3 className="text-xl font-semibold text-foreground mb-2">
+                Powered Automated Window Coverings
+              </h3>
+              <p className="text-muted-foreground mb-4">
+                Upgrade any window shade to motorized operation with Somfy smart home integration.
+              </p>
+              
+              <ul className="space-y-2 mb-6">
+                <li className="flex items-start gap-2 text-sm">
+                  <Check className="w-4 h-4 text-success mt-0.5 shrink-0" />
+                  <span>Control shades from your smartphone or voice assistant</span>
+                </li>
+                <li className="flex items-start gap-2 text-sm">
+                  <Check className="w-4 h-4 text-success mt-0.5 shrink-0" />
+                  <span>Quiet motor technology with smooth operation</span>
+                </li>
+                <li className="flex items-start gap-2 text-sm">
+                  <Check className="w-4 h-4 text-success mt-0.5 shrink-0" />
+                  <span>Includes motor, hub, programming & professional installation</span>
+                </li>
+                <li className="flex items-start gap-2 text-sm">
+                  <Check className="w-4 h-4 text-success mt-0.5 shrink-0" />
+                  <span>Schedule shades to open and close automatically</span>
+                </li>
+              </ul>
+
+              <div className="flex items-center gap-3 mb-4">
+                <div className="text-2xl font-bold text-primary">$495.00</div>
+                <div className="text-sm text-muted-foreground">per window<br />(plus GST, installed)</div>
+              </div>
+
+              <a 
+                href="https://www.somfysystems.com/en-us/products/shades-blinds-curtains/motorized-blinds-shades" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+              >
+                Learn More About Somfy
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
+        </div>
+
         {/* Optional Extensions */}
         <div className="p-6 rounded-xl border border-border bg-card">
           <h3 className="font-medium text-foreground mb-2">How Many Would You Like?</h3>
@@ -371,10 +438,28 @@ export default function SelectionWizard() {
                 className="max-w-24"
               />
             </div>
+
+            <div className="p-4 rounded-xl bg-accent/10 border border-accent/30">
+              <Label htmlFor="automatedWindows" className="text-foreground font-medium">
+                Motorized Automation Upgrade
+              </Label>
+              <p className="text-sm text-muted-foreground mb-3">
+                Add Somfy motorization to any window — $495.00 per window (pre-GST, installed)
+              </p>
+              <Input
+                id="automatedWindows"
+                type="number"
+                min={0}
+                max={20}
+                value={selections.automatedWindowsQty}
+                onChange={(e) => updateSelection('automatedWindowsQty', parseInt(e.target.value) || 0)}
+                className="max-w-24"
+              />
+            </div>
           </div>
 
           <div className="mt-6">
-            {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0) && (
+            {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0 || selections.automatedWindowsQty > 0) && (
               <div className="p-4 rounded-xl bg-secondary/50 border border-border">
                 <h4 className="font-medium text-foreground mb-3">Window Covering Pricing</h4>
                 <div className="space-y-2 text-sm">
@@ -394,19 +479,38 @@ export default function SelectionWizard() {
                       <span className="font-medium">${(selections.patioDoorsQty * windowPricing.patioDoor).toLocaleString()}</span>
                     </div>
                   )}
+                  {selections.automatedWindowsQty > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        Motorized Automation ({selections.automatedWindowsQty} × ${windowPricing.automatedMotor})
+                      </span>
+                      <span className="font-medium">${(selections.automatedWindowsQty * windowPricing.automatedMotor).toLocaleString()}</span>
+                    </div>
+                  )}
                   <div className="border-t border-border pt-2 mt-2">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Subtotal</span>
-                      <span>${calculateWindowExtensions(selections.additionalWindowsQty, selections.patioDoorsQty).subtotal.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">GST (5%)</span>
-                      <span>${calculateWindowExtensions(selections.additionalWindowsQty, selections.patioDoorsQty).gst.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between font-semibold text-foreground pt-1">
-                      <span>Total</span>
-                      <span className="text-primary">${calculateWindowExtensions(selections.additionalWindowsQty, selections.patioDoorsQty).total.toLocaleString()}</span>
-                    </div>
+                    {(() => {
+                      const subtotal = (selections.additionalWindowsQty * windowPricing.additionalWindow) + 
+                                       (selections.patioDoorsQty * windowPricing.patioDoor) + 
+                                       (selections.automatedWindowsQty * windowPricing.automatedMotor);
+                      const gst = subtotal * windowPricing.gstRate;
+                      const total = subtotal + gst;
+                      return (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Subtotal</span>
+                            <span>${subtotal.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">GST (5%)</span>
+                            <span>${gst.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between font-semibold text-foreground pt-1">
+                            <span>Total</span>
+                            <span className="text-primary">${total.toLocaleString()}</span>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -476,8 +580,6 @@ export default function SelectionWizard() {
           unitTypeCode={unitInfo?.typeCode || null}
           selectedFloor={selections.upgradeFloorSelection}
           areaUpgrades={selections.areaUpgrades}
-          additionalWindows={selections.additionalWindowsQty}
-          patioDoors={selections.patioDoorsQty}
           heatedFloorBathrooms={selections.heatedFloorBathrooms}
           bathroomTileSelected={selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId))}
           backsplashGrout={selections.backsplashGrout}
@@ -638,14 +740,12 @@ export default function SelectionWizard() {
         </div>
 
         {/* Pricing Summary */}
-        {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0 || selections.areaUpgrades.length > 0 || selections.heatedFloorBathrooms > 0) && (
+        {(selections.areaUpgrades.length > 0 || selections.heatedFloorBathrooms > 0) && (
           <div className="p-4 rounded-xl border border-primary/30 bg-primary/5">
             <UpgradePricingSummary
               unitTypeCode={unitInfo?.typeCode || null}
               selectedFloor={selections.upgradeFloorSelection}
               areaUpgrades={selections.areaUpgrades}
-              additionalWindows={selections.additionalWindowsQty}
-              patioDoors={selections.patioDoorsQty}
               heatedFloorBathrooms={selections.heatedFloorBathrooms}
               bathroomTileSelected={selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId))}
             />

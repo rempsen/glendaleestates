@@ -7,14 +7,12 @@ import {
   UPGRADE_MATERIALS,
   GST_RATE,
 } from '@/lib/upgradeCostData';
-import { windowPricing, heatedFloorPricing } from '@/lib/mockData';
+import { heatedFloorPricing } from '@/lib/mockData';
 
 interface UpgradePricingSummaryProps {
   unitTypeCode: string | null;
   selectedFloor?: '1' | '2' | null;
   areaUpgrades: AreaUpgradeSelection[];
-  additionalWindows?: number;
-  patioDoors?: number;
   heatedFloorBathrooms?: number;
   bathroomTileSelected?: boolean;
   backsplashGrout?: BacksplashGroutSelection;
@@ -24,8 +22,6 @@ export function UpgradePricingSummary({
   unitTypeCode,
   selectedFloor,
   areaUpgrades,
-  additionalWindows = 0,
-  patioDoors = 0,
   heatedFloorBathrooms = 0,
   bathroomTileSelected = false,
   backsplashGrout,
@@ -42,12 +38,6 @@ export function UpgradePricingSummary({
     ? calculateTotalUpgradeCost(effectiveUnitCode, areaUpgrades)
     : { subtotal: 0, gst: 0, total: 0, lineItems: [] };
 
-  // Calculate window extension costs
-  const windowsSubtotal = additionalWindows * windowPricing.additionalWindow;
-  const patioSubtotal = patioDoors * windowPricing.patioDoor;
-  const windowSubtotal = windowsSubtotal + patioSubtotal;
-  const windowGst = windowSubtotal * windowPricing.gstRate;
-
   // Calculate heated floor costs (only if bathroom tile selected)
   const heatedFloorSubtotal = bathroomTileSelected ? heatedFloorBathrooms * heatedFloorPricing.perBathroom : 0;
   const heatedFloorGst = heatedFloorSubtotal * GST_RATE;
@@ -57,9 +47,9 @@ export function UpgradePricingSummary({
   const groutSubtotal = groutPrice?.markedUpCost || 0;
   const groutGst = groutPrice?.gst || 0;
 
-  // Grand totals
-  const grandSubtotal = upgradeCalc.subtotal + windowSubtotal + heatedFloorSubtotal + groutSubtotal;
-  const grandGst = upgradeCalc.gst + windowGst + heatedFloorGst + groutGst;
+  // Grand totals (window coverings now handled separately in window step)
+  const grandSubtotal = upgradeCalc.subtotal + heatedFloorSubtotal + groutSubtotal;
+  const grandGst = upgradeCalc.gst + heatedFloorGst + groutGst;
   const grandTotal = grandSubtotal + grandGst;
 
   if (grandSubtotal === 0) {
@@ -98,31 +88,6 @@ export function UpgradePricingSummary({
                   </div>
                 );
               })}
-            </div>
-          </div>
-        )}
-
-        {/* Window Coverings Section */}
-        {windowSubtotal > 0 && (
-          <div>
-            <h5 className="text-sm font-medium text-foreground mb-2">Window Coverings</h5>
-            <div className="space-y-2 text-sm">
-              {additionalWindows > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    Additional Windows ({additionalWindows} × ${windowPricing.additionalWindow})
-                  </span>
-                  <span className="font-medium">${windowsSubtotal.toLocaleString()}</span>
-                </div>
-              )}
-              {patioDoors > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    Patio Door Panels ({patioDoors} × ${windowPricing.patioDoor})
-                  </span>
-                  <span className="font-medium">${patioSubtotal.toLocaleString()}</span>
-                </div>
-              )}
             </div>
           </div>
         )}
