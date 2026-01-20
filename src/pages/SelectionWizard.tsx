@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { useDraftSave } from '@/hooks/useDraftSave';
 import { 
   lvpOptions, 
   lvpSpecs,
@@ -38,7 +39,7 @@ import { generateBuyerPreviewPDF } from '@/lib/buyerPdfGenerator';
 import tileStackedImg from '@/assets/tile-stacked.jpg';
 import tileBrickedImg from '@/assets/tile-bricked.jpg';
 import tileHorizontalImg from '@/assets/tile-horizontal.jpg';
-import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Download, LogOut, Palette, Play, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Download, LogOut, Palette, Play, ExternalLink, Save, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { User } from '@supabase/supabase-js';
 import panelTrackBlindsImg from '@/assets/panel-track-blinds.png';
@@ -154,6 +155,23 @@ export default function SelectionWizard() {
     heatedFloorBathrooms: 0,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showDraftPrompt, setShowDraftPrompt] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState<{
+    currentStep: number;
+    highestStepReached: number;
+    selections: Record<string, unknown>;
+  } | null>(null);
+
+  const steps = getSteps(selections.hasStairs);
+
+  // Draft save hook
+  const { saveDraft, loadDraft, deleteDraft, isSaving, lastSaved } = useDraftSave({
+    userId: user?.id,
+    unitNumber: selections.unitNumber,
+    currentStep,
+    highestStepReached,
+    selections: selections as unknown as Record<string, unknown>,
+  });
 
   // Check authentication on mount
   useEffect(() => {
@@ -182,6 +200,42 @@ export default function SelectionWizard() {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  // Load existing draft when user and unit are set
+  const checkForDraft = useCallback(async () => {
+    if (!user?.id || !selections.unitNumber) return;
+    
+    const draft = await loadDraft();
+    if (draft && draft.highestStepReached > 0) {
+      setPendingDraft(draft);
+      setShowDraftPrompt(true);
+    }
+  }, [user?.id, selections.unitNumber, loadDraft]);
+
+  // Check for draft when unit number is entered
+  useEffect(() => {
+    if (selections.unitNumber && user?.id && currentStep === 0) {
+      checkForDraft();
+    }
+  }, [selections.unitNumber, user?.id, checkForDraft, currentStep]);
+
+  const resumeDraft = useCallback(() => {
+    if (pendingDraft) {
+      setSelections(pendingDraft.selections as unknown as SelectionState);
+      setCurrentStep(pendingDraft.currentStep);
+      setHighestStepReached(pendingDraft.highestStepReached);
+      toast.success('Draft restored');
+    }
+    setShowDraftPrompt(false);
+    setPendingDraft(null);
+  }, [pendingDraft]);
+
+  const discardDraft = useCallback(() => {
+    deleteDraft();
+    setShowDraftPrompt(false);
+    setPendingDraft(null);
+    toast.info('Starting fresh');
+  }, [deleteDraft]);
+
   // Auto-detect unit info when unit number changes
   useEffect(() => {
     const info = getUnitInfo(selections.unitNumber);
@@ -192,6 +246,8 @@ export default function SelectionWizard() {
   }, [selections.unitNumber]);
 
   const handleSignOut = async () => {
+    // Save draft before signing out
+    await saveDraft(false);
     await supabase.auth.signOut();
     navigate('/');
   };
@@ -210,7 +266,6 @@ export default function SelectionWizard() {
     }));
   };
 
-  const steps = getSteps(selections.hasStairs);
 
   const nextStep = () => {
     if (currentStep < steps.length - 1) {
@@ -256,6 +311,9 @@ export default function SelectionWizard() {
         throw new Error('Failed to send email');
       }
 
+      // Delete draft on successful submission
+      await deleteDraft();
+      
       toast.success('Selections submitted successfully!', {
         description: 'Your selections have been saved and emailed to our team.',
       });
@@ -1724,6 +1782,29 @@ export default function SelectionWizard() {
           <div className="flex items-center justify-between">
             <Logo />
             <div className="flex items-center gap-2">
+              {/* Save Draft Button */}
+              {selections.unitNumber && currentStep > 0 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => saveDraft(true)} 
+                  disabled={isSaving}
+                  className="gap-1"
+                >
+                  {isSaving ? (
+                    <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  <span className="hidden sm:inline">Save Draft</span>
+                </Button>
+              )}
+              {lastSaved && (
+                <span className="text-xs text-muted-foreground hidden md:flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Saved {lastSaved.toLocaleTimeString()}
+                </span>
+              )}
               {user && (
                 <span className="text-xs text-muted-foreground hidden sm:block">
                   {user.email}
@@ -1737,6 +1818,31 @@ export default function SelectionWizard() {
           </div>
         </div>
       </header>
+
+      {/* Draft Resume Prompt */}
+      {showDraftPrompt && pendingDraft && (
+        <div className="bg-primary/10 border-b border-primary/20">
+          <div className="container max-w-5xl mx-auto px-4 py-3">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-2 text-sm">
+                <Save className="w-4 h-4 text-primary" />
+                <span className="text-foreground font-medium">You have a saved draft for this unit.</span>
+                <span className="text-muted-foreground hidden sm:inline">
+                  (Step {pendingDraft.highestStepReached + 1} of {steps.length})
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={discardDraft}>
+                  Start Fresh
+                </Button>
+                <Button size="sm" onClick={resumeDraft}>
+                  Resume Draft
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Progress */}
       <div className="border-b border-border bg-card">
