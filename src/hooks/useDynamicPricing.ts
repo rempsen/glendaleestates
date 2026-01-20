@@ -9,6 +9,7 @@ import {
   AREA_DEFINITIONS,
   UpgradeArea,
   AreaUpgradeSelection,
+  MaterialType,
 } from '@/lib/upgradeCostData';
 
 interface DatabaseMaterial {
@@ -168,15 +169,16 @@ export function useDynamicPricing() {
   }, [state.config]);
 
   // Get material cost from DB or fallback to defaults
-  const getMaterialCost = useCallback((materialType: 'lvp' | 'hardwood' | 'carpet' | 'tile'): number => {
+  const getMaterialCost = useCallback((materialType: MaterialType): number => {
     const dbMaterial = state.materials.find(m => m.material_key === materialType);
     if (dbMaterial) {
       return dbMaterial.cost_per_unit;
     }
-    // Fallback to hardcoded defaults
+    // Fallback to hardcoded defaults (lvt uses same pricing as lvp)
     const defaultMap: Record<string, number> = {
       lvp: DEFAULT_UPGRADE_COSTS.lvpUpgrade,
       hardwood: DEFAULT_UPGRADE_COSTS.hardwoodUpgrade,
+      lvt: DEFAULT_UPGRADE_COSTS.lvpUpgrade,
       carpet: DEFAULT_UPGRADE_COSTS.carpetUpgrade,
       tile: DEFAULT_UPGRADE_COSTS.tileUpgrade,
     };
@@ -189,7 +191,7 @@ export function useDynamicPricing() {
   }, [getGroutColorChangePrice]);
 
   // Get material info for display
-  const getMaterialInfo = useCallback((materialType: 'lvp' | 'hardwood' | 'carpet' | 'tile') => {
+  const getMaterialInfo = useCallback((materialType: MaterialType) => {
     const dbMaterial = state.materials.find(m => m.material_key === materialType);
     if (dbMaterial) {
       return {
@@ -208,7 +210,7 @@ export function useDynamicPricing() {
   const getActiveMaterials = useCallback(() => {
     if (state.materials.length > 0) {
       return state.materials.map(m => ({
-        id: m.material_key as 'lvp' | 'hardwood' | 'carpet' | 'tile',
+        id: m.material_key as MaterialType,
         name: m.name,
         description: m.description || '',
         costPerUnit: m.cost_per_unit,
@@ -229,6 +231,8 @@ export function useDynamicPricing() {
         secondBedroom: Number(dbUnit.second_bedroom),
         masterBedroom: Number(dbUnit.master_bedroom),
         secondBedroomCarpet: Number(dbUnit.second_bedroom_carpet),
+        masterBedroomCarpet: 0, // Not in DB yet, use 0
+        stairs: 0, // Not in DB yet, use 0
         guestBathroom: Number(dbUnit.guest_bathroom),
         masterEnsuite: Number(dbUnit.master_ensuite),
         laundry: Number(dbUnit.laundry),
@@ -243,7 +247,7 @@ export function useDynamicPricing() {
   const calculateAreaUpgradePrice = useCallback((
     unitTypeCode: string,
     areaId: UpgradeArea,
-    materialType: 'lvp' | 'hardwood' | 'carpet' | 'tile'
+    materialType: MaterialType
   ): { baseCost: number; markedUpCost: number; gst: number; total: number; quantity: number; unit: string } => {
     const unitData = getUnitAreaData(unitTypeCode);
     if (!unitData) {
@@ -352,12 +356,13 @@ export function createDynamicCalculators(
     return cfg ? cfg.config_value / 100 : DEFAULT_GST;
   })();
 
-  const getMaterialCost = (materialType: 'lvp' | 'hardwood' | 'carpet' | 'tile'): number => {
+  const getMaterialCost = (materialType: MaterialType): number => {
     const dbMaterial = materials.find(m => m.material_key === materialType);
     if (dbMaterial) return dbMaterial.cost_per_unit;
     const defaultMap: Record<string, number> = {
       lvp: DEFAULT_UPGRADE_COSTS.lvpUpgrade,
       hardwood: DEFAULT_UPGRADE_COSTS.hardwoodUpgrade,
+      lvt: DEFAULT_UPGRADE_COSTS.lvpUpgrade,
       carpet: DEFAULT_UPGRADE_COSTS.carpetUpgrade,
       tile: DEFAULT_UPGRADE_COSTS.tileUpgrade,
     };

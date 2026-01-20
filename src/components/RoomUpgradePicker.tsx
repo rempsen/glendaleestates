@@ -3,11 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sofa, BedDouble, Bed, Grid3x3, Bath, ShowerHead, 
   WashingMachine, LayoutGrid, Home, Check, Plus, X, 
-  ChevronDown, ChevronUp, Pencil
+  ChevronDown, ChevronUp, Pencil, Flame, AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { 
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ import {
   AREA_DEFINITIONS,
   UNIT_AREA_DATA,
   requiresFloorSelection,
+  MaterialType,
 } from '@/lib/upgradeCostData';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 
@@ -58,7 +60,8 @@ export function RoomUpgradePicker({
   const [editingSelection, setEditingSelection] = useState<AreaUpgradeSelection | null>(null);
   
   // Use dynamic pricing from database
-  const { calculateAreaUpgradePrice } = useDynamicPricing();
+  const { calculateAreaUpgradePrice, getHeatedFloorPrice, gstRate } = useDynamicPricing();
+  const heatedFloorPrice = getHeatedFloorPrice();
 
   // Determine the effective unit code (with floor suffix for G/H)
   const effectiveUnitCode = unitTypeCode 
@@ -290,13 +293,14 @@ export function RoomUpgradePicker({
                         <Label className="text-sm">Upgrade Material</Label>
                         <Select
                           value={editingSelection?.materialType || selection?.materialType || area.upgradeTypes[0]}
-                          onValueChange={(value: 'lvp' | 'hardwood' | 'carpet' | 'tile') => {
-                            setEditingSelection(prev => prev ? { ...prev, materialType: value } : {
+                          onValueChange={(value: MaterialType) => {
+                            setEditingSelection(prev => prev ? { ...prev, materialType: value, heatedFloor: value === 'tile' ? prev.heatedFloor : undefined } : {
                               areaId: area.id,
                               materialType: value,
                               productName: '',
                               productColor: '',
                               comments: '',
+                              heatedFloor: undefined,
                             });
                           }}
                         >
@@ -315,6 +319,53 @@ export function RoomUpgradePicker({
                           </SelectContent>
                         </Select>
                       </div>
+
+                      {/* Heated Floor Option - Only for tile in bathrooms */}
+                      {area.supportsHeatedFloor && 
+                       (editingSelection?.materialType === 'tile' || (!editingSelection && selection?.materialType === 'tile')) && 
+                       heatedFloorPrice > 0 && (
+                        <div className="p-4 rounded-lg border border-orange-200 bg-orange-50/50">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3">
+                              <div className="p-2 rounded-lg bg-orange-500/10">
+                                <Flame className="w-5 h-5 text-orange-500" />
+                              </div>
+                              <div>
+                                <h5 className="font-medium text-foreground text-sm">Add Heated Floor</h5>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  Radiant floor heating for this bathroom
+                                </p>
+                                <p className="text-sm font-semibold text-primary mt-1">
+                                  +${heatedFloorPrice.toLocaleString()} + GST
+                                </p>
+                              </div>
+                            </div>
+                            <Switch
+                              checked={editingSelection?.heatedFloor || selection?.heatedFloor || false}
+                              onCheckedChange={(checked) => {
+                                setEditingSelection(prev => prev ? { ...prev, heatedFloor: checked } : {
+                                  areaId: area.id,
+                                  materialType: 'tile',
+                                  productName: '',
+                                  productColor: '',
+                                  comments: '',
+                                  heatedFloor: checked,
+                                });
+                              }}
+                            />
+                          </div>
+                          {(editingSelection?.heatedFloor || selection?.heatedFloor) && (
+                            <div className="mt-3 p-2 rounded bg-warning/10 border border-warning/30">
+                              <div className="flex items-start gap-2">
+                                <AlertTriangle className="w-3.5 h-3.5 text-warning mt-0.5 flex-shrink-0" />
+                                <p className="text-xs text-warning">
+                                  Heated floor installation requires Karma's permission for electrical work.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Product Details */}
                       <div className="grid grid-cols-2 gap-3">

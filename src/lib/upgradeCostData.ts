@@ -35,18 +35,25 @@ export type UpgradeArea =
   | 'secondBedroom'
   | 'masterBedroom'
   | 'secondBedroomCarpet' // sq yards
+  | 'masterBedroomCarpet' // sq yards - for carpet bedroom upgrades
+  | 'stairs' // sq yards - stair carpet
   | 'guestBathroom'
   | 'masterEnsuite'
   | 'laundry'
   | 'backsplash'
   | 'allLvp'; // entire unit LVP
 
+// Area categories for determining available upgrade types
+export type AreaCategory = 'living' | 'bedroom' | 'bedroom-carpet' | 'stairs' | 'bathroom' | 'laundry' | 'backsplash';
+
 export interface AreaInfo {
   id: UpgradeArea;
   name: string;
   description: string;
   unit: 'sqft' | 'sqyd';
-  upgradeTypes: ('lvp' | 'hardwood' | 'carpet' | 'tile')[];
+  upgradeTypes: ('lvp' | 'hardwood' | 'lvt' | 'carpet' | 'tile')[];
+  category: AreaCategory;
+  supportsHeatedFloor?: boolean; // Only for tile in bathrooms
   icon: string; // Lucide icon name
 }
 
@@ -56,39 +63,63 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     name: 'Main Living Area',
     description: 'Living room, dining room, and kitchen flooring',
     unit: 'sqft',
-    upgradeTypes: ['lvp', 'hardwood', 'tile'],
+    upgradeTypes: ['lvp', 'hardwood', 'lvt'],
+    category: 'living',
     icon: 'Sofa',
   },
   {
     id: 'secondBedroom',
     name: 'Second Bedroom',
-    description: 'Guest bedroom or office area flooring',
+    description: 'Guest bedroom or office area flooring (LVP standard)',
     unit: 'sqft',
-    upgradeTypes: ['lvp', 'hardwood', 'tile'],
+    upgradeTypes: ['lvp', 'hardwood', 'lvt'],
+    category: 'bedroom',
     icon: 'BedDouble',
   },
   {
     id: 'masterBedroom',
     name: 'Master Bedroom',
-    description: 'Primary bedroom flooring',
+    description: 'Primary bedroom flooring (LVP standard)',
     unit: 'sqft',
-    upgradeTypes: ['lvp', 'hardwood', 'tile'],
+    upgradeTypes: ['lvp', 'hardwood', 'lvt'],
+    category: 'bedroom',
     icon: 'Bed',
   },
   {
     id: 'secondBedroomCarpet',
     name: 'Second Bedroom Carpet',
-    description: 'Upgrade carpet in the second bedroom',
+    description: 'Upgrade carpet in the second bedroom (carpet standard)',
     unit: 'sqyd',
     upgradeTypes: ['carpet'],
+    category: 'bedroom-carpet',
     icon: 'Grid3x3',
+  },
+  {
+    id: 'masterBedroomCarpet',
+    name: 'Master Bedroom Carpet',
+    description: 'Upgrade carpet in the master bedroom (carpet standard)',
+    unit: 'sqyd',
+    upgradeTypes: ['carpet'],
+    category: 'bedroom-carpet',
+    icon: 'Bed',
+  },
+  {
+    id: 'stairs',
+    name: 'Stairs',
+    description: 'Upgrade carpet on stairs (carpet standard)',
+    unit: 'sqyd',
+    upgradeTypes: ['carpet'],
+    category: 'stairs',
+    icon: 'Home',
   },
   {
     id: 'guestBathroom',
     name: 'Guest Bathroom',
     description: 'Secondary bathroom flooring',
     unit: 'sqft',
-    upgradeTypes: ['tile', 'lvp'],
+    upgradeTypes: ['tile'],
+    category: 'bathroom',
+    supportsHeatedFloor: true,
     icon: 'Bath',
   },
   {
@@ -96,7 +127,9 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     name: 'Master Ensuite',
     description: 'Primary bathroom flooring',
     unit: 'sqft',
-    upgradeTypes: ['tile', 'lvp'],
+    upgradeTypes: ['tile'],
+    category: 'bathroom',
+    supportsHeatedFloor: true,
     icon: 'ShowerHead',
   },
   {
@@ -104,7 +137,8 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     name: 'Laundry Room',
     description: 'Laundry room flooring',
     unit: 'sqft',
-    upgradeTypes: ['tile', 'lvp'],
+    upgradeTypes: ['tile', 'lvt'],
+    category: 'laundry',
     icon: 'WashingMachine',
   },
   {
@@ -113,6 +147,7 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     description: 'Tile backsplash in kitchen',
     unit: 'sqft',
     upgradeTypes: ['tile'],
+    category: 'backsplash',
     icon: 'LayoutGrid',
   },
   {
@@ -120,7 +155,8 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     name: 'Entire Unit LVP',
     description: 'All LVP flooring throughout the unit',
     unit: 'sqft',
-    upgradeTypes: ['lvp', 'hardwood', 'tile'],
+    upgradeTypes: ['lvp', 'hardwood', 'lvt'],
+    category: 'living',
     icon: 'Home',
   },
 ];
@@ -133,6 +169,8 @@ export interface UnitAreaData {
   secondBedroom: number;
   masterBedroom: number;
   secondBedroomCarpet: number; // in sq yards
+  masterBedroomCarpet: number; // in sq yards
+  stairs: number; // in sq yards
   guestBathroom: number;
   masterEnsuite: number;
   laundry: number;
@@ -146,6 +184,8 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     secondBedroom: 200,
     masterBedroom: 90,
     secondBedroomCarpet: 20, // sq yards
+    masterBedroomCarpet: 10, // sq yards
+    stairs: 0,
     guestBathroom: 165,
     masterEnsuite: 80,
     laundry: 0, // included in LVP or closet
@@ -157,6 +197,8 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     secondBedroom: 180,
     masterBedroom: 28,
     secondBedroomCarpet: 20,
+    masterBedroomCarpet: 10,
+    stairs: 0,
     guestBathroom: 135,
     masterEnsuite: 75,
     laundry: 0,
@@ -168,6 +210,8 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     secondBedroom: 200,
     masterBedroom: 44,
     secondBedroomCarpet: 24,
+    masterBedroomCarpet: 12,
+    stairs: 0,
     guestBathroom: 200,
     masterEnsuite: 80,
     laundry: 60,
@@ -179,6 +223,8 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     secondBedroom: 200,
     masterBedroom: 44,
     secondBedroomCarpet: 24,
+    masterBedroomCarpet: 12,
+    stairs: 0,
     guestBathroom: 200,
     masterEnsuite: 80,
     laundry: 60,
@@ -190,6 +236,8 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     secondBedroom: 180,
     masterBedroom: 24,
     secondBedroomCarpet: 22,
+    masterBedroomCarpet: 10,
+    stairs: 0,
     guestBathroom: 150,
     masterEnsuite: 60,
     laundry: 40,
@@ -201,6 +249,8 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     secondBedroom: 180,
     masterBedroom: 24,
     secondBedroomCarpet: 22,
+    masterBedroomCarpet: 10,
+    stairs: 0,
     guestBathroom: 150,
     masterEnsuite: 60,
     laundry: 40,
@@ -212,6 +262,8 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     secondBedroom: 0,
     masterBedroom: 0,
     secondBedroomCarpet: 0,
+    masterBedroomCarpet: 0,
+    stairs: 15, // sq yards for townhouse stairs
     guestBathroom: 200,
     masterEnsuite: 50,
     laundry: 50,
@@ -223,6 +275,8 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     secondBedroom: 0,
     masterBedroom: 120, // carpet shown
     secondBedroomCarpet: 0,
+    masterBedroomCarpet: 14,
+    stairs: 0,
     guestBathroom: 0,
     masterEnsuite: 50,
     laundry: 0,
@@ -234,6 +288,8 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     secondBedroom: 0,
     masterBedroom: 0,
     secondBedroomCarpet: 0,
+    masterBedroomCarpet: 0,
+    stairs: 12, // sq yards for townhouse stairs
     guestBathroom: 190,
     masterEnsuite: 50,
     laundry: 40,
@@ -245,6 +301,8 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     secondBedroom: 0,
     masterBedroom: 90, // carpet shown
     secondBedroomCarpet: 0,
+    masterBedroomCarpet: 10,
+    stairs: 0,
     guestBathroom: 0,
     masterEnsuite: 50,
     laundry: 0,
@@ -256,6 +314,8 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     secondBedroom: 200,
     masterBedroom: 25,
     secondBedroomCarpet: 22,
+    masterBedroomCarpet: 10,
+    stairs: 0,
     guestBathroom: 190,
     masterEnsuite: 70,
     laundry: 60,
@@ -264,8 +324,10 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
 };
 
 // Upgrade material type definitions
+export type MaterialType = 'lvp' | 'hardwood' | 'lvt' | 'carpet' | 'tile';
+
 export interface UpgradeMaterial {
-  id: 'lvp' | 'hardwood' | 'carpet' | 'tile';
+  id: MaterialType;
   name: string;
   description: string;
   costPerUnit: number;
@@ -288,6 +350,13 @@ export const UPGRADE_MATERIALS: UpgradeMaterial[] = [
     unit: 'sqft',
   },
   {
+    id: 'lvt',
+    name: 'Premium LVT',
+    description: 'Upgrade from standard to premium luxury vinyl tile',
+    costPerUnit: UPGRADE_COSTS.lvpUpgrade, // Same pricing as LVP
+    unit: 'sqft',
+  },
+  {
     id: 'carpet',
     name: 'Premium Carpet',
     description: 'Upgrade from standard to premium carpet',
@@ -297,7 +366,7 @@ export const UPGRADE_MATERIALS: UpgradeMaterial[] = [
   {
     id: 'tile',
     name: 'Porcelain Tile',
-    description: 'Upgrade to porcelain tile flooring or backsplash',
+    description: 'Upgrade to porcelain tile flooring',
     costPerUnit: UPGRADE_COSTS.tileUpgrade,
     unit: 'sqft',
   },
@@ -306,10 +375,11 @@ export const UPGRADE_MATERIALS: UpgradeMaterial[] = [
 // Selection for an individual area upgrade
 export interface AreaUpgradeSelection {
   areaId: UpgradeArea;
-  materialType: 'lvp' | 'hardwood' | 'carpet' | 'tile';
+  materialType: MaterialType;
   productName: string;
   productColor: string;
   comments: string;
+  heatedFloor?: boolean; // Only for tile in bathrooms
 }
 
 // Backsplash grout color change option
@@ -332,7 +402,7 @@ export function calculateBacksplashGroutPrice(): { baseCost: number; markedUpCos
 export function calculateAreaUpgradePrice(
   unitTypeCode: string,
   areaId: UpgradeArea,
-  materialType: 'lvp' | 'hardwood' | 'carpet' | 'tile'
+  materialType: MaterialType
 ): { baseCost: number; markedUpCost: number; gst: number; total: number; quantity: number; unit: string } {
   const unitData = UNIT_AREA_DATA[unitTypeCode];
   if (!unitData) {
