@@ -42,14 +42,16 @@ function calculateUpgradeCost(
   unitTypeCode: string,
   selections: AreaUpgradeSelection[],
   pricing: PdfPricingConfig
-): { subtotal: number; gst: number; total: number; lineItems: Array<{ areaName: string; quantity: number; unit: string; markedUpCost: number }> } {
+): { subtotal: number; gst: number; total: number; lineItems: Array<{ areaName: string; quantity: number; unit: string; markedUpCost: number; heatedFloor?: boolean; heatedFloorCost?: number }> } {
   let subtotal = 0;
-  const lineItems: Array<{ areaName: string; quantity: number; unit: string; markedUpCost: number }> = [];
+  const lineItems: Array<{ areaName: string; quantity: number; unit: string; markedUpCost: number; heatedFloor?: boolean; heatedFloorCost?: number }> = [];
 
   const unitData = UNIT_AREA_DATA[unitTypeCode];
   if (!unitData) {
     return { subtotal: 0, gst: 0, total: 0, lineItems: [] };
   }
+
+  const heatedFloorPrice = pricing.getHeatedFloorPrice();
 
   for (const selection of selections) {
     const quantity = unitData[selection.areaId] || 0;
@@ -60,14 +62,20 @@ function calculateUpgradeCost(
     const baseCost = quantity * costPerUnit;
     const markedUpCost = baseCost * (1 + pricing.markupPercentage);
     
-    if (markedUpCost > 0) {
-      subtotal += markedUpCost;
+    // Check if this selection has heated floor (tile in bathroom areas)
+    const hasHeatedFloor = selection.heatedFloor && selection.materialType === 'tile';
+    const heatedFloorCost = hasHeatedFloor ? heatedFloorPrice : 0;
+    
+    if (markedUpCost > 0 || heatedFloorCost > 0) {
+      subtotal += markedUpCost + heatedFloorCost;
       const areaInfo = AREA_DEFINITIONS.find(a => a.id === selection.areaId);
       lineItems.push({
         areaName: areaInfo?.name || selection.areaId,
         quantity,
         unit: material?.unit === 'sqyd' ? 'sq yd' : 'sq ft',
         markedUpCost,
+        heatedFloor: hasHeatedFloor,
+        heatedFloorCost,
       });
     }
   }
@@ -374,15 +382,12 @@ export async function generateBuyerPreviewPDF(
   // Upgrades Section
   const effectiveUnitCode = normalizeUnitTypeCode(unitTypeCode);
   
-  // Calculate upgrade costs using dynamic pricing
+  // Calculate upgrade costs using dynamic pricing (includes heated floors per area)
   const upgradeCalc = calculateUpgradeCost(effectiveUnitCode || '', selections.areaUpgrades, pricing);
-  const heatedFloorPerBathroom = pricing.getHeatedFloorPrice();
-  const heatedFloorSubtotal = selections.bathroomTileSelected || selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId))
-    ? selections.heatedFloorBathrooms * heatedFloorPerBathroom
-    : 0;
   const groutPrice = selections.backsplashGrout?.enabled ? calculateGroutPrice(pricing) : null;
   
-  const upgradesSubtotal = upgradeCalc.subtotal + heatedFloorSubtotal + (groutPrice?.markedUpCost || 0);
+  // Note: heated floor costs are now included in upgradeCalc.subtotal per area
+  const upgradesSubtotal = upgradeCalc.subtotal + (groutPrice?.markedUpCost || 0);
 
   if (upgradesSubtotal > 0) {
     checkNewPage(80);
@@ -400,25 +405,28 @@ export async function generateBuyerPreviewPDF(
 
     const upgradeData: string[][] = [];
 
-    // Area upgrades - show only material names and prices (no sq ft)
+    // Area upgrades - show material names, heated floor, and prices (no sq ft)
     selections.areaUpgrades.forEach(upgrade => {
       const areaDef = AREA_DEFINITIONS.find(a => a.id === upgrade.areaId);
       if (areaDef) {
         const itemCalc = upgradeCalc.lineItems.find(i => i.areaName === areaDef.name);
+        const materialCost = itemCalc?.markedUpCost || 0;
+        
+        // Add the material upgrade line
         upgradeData.push([
-          `${areaDef.name} — ${upgrade.productName}`,
-          `$${itemCalc?.markedUpCost.toFixed(2) || '0.00'}`
+          `${areaDef.name} — ${upgrade.productName || UPGRADE_MATERIALS.find(m => m.id === upgrade.materialType)?.name || upgrade.materialType}`,
+          `$${materialCost.toFixed(2)}`
         ]);
+        
+        // Add heated floor line if applicable
+        if (itemCalc?.heatedFloor && itemCalc.heatedFloorCost) {
+          upgradeData.push([
+            `  └ Heated Floor (${areaDef.name})`,
+            `$${itemCalc.heatedFloorCost.toFixed(2)}`
+          ]);
+        }
       }
     });
-
-    // Heated floors
-    if (heatedFloorSubtotal > 0) {
-      upgradeData.push([
-        `Heated Bathroom Floors (${selections.heatedFloorBathrooms} bathroom${selections.heatedFloorBathrooms > 1 ? 's' : ''})`,
-        `$${heatedFloorSubtotal.toFixed(2)}`
-      ]);
-    }
 
     // Grout color change
     if (groutPrice) {
