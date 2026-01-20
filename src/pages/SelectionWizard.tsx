@@ -46,7 +46,8 @@ import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Down
 import { toast } from 'sonner';
 import { User } from '@supabase/supabase-js';
 import panelTrackBlindsImg from '@/assets/panel-track-blinds.png';
-import somfyAutomationImg from '@/assets/somfy-automation.jpg';
+import somfyMotorsImg from '@/assets/somfy-motors.png';
+import somfyControlsImg from '@/assets/somfy-controls.png';
 import bedroomCarpetPreviewImg from '@/assets/bedroom-carpet-preview.jpg';
 import bedroomLvpPreviewImg from '@/assets/bedroom-lvp-preview.jpg';
 
@@ -335,65 +336,66 @@ export default function SelectionWizard() {
 
         {/* Motorized Automation Showcase */}
         <div className="rounded-2xl overflow-hidden border border-border bg-gradient-to-br from-card to-accent/20">
-          <div className="grid md:grid-cols-2 gap-0">
-            {/* Product Image */}
-            <div className="relative aspect-[4/3] md:aspect-auto overflow-hidden">
-              <img 
-                src={somfyAutomationImg} 
-                alt="Somfy Motorized Smart Window Coverings"
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-              <div className="absolute bottom-4 left-4 right-4">
-                <span className="inline-block px-3 py-1 text-xs font-medium bg-accent text-accent-foreground rounded-full">
-                  Smart Home Upgrade
-                </span>
-              </div>
-            </div>
+          {/* Main Hero Image */}
+          <div className="relative">
+            <img 
+              src={somfyMotorsImg} 
+              alt="Somfy Market-Leading Motors & Controls"
+              className="w-full h-auto object-cover"
+            />
+          </div>
+          
+          {/* Product Details */}
+          <div className="p-6 md:p-8">
+            <h3 className="text-xl font-semibold text-foreground mb-2">
+              Powered Automated Window Coverings
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              Upgrade any window shade to motorized operation with Somfy smart home integration.
+            </p>
             
-            {/* Product Details */}
-            <div className="p-6 md:p-8 flex flex-col justify-center">
-              <h3 className="text-xl font-semibold text-foreground mb-2">
-                Powered Automated Window Coverings
-              </h3>
-              <p className="text-muted-foreground mb-4">
-                Upgrade any window shade to motorized operation with Somfy smart home integration.
-              </p>
-              
-              <ul className="space-y-2 mb-6">
-                <li className="flex items-start gap-2 text-sm">
-                  <Check className="w-4 h-4 text-success mt-0.5 shrink-0" />
-                  <span>Control shades from your smartphone or voice assistant</span>
-                </li>
-                <li className="flex items-start gap-2 text-sm">
-                  <Check className="w-4 h-4 text-success mt-0.5 shrink-0" />
-                  <span>Quiet motor technology with smooth operation</span>
-                </li>
-                <li className="flex items-start gap-2 text-sm">
-                  <Check className="w-4 h-4 text-success mt-0.5 shrink-0" />
-                  <span>Includes motor, hub, programming & professional installation</span>
-                </li>
-                <li className="flex items-start gap-2 text-sm">
-                  <Check className="w-4 h-4 text-success mt-0.5 shrink-0" />
-                  <span>Schedule shades to open and close automatically</span>
-                </li>
-              </ul>
+            <ul className="space-y-2 mb-6">
+              <li className="flex items-start gap-2 text-sm">
+                <Check className="w-4 h-4 text-success mt-0.5 shrink-0" />
+                <span>Control shades from your smartphone or voice assistant</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm">
+                <Check className="w-4 h-4 text-success mt-0.5 shrink-0" />
+                <span>Ultra-powerful and ultra-quiet motor technology</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm">
+                <Check className="w-4 h-4 text-success mt-0.5 shrink-0" />
+                <span>Includes motor, hub, programming & professional installation</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm">
+                <Check className="w-4 h-4 text-success mt-0.5 shrink-0" />
+                <span>Schedule shades to open and close automatically</span>
+              </li>
+            </ul>
 
-              <div className="flex items-center gap-3 mb-4">
-                <div className="text-2xl font-bold text-primary">$495.00</div>
-                <div className="text-sm text-muted-foreground">per window<br />(plus GST, installed)</div>
-              </div>
-
-              <a 
-                href="https://www.somfysystems.com/en-us/products/shades-blinds-curtains/motorized-blinds-shades" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-              >
-                Learn More About Somfy
-                <ExternalLink className="w-3 h-3" />
-              </a>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="text-2xl font-bold text-primary">$495.00</div>
+              <div className="text-sm text-muted-foreground">per window<br />(plus GST, installed)</div>
             </div>
+
+            {/* Controls Image */}
+            <div className="mb-6 rounded-xl overflow-hidden border border-border">
+              <img 
+                src={somfyControlsImg} 
+                alt="Somfy Control Options - TaHoma, Ysia, and Situo remotes"
+                className="w-full h-auto object-cover"
+              />
+            </div>
+
+            <a 
+              href="https://www.somfysystems.com/en-us/products/shades-blinds-curtains/motorized-blinds-shades" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+            >
+              Learn More About Somfy
+              <ExternalLink className="w-3 h-3" />
+            </a>
           </div>
         </div>
 
