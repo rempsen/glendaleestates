@@ -5,8 +5,6 @@ import {
   spcTileOptions, 
   carpetOptions, 
   backsplashProduct,
-  windowPricing,
-  heatedFloorPricing,
 } from '@/lib/mockData';
 import { 
   AreaUpgradeSelection,
@@ -23,6 +21,10 @@ export interface PdfPricingConfig {
   gstRate: number;
   getMaterialCost: (materialType: 'lvp' | 'hardwood' | 'carpet' | 'tile') => number;
   getGroutColorFee: () => number;
+  getAdditionalWindowPrice: () => number;
+  getPatioDoorPrice: () => number;
+  getAutomatedMotorPrice: () => number;
+  getHeatedFloorPrice: () => number;
 }
 
 // BMD brand colors
@@ -147,6 +149,10 @@ export async function generateBuyerPreviewPDF(
       return costs[type];
     },
     getGroutColorFee: () => 300.00,
+    getAdditionalWindowPrice: () => 673.50,
+    getPatioDoorPrice: () => 2347.80,
+    getAutomatedMotorPrice: () => 495.00,
+    getHeatedFloorPrice: () => 1650.00,
   };
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -281,10 +287,14 @@ export async function generateBuyerPreviewPDF(
     return false;
   };
 
-  // Window Coverings Section
-  const windowSubtotal = (selections.additionalWindowsQty * windowPricing.additionalWindow) +
-                        (selections.patioDoorsQty * windowPricing.patioDoor) +
-                        (selections.automatedWindowsQty * windowPricing.automatedMotor);
+  // Window Coverings Section - Use dynamic pricing
+  const additionalWindowPrice = pricing.getAdditionalWindowPrice();
+  const patioDoorPrice = pricing.getPatioDoorPrice();
+  const automatedMotorPrice = pricing.getAutomatedMotorPrice();
+  
+  const windowSubtotal = (selections.additionalWindowsQty * additionalWindowPrice) +
+                        (selections.patioDoorsQty * patioDoorPrice) +
+                        (selections.automatedWindowsQty * automatedMotorPrice);
 
   if (windowSubtotal > 0) {
     checkNewPage(70);
@@ -305,32 +315,32 @@ export async function generateBuyerPreviewPDF(
     if (selections.additionalWindowsQty > 0) {
       windowData.push([
         'Additional Windows',
-        `${selections.additionalWindowsQty} × $${windowPricing.additionalWindow.toFixed(2)}`,
-        `$${(selections.additionalWindowsQty * windowPricing.additionalWindow).toFixed(2)}`
+        `${selections.additionalWindowsQty} × $${additionalWindowPrice.toFixed(2)}`,
+        `$${(selections.additionalWindowsQty * additionalWindowPrice).toFixed(2)}`
       ]);
     }
     
     if (selections.patioDoorsQty > 0) {
       windowData.push([
         'Patio Door Panel Track',
-        `${selections.patioDoorsQty} × $${windowPricing.patioDoor.toFixed(2)}`,
-        `$${(selections.patioDoorsQty * windowPricing.patioDoor).toFixed(2)}`
+        `${selections.patioDoorsQty} × $${patioDoorPrice.toFixed(2)}`,
+        `$${(selections.patioDoorsQty * patioDoorPrice).toFixed(2)}`
       ]);
     }
     
     if (selections.automatedWindowsQty > 0) {
       windowData.push([
         'Somfy Automation',
-        `${selections.automatedWindowsQty} × $${windowPricing.automatedMotor.toFixed(2)}`,
-        `$${(selections.automatedWindowsQty * windowPricing.automatedMotor).toFixed(2)}`
+        `${selections.automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)}`,
+        `$${(selections.automatedWindowsQty * automatedMotorPrice).toFixed(2)}`
       ]);
     }
 
-    const windowGst = windowSubtotal * windowPricing.gstRate;
+    const windowGst = windowSubtotal * pricing.gstRate;
     const windowTotal = windowSubtotal + windowGst;
 
     windowData.push(['', 'Subtotal:', `$${windowSubtotal.toFixed(2)}`]);
-    windowData.push(['', 'GST (5%):', `$${windowGst.toFixed(2)}`]);
+    windowData.push(['', `GST (${(pricing.gstRate * 100).toFixed(0)}%):`, `$${windowGst.toFixed(2)}`]);
     windowData.push(['', 'Total:', `$${windowTotal.toFixed(2)}`]);
 
     autoTable(doc, {
@@ -365,8 +375,9 @@ export async function generateBuyerPreviewPDF(
   
   // Calculate upgrade costs using dynamic pricing
   const upgradeCalc = calculateUpgradeCost(effectiveUnitCode || '', selections.areaUpgrades, pricing);
+  const heatedFloorPerBathroom = pricing.getHeatedFloorPrice();
   const heatedFloorSubtotal = selections.bathroomTileSelected || selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId))
-    ? selections.heatedFloorBathrooms * heatedFloorPricing.perBathroom
+    ? selections.heatedFloorBathrooms * heatedFloorPerBathroom
     : 0;
   const groutPrice = selections.backsplashGrout?.enabled ? calculateGroutPrice(pricing) : null;
   
@@ -483,7 +494,7 @@ export async function generateBuyerPreviewPDF(
   }
 
   // Grand Total
-  const grandTotal = windowSubtotal * (1 + windowPricing.gstRate) + upgradesSubtotal * (1 + pricing.gstRate);
+  const grandTotal = windowSubtotal * (1 + pricing.gstRate) + upgradesSubtotal * (1 + pricing.gstRate);
   
   if (grandTotal > 0) {
     checkNewPage(40);

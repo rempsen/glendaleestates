@@ -1,7 +1,8 @@
 import { cn } from '@/lib/utils';
 import { Check, Sparkles, Flame, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { bathroomTileUpgradePricing, heatedFloorPricing, porcelainTileProduct } from '@/lib/mockData';
+import { bathroomTileUpgradePricing, porcelainTileProduct } from '@/lib/mockData';
+import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 
 interface TileUpgradeProps {
   unitTypeCode: string | null;
@@ -20,6 +21,10 @@ export function TileUpgrade({
   onToggleTile,
   onHeatedFloorChange
 }: TileUpgradeProps) {
+  // Use dynamic pricing from database
+  const { getHeatedFloorPrice, gstRate } = useDynamicPricing();
+  const heatedFloorPerBathroom = getHeatedFloorPrice();
+  
   const pricing = unitTypeCode ? bathroomTileUpgradePricing[unitTypeCode] : null;
   
   if (!pricing) {
@@ -32,11 +37,11 @@ export function TileUpgrade({
     );
   }
 
-  const tileGst = pricing.ensuitePrice * 0.05;
+  const tileGst = pricing.ensuitePrice * gstRate;
   const tileTotalPerBath = pricing.ensuitePrice + tileGst;
   
-  const heatedGst = heatedFloorPricing.perBathroom * 0.05;
-  const heatedTotalPerBath = heatedFloorPricing.perBathroom + heatedGst;
+  const heatedGst = heatedFloorPerBathroom * gstRate;
+  const heatedTotalPerBath = heatedFloorPerBathroom + heatedGst;
 
   return (
     <div className="space-y-6">
@@ -182,7 +187,7 @@ export function TileUpgrade({
 
               <div className="flex items-baseline gap-2">
                 <span className="text-lg font-semibold text-foreground">
-                  ${heatedFloorPricing.perBathroom.toLocaleString()}
+                  ${heatedFloorPerBathroom.toLocaleString()}
                 </span>
                 <span className="text-sm text-muted-foreground">
                   per bathroom + GST
@@ -193,10 +198,10 @@ export function TileUpgrade({
                 <div className="mt-3 pt-3 border-t border-border">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">
-                      {heatedFloorBathrooms} bathroom{heatedFloorBathrooms > 1 ? 's' : ''} × ${heatedFloorPricing.perBathroom.toLocaleString()}
+                      {heatedFloorBathrooms} bathroom{heatedFloorBathrooms > 1 ? 's' : ''} × ${heatedFloorPerBathroom.toLocaleString()}
                     </span>
                     <span className="font-medium">
-                      ${(heatedFloorBathrooms * heatedFloorPricing.perBathroom).toLocaleString()} + GST
+                      ${(heatedFloorBathrooms * heatedFloorPerBathroom).toLocaleString()} + GST
                     </span>
                   </div>
                 </div>
