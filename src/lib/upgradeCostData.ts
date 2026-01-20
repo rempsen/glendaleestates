@@ -56,15 +56,15 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     name: 'Main Living Area',
     description: 'Living room, dining room, and kitchen flooring',
     unit: 'sqft',
-    upgradeTypes: ['lvp', 'hardwood'],
+    upgradeTypes: ['lvp', 'hardwood', 'tile'],
     icon: 'Sofa',
   },
   {
     id: 'secondBedroom',
     name: 'Second Bedroom',
-    description: 'Guest bedroom or office area flooring (LVP)',
+    description: 'Guest bedroom or office area flooring',
     unit: 'sqft',
-    upgradeTypes: ['lvp', 'hardwood'],
+    upgradeTypes: ['lvp', 'hardwood', 'tile'],
     icon: 'BedDouble',
   },
   {
@@ -72,7 +72,7 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     name: 'Master Bedroom',
     description: 'Primary bedroom flooring',
     unit: 'sqft',
-    upgradeTypes: ['lvp', 'hardwood'],
+    upgradeTypes: ['lvp', 'hardwood', 'tile'],
     icon: 'Bed',
   },
   {
@@ -86,17 +86,17 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
   {
     id: 'guestBathroom',
     name: 'Guest Bathroom',
-    description: 'Secondary bathroom tile flooring',
+    description: 'Secondary bathroom flooring',
     unit: 'sqft',
-    upgradeTypes: ['tile'],
+    upgradeTypes: ['tile', 'lvp'],
     icon: 'Bath',
   },
   {
     id: 'masterEnsuite',
     name: 'Master Ensuite',
-    description: 'Primary bathroom tile flooring',
+    description: 'Primary bathroom flooring',
     unit: 'sqft',
-    upgradeTypes: ['tile'],
+    upgradeTypes: ['tile', 'lvp'],
     icon: 'ShowerHead',
   },
   {
@@ -104,7 +104,7 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     name: 'Laundry Room',
     description: 'Laundry room flooring',
     unit: 'sqft',
-    upgradeTypes: ['tile'],
+    upgradeTypes: ['tile', 'lvp'],
     icon: 'WashingMachine',
   },
   {
@@ -120,7 +120,7 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     name: 'Entire Unit LVP',
     description: 'All LVP flooring throughout the unit',
     unit: 'sqft',
-    upgradeTypes: ['lvp', 'hardwood'],
+    upgradeTypes: ['lvp', 'hardwood', 'tile'],
     icon: 'Home',
   },
 ];
@@ -296,8 +296,8 @@ export const UPGRADE_MATERIALS: UpgradeMaterial[] = [
   },
   {
     id: 'tile',
-    name: 'Premium Tile',
-    description: 'Upgrade tile flooring or backsplash',
+    name: 'Porcelain Tile',
+    description: 'Upgrade to porcelain tile flooring or backsplash',
     costPerUnit: UPGRADE_COSTS.tileUpgrade,
     unit: 'sqft',
   },
