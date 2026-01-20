@@ -134,6 +134,36 @@ export type Database = {
         }
         Relationships: []
       }
+      pricing_config: {
+        Row: {
+          config_key: string
+          config_value: number
+          created_at: string
+          description: string | null
+          id: string
+          is_percentage: boolean
+          updated_at: string
+        }
+        Insert: {
+          config_key: string
+          config_value: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_percentage?: boolean
+          updated_at?: string
+        }
+        Update: {
+          config_key?: string
+          config_value?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_percentage?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sales_pipeline: {
         Row: {
           buyer_email: string | null
@@ -231,6 +261,90 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      upgrade_line_items: {
+        Row: {
+          apply_to_material_key: string | null
+          blend_into_material: boolean
+          cost: number
+          cost_type: string
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          apply_to_material_key?: string | null
+          blend_into_material?: boolean
+          cost?: number
+          cost_type?: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          apply_to_material_key?: string | null
+          blend_into_material?: boolean
+          cost?: number
+          cost_type?: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      upgrade_materials: {
+        Row: {
+          cost_per_unit: number
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          is_active: boolean
+          material_key: string
+          name: string
+          parent_material_key: string | null
+          unit_type: string
+          updated_at: string
+        }
+        Insert: {
+          cost_per_unit?: number
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          material_key: string
+          name: string
+          parent_material_key?: string | null
+          unit_type?: string
+          updated_at?: string
+        }
+        Update: {
+          cost_per_unit?: number
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          material_key?: string
+          name?: string
+          parent_material_key?: string | null
+          unit_type?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {

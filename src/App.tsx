@@ -13,6 +13,7 @@ import AdminHomes from "./pages/AdminHomes";
 import AdminPipeline from "./pages/AdminPipeline";
 import AdminSalesAnalytics from "./pages/AdminSalesAnalytics";
 import AdminReports from "./pages/AdminReports";
+import AdminPricingControl from "./pages/AdminPricingControl";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/admin/homes" element={<ProtectedRoute><AdminHomes /></ProtectedRoute>} />
           <Route path="/admin/sales-analytics" element={<ProtectedRoute><AdminSalesAnalytics /></ProtectedRoute>} />
           <Route path="/admin/reports" element={<ProtectedRoute><AdminReports /></ProtectedRoute>} />
+          <Route path="/admin/pricing" element={<ProtectedRoute><AdminPricingControl /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

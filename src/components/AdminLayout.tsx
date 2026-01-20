@@ -14,7 +14,8 @@ import {
   X,
   ChevronRight,
   Inbox,
-  LogOut
+  LogOut,
+  DollarSign
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -30,6 +31,7 @@ const navItems = [
   { icon: Home, label: 'All Homes', path: '/admin/homes' },
   { icon: BarChart3, label: 'Sales Analytics', path: '/admin/sales-analytics' },
   { icon: FileText, label: 'Reports', path: '/admin/reports' },
+  { icon: DollarSign, label: 'Pricing Control', path: '/admin/pricing' },
 ];
 
 export function AdminLayout({ children }: AdminLayoutProps) {
