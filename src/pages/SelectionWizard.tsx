@@ -572,7 +572,7 @@ export default function SelectionWizard() {
                   Change Grout Color
                 </h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Your backsplash comes with standard white grout. Want a different color? Add a custom grout color for $250 + GST.
+                  Your backsplash comes with standard white grout. Want a different color? Add a custom grout color for $300 + GST.
                 </p>
                 
                 <div className={`
@@ -598,7 +598,7 @@ export default function SelectionWizard() {
                       </div>
                       <div>
                         <h4 className="font-medium text-foreground text-sm">Change Backsplash Grout Color</h4>
-                        <p className="text-xs text-muted-foreground">$250.00 + GST ($262.50 total)</p>
+                        <p className="text-xs text-muted-foreground">$300.00 + GST ($315.00 total)</p>
                       </div>
                     </div>
                     
