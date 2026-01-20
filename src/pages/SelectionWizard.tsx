@@ -47,6 +47,8 @@ import { toast } from 'sonner';
 import { User } from '@supabase/supabase-js';
 import panelTrackBlindsImg from '@/assets/panel-track-blinds.png';
 import somfyAutomationImg from '@/assets/somfy-automation.jpg';
+import bedroomCarpetPreviewImg from '@/assets/bedroom-carpet-preview.jpg';
+import bedroomLvpPreviewImg from '@/assets/bedroom-lvp-preview.jpg';
 
 // Dynamic step configuration based on unit
 const getSteps = (hasStairs: boolean) => {
@@ -1293,28 +1295,69 @@ export default function SelectionWizard() {
 
               {/* Bedroom Flooring Choice */}
               <div>
-                <h3 className="font-medium text-foreground mb-4">Bedroom Flooring</h3>
-                <p className="text-sm text-muted-foreground mb-4 flex items-center gap-2">
+                <h3 className="font-medium text-foreground mb-4">What type of flooring would you prefer?</h3>
+                <p className="text-sm text-muted-foreground mb-6 flex items-center gap-2">
                   <Check className="w-4 h-4 text-success" />
                   Choosing carpet or plank in bedrooms does not affect your price.
                 </p>
-                <div className="grid grid-cols-2 gap-4 max-w-md">
-                  <SelectionCard
-                    id="carpet"
-                    name="Carpet"
-                    description="Premium broadloom carpet — soft and warm underfoot"
-                    selected={selections.bedroomFlooringChoice === 'carpet'}
-                    onSelect={() => updateSelection('bedroomFlooringChoice', 'carpet')}
-                    variant="text"
-                  />
-                  <SelectionCard
-                    id="lvp"
-                    name="Luxury Vinyl Plank"
-                    description="Matching LVP from main floor — durable and easy to clean"
-                    selected={selections.bedroomFlooringChoice === 'lvp'}
-                    onSelect={() => updateSelection('bedroomFlooringChoice', 'lvp')}
-                    variant="text"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {/* Carpet Option */}
+                  <button
+                    onClick={() => updateSelection('bedroomFlooringChoice', 'carpet')}
+                    className={`
+                      group relative overflow-hidden rounded-2xl border-2 transition-all duration-300
+                      ${selections.bedroomFlooringChoice === 'carpet' 
+                        ? 'border-primary ring-2 ring-primary/20 shadow-lg' 
+                        : 'border-border hover:border-primary/50 hover:shadow-md'}
+                    `}
+                  >
+                    <div className="aspect-[4/3] overflow-hidden">
+                      <img 
+                        src={bedroomCarpetPreviewImg} 
+                        alt="Bedroom with carpet flooring" 
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                    <div className="absolute bottom-0 left-0 right-0 p-5 text-left">
+                      <h4 className="text-lg font-semibold text-white mb-1">Carpet</h4>
+                      <p className="text-sm text-white/80">Soft and warm underfoot — cozy comfort for bedrooms</p>
+                    </div>
+                    {selections.bedroomFlooringChoice === 'carpet' && (
+                      <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+                        <Check className="w-5 h-5 text-primary-foreground" />
+                      </div>
+                    )}
+                  </button>
+
+                  {/* LVP Option */}
+                  <button
+                    onClick={() => updateSelection('bedroomFlooringChoice', 'lvp')}
+                    className={`
+                      group relative overflow-hidden rounded-2xl border-2 transition-all duration-300
+                      ${selections.bedroomFlooringChoice === 'lvp' 
+                        ? 'border-primary ring-2 ring-primary/20 shadow-lg' 
+                        : 'border-border hover:border-primary/50 hover:shadow-md'}
+                    `}
+                  >
+                    <div className="aspect-[4/3] overflow-hidden">
+                      <img 
+                        src={bedroomLvpPreviewImg} 
+                        alt="Bedroom with LVP flooring" 
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                    <div className="absolute bottom-0 left-0 right-0 p-5 text-left">
+                      <h4 className="text-lg font-semibold text-white mb-1">Luxury Vinyl Plank</h4>
+                      <p className="text-sm text-white/80">Matching LVP from main floor — durable and easy to clean</p>
+                    </div>
+                    {selections.bedroomFlooringChoice === 'lvp' && (
+                      <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+                        <Check className="w-5 h-5 text-primary-foreground" />
+                      </div>
+                    )}
+                  </button>
                 </div>
               </div>
 
