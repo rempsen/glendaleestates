@@ -78,23 +78,19 @@ export function PremiumLVPShowcase() {
   const [brochureOpen, setBrochureOpen] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
   
-  const images = [advantageRoom, advantageColors, advantageFeatures];
-  const imageLabels = ['Room Preview', 'Available Colors', 'Specifications'];
+  const images = [advantageColors, advantageFeatures];
+  const imageLabels = ['Available Colors', 'Specifications'];
 
   return (
     <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5 p-6">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="w-5 h-5 text-primary" />
-            <span className="text-xs font-medium uppercase tracking-wide text-primary">Premium Upgrade</span>
-          </div>
           <h3 className="font-serif text-xl font-semibold text-foreground">
-            Engineered Floors Advantage Series
+            Premium Upgrade - LVP
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            PureGrain Comfort - Luxury meets longevity in every step
+            Engineered Floors Advantage Series - PureGrain Comfort
           </p>
         </div>
         <Button 

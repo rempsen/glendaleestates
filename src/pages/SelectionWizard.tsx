@@ -646,10 +646,13 @@ export default function SelectionWizard() {
         {/* Premium Carpet Educational Section */}
         <PremiumCarpetShowcase />
         {/* Room-based Flooring & Tile Upgrades */}
-        <div>
-          <h3 className="text-lg font-medium text-foreground mb-2">Select Areas to Upgrade</h3>
+        <div className="p-5 rounded-xl border-2 border-primary bg-primary/5">
+          <h3 className="text-xl font-serif font-semibold text-foreground mb-2 flex items-center gap-2">
+            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-bold">→</span>
+            Select Areas to Upgrade
+          </h3>
           <p className="text-sm text-muted-foreground mb-4">
-            Click on a room to select upgrade materials. Pricing is calculated based on your unit's square footage.
+            Click on a room below to select upgrade materials. Pricing is calculated based on your unit's square footage.
           </p>
           <RoomUpgradePicker
             unitTypeCode={unitInfo?.typeCode || null}
