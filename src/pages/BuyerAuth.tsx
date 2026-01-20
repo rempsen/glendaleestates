@@ -205,6 +205,10 @@ export default function BuyerAuth() {
           toast.success('Account created successfully!', {
             description: 'You can now continue with your selections.',
           });
+          // Notify admins of new client signup (fire and forget)
+          supabase.functions.invoke('send-user-notification', {
+            body: { type: 'client_signup', userEmail: email }
+          }).catch(err => console.error('Failed to send signup notification:', err));
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({

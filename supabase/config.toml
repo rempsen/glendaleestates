@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.setup-hubspot-properties]
 verify_jwt = false
+
+[functions.manage-users]
+verify_jwt = false
+
+[functions.send-user-notification]
+verify_jwt = false

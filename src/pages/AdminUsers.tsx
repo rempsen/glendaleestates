@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -39,7 +40,12 @@ import {
   Trash2, 
   RefreshCw,
   Loader2,
-  Mail
+  Mail,
+  History,
+  UserCheck,
+  UserMinus,
+  KeyRound,
+  UserX
 } from 'lucide-react';
 
 interface UserData {
@@ -51,10 +57,31 @@ interface UserData {
   roles: string[];
 }
 
+interface ActivityLog {
+  id: string;
+  action_type: string;
+  target_user_email: string;
+  performed_by_email: string;
+  details: Record<string, unknown> | null;
+  created_at: string;
+}
+
+const ACTION_LABELS: Record<string, { label: string; icon: typeof UserPlus; color: string }> = {
+  user_created: { label: 'User Created', icon: UserPlus, color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
+  password_reset: { label: 'Password Reset', icon: KeyRound, color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' },
+  role_added: { label: 'Role Added', icon: ShieldCheck, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
+  role_removed: { label: 'Role Removed', icon: UserMinus, color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
+  user_deleted: { label: 'User Deleted', icon: UserX, color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
+  client_signup: { label: 'Client Signup', icon: UserCheck, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' },
+};
+
 export default function AdminUsers() {
   const [users, setUsers] = useState<UserData[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [logsLoading, setLogsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('users');
   
   // Create user dialog
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -93,9 +120,41 @@ export default function AdminUsers() {
     }
   };
 
+  const fetchActivityLogs = async () => {
+    setLogsLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Not authenticated');
+        return;
+      }
+
+      const response = await supabase.functions.invoke('manage-users', {
+        body: { action: 'getLogs', limit: 100 },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      setActivityLogs(response.data.logs || []);
+    } catch (error: any) {
+      console.error('Error fetching activity logs:', error);
+      toast.error('Failed to load activity logs: ' + error.message);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'logs' && activityLogs.length === 0) {
+      fetchActivityLogs();
+    }
+  }, [activeTab]);
 
   const handleCreateUser = async () => {
     if (!newUserEmail || !newUserPassword) {
@@ -117,11 +176,15 @@ export default function AdminUsers() {
         throw new Error(response.error.message);
       }
 
-      toast.success('User created successfully');
+      toast.success('User created successfully! Email notification sent.');
       setCreateDialogOpen(false);
       setNewUserEmail('');
       setNewUserPassword('');
       fetchUsers();
+      // Refresh logs if on logs tab
+      if (activeTab === 'logs') {
+        fetchActivityLogs();
+      }
     } catch (error: any) {
       console.error('Error creating user:', error);
       toast.error('Failed to create user: ' + error.message);
@@ -149,6 +212,9 @@ export default function AdminUsers() {
 
       toast.success(`Role ${currentlyHasRole ? 'removed' : 'added'} successfully`);
       fetchUsers();
+      if (activeTab === 'logs') {
+        fetchActivityLogs();
+      }
     } catch (error: any) {
       console.error('Error updating role:', error);
       toast.error('Failed to update role: ' + error.message);
@@ -182,11 +248,14 @@ export default function AdminUsers() {
         throw new Error(response.error.message);
       }
 
-      toast.success('Password reset successfully');
+      toast.success('Password reset successfully! User has been notified via email.');
       setResetDialogOpen(false);
       setResetUserId(null);
       setResetUserEmail('');
       setNewPassword('');
+      if (activeTab === 'logs') {
+        fetchActivityLogs();
+      }
     } catch (error: any) {
       console.error('Error resetting password:', error);
       toast.error('Failed to reset password: ' + error.message);
@@ -211,6 +280,9 @@ export default function AdminUsers() {
 
       toast.success('User deleted successfully');
       fetchUsers();
+      if (activeTab === 'logs') {
+        fetchActivityLogs();
+      }
     } catch (error: any) {
       console.error('Error deleting user:', error);
       toast.error('Failed to delete user: ' + error.message);
@@ -229,6 +301,107 @@ export default function AdminUsers() {
   const adminUsers = users.filter(u => u.roles.includes('admin'));
   const regularUsers = users.filter(u => !u.roles.includes('admin'));
 
+  const renderUserTable = (userList: UserData[], title: string, description: string, icon: React.ReactNode) => (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {icon}
+          {title}
+        </CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : userList.length === 0 ? (
+          <p className="text-center py-8 text-muted-foreground">No users found</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Email</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Last Sign In</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Admin</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {userList.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-muted-foreground" />
+                      {user.email}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {format(new Date(user.created_at), 'MMM d, yyyy')}
+                  </TableCell>
+                  <TableCell>
+                    {user.last_sign_in_at 
+                      ? format(new Date(user.last_sign_in_at), 'MMM d, yyyy h:mm a')
+                      : 'Never'}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={user.email_confirmed_at ? 'default' : 'secondary'}>
+                      {user.email_confirmed_at ? 'Confirmed' : 'Pending'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Switch
+                      checked={user.roles.includes('admin')}
+                      onCheckedChange={() => handleToggleRole(user.id, 'admin', user.roles.includes('admin'))}
+                      disabled={actionLoading === user.id}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openResetDialog(user.id, user.email || '')}
+                      >
+                        <Key className="w-4 h-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete User</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete {user.email}? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteUser(user.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
@@ -239,7 +412,10 @@ export default function AdminUsers() {
             <p className="text-muted-foreground">Manage admin and buyer accounts</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={fetchUsers} disabled={loading}>
+            <Button variant="outline" onClick={() => {
+              fetchUsers();
+              if (activeTab === 'logs') fetchActivityLogs();
+            }} disabled={loading}>
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
@@ -254,7 +430,7 @@ export default function AdminUsers() {
                 <DialogHeader>
                   <DialogTitle>Create New User</DialogTitle>
                   <DialogDescription>
-                    Add a new user account. Users with @bmdmaterials.com emails are automatically assigned admin privileges.
+                    Add a new user account. Users with @bmdmaterials.com emails are automatically assigned admin privileges. A welcome email will be sent to the user.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -294,7 +470,7 @@ export default function AdminUsers() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
@@ -329,212 +505,139 @@ export default function AdminUsers() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{regularUsers.length}</p>
-                  <p className="text-sm text-muted-foreground">Regular Users</p>
+                  <p className="text-sm text-muted-foreground">Buyer Users</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-muted">
+                  <History className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{activityLogs.length}</p>
+                  <p className="text-sm text-muted-foreground">Activity Logs</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Admin Users Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-accent-foreground" />
-              Admin Users
-            </CardTitle>
-            <CardDescription>Users with administrative privileges</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : adminUsers.length === 0 ? (
-              <p className="text-center py-8 text-muted-foreground">No admin users found</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Last Sign In</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Admin</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {adminUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <Mail className="w-4 h-4 text-muted-foreground" />
-                          {user.email}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {format(new Date(user.created_at), 'MMM d, yyyy')}
-                      </TableCell>
-                      <TableCell>
-                        {user.last_sign_in_at 
-                          ? format(new Date(user.last_sign_in_at), 'MMM d, yyyy h:mm a')
-                          : 'Never'}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={user.email_confirmed_at ? 'default' : 'secondary'}>
-                          {user.email_confirmed_at ? 'Confirmed' : 'Pending'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Switch
-                          checked={user.roles.includes('admin')}
-                          onCheckedChange={() => handleToggleRole(user.id, 'admin', user.roles.includes('admin'))}
-                          disabled={actionLoading === user.id}
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openResetDialog(user.id, user.email || '')}
-                          >
-                            <Key className="w-4 h-4" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete User</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete {user.email}? This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDeleteUser(user.id)}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="users" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Users
+            </TabsTrigger>
+            <TabsTrigger value="logs" className="flex items-center gap-2">
+              <History className="w-4 h-4" />
+              Activity Log
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Regular Users Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-secondary-foreground" />
-              Buyer Users
-            </CardTitle>
-            <CardDescription>Regular buyer accounts</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : regularUsers.length === 0 ? (
-              <p className="text-center py-8 text-muted-foreground">No regular users found</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Last Sign In</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Admin</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {regularUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <Mail className="w-4 h-4 text-muted-foreground" />
-                          {user.email}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {format(new Date(user.created_at), 'MMM d, yyyy')}
-                      </TableCell>
-                      <TableCell>
-                        {user.last_sign_in_at 
-                          ? format(new Date(user.last_sign_in_at), 'MMM d, yyyy h:mm a')
-                          : 'Never'}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={user.email_confirmed_at ? 'default' : 'secondary'}>
-                          {user.email_confirmed_at ? 'Confirmed' : 'Pending'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Switch
-                          checked={user.roles.includes('admin')}
-                          onCheckedChange={() => handleToggleRole(user.id, 'admin', user.roles.includes('admin'))}
-                          disabled={actionLoading === user.id}
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openResetDialog(user.id, user.email || '')}
-                          >
-                            <Key className="w-4 h-4" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete User</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete {user.email}? This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDeleteUser(user.id)}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+          <TabsContent value="users" className="space-y-6 mt-6">
+            {/* Admin Users Table */}
+            {renderUserTable(
+              adminUsers, 
+              'Admin Users', 
+              'Users with administrative privileges',
+              <ShieldCheck className="w-5 h-5 text-accent-foreground" />
             )}
-          </CardContent>
-        </Card>
+
+            {/* Regular Users Table */}
+            {renderUserTable(
+              regularUsers,
+              'Buyer Users',
+              'Regular buyer accounts',
+              <Shield className="w-5 h-5 text-secondary-foreground" />
+            )}
+          </TabsContent>
+
+          <TabsContent value="logs" className="mt-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <History className="w-5 h-5" />
+                      Activity Log
+                    </CardTitle>
+                    <CardDescription>Review all user management actions</CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={fetchActivityLogs} disabled={logsLoading}>
+                    <RefreshCw className={`w-4 h-4 mr-2 ${logsLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {logsLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : activityLogs.length === 0 ? (
+                  <p className="text-center py-8 text-muted-foreground">No activity logs found</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Action</TableHead>
+                        <TableHead>Target User</TableHead>
+                        <TableHead>Performed By</TableHead>
+                        <TableHead>Details</TableHead>
+                        <TableHead>Time</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {activityLogs.map((log) => {
+                        const actionInfo = ACTION_LABELS[log.action_type] || { 
+                          label: log.action_type, 
+                          icon: History, 
+                          color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400' 
+                        };
+                        const ActionIcon = actionInfo.icon;
+                        
+                        return (
+                          <TableRow key={log.id}>
+                            <TableCell>
+                              <Badge className={actionInfo.color}>
+                                <ActionIcon className="w-3 h-3 mr-1" />
+                                {actionInfo.label}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {log.target_user_email}
+                            </TableCell>
+                            <TableCell>
+                              {log.performed_by_email}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {log.details ? (
+                                <span className="font-mono text-xs">
+                                  {Object.entries(log.details)
+                                    .map(([k, v]) => `${k}: ${v}`)
+                                    .join(', ')}
+                                </span>
+                              ) : (
+                                '—'
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {format(new Date(log.created_at), 'MMM d, yyyy h:mm a')}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
         {/* Reset Password Dialog */}
         <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
@@ -542,7 +645,7 @@ export default function AdminUsers() {
             <DialogHeader>
               <DialogTitle>Reset Password</DialogTitle>
               <DialogDescription>
-                Set a new password for {resetUserEmail}
+                Set a new password for {resetUserEmail}. The user will be notified via email.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
