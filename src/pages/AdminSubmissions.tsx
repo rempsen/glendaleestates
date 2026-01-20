@@ -224,6 +224,7 @@ export default function AdminSubmissions() {
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState<Partial<BuyerSelection>>({});
   const [saving, setSaving] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const fetchSubmissions = async () => {
     setLoading(true);
@@ -627,7 +628,9 @@ export default function AdminSubmissions() {
                     <Button
                       variant="outline"
                       size="sm"
+                      disabled={generatingPdf}
                       onClick={async () => {
+                        setGeneratingPdf(true);
                         console.log('Generating PDF for submission:', selectedSubmission.id);
                         try {
                           await generateSubmissionPDF(selectedSubmission);
@@ -638,11 +641,17 @@ export default function AdminSubmissions() {
                           toast.error('Failed to generate PDF', {
                             description: error instanceof Error ? error.message : 'Unknown error',
                           });
+                        } finally {
+                          setGeneratingPdf(false);
                         }
                       }}
                     >
-                      <Download className="w-4 h-4 mr-2" />
-                      Download PDF
+                      {generatingPdf ? (
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4 mr-2" />
+                      )}
+                      {generatingPdf ? 'Generating...' : 'Download PDF'}
                     </Button>
                     <Select 
                       value={selectedSubmission.status} 
