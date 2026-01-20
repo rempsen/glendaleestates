@@ -10,6 +10,7 @@ import { UpgradeTeaser } from '@/components/UpgradeTeaser';
 import { FloorPlanViewer } from '@/components/FloorPlanViewer';
 import { RoomUpgradePicker } from '@/components/RoomUpgradePicker';
 import { PremiumLVPShowcase } from '@/components/upgrades/PremiumLVPShowcase';
+import { PremiumCarpetShowcase } from '@/components/upgrades/PremiumCarpetShowcase';
 import { UpgradePricingSummary } from '@/components/UpgradePricingSummary';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -642,6 +643,8 @@ export default function SelectionWizard() {
         {/* Premium LVP Educational Section */}
         <PremiumLVPShowcase />
 
+        {/* Premium Carpet Educational Section */}
+        <PremiumCarpetShowcase />
         {/* Room-based Flooring & Tile Upgrades */}
         <div>
           <h3 className="text-lg font-medium text-foreground mb-2">Select Areas to Upgrade</h3>
