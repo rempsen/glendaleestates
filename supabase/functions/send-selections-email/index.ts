@@ -435,7 +435,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (data.areaUpgrades && data.areaUpgrades.length > 0) {
       areaUpgradesHtml = `
         <div class="section highlight" style="background: #9b59b6;">
-          <h2 style="color: white; margin-top: 0;">🔧 Area Upgrades Selected</h2>
+          <h2 style="color: white; margin-top: 0;">Area Upgrades Selected</h2>
           ${data.upgradeFloorSelection ? `<p style="color: white; margin-bottom: 15px;"><strong>Floor Selection (G/H units):</strong> Floor ${escapeHtml(data.upgradeFloorSelection)}</p>` : ''}
           <table style="color: white; width: 100%;">
             <tr style="border-bottom: 1px solid rgba(255,255,255,0.3);">
@@ -463,7 +463,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (data.backsplashGroutEnabled) {
       groutHtml = `
         <div class="section" style="background: #f39c12; color: white;">
-          <h2 style="color: white; margin-top: 0;">🎨 Custom Backsplash Grout Color</h2>
+          <h2 style="color: white; margin-top: 0;">Custom Backsplash Grout Color</h2>
           <table style="color: white;">
             <tr><td><strong>Grout Color:</strong></td><td>${escapeHtml(data.backsplashGroutColor) || 'Not specified'}</td></tr>
             <tr><td><strong>Cost:</strong></td><td>$300.00 + GST ($315.00 total)</td></tr>
@@ -497,12 +497,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       </head>
       <body>
         <div class="container">
-          <h1>🏠 New Selection Submission</h1>
+          <h1>New Selection Submission</h1>
           
           ${savedSelection ? `<div class="db-id"><strong>Database ID:</strong> ${escapeHtml(String(savedSelection.id))}</div>` : ''}
           
           <div class="csv-note">
-            📎 <strong>CSV Data Attached:</strong> A complete CSV file with all selection data is attached to this email for easy import into spreadsheets.
+            <strong>CSV Data Attached:</strong> A complete CSV file with all selection data is attached to this email for easy import into spreadsheets.
           </div>
           
           <div class="section">
