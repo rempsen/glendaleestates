@@ -17,14 +17,18 @@ import {
 } from '@/components/ui/select';
 import {
   AreaUpgradeSelection,
+  BacksplashGroutSelection,
   UpgradeArea,
   getAvailableAreasForUnit,
   UPGRADE_MATERIALS,
   AREA_DEFINITIONS,
   UNIT_AREA_DATA,
   calculateAreaUpgradePrice,
+  calculateBacksplashGroutPrice,
   requiresFloorSelection,
+  MARKUP_PERCENTAGE,
 } from '@/lib/upgradeCostData';
+import { Palette } from 'lucide-react';
 
 interface RoomUpgradePickerProps {
   unitTypeCode: string | null;
@@ -32,6 +36,8 @@ interface RoomUpgradePickerProps {
   selections: AreaUpgradeSelection[];
   onSelectionsChange: (selections: AreaUpgradeSelection[]) => void;
   onFloorChange?: (floor: '1' | '2') => void;
+  backsplashGrout?: BacksplashGroutSelection;
+  onBacksplashGroutChange?: (selection: BacksplashGroutSelection) => void;
 }
 
 // Icon mapping
@@ -53,6 +59,8 @@ export function RoomUpgradePicker({
   selections,
   onSelectionsChange,
   onFloorChange,
+  backsplashGrout,
+  onBacksplashGroutChange,
 }: RoomUpgradePickerProps) {
   const [expandedArea, setExpandedArea] = useState<UpgradeArea | null>(null);
   const [editingSelection, setEditingSelection] = useState<AreaUpgradeSelection | null>(null);
@@ -429,12 +437,119 @@ export function RoomUpgradePicker({
         })}
       </div>
 
+      {/* Backsplash Grout Color Change Option */}
+      <div className={`
+        p-4 rounded-xl border-2 transition-all
+        ${backsplashGrout?.enabled 
+          ? 'border-primary bg-primary/5' 
+          : 'border-border bg-card hover:border-primary/50'
+        }
+      `}>
+        <div 
+          className="flex items-center justify-between cursor-pointer"
+          onClick={() => {
+            if (onBacksplashGroutChange) {
+              onBacksplashGroutChange({
+                enabled: !backsplashGrout?.enabled,
+                groutColor: backsplashGrout?.groutColor || '',
+                comments: backsplashGrout?.comments || '',
+              });
+            }
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`
+              p-2 rounded-lg
+              ${backsplashGrout?.enabled ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground'}
+            `}>
+              <Palette className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-medium text-foreground">Backsplash Grout Color Change</h4>
+              <p className="text-xs text-muted-foreground">Custom grout color for your backsplash tile</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-primary">
+              ${calculateBacksplashGroutPrice().markedUpCost.toFixed(2)} + GST
+            </span>
+            {backsplashGrout?.enabled ? (
+              <div className="p-1 rounded-full bg-primary text-primary-foreground">
+                <Check className="w-3 h-3" />
+              </div>
+            ) : (
+              <div className="p-1.5 rounded-lg bg-secondary text-muted-foreground">
+                <Plus className="w-4 h-4" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Expanded form when enabled */}
+        <AnimatePresence>
+          {backsplashGrout?.enabled && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="pt-4 mt-4 border-t border-border space-y-3">
+                <div>
+                  <Label className="text-sm">Grout Color</Label>
+                  <Input
+                    placeholder="Enter your preferred grout color (e.g., Charcoal, White, Ivory)"
+                    value={backsplashGrout.groutColor}
+                    onChange={(e) => {
+                      if (onBacksplashGroutChange) {
+                        onBacksplashGroutChange({
+                          ...backsplashGrout,
+                          groutColor: e.target.value,
+                        });
+                      }
+                    }}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm">Additional Notes</Label>
+                  <Input
+                    placeholder="Any special notes about the grout color..."
+                    value={backsplashGrout.comments}
+                    onChange={(e) => {
+                      if (onBacksplashGroutChange) {
+                        onBacksplashGroutChange({
+                          ...backsplashGrout,
+                          comments: e.target.value,
+                        });
+                      }
+                    }}
+                    className="mt-1"
+                  />
+                </div>
+                <div className="p-3 rounded-lg bg-secondary/50">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Flat fee × 1.6 markup</span>
+                    <span className="font-semibold text-primary">
+                      ${calculateBacksplashGroutPrice().markedUpCost.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       {/* Selected upgrades summary */}
-      {selections.length > 0 && (
+      {(selections.length > 0 || backsplashGrout?.enabled) && (
         <div className="p-4 rounded-xl border border-primary/30 bg-primary/5">
           <div className="flex items-center justify-between mb-3">
             <h4 className="font-medium text-foreground">Selected Upgrades</h4>
-            <span className="text-sm text-muted-foreground">{selections.length} area{selections.length !== 1 ? 's' : ''}</span>
+            <span className="text-sm text-muted-foreground">
+              {selections.length + (backsplashGrout?.enabled ? 1 : 0)} item{(selections.length + (backsplashGrout?.enabled ? 1 : 0)) !== 1 ? 's' : ''}
+            </span>
           </div>
           <div className="space-y-2">
             {selections.map(selection => {
@@ -465,6 +580,17 @@ export function RoomUpgradePicker({
                 </div>
               );
             })}
+            {backsplashGrout?.enabled && (
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-foreground">Backsplash Grout Color</span>
+                  {backsplashGrout.groutColor && (
+                    <span className="text-xs text-muted-foreground">({backsplashGrout.groutColor})</span>
+                  )}
+                </div>
+                <span className="font-medium">${calculateBacksplashGroutPrice().markedUpCost.toFixed(2)}</span>
+              </div>
+            )}
           </div>
         </div>
       )}

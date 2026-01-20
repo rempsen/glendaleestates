@@ -1,6 +1,8 @@
 import { 
-  AreaUpgradeSelection, 
+  AreaUpgradeSelection,
+  BacksplashGroutSelection,
   calculateTotalUpgradeCost,
+  calculateBacksplashGroutPrice,
   AREA_DEFINITIONS,
   UPGRADE_MATERIALS,
   GST_RATE,
@@ -15,6 +17,7 @@ interface UpgradePricingSummaryProps {
   patioDoors?: number;
   heatedFloorBathrooms?: number;
   bathroomTileSelected?: boolean;
+  backsplashGrout?: BacksplashGroutSelection;
 }
 
 export function UpgradePricingSummary({
@@ -25,6 +28,7 @@ export function UpgradePricingSummary({
   patioDoors = 0,
   heatedFloorBathrooms = 0,
   bathroomTileSelected = false,
+  backsplashGrout,
 }: UpgradePricingSummaryProps) {
   // Determine effective unit code
   const effectiveUnitCode = unitTypeCode 
@@ -48,9 +52,14 @@ export function UpgradePricingSummary({
   const heatedFloorSubtotal = bathroomTileSelected ? heatedFloorBathrooms * heatedFloorPricing.perBathroom : 0;
   const heatedFloorGst = heatedFloorSubtotal * GST_RATE;
 
+  // Calculate backsplash grout color change costs
+  const groutPrice = backsplashGrout?.enabled ? calculateBacksplashGroutPrice() : null;
+  const groutSubtotal = groutPrice?.markedUpCost || 0;
+  const groutGst = groutPrice?.gst || 0;
+
   // Grand totals
-  const grandSubtotal = upgradeCalc.subtotal + windowSubtotal + heatedFloorSubtotal;
-  const grandGst = upgradeCalc.gst + windowGst + heatedFloorGst;
+  const grandSubtotal = upgradeCalc.subtotal + windowSubtotal + heatedFloorSubtotal + groutSubtotal;
+  const grandGst = upgradeCalc.gst + windowGst + heatedFloorGst + groutGst;
   const grandTotal = grandSubtotal + grandGst;
 
   if (grandSubtotal === 0) {
@@ -128,6 +137,26 @@ export function UpgradePricingSummary({
                   Heated Tile Floor ({heatedFloorBathrooms} bathroom{heatedFloorBathrooms > 1 ? 's' : ''} × ${heatedFloorPricing.perBathroom.toLocaleString()})
                 </span>
                 <span className="font-medium">${heatedFloorSubtotal.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Backsplash Grout Color Section */}
+        {backsplashGrout?.enabled && (
+          <div>
+            <h5 className="text-sm font-medium text-foreground mb-2">Backsplash Grout Color</h5>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <div className="text-muted-foreground">
+                  <span>Custom Grout Color</span>
+                  {backsplashGrout.groutColor && (
+                    <span className="text-xs block ml-4 text-muted-foreground/70">
+                      Color: {backsplashGrout.groutColor}
+                    </span>
+                  )}
+                </div>
+                <span className="font-medium">${groutSubtotal.toFixed(2)}</span>
               </div>
             </div>
           </div>
