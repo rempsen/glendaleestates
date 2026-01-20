@@ -4,6 +4,17 @@ import { AdminLayout } from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { 
@@ -29,7 +40,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X, DollarSign } from 'lucide-react';
+import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X, DollarSign, Trash2 } from 'lucide-react';
 import { generateSubmissionPDF } from '@/lib/submissionPdfGenerator';
 import { format } from 'date-fns';
 import { 
@@ -225,9 +236,13 @@ export default function AdminSubmissions() {
   const [editData, setEditData] = useState<Partial<BuyerSelection>>({});
   const [saving, setSaving] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchSubmissions = async () => {
     setLoading(true);
+    setSelectedIds(new Set()); // Clear selection on refresh
     try {
       const { data, error } = await supabase
         .from('buyer_selections')
@@ -365,6 +380,50 @@ export default function AdminSubmissions() {
     setEditMode(false);
   };
 
+  // Selection handlers
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredSubmissions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredSubmissions.map(s => s.id)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const deleteSelectedSubmissions = async () => {
+    if (selectedIds.size === 0) return;
+    
+    setDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('buyer_selections')
+        .delete()
+        .in('id', Array.from(selectedIds));
+
+      if (error) throw error;
+
+      setSubmissions(prev => prev.filter(s => !selectedIds.has(s.id)));
+      toast.success(`Deleted ${selectedIds.size} submission(s)`);
+      setSelectedIds(new Set());
+      setDeleteDialogOpen(false);
+    } catch (error: any) {
+      toast.error('Failed to delete submissions', {
+        description: error.message,
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -374,12 +433,24 @@ export default function AdminSubmissions() {
             <h1 className="text-2xl font-bold text-foreground">Buyer Submissions</h1>
             <p className="text-muted-foreground">
               {submissions.length} total submissions
+              {selectedIds.size > 0 && ` • ${selectedIds.size} selected`}
             </p>
           </div>
-          <Button variant="outline" onClick={fetchSubmissions} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            {selectedIds.size > 0 && (
+              <Button 
+                variant="destructive" 
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete ({selectedIds.size})
+              </Button>
+            )}
+            <Button variant="outline" onClick={fetchSubmissions} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -412,6 +483,13 @@ export default function AdminSubmissions() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={filteredSubmissions.length > 0 && selectedIds.size === filteredSubmissions.length}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all"
+                  />
+                </TableHead>
                 <TableHead>Unit</TableHead>
                 <TableHead>Buyer</TableHead>
                 <TableHead>Email</TableHead>
@@ -423,7 +501,7 @@ export default function AdminSubmissions() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                  <TableCell colSpan={7} className="text-center py-8">
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
                       Loading submissions...
@@ -432,13 +510,20 @@ export default function AdminSubmissions() {
                 </TableRow>
               ) : filteredSubmissions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     No submissions found
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredSubmissions.map((submission) => (
                   <TableRow key={submission.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(submission.id)}
+                        onCheckedChange={() => toggleSelect(submission.id)}
+                        aria-label={`Select ${submission.first_name} ${submission.last_name}`}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="font-medium">{submission.unit_number}</div>
                       {submission.unit_type && (
@@ -932,6 +1017,29 @@ export default function AdminSubmissions() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Submissions</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedIds.size} submission(s)? 
+              This action cannot be undone. All associated data will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteSelectedSubmissions}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 }
