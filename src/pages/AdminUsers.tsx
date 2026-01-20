@@ -51,6 +51,9 @@ import {
 interface UserData {
   id: string;
   email: string;
+  first_name: string | null;
+  last_name: string | null;
+  unit_number: string | null;
   created_at: string;
   last_sign_in_at: string | null;
   email_confirmed_at: string | null;
@@ -321,7 +324,9 @@ export default function AdminUsers() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Unit</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead>Last Sign In</TableHead>
                 <TableHead>Status</TableHead>
@@ -333,10 +338,19 @@ export default function AdminUsers() {
               {userList.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">
+                    {user.first_name || user.last_name 
+                      ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                      : <span className="text-muted-foreground italic">—</span>
+                    }
+                  </TableCell>
+                  <TableCell>
                     <div className="flex items-center gap-2">
                       <Mail className="w-4 h-4 text-muted-foreground" />
                       {user.email}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {user.unit_number || <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell>
                     {format(new Date(user.created_at), 'MMM d, yyyy')}
