@@ -89,6 +89,7 @@ function generateCSV(data: SelectionData, savedId: string | undefined): string {
       rows.push([`Upgrade ${index + 1} - Material Type`, upgrade.materialType || '']);
       rows.push([`Upgrade ${index + 1} - Product Name`, upgrade.productName || '']);
       rows.push([`Upgrade ${index + 1} - Product Color`, upgrade.productColor || '']);
+      rows.push([`Upgrade ${index + 1} - Heated Floor`, upgrade.heatedFloor ? 'Yes' : 'No']);
       rows.push([`Upgrade ${index + 1} - Comments`, upgrade.comments || '']);
     });
   } else {
@@ -204,6 +205,7 @@ interface AreaUpgrade {
   productName: string;
   productColor: string;
   comments: string;
+  heatedFloor?: boolean;
 }
 
 interface SelectionData {
@@ -299,6 +301,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           productName: String(upgrade.productName || '').slice(0, 200),
           productColor: String(upgrade.productColor || '').slice(0, 100),
           comments: String(upgrade.comments || '').slice(0, 2000),
+          heatedFloor: Boolean(upgrade.heatedFloor),
         };
       });
     }
@@ -443,6 +446,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
               <th style="text-align: left; padding: 8px 0;">Material</th>
               <th style="text-align: left; padding: 8px 0;">Product</th>
               <th style="text-align: left; padding: 8px 0;">Color</th>
+              <th style="text-align: left; padding: 8px 0;">Heated</th>
             </tr>
             ${data.areaUpgrades.map(u => `
               <tr style="border-bottom: 1px solid rgba(255,255,255,0.2);">
@@ -450,8 +454,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
                 <td style="padding: 8px 0;">${escapeHtml(MATERIAL_NAMES[u.materialType] || u.materialType)}</td>
                 <td style="padding: 8px 0;">${escapeHtml(u.productName) || 'N/A'}</td>
                 <td style="padding: 8px 0;">${escapeHtml(u.productColor) || 'N/A'}</td>
+                <td style="padding: 8px 0;">${u.heatedFloor ? '<strong style="color: #ffd700;">Yes</strong>' : 'No'}</td>
               </tr>
-              ${u.comments ? `<tr><td colspan="4" style="padding: 4px 0 12px; font-size: 12px; font-style: italic;">Comments: ${escapeHtml(u.comments)}</td></tr>` : ''}
+              ${u.comments ? `<tr><td colspan="5" style="padding: 4px 0 12px; font-size: 12px; font-style: italic;">Comments: ${escapeHtml(u.comments)}</td></tr>` : ''}
             `).join('')}
           </table>
         </div>
