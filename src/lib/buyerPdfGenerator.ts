@@ -13,13 +13,14 @@ import {
   AREA_DEFINITIONS,
   UNIT_AREA_DATA,
   UPGRADE_MATERIALS,
+  MaterialType,
 } from '@/lib/upgradeCostData';
 
 // Pricing config interface for dynamic pricing
 export interface PdfPricingConfig {
   markupPercentage: number;
   gstRate: number;
-  getMaterialCost: (materialType: 'lvp' | 'hardwood' | 'carpet' | 'tile') => number;
+  getMaterialCost: (materialType: MaterialType) => number;
   getGroutColorFee: () => number;
   getAdditionalWindowPrice: () => number;
   getPatioDoorPrice: () => number;
