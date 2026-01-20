@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { ZoomIn, ZoomOut, RotateCcw, Download, Move } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Download, Move, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { UnitInfo } from '@/lib/unitData';
 
@@ -22,6 +22,56 @@ export function FloorPlanViewer({ unitInfo }: FloorPlanViewerProps) {
   const handleReset = () => {
     setScale(1);
     setPosition({ x: 0, y: 0 });
+  };
+
+  const handleOpenInNewWindow = () => {
+    const newWindow = window.open('', '_blank', 'width=900,height=700,scrollbars=yes,resizable=yes');
+    if (newWindow) {
+      newWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Floor Plan - Unit ${unitInfo.unitNumber} (${unitInfo.unitType})</title>
+            <style>
+              body {
+                margin: 0;
+                padding: 20px;
+                background: #1a1a2e;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                min-height: 100vh;
+                font-family: system-ui, -apple-system, sans-serif;
+              }
+              h1 {
+                color: #fff;
+                margin-bottom: 16px;
+                font-size: 1.5rem;
+              }
+              .hint {
+                color: #888;
+                font-size: 0.875rem;
+                margin-bottom: 20px;
+              }
+              img {
+                max-width: 100%;
+                max-height: calc(100vh - 120px);
+                object-fit: contain;
+                background: #fff;
+                border-radius: 8px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+              }
+            </style>
+          </head>
+          <body>
+            <h1>Unit ${unitInfo.unitNumber} - ${unitInfo.unitType}</h1>
+            <p class="hint">Keep this window open for reference while making your selections</p>
+            <img src="${unitInfo.floorPlanUrl}" alt="Floor Plan for Unit ${unitInfo.unitNumber}" />
+          </body>
+        </html>
+      `);
+      newWindow.document.close();
+    }
   };
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -50,8 +100,30 @@ export function FloorPlanViewer({ unitInfo }: FloorPlanViewerProps) {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Open in New Window Call-to-Action */}
+      <div className="flex items-center gap-3 p-4 bg-primary/10 border border-primary/20 rounded-t-xl">
+        <ExternalLink className="w-5 h-5 text-primary flex-shrink-0" />
+        <div className="flex-1">
+          <p className="text-sm font-medium text-foreground">
+            Want to reference your floor plan while making selections?
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Open in a separate window to keep it visible as you proceed
+          </p>
+        </div>
+        <Button 
+          variant="default" 
+          size="sm" 
+          onClick={handleOpenInNewWindow}
+          className="flex-shrink-0"
+        >
+          <ExternalLink className="w-4 h-4 mr-2" />
+          Open in New Window
+        </Button>
+      </div>
+
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-4 p-4 bg-muted/50 rounded-t-xl border-b border-border">
+      <div className="flex items-center justify-between gap-4 p-4 bg-muted/50 border-b border-border">
         <div className="flex items-center gap-2">
           <Button variant="default" size="sm">
             <Move className="w-4 h-4 mr-1" />
