@@ -739,6 +739,69 @@ export default function SelectionWizard() {
           </div>
         </div>
 
+        {/* Window Coverings */}
+        {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0 || selections.automatedWindowsQty > 0) && (
+          <div className="p-4 rounded-xl border border-border bg-card">
+            <h4 className="font-medium text-foreground mb-3">Window Coverings</h4>
+            <div className="grid gap-2 text-sm">
+              {selections.additionalWindowsQty > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Additional Windows</span>
+                  <span className="font-medium">
+                    {selections.additionalWindowsQty} × ${windowPricing.additionalWindow.toFixed(2)} = ${(selections.additionalWindowsQty * windowPricing.additionalWindow).toFixed(2)}
+                  </span>
+                </div>
+              )}
+              {selections.patioDoorsQty > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Patio Door Panel Track</span>
+                  <span className="font-medium">
+                    {selections.patioDoorsQty} × ${windowPricing.patioDoor.toFixed(2)} = ${(selections.patioDoorsQty * windowPricing.patioDoor).toFixed(2)}
+                  </span>
+                </div>
+              )}
+              {selections.automatedWindowsQty > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Somfy Automation</span>
+                  <span className="font-medium">
+                    {selections.automatedWindowsQty} × ${windowPricing.automatedMotor.toFixed(2)} = ${(selections.automatedWindowsQty * windowPricing.automatedMotor).toFixed(2)}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between pt-2 border-t border-border mt-2">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="font-medium">
+                  ${((selections.additionalWindowsQty * windowPricing.additionalWindow) + 
+                     (selections.patioDoorsQty * windowPricing.patioDoor) + 
+                     (selections.automatedWindowsQty * windowPricing.automatedMotor)).toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">GST (5%)</span>
+                <span className="font-medium">
+                  ${(((selections.additionalWindowsQty * windowPricing.additionalWindow) + 
+                      (selections.patioDoorsQty * windowPricing.patioDoor) + 
+                      (selections.automatedWindowsQty * windowPricing.automatedMotor)) * windowPricing.gstRate).toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between font-semibold">
+                <span className="text-foreground">Total</span>
+                <span className="text-primary">
+                  ${(((selections.additionalWindowsQty * windowPricing.additionalWindow) + 
+                      (selections.patioDoorsQty * windowPricing.patioDoor) + 
+                      (selections.automatedWindowsQty * windowPricing.automatedMotor)) * (1 + windowPricing.gstRate)).toFixed(2)}
+                </span>
+              </div>
+              {selections.windowComments && (
+                <div className="pt-2 border-t border-border mt-2">
+                  <span className="text-muted-foreground">Comments: </span>
+                  <span className="text-foreground">{selections.windowComments}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Pricing Summary */}
         {(selections.areaUpgrades.length > 0 || selections.heatedFloorBathrooms > 0) && (
           <div className="p-4 rounded-xl border border-primary/30 bg-primary/5">
