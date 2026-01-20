@@ -32,7 +32,7 @@ export default function AdminDashboard() {
     deleteLayout,
   } = useDashboardLayout();
 
-  const { stats, loading, submissions, pipeline, totalUnits } = useDashboardData(dateRange);
+  const { stats, loading, refreshing, refetch, submissions, pipeline, totalUnits } = useDashboardData(dateRange);
 
   // Track container width for responsive grid
   useEffect(() => {
@@ -121,6 +121,18 @@ export default function AdminDashboard() {
                 }}
               >
                 <Download className="w-4 h-4" />
+              </Button>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                title="Refresh Data"
+                onClick={() => {
+                  refetch();
+                  toast.success('Refreshing dashboard data...');
+                }}
+                disabled={refreshing}
+              >
+                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
               </Button>
             </div>
           </div>
