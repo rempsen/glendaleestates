@@ -235,9 +235,6 @@ export function RoomUpgradePicker({
                     </div>
                     <div>
                       <h4 className="font-medium text-foreground text-sm">{area.name}</h4>
-                      <p className="text-xs text-muted-foreground">
-                        {quantity} {area.unit === 'sqyd' ? 'sq yd' : 'sq ft'}
-                      </p>
                     </div>
                   </div>
                   
@@ -308,7 +305,7 @@ export function RoomUpgradePicker({
                               const material = UPGRADE_MATERIALS.find(m => m.id === type);
                               return (
                                 <SelectItem key={type} value={type}>
-                                  {material?.name} (${material?.costPerUnit}/{material?.unit === 'sqyd' ? 'sq yd' : 'sq ft'})
+                                  {material?.name}
                                 </SelectItem>
                               );
                             })}
@@ -378,11 +375,12 @@ export function RoomUpgradePicker({
                         <div className="p-3 rounded-lg bg-secondary/50">
                           {(() => {
                             const materialType = editingSelection?.materialType || selection?.materialType || area.upgradeTypes[0];
+                            const materialName = UPGRADE_MATERIALS.find(m => m.id === materialType)?.name;
                             const price = calculateAreaUpgradePrice(effectiveUnitCode, area.id, materialType);
                             return (
                               <div className="flex justify-between items-center">
-                                <span className="text-sm text-muted-foreground">
-                                  {price.quantity} {price.unit} × ${UPGRADE_MATERIALS.find(m => m.id === materialType)?.costPerUnit} × 1.6
+                                <span className="text-sm text-foreground">
+                                  {area.name} {materialName} Upgrade
                                 </span>
                                 <span className="font-semibold text-primary">
                                   ${price.markedUpCost.toFixed(2)}
