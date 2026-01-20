@@ -1257,7 +1257,7 @@ export default function SelectionWizard() {
       case 2: // Main Floor LVP
         return (
           <StepContainer
-            title="Main Floor Flooring"
+            title="Main Floor Flooring - LVP"
             subtitle="Select your preferred Luxury Vinyl Plank colour — included at no additional cost"
             badge="Included"
           >
