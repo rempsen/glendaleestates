@@ -35,17 +35,123 @@ function validateInput(data: Record<string, unknown>): { valid: boolean; errors:
   return { valid: errors.length === 0, errors };
 }
 
-// Send email using Resend REST API
-async function sendEmail(options: {
+// Generate CSV content from selection data
+function generateCSV(data: SelectionData, savedId: string | undefined): string {
+  const rows: string[][] = [];
+  
+  // Header row
+  rows.push(['Field', 'Value']);
+  
+  // Buyer Information
+  rows.push(['Database ID', savedId || 'N/A']);
+  rows.push(['Unit Number', data.unitNumber]);
+  rows.push(['Unit Type', data.unitType || 'N/A']);
+  rows.push(['First Name', data.firstName]);
+  rows.push(['Last Name', data.lastName]);
+  rows.push(['Email', data.email]);
+  rows.push(['Phone', data.phoneNumber || 'N/A']);
+  rows.push(['Estimated Possession Date', data.estimatedPossessionDate || 'N/A']);
+  rows.push(['Has Stairs', data.hasStairs ? 'Yes' : 'No']);
+  
+  // Flooring Selections
+  rows.push(['--- FLOORING SELECTIONS ---', '']);
+  rows.push(['Main Floor LVP', data.lvpColour || 'Not selected']);
+  rows.push(['LVP Comments', data.lvpComments || '']);
+  rows.push(['Bathroom/Laundry SPC Tile', data.spcTileColour || 'Not selected']);
+  rows.push(['SPC Tile Comments', data.spcTileComments || '']);
+  rows.push(['Stair Carpet Colour', data.stairCarpetColour || 'N/A']);
+  rows.push(['Bedroom Flooring Choice', data.bedroomFlooringChoice || 'Not selected']);
+  rows.push(['Bedroom Carpet Colour', data.bedroomCarpetColour || 'N/A']);
+  rows.push(['Bedroom LVP Colour', data.bedroomLvpColour || 'N/A']);
+  rows.push(['Bedroom LVP Same as Main', data.bedroomLvpSameAsMain ? 'Yes' : 'No']);
+  
+  // Backsplash
+  rows.push(['--- BACKSPLASH ---', '']);
+  rows.push(['Backsplash Orientation', data.backsplashOrientation || 'Not selected']);
+  rows.push(['Custom Grout Color Change', data.backsplashGroutEnabled ? 'Yes ($300 + GST)' : 'No']);
+  rows.push(['Grout Color', data.backsplashGroutColor || 'N/A']);
+  rows.push(['Grout Comments', data.backsplashGroutComments || '']);
+  
+  // Window Coverings
+  rows.push(['--- WINDOW COVERINGS ---', '']);
+  rows.push(['Additional Windows Qty', String(data.additionalWindowsQty)]);
+  rows.push(['Patio Doors Qty', String(data.patioDoorsQty)]);
+  rows.push(['Window Total (incl. GST)', `$${data.windowTotal.toFixed(2)}`]);
+  rows.push(['Window Comments', data.windowComments || '']);
+  
+  // Area Upgrades
+  rows.push(['--- AREA UPGRADES ---', '']);
+  rows.push(['Upgrade Floor Selection (G/H units)', data.upgradeFloorSelection || 'N/A']);
+  
+  if (data.areaUpgrades && data.areaUpgrades.length > 0) {
+    data.areaUpgrades.forEach((upgrade, index) => {
+      rows.push([`Upgrade ${index + 1} - Area`, upgrade.areaId || '']);
+      rows.push([`Upgrade ${index + 1} - Material Type`, upgrade.materialType || '']);
+      rows.push([`Upgrade ${index + 1} - Product Name`, upgrade.productName || '']);
+      rows.push([`Upgrade ${index + 1} - Product Color`, upgrade.productColor || '']);
+      rows.push([`Upgrade ${index + 1} - Comments`, upgrade.comments || '']);
+    });
+  } else {
+    rows.push(['No area upgrades selected', '']);
+  }
+  
+  // Other Upgrades
+  rows.push(['--- OTHER UPGRADES ---', '']);
+  rows.push(['Hardwood Upgrade Selected', data.hardwoodUpgradeSelected ? 'Yes' : 'No']);
+  rows.push(['Bathroom Tile Selected', data.bathroomTileSelected ? 'Yes' : 'No']);
+  rows.push(['Heated Floor Bathrooms', String(data.heatedFloorBathrooms)]);
+  
+  // Upgrade Interests
+  rows.push(['--- UPGRADE INTERESTS ---', '']);
+  const interests = Object.entries(data.upgradeInterests || {})
+    .filter(([_, v]) => v)
+    .map(([k]) => k);
+  rows.push(['Interested In', interests.length > 0 ? interests.join(', ') : 'None']);
+  
+  // Comments
+  rows.push(['--- COMMENTS ---', '']);
+  rows.push(['Sales Comments', data.salesComments || '']);
+  
+  // Convert to CSV string with proper escaping
+  return rows.map(row => 
+    row.map(cell => {
+      // Escape quotes and wrap in quotes if contains comma, quote, or newline
+      const escaped = String(cell).replace(/"/g, '""');
+      if (escaped.includes(',') || escaped.includes('"') || escaped.includes('\n')) {
+        return `"${escaped}"`;
+      }
+      return escaped;
+    }).join(',')
+  ).join('\n');
+}
+
+// Send email using Resend REST API with attachment support
+async function sendEmailWithAttachment(options: {
   from: string;
   to: string[];
   subject: string;
   html: string;
+  attachments?: Array<{ filename: string; content: string }>;
 }): Promise<{ id?: string; error?: string }> {
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
   
   if (!resendApiKey) {
     throw new Error("RESEND_API_KEY not configured");
+  }
+
+  const body: Record<string, unknown> = {
+    from: options.from,
+    to: options.to,
+    subject: options.subject,
+    html: options.html,
+  };
+
+  // Add attachments if provided (Resend expects base64 encoded content)
+  if (options.attachments && options.attachments.length > 0) {
+    body.attachments = options.attachments.map(att => ({
+      filename: att.filename,
+      content: btoa(att.content), // Base64 encode the CSV content
+    }));
   }
 
   const response = await fetch("https://api.resend.com/emails", {
@@ -54,12 +160,7 @@ async function sendEmail(options: {
       "Authorization": `Bearer ${resendApiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      from: options.from,
-      to: options.to,
-      subject: options.subject,
-      html: options.html,
-    }),
+    body: JSON.stringify(body),
   });
 
   const result = await response.json();
@@ -96,6 +197,15 @@ async function supabaseInsert(table: string, data: Record<string, unknown>): Pro
   return { data: Array.isArray(result) ? result[0] : result, error: null };
 }
 
+// Area upgrade selection interface
+interface AreaUpgrade {
+  areaId: string;
+  materialType: string;
+  productName: string;
+  productColor: string;
+  comments: string;
+}
+
 interface SelectionData {
   unitNumber: string;
   unitType?: string | null;
@@ -124,7 +234,34 @@ interface SelectionData {
   hardwoodUpgradeSelected?: boolean;
   bathroomTileSelected?: boolean;
   heatedFloorBathrooms?: number;
+  // New upgrade fields
+  areaUpgrades?: AreaUpgrade[];
+  upgradeFloorSelection?: string | null;
+  backsplashGroutEnabled?: boolean;
+  backsplashGroutColor?: string | null;
+  backsplashGroutComments?: string | null;
 }
+
+// Area name mapping for display
+const AREA_NAMES: Record<string, string> = {
+  mainLiving: 'Main Living Area',
+  secondBedroom: 'Second Bedroom',
+  masterBedroom: 'Master Bedroom',
+  secondBedroomCarpet: 'Second Bedroom Carpet',
+  guestBathroom: 'Guest Bathroom',
+  masterEnsuite: 'Master Ensuite',
+  laundry: 'Laundry Room',
+  backsplash: 'Kitchen Backsplash',
+  allLvp: 'Entire Unit LVP',
+};
+
+// Material type display names
+const MATERIAL_NAMES: Record<string, string> = {
+  lvp: 'Premium LVP',
+  hardwood: 'Hardwood',
+  carpet: 'Premium Carpet',
+  tile: 'Premium Tile',
+};
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -149,6 +286,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
           headers: { "Content-Type": "application/json", ...corsHeaders } 
         }
       );
+    }
+    
+    // Parse area upgrades
+    let areaUpgrades: AreaUpgrade[] = [];
+    if (Array.isArray(rawData.areaUpgrades)) {
+      areaUpgrades = rawData.areaUpgrades.map((u: unknown) => {
+        const upgrade = u as Record<string, unknown>;
+        return {
+          areaId: String(upgrade.areaId || ''),
+          materialType: String(upgrade.materialType || ''),
+          productName: String(upgrade.productName || '').slice(0, 200),
+          productColor: String(upgrade.productColor || '').slice(0, 100),
+          comments: String(upgrade.comments || '').slice(0, 2000),
+        };
+      });
     }
     
     const data: SelectionData = {
@@ -179,6 +331,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       hardwoodUpgradeSelected: Boolean(rawData.hardwoodUpgradeSelected),
       bathroomTileSelected: Boolean(rawData.bathroomTileSelected),
       heatedFloorBathrooms: Math.max(0, Math.min(10, Number(rawData.heatedFloorBathrooms) || 0)),
+      // New upgrade fields
+      areaUpgrades: areaUpgrades,
+      upgradeFloorSelection: rawData.upgradeFloorSelection ? String(rawData.upgradeFloorSelection).trim().slice(0, 10) : null,
+      backsplashGroutEnabled: Boolean(rawData.backsplashGroutEnabled),
+      backsplashGroutColor: rawData.backsplashGroutColor ? String(rawData.backsplashGroutColor).trim().slice(0, 100) : null,
+      backsplashGroutComments: rawData.backsplashGroutComments ? String(rawData.backsplashGroutComments).trim().slice(0, 2000) : null,
     };
 
     const { data: savedSelection, error: dbError } = await supabaseInsert("buyer_selections", {
@@ -209,6 +367,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
       bathroom_tile_selected: data.bathroomTileSelected,
       heated_floor_bathrooms: data.heatedFloorBathrooms,
+      // New upgrade fields
+      area_upgrades: data.areaUpgrades,
+      upgrade_floor_selection: data.upgradeFloorSelection,
+      backsplash_grout_enabled: data.backsplashGroutEnabled,
+      backsplash_grout_color: data.backsplashGroutColor,
+      backsplash_grout_comments: data.backsplashGroutComments,
       status: "submitted",
     });
 
@@ -246,6 +410,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
           hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
           bathroom_tile_selected: data.bathroomTileSelected,
           heated_floor_bathrooms: data.heatedFloorBathrooms,
+          backsplash_grout_enabled: data.backsplashGroutEnabled,
+          backsplash_grout_color: data.backsplashGroutColor,
+          area_upgrades: data.areaUpgrades,
           status: 'submitted',
           created_at: savedSelection?.created_at,
         }),
@@ -263,6 +430,49 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .map(([key]) => escapeHtml(key.replace('-', ' ')))
       .join(', ') || 'None';
 
+    // Build area upgrades HTML section
+    let areaUpgradesHtml = '';
+    if (data.areaUpgrades && data.areaUpgrades.length > 0) {
+      areaUpgradesHtml = `
+        <div class="section highlight" style="background: #9b59b6;">
+          <h2 style="color: white; margin-top: 0;">🔧 Area Upgrades Selected</h2>
+          ${data.upgradeFloorSelection ? `<p style="color: white; margin-bottom: 15px;"><strong>Floor Selection (G/H units):</strong> Floor ${escapeHtml(data.upgradeFloorSelection)}</p>` : ''}
+          <table style="color: white; width: 100%;">
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.3);">
+              <th style="text-align: left; padding: 8px 0;">Area</th>
+              <th style="text-align: left; padding: 8px 0;">Material</th>
+              <th style="text-align: left; padding: 8px 0;">Product</th>
+              <th style="text-align: left; padding: 8px 0;">Color</th>
+            </tr>
+            ${data.areaUpgrades.map(u => `
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.2);">
+                <td style="padding: 8px 0;">${escapeHtml(AREA_NAMES[u.areaId] || u.areaId)}</td>
+                <td style="padding: 8px 0;">${escapeHtml(MATERIAL_NAMES[u.materialType] || u.materialType)}</td>
+                <td style="padding: 8px 0;">${escapeHtml(u.productName) || 'N/A'}</td>
+                <td style="padding: 8px 0;">${escapeHtml(u.productColor) || 'N/A'}</td>
+              </tr>
+              ${u.comments ? `<tr><td colspan="4" style="padding: 4px 0 12px; font-size: 12px; font-style: italic;">Comments: ${escapeHtml(u.comments)}</td></tr>` : ''}
+            `).join('')}
+          </table>
+        </div>
+      `;
+    }
+
+    // Build backsplash grout HTML section
+    let groutHtml = '';
+    if (data.backsplashGroutEnabled) {
+      groutHtml = `
+        <div class="section" style="background: #f39c12; color: white;">
+          <h2 style="color: white; margin-top: 0;">🎨 Custom Backsplash Grout Color</h2>
+          <table style="color: white;">
+            <tr><td><strong>Grout Color:</strong></td><td>${escapeHtml(data.backsplashGroutColor) || 'Not specified'}</td></tr>
+            <tr><td><strong>Cost:</strong></td><td>$300.00 + GST ($315.00 total)</td></tr>
+          </table>
+          ${data.backsplashGroutComments ? `<p style="margin-top: 10px; font-size: 14px;"><em>Comments: ${escapeHtml(data.backsplashGroutComments)}</em></p>` : ''}
+        </div>
+      `;
+    }
+
     // Use escaped values in HTML to prevent XSS
     const htmlContent = `
       <!DOCTYPE html>
@@ -270,7 +480,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       <head>
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .container { max-width: 700px; margin: 0 auto; padding: 20px; }
           h1 { color: #1a1a2e; border-bottom: 2px solid #e94560; padding-bottom: 10px; }
           h2 { color: #16213e; margin-top: 25px; }
           .section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
@@ -279,8 +489,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
           .highlight { background: #e94560; color: white; padding: 10px 15px; border-radius: 5px; }
           table { width: 100%; border-collapse: collapse; }
           td { padding: 8px 0; border-bottom: 1px solid #eee; }
+          th { text-align: left; padding: 8px 0; }
           .comments { background: #fff3cd; padding: 10px; border-radius: 5px; margin-top: 10px; }
           .db-id { background: #d4edda; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
+          .csv-note { background: #e3f2fd; padding: 10px; border-radius: 5px; margin-top: 20px; font-size: 13px; }
         </style>
       </head>
       <body>
@@ -288,6 +500,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
           <h1>🏠 New Selection Submission</h1>
           
           ${savedSelection ? `<div class="db-id"><strong>Database ID:</strong> ${escapeHtml(String(savedSelection.id))}</div>` : ''}
+          
+          <div class="csv-note">
+            📎 <strong>CSV Data Attached:</strong> A complete CSV file with all selection data is attached to this email for easy import into spreadsheets.
+          </div>
           
           <div class="section">
             <h2>Buyer Information</h2>
@@ -328,6 +544,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
             </table>
           </div>
 
+          ${groutHtml}
+
           ${data.additionalWindowsQty > 0 || data.patioDoorsQty > 0 ? `
           <div class="section highlight">
             <h2 style="color: white; margin-top: 0;">Window Covering Extensions</h2>
@@ -339,6 +557,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
             ${data.windowComments ? `<p style="margin-top: 10px; font-size: 14px;"><em>Notes: ${escapeHtml(data.windowComments)}</em></p>` : ''}
           </div>
           ` : ''}
+
+          ${areaUpgradesHtml}
+
+          <div class="section">
+            <h2>Heated Floors & Other Options</h2>
+            <table>
+              <tr><td class="label">Heated Floor Bathrooms:</td><td class="value">${data.heatedFloorBathrooms || 0} bathroom(s)</td></tr>
+              <tr><td class="label">Bathroom Tile Upgrade:</td><td class="value">${data.bathroomTileSelected ? 'Yes' : 'No'}</td></tr>
+            </table>
+          </div>
 
           <div class="section">
             <h2>Upgrade Interests</h2>
@@ -360,11 +588,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    const emailResponse = await sendEmail({
+    // Generate CSV content
+    const csvContent = generateCSV(data, savedSelection?.id as string | undefined);
+    const csvFilename = `selection_${data.unitNumber.replace(/[^a-zA-Z0-9]/g, '_')}_${data.lastName}_${new Date().toISOString().split('T')[0]}.csv`;
+
+    const emailResponse = await sendEmailWithAttachment({
       from: "BMD Materials Portal <selections@bmdmaterials.com>",
       to: ["dan@bmdmaterials.com", "office@bmdmaterials.com"],
       subject: `New Selection Submission - Unit ${escapeHtml(data.unitNumber) || 'Unknown'}${data.unitType ? ` (${escapeHtml(data.unitType)})` : ''} - ${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}`,
       html: htmlContent,
+      attachments: [
+        {
+          filename: csvFilename,
+          content: csvContent,
+        }
+      ],
     });
 
     console.log("Email sent successfully:", emailResponse);

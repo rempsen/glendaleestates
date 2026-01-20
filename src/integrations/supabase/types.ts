@@ -17,6 +17,10 @@ export type Database = {
       buyer_selections: {
         Row: {
           additional_windows_qty: number | null
+          area_upgrades: Json | null
+          backsplash_grout_color: string | null
+          backsplash_grout_comments: string | null
+          backsplash_grout_enabled: boolean | null
           backsplash_orientation: string | null
           bathroom_tile_selected: boolean | null
           bedroom_carpet_colour: string | null
@@ -45,12 +49,17 @@ export type Database = {
           unit_number: string
           unit_type: string | null
           updated_at: string
+          upgrade_floor_selection: string | null
           upgrade_interests: Json | null
           window_comments: string | null
           window_total: number | null
         }
         Insert: {
           additional_windows_qty?: number | null
+          area_upgrades?: Json | null
+          backsplash_grout_color?: string | null
+          backsplash_grout_comments?: string | null
+          backsplash_grout_enabled?: boolean | null
           backsplash_orientation?: string | null
           bathroom_tile_selected?: boolean | null
           bedroom_carpet_colour?: string | null
@@ -79,12 +88,17 @@ export type Database = {
           unit_number: string
           unit_type?: string | null
           updated_at?: string
+          upgrade_floor_selection?: string | null
           upgrade_interests?: Json | null
           window_comments?: string | null
           window_total?: number | null
         }
         Update: {
           additional_windows_qty?: number | null
+          area_upgrades?: Json | null
+          backsplash_grout_color?: string | null
+          backsplash_grout_comments?: string | null
+          backsplash_grout_enabled?: boolean | null
           backsplash_orientation?: string | null
           bathroom_tile_selected?: boolean | null
           bedroom_carpet_colour?: string | null
@@ -113,6 +127,7 @@ export type Database = {
           unit_number?: string
           unit_type?: string | null
           updated_at?: string
+          upgrade_floor_selection?: string | null
           upgrade_interests?: Json | null
           window_comments?: string | null
           window_total?: number | null

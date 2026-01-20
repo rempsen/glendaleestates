@@ -203,6 +203,12 @@ export default function SelectionWizard() {
           unitType: unitInfo?.unitType || null,
           bedroomLvpColour: selections.bedroomLvpSameAsMain ? selections.lvpColour : selections.bedroomLvpColour,
           windowTotal: total,
+          // Include new upgrade data
+          areaUpgrades: selections.areaUpgrades,
+          upgradeFloorSelection: selections.upgradeFloorSelection,
+          backsplashGroutEnabled: selections.backsplashGrout.enabled,
+          backsplashGroutColor: selections.backsplashGrout.groutColor,
+          backsplashGroutComments: selections.backsplashGrout.comments,
         }),
       });
 
