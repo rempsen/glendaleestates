@@ -1310,7 +1310,7 @@ export default function SelectionWizard() {
       case 3: // Bathroom SPC Tile
         return (
           <StepContainer
-            title="Bathroom & Laundry Flooring"
+            title="Bathroom & Laundry Flooring - LVT"
             subtitle="Select your preferred SPC Vinyl Tile colour — included at no additional cost"
             badge="Included"
           >
