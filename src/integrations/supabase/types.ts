@@ -265,6 +265,60 @@ export type Database = {
           },
         ]
       }
+      unit_area_data: {
+        Row: {
+          all_lvp: number
+          backsplash: number
+          created_at: string
+          display_order: number
+          guest_bathroom: number
+          id: string
+          laundry: number
+          main_living: number
+          master_bedroom: number
+          master_ensuite: number
+          second_bedroom: number
+          second_bedroom_carpet: number
+          unit_type_code: string
+          unit_type_label: string
+          updated_at: string
+        }
+        Insert: {
+          all_lvp?: number
+          backsplash?: number
+          created_at?: string
+          display_order?: number
+          guest_bathroom?: number
+          id?: string
+          laundry?: number
+          main_living?: number
+          master_bedroom?: number
+          master_ensuite?: number
+          second_bedroom?: number
+          second_bedroom_carpet?: number
+          unit_type_code: string
+          unit_type_label: string
+          updated_at?: string
+        }
+        Update: {
+          all_lvp?: number
+          backsplash?: number
+          created_at?: string
+          display_order?: number
+          guest_bathroom?: number
+          id?: string
+          laundry?: number
+          main_living?: number
+          master_bedroom?: number
+          master_ensuite?: number
+          second_bedroom?: number
+          second_bedroom_carpet?: number
+          unit_type_code?: string
+          unit_type_label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       upgrade_line_items: {
         Row: {
           apply_to_material_key: string | null

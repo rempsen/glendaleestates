@@ -4,7 +4,7 @@ import {
   UPGRADE_COSTS as DEFAULT_UPGRADE_COSTS,
   MARKUP_PERCENTAGE as DEFAULT_MARKUP,
   GST_RATE as DEFAULT_GST,
-  UNIT_AREA_DATA,
+  UNIT_AREA_DATA as FALLBACK_UNIT_AREA_DATA,
   UPGRADE_MATERIALS as DEFAULT_MATERIALS,
   AREA_DEFINITIONS,
   UpgradeArea,
@@ -31,9 +31,26 @@ interface DatabaseConfig {
   is_active: boolean;
 }
 
+interface DatabaseUnitArea {
+  id: string;
+  unit_type_code: string;
+  unit_type_label: string;
+  all_lvp: number;
+  main_living: number;
+  second_bedroom: number;
+  master_bedroom: number;
+  second_bedroom_carpet: number;
+  guest_bathroom: number;
+  master_ensuite: number;
+  laundry: number;
+  backsplash: number;
+  display_order: number;
+}
+
 interface PricingState {
   materials: DatabaseMaterial[];
   config: DatabaseConfig[];
+  unitAreas: DatabaseUnitArea[];
   loaded: boolean;
   error: string | null;
 }
@@ -44,17 +61,23 @@ let globalCachePromise: Promise<PricingState> | null = null;
 
 async function fetchPricingData(): Promise<PricingState> {
   try {
-    const [materialsRes, configRes] = await Promise.all([
+    const [materialsRes, configRes, unitAreasRes] = await Promise.all([
       supabase.from('upgrade_materials').select('*').eq('is_active', true).order('display_order'),
       supabase.from('pricing_config').select('*'),
+      supabase.from('unit_area_data').select('*').order('display_order'),
     ]);
 
     if (materialsRes.error) throw materialsRes.error;
     if (configRes.error) throw configRes.error;
+    // Unit area fetch failure is non-fatal - we'll use fallback data
+    if (unitAreasRes.error) {
+      console.warn('Failed to fetch unit area data, using defaults:', unitAreasRes.error);
+    }
 
     return {
       materials: materialsRes.data as DatabaseMaterial[],
       config: configRes.data as DatabaseConfig[],
+      unitAreas: (unitAreasRes.data as DatabaseUnitArea[]) || [],
       loaded: true,
       error: null,
     };
@@ -63,6 +86,7 @@ async function fetchPricingData(): Promise<PricingState> {
     return {
       materials: [],
       config: [],
+      unitAreas: [],
       loaded: true,
       error: error instanceof Error ? error.message : 'Failed to load pricing',
     };
@@ -73,6 +97,7 @@ export function useDynamicPricing() {
   const [state, setState] = useState<PricingState>(() => globalPricingCache || {
     materials: [],
     config: [],
+    unitAreas: [],
     loaded: false,
     error: null,
   });
@@ -193,13 +218,34 @@ export function useDynamicPricing() {
     return DEFAULT_MATERIALS;
   }, [state.materials]);
 
+  // Helper to get unit area data from DB or fallback
+  const getUnitAreaData = useCallback((unitTypeCode: string) => {
+    // First try to find in database data
+    const dbUnit = state.unitAreas.find(u => u.unit_type_code === unitTypeCode);
+    if (dbUnit) {
+      return {
+        allLvp: Number(dbUnit.all_lvp),
+        mainLiving: Number(dbUnit.main_living),
+        secondBedroom: Number(dbUnit.second_bedroom),
+        masterBedroom: Number(dbUnit.master_bedroom),
+        secondBedroomCarpet: Number(dbUnit.second_bedroom_carpet),
+        guestBathroom: Number(dbUnit.guest_bathroom),
+        masterEnsuite: Number(dbUnit.master_ensuite),
+        laundry: Number(dbUnit.laundry),
+        backsplash: Number(dbUnit.backsplash),
+      };
+    }
+    // Fallback to hardcoded defaults
+    return FALLBACK_UNIT_AREA_DATA[unitTypeCode] || null;
+  }, [state.unitAreas]);
+
   // Calculate price for a single area upgrade
   const calculateAreaUpgradePrice = useCallback((
     unitTypeCode: string,
     areaId: UpgradeArea,
     materialType: 'lvp' | 'hardwood' | 'carpet' | 'tile'
   ): { baseCost: number; markedUpCost: number; gst: number; total: number; quantity: number; unit: string } => {
-    const unitData = UNIT_AREA_DATA[unitTypeCode];
+    const unitData = getUnitAreaData(unitTypeCode);
     if (!unitData) {
       return { baseCost: 0, markedUpCost: 0, gst: 0, total: 0, quantity: 0, unit: 'sq ft' };
     }
@@ -219,7 +265,7 @@ export function useDynamicPricing() {
     const unit = materialInfo?.unit === 'sqyd' ? 'sq yd' : 'sq ft';
 
     return { baseCost, markedUpCost, gst, total, quantity, unit };
-  }, [getMaterialCost, getMaterialInfo, markupPercentage, gstRate]);
+  }, [getUnitAreaData, getMaterialCost, getMaterialInfo, markupPercentage, gstRate]);
 
   // Calculate backsplash grout color change price
   const calculateBacksplashGroutPrice = useCallback((): { baseCost: number; markedUpCost: number; gst: number; total: number } => {
