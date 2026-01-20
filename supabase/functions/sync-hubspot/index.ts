@@ -9,6 +9,7 @@ interface AreaUpgradeSelection {
   productName: string;
   productColor: string;
   comments: string;
+  heatedFloor?: boolean;
 }
 
 interface BuyerSelection {
@@ -20,25 +21,34 @@ interface BuyerSelection {
   email: string;
   phone_number: string | null;
   estimated_possession_date: string | null;
+  has_stairs: boolean | null;
   lvp_colour: string | null;
+  lvp_comments: string | null;
   spc_tile_colour: string | null;
+  spc_tile_comments: string | null;
   backsplash_orientation: string | null;
   bedroom_flooring_choice: string | null;
   bedroom_carpet_colour: string | null;
   bedroom_lvp_colour: string | null;
+  bedroom_lvp_same_as_main: boolean | null;
   stair_carpet_colour: string | null;
   additional_windows_qty: number;
   patio_doors_qty: number;
   window_total: number;
+  window_comments: string | null;
   hardwood_upgrade_selected: boolean;
   bathroom_tile_selected: boolean;
   heated_floor_bathrooms: number;
   backsplash_grout_enabled: boolean;
   backsplash_grout_color: string | null;
+  backsplash_grout_comments: string | null;
   area_upgrades: AreaUpgradeSelection[] | null;
+  upgrade_floor_selection: string | null;
   upgrade_interests: Record<string, boolean> | null;
+  sales_comments: string | null;
   status: string;
   created_at: string;
+  pdf_base64?: string;
 }
 
 // Material type display names
@@ -72,6 +82,7 @@ function formatAreaUpgrades(upgrades: AreaUpgradeSelection[] | null): string {
     let line = `${areaName}: ${materialName}`;
     if (u.productName) line += ` - ${u.productName}`;
     if (u.productColor) line += ` (${u.productColor})`;
+    if (u.heatedFloor) line += ' [Heated Floor]';
     return line;
   }).join('; ');
 }
@@ -87,8 +98,55 @@ function formatUpgradeInterests(interests: Record<string, boolean> | null): stri
   return selected.length > 0 ? selected.join(', ') : 'None';
 }
 
+// Upload PDF to HubSpot Files and return URL
+async function uploadPdfToHubSpot(pdfBase64: string, fileName: string, hubspotApiKey: string): Promise<string | null> {
+  try {
+    console.log('Uploading PDF to HubSpot Files...');
+    
+    // Decode base64 to binary
+    const binaryString = atob(pdfBase64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    
+    // Create form data for file upload
+    const formData = new FormData();
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    formData.append('file', blob, fileName);
+    formData.append('options', JSON.stringify({
+      access: 'PUBLIC_NOT_INDEXABLE',
+      overwrite: true,
+    }));
+    formData.append('folderPath', '/BMD-Submissions');
+
+    const uploadResponse = await fetch(
+      'https://api.hubapi.com/files/v3/files',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${hubspotApiKey}`,
+        },
+        body: formData,
+      }
+    );
+
+    if (uploadResponse.ok) {
+      const result = await uploadResponse.json();
+      console.log('PDF uploaded successfully:', result.url);
+      return result.url;
+    } else {
+      const errorText = await uploadResponse.text();
+      console.error('PDF upload failed:', errorText);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error uploading PDF:', error);
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -107,9 +165,14 @@ Deno.serve(async (req) => {
     const submission: BuyerSelection = await req.json();
     console.log('Syncing submission to HubSpot:', submission.email);
 
-    // First, search for existing contact by email
-    // Use HubSpot's idProperty search to find existing contact by email
-    // This is more reliable than the search endpoint for recently created contacts
+    // Upload PDF if provided
+    let pdfUrl: string | null = null;
+    if (submission.pdf_base64) {
+      const fileName = `BMD-Selection-${submission.unit_number}-${submission.last_name}-${new Date().toISOString().split('T')[0]}.pdf`;
+      pdfUrl = await uploadPdfToHubSpot(submission.pdf_base64, fileName, hubspotApiKey);
+    }
+
+    // Search for existing contact by email
     let existingContactId: string | null = null;
     
     try {
@@ -127,7 +190,7 @@ Deno.serve(async (req) => {
       if (lookupResponse.ok) {
         const existingContact = await lookupResponse.json();
         existingContactId = existingContact.id;
-        console.log('Found existing HubSpot contact by email lookup:', existingContactId);
+        console.log('Found existing HubSpot contact:', existingContactId);
       } else if (lookupResponse.status === 404) {
         console.log('No existing contact found for email:', submission.email);
       } else {
@@ -138,49 +201,61 @@ Deno.serve(async (req) => {
       console.log('Email lookup error (will try to create):', lookupErr);
     }
 
-    // Prepare contact properties using BMD custom field names
+    // Prepare contact properties - ALL fields
     const contactProperties: Record<string, string> = {
       email: submission.email,
       firstname: submission.first_name,
       lastname: submission.last_name,
       phone: submission.phone_number || '',
-      // BMD custom properties (created via setup-hubspot-properties function)
+      // BMD custom properties
       bmd_unit_number: submission.unit_number,
       bmd_unit_type: submission.unit_type || '',
+      bmd_has_stairs: submission.has_stairs ? 'yes' : 'no',
       bmd_lvp_selection: submission.lvp_colour || '',
+      bmd_lvp_comments: submission.lvp_comments || '',
       bmd_bathroom_tile: submission.spc_tile_colour || '',
+      bmd_bathroom_tile_comments: submission.spc_tile_comments || '',
       bmd_backsplash: submission.backsplash_orientation || '',
       bmd_bedroom_flooring: submission.bedroom_flooring_choice || '',
       bmd_bedroom_carpet: submission.bedroom_carpet_colour || '',
       bmd_bedroom_lvp: submission.bedroom_lvp_colour || '',
+      bmd_bedroom_lvp_same_as_main: submission.bedroom_lvp_same_as_main ? 'yes' : 'no',
       bmd_stair_carpet: submission.stair_carpet_colour || '',
       bmd_additional_windows: String(submission.additional_windows_qty || 0),
       bmd_patio_doors: String(submission.patio_doors_qty || 0),
       bmd_window_total: String(submission.window_total || 0),
+      bmd_window_comments: submission.window_comments || '',
       bmd_hardwood_upgrade: submission.hardwood_upgrade_selected ? 'Yes' : 'No',
       bmd_tile_upgrade: submission.bathroom_tile_selected ? 'Yes' : 'No',
       bmd_heated_floor_bathrooms: String(submission.heated_floor_bathrooms || 0),
       bmd_backsplash_grout: submission.backsplash_grout_enabled ? (submission.backsplash_grout_color || 'Custom') : '',
+      bmd_backsplash_grout_comments: submission.backsplash_grout_comments || '',
       bmd_area_upgrades: formatAreaUpgrades(submission.area_upgrades),
+      bmd_upgrade_floor_selection: submission.upgrade_floor_selection || '',
       bmd_upgrade_interests: formatUpgradeInterests(submission.upgrade_interests),
+      bmd_sales_comments: submission.sales_comments || '',
       bmd_submission_status: submission.status,
     };
 
-    // Add possession date if provided (needs special formatting for HubSpot date field)
+    // Add possession date if provided
     if (submission.estimated_possession_date) {
       contactProperties.bmd_possession_date = submission.estimated_possession_date;
     }
 
-    // Add submission date (convert to Unix timestamp in milliseconds for HubSpot)
+    // Add submission date
     if (submission.created_at) {
       contactProperties.bmd_submission_date = String(new Date(submission.created_at).getTime());
+    }
+
+    // Add PDF URL if uploaded
+    if (pdfUrl) {
+      contactProperties.bmd_pdf_url = pdfUrl;
     }
 
     let hubspotResponse;
     let contactId: string | null = existingContactId;
 
     if (existingContactId) {
-      // Update existing contact
       console.log('Updating existing HubSpot contact:', existingContactId);
       
       hubspotResponse = await fetch(
@@ -195,7 +270,6 @@ Deno.serve(async (req) => {
         }
       );
     } else {
-      // Create new contact
       console.log('Creating new HubSpot contact');
       
       hubspotResponse = await fetch(
@@ -215,14 +289,13 @@ Deno.serve(async (req) => {
       const errorData = await hubspotResponse.json();
       console.error('HubSpot API error:', JSON.stringify(errorData));
       
-      // Handle CONFLICT error - contact already exists, extract ID and update
+      // Handle CONFLICT error
       if (errorData.category === 'CONFLICT' && errorData.message?.includes('Existing ID:')) {
         const match = errorData.message.match(/Existing ID:\s*(\d+)/);
         if (match && match[1]) {
           contactId = match[1];
           console.log('Contact exists, updating with ID:', contactId);
           
-          // Retry as an update
           hubspotResponse = await fetch(
             `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`,
             {
@@ -238,43 +311,12 @@ Deno.serve(async (req) => {
           if (!hubspotResponse.ok) {
             const updateError = await hubspotResponse.json();
             console.error('Update after conflict failed:', JSON.stringify(updateError));
-            
-            // If update fails due to property issues, try with basic properties
-            if (updateError.message?.includes('property') || updateError.category === 'VALIDATION_ERROR') {
-              console.log('Retrying update with basic properties only');
-              const basicProperties = {
-                email: submission.email,
-                firstname: submission.first_name,
-                lastname: submission.last_name,
-                phone: submission.phone_number || '',
-              };
-              
-              hubspotResponse = await fetch(
-                `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`,
-                {
-                  method: 'PATCH',
-                  headers: {
-                    'Authorization': `Bearer ${hubspotApiKey}`,
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({ properties: basicProperties }),
-                }
-              );
-              
-              if (!hubspotResponse.ok) {
-                const retryError = await hubspotResponse.json();
-                throw new Error(`HubSpot API error: ${JSON.stringify(retryError)}`);
-              }
-            } else {
-              throw new Error(`HubSpot API error: ${JSON.stringify(updateError)}`);
-            }
+            throw new Error(`HubSpot API error: ${JSON.stringify(updateError)}`);
           }
         } else {
           throw new Error(`HubSpot API error: ${JSON.stringify(errorData)}`);
         }
-      }
-      // If custom properties don't exist, try with just basic properties
-      else if (errorData.message?.includes('property') || errorData.category === 'VALIDATION_ERROR') {
+      } else if (errorData.message?.includes('property') || errorData.category === 'VALIDATION_ERROR') {
         console.log('Retrying with basic properties only');
         
         const basicProperties = {
@@ -307,13 +349,14 @@ Deno.serve(async (req) => {
     }
 
     const result = await hubspotResponse.json();
-    console.log('HubSpot sync successful:', result.id);
+    console.log('HubSpot sync successful:', result.id, pdfUrl ? '(with PDF)' : '');
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         contactId: result.id,
-        action: contactId ? 'updated' : 'created'
+        action: contactId ? 'updated' : 'created',
+        pdfUrl: pdfUrl || null,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

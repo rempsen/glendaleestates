@@ -30,6 +30,18 @@ const customProperties = [
     description: "Estimated possession date"
   },
   {
+    name: "bmd_has_stairs",
+    label: "Has Stairs",
+    type: "enumeration",
+    fieldType: "select",
+    groupName: "contactinformation",
+    description: "Whether the unit has stairs",
+    options: [
+      { label: "Yes", value: "yes" },
+      { label: "No", value: "no" }
+    ]
+  },
+  {
     name: "bmd_lvp_selection",
     label: "LVP Flooring Selection",
     type: "string",
@@ -38,12 +50,28 @@ const customProperties = [
     description: "Main floor luxury vinyl plank colour selection"
   },
   {
+    name: "bmd_lvp_comments",
+    label: "LVP Flooring Comments",
+    type: "string",
+    fieldType: "textarea",
+    groupName: "contactinformation",
+    description: "Comments about LVP flooring selection"
+  },
+  {
     name: "bmd_bathroom_tile",
     label: "Bathroom Tile Selection",
     type: "string",
     fieldType: "text",
     groupName: "contactinformation",
     description: "Bathroom SPC tile colour selection"
+  },
+  {
+    name: "bmd_bathroom_tile_comments",
+    label: "Bathroom Tile Comments",
+    type: "string",
+    fieldType: "textarea",
+    groupName: "contactinformation",
+    description: "Comments about bathroom tile selection"
   },
   {
     name: "bmd_backsplash",
@@ -60,6 +88,42 @@ const customProperties = [
     fieldType: "text",
     groupName: "contactinformation",
     description: "Bedroom flooring selection (carpet or LVP)"
+  },
+  {
+    name: "bmd_bedroom_carpet",
+    label: "Bedroom Carpet Colour",
+    type: "string",
+    fieldType: "text",
+    groupName: "contactinformation",
+    description: "Bedroom carpet colour selection"
+  },
+  {
+    name: "bmd_bedroom_lvp",
+    label: "Bedroom LVP Colour",
+    type: "string",
+    fieldType: "text",
+    groupName: "contactinformation",
+    description: "Bedroom LVP colour selection"
+  },
+  {
+    name: "bmd_bedroom_lvp_same_as_main",
+    label: "Bedroom LVP Same As Main",
+    type: "enumeration",
+    fieldType: "select",
+    groupName: "contactinformation",
+    description: "Whether bedroom LVP is same colour as main floor",
+    options: [
+      { label: "Yes", value: "yes" },
+      { label: "No", value: "no" }
+    ]
+  },
+  {
+    name: "bmd_stair_carpet",
+    label: "Stair Carpet Colour",
+    type: "string",
+    fieldType: "text",
+    groupName: "contactinformation",
+    description: "Stair carpet colour selection"
   },
   {
     name: "bmd_additional_windows",
@@ -84,6 +148,14 @@ const customProperties = [
     fieldType: "number",
     groupName: "contactinformation",
     description: "Total cost for window covering add-ons"
+  },
+  {
+    name: "bmd_window_comments",
+    label: "Window Coverings Comments",
+    type: "string",
+    fieldType: "textarea",
+    groupName: "contactinformation",
+    description: "Comments about window covering selections"
   },
   {
     name: "bmd_submission_status",
@@ -140,6 +212,14 @@ const customProperties = [
     description: "Summary of room-by-room upgrade selections"
   },
   {
+    name: "bmd_upgrade_floor_selection",
+    label: "Upgrade Floor Selection",
+    type: "string",
+    fieldType: "text",
+    groupName: "contactinformation",
+    description: "Which floor was selected for upgrades (1 or 2)"
+  },
+  {
     name: "bmd_upgrade_interests",
     label: "Upgrade Interests",
     type: "string",
@@ -156,28 +236,28 @@ const customProperties = [
     description: "Custom backsplash grout color selection"
   },
   {
-    name: "bmd_stair_carpet",
-    label: "Stair Carpet Colour",
+    name: "bmd_backsplash_grout_comments",
+    label: "Backsplash Grout Comments",
     type: "string",
-    fieldType: "text",
+    fieldType: "textarea",
     groupName: "contactinformation",
-    description: "Stair carpet colour selection"
+    description: "Comments about backsplash grout selection"
   },
   {
-    name: "bmd_bedroom_carpet",
-    label: "Bedroom Carpet Colour",
+    name: "bmd_sales_comments",
+    label: "Sales Comments",
     type: "string",
-    fieldType: "text",
+    fieldType: "textarea",
     groupName: "contactinformation",
-    description: "Bedroom carpet colour selection"
+    description: "Admin/sales comments on the submission"
   },
   {
-    name: "bmd_bedroom_lvp",
-    label: "Bedroom LVP Colour",
+    name: "bmd_pdf_url",
+    label: "Submission PDF URL",
     type: "string",
     fieldType: "text",
     groupName: "contactinformation",
-    description: "Bedroom LVP colour selection"
+    description: "URL to the submission PDF document in HubSpot Files"
   }
 ];
 
