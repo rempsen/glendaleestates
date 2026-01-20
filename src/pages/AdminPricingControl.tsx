@@ -192,7 +192,7 @@ export default function AdminPricingControl() {
                     value={markupConfig?.config_value || 60}
                     onChange={(e) => {
                       if (markupConfig) {
-                        updatePricingConfig(markupConfig.id, parseFloat(e.target.value) || 0);
+                        updatePricingConfig(markupConfig.id, { config_value: parseFloat(e.target.value) || 0 });
                       }
                     }}
                     className="w-32"
@@ -220,7 +220,7 @@ export default function AdminPricingControl() {
                     value={gstConfig?.config_value || 5}
                     onChange={(e) => {
                       if (gstConfig) {
-                        updatePricingConfig(gstConfig.id, parseFloat(e.target.value) || 0);
+                        updatePricingConfig(gstConfig.id, { config_value: parseFloat(e.target.value) || 0 });
                       }
                     }}
                     className="w-32"
@@ -253,11 +253,25 @@ export default function AdminPricingControl() {
                 const config = pricingConfig.find(c => c.config_key === 'additional_window_price');
                 if (!config) return null;
                 const withGst = config.config_value * (1 + getGstRate());
+                const isActive = (config as any).is_active !== false;
                 return (
-                  <div className="space-y-2 p-4 border rounded-lg">
-                    <Label htmlFor="additional_window" className="font-medium">
-                      Additional Window Covering
-                    </Label>
+                  <div className={`space-y-3 p-4 border rounded-lg transition-opacity ${!isActive ? 'opacity-50 bg-muted/50' : ''}`}>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="additional_window" className="font-medium">
+                        Additional Window Covering
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={isActive}
+                          onCheckedChange={(checked) => updatePricingConfig(config.id, { is_active: checked })}
+                        />
+                        {isActive ? (
+                          <Eye className="h-4 w-4 text-primary" />
+                        ) : (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground">$</span>
                       <Input
@@ -266,8 +280,9 @@ export default function AdminPricingControl() {
                         min="0"
                         step="0.01"
                         value={config.config_value}
-                        onChange={(e) => updatePricingConfig(config.id, parseFloat(e.target.value) || 0)}
+                        onChange={(e) => updatePricingConfig(config.id, { config_value: parseFloat(e.target.value) || 0 })}
                         className="w-32"
+                        disabled={!isActive}
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -282,11 +297,25 @@ export default function AdminPricingControl() {
                 const config = pricingConfig.find(c => c.config_key === 'patio_door_price');
                 if (!config) return null;
                 const withGst = config.config_value * (1 + getGstRate());
+                const isActive = (config as any).is_active !== false;
                 return (
-                  <div className="space-y-2 p-4 border rounded-lg">
-                    <Label htmlFor="patio_door" className="font-medium">
-                      Patio Door Panel Track
-                    </Label>
+                  <div className={`space-y-3 p-4 border rounded-lg transition-opacity ${!isActive ? 'opacity-50 bg-muted/50' : ''}`}>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="patio_door" className="font-medium">
+                        Patio Door Panel Track
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={isActive}
+                          onCheckedChange={(checked) => updatePricingConfig(config.id, { is_active: checked })}
+                        />
+                        {isActive ? (
+                          <Eye className="h-4 w-4 text-primary" />
+                        ) : (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground">$</span>
                       <Input
@@ -295,8 +324,9 @@ export default function AdminPricingControl() {
                         min="0"
                         step="0.01"
                         value={config.config_value}
-                        onChange={(e) => updatePricingConfig(config.id, parseFloat(e.target.value) || 0)}
+                        onChange={(e) => updatePricingConfig(config.id, { config_value: parseFloat(e.target.value) || 0 })}
                         className="w-32"
+                        disabled={!isActive}
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -311,11 +341,25 @@ export default function AdminPricingControl() {
                 const config = pricingConfig.find(c => c.config_key === 'automated_motor_price');
                 if (!config) return null;
                 const withGst = config.config_value * (1 + getGstRate());
+                const isActive = (config as any).is_active !== false;
                 return (
-                  <div className="space-y-2 p-4 border rounded-lg">
-                    <Label htmlFor="automated_motor" className="font-medium">
-                      Somfy Motorization
-                    </Label>
+                  <div className={`space-y-3 p-4 border rounded-lg transition-opacity ${!isActive ? 'opacity-50 bg-muted/50' : ''}`}>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="automated_motor" className="font-medium">
+                        Somfy Motorization
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={isActive}
+                          onCheckedChange={(checked) => updatePricingConfig(config.id, { is_active: checked })}
+                        />
+                        {isActive ? (
+                          <Eye className="h-4 w-4 text-primary" />
+                        ) : (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground">$</span>
                       <Input
@@ -324,8 +368,9 @@ export default function AdminPricingControl() {
                         min="0"
                         step="0.01"
                         value={config.config_value}
-                        onChange={(e) => updatePricingConfig(config.id, parseFloat(e.target.value) || 0)}
+                        onChange={(e) => updatePricingConfig(config.id, { config_value: parseFloat(e.target.value) || 0 })}
                         className="w-32"
+                        disabled={!isActive}
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -340,11 +385,25 @@ export default function AdminPricingControl() {
                 const config = pricingConfig.find(c => c.config_key === 'heated_floor_per_bathroom');
                 if (!config) return null;
                 const withGst = config.config_value * (1 + getGstRate());
+                const isActive = (config as any).is_active !== false;
                 return (
-                  <div className="space-y-2 p-4 border rounded-lg">
-                    <Label htmlFor="heated_floor" className="font-medium">
-                      Heated Tile Floor
-                    </Label>
+                  <div className={`space-y-3 p-4 border rounded-lg transition-opacity ${!isActive ? 'opacity-50 bg-muted/50' : ''}`}>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="heated_floor" className="font-medium">
+                        Heated Tile Floor
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={isActive}
+                          onCheckedChange={(checked) => updatePricingConfig(config.id, { is_active: checked })}
+                        />
+                        {isActive ? (
+                          <Eye className="h-4 w-4 text-primary" />
+                        ) : (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground">$</span>
                       <Input
@@ -353,8 +412,9 @@ export default function AdminPricingControl() {
                         min="0"
                         step="0.01"
                         value={config.config_value}
-                        onChange={(e) => updatePricingConfig(config.id, parseFloat(e.target.value) || 0)}
+                        onChange={(e) => updatePricingConfig(config.id, { config_value: parseFloat(e.target.value) || 0 })}
                         className="w-32"
+                        disabled={!isActive}
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -369,11 +429,25 @@ export default function AdminPricingControl() {
                 const config = pricingConfig.find(c => c.config_key === 'grout_color_change_price');
                 if (!config) return null;
                 const withGst = config.config_value * (1 + getGstRate());
+                const isActive = (config as any).is_active !== false;
                 return (
-                  <div className="space-y-2 p-4 border rounded-lg">
-                    <Label htmlFor="grout_color" className="font-medium">
-                      Backsplash Grout Color Change
-                    </Label>
+                  <div className={`space-y-3 p-4 border rounded-lg transition-opacity ${!isActive ? 'opacity-50 bg-muted/50' : ''}`}>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="grout_color" className="font-medium">
+                        Backsplash Grout Color Change
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={isActive}
+                          onCheckedChange={(checked) => updatePricingConfig(config.id, { is_active: checked })}
+                        />
+                        {isActive ? (
+                          <Eye className="h-4 w-4 text-primary" />
+                        ) : (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground">$</span>
                       <Input
@@ -382,8 +456,9 @@ export default function AdminPricingControl() {
                         min="0"
                         step="0.01"
                         value={config.config_value}
-                        onChange={(e) => updatePricingConfig(config.id, parseFloat(e.target.value) || 0)}
+                        onChange={(e) => updatePricingConfig(config.id, { config_value: parseFloat(e.target.value) || 0 })}
                         className="w-32"
+                        disabled={!isActive}
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">

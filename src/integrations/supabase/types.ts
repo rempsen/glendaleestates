@@ -141,6 +141,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_active: boolean
           is_percentage: boolean
           updated_at: string
         }
@@ -150,6 +151,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_active?: boolean
           is_percentage?: boolean
           updated_at?: string
         }
@@ -159,6 +161,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_active?: boolean
           is_percentage?: boolean
           updated_at?: string
         }
