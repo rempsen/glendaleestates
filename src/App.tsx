@@ -10,7 +10,8 @@ import BuyerAuth from "./pages/BuyerAuth";
 import AdminSubmissions from "./pages/AdminSubmissions";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminHomes from "./pages/AdminHomes";
-import AdminAnalytics from "./pages/AdminAnalytics";
+import AdminPipeline from "./pages/AdminPipeline";
+import AdminSalesAnalytics from "./pages/AdminSalesAnalytics";
 import AdminReports from "./pages/AdminReports";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -29,9 +30,10 @@ const App = () => (
           <Route path="/select" element={<SelectionWizard />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/pipeline" element={<ProtectedRoute><AdminPipeline /></ProtectedRoute>} />
           <Route path="/admin/submissions" element={<ProtectedRoute><AdminSubmissions /></ProtectedRoute>} />
           <Route path="/admin/homes" element={<ProtectedRoute><AdminHomes /></ProtectedRoute>} />
-          <Route path="/admin/analytics" element={<ProtectedRoute><AdminAnalytics /></ProtectedRoute>} />
+          <Route path="/admin/sales-analytics" element={<ProtectedRoute><AdminSalesAnalytics /></ProtectedRoute>} />
           <Route path="/admin/reports" element={<ProtectedRoute><AdminReports /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
