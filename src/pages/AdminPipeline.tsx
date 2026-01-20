@@ -105,7 +105,8 @@ export default function AdminPipeline() {
       if (error.code === '23505') {
         toast.error('Unit already exists in pipeline');
       } else {
-        toast.error('Failed to add unit');
+        toast.error('Failed to add unit: ' + error.message);
+        console.error('Pipeline insert error:', error);
       }
     } else {
       toast.success(`Unit ${unitNumber} added to pipeline`);
