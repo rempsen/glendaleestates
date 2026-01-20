@@ -50,6 +50,7 @@ import {
   UNIT_AREA_DATA,
   UpgradeArea
 } from '@/lib/upgradeCostData';
+import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 
 // Area upgrade interface
 interface AreaUpgrade {
@@ -81,16 +82,17 @@ const MATERIAL_NAMES: Record<string, string> = {
   tile: 'Premium Tile',
 };
 
-// Pricing constants
-const PATIO_DOOR_PRICE = 2347.80;
-const ADDITIONAL_WINDOW_PRICE = 673.50;
-const HEATED_FLOOR_PRICE = 1650;
-const PORCELAIN_TILE_PER_ENSUITE = 1571;
-const BACKSPLASH_GROUT_PRICE = 300;
-const GST_RATE = 0.05;
+// Pricing interface for dynamic values
+interface PricingValues {
+  patioDoorPrice: number;
+  additionalWindowPrice: number;
+  heatedFloorPrice: number;
+  backsplashGroutPrice: number;
+  gstRate: number;
+}
 
-// Calculate all pricing for a submission
-function calculateSubmissionPricing(submission: BuyerSelection): {
+// Calculate all pricing for a submission using dynamic values
+function calculateSubmissionPricing(submission: BuyerSelection, pricing: PricingValues): {
   windowCoverings: { subtotal: number; gst: number; total: number };
   flooringUpgrades: { subtotal: number; gst: number; total: number };
   tileUpgrades: { subtotal: number; gst: number; total: number };
@@ -99,10 +101,10 @@ function calculateSubmissionPricing(submission: BuyerSelection): {
   grandTotal: { subtotal: number; gst: number; total: number };
 } {
   // Window Coverings
-  const patioTotal = (submission.patio_doors_qty || 0) * PATIO_DOOR_PRICE;
-  const windowTotal = (submission.additional_windows_qty || 0) * ADDITIONAL_WINDOW_PRICE;
+  const patioTotal = (submission.patio_doors_qty || 0) * pricing.patioDoorPrice;
+  const windowTotal = (submission.additional_windows_qty || 0) * pricing.additionalWindowPrice;
   const windowSubtotal = patioTotal + windowTotal;
-  const windowGst = windowSubtotal * GST_RATE;
+  const windowGst = windowSubtotal * pricing.gstRate;
   
   // Flooring Upgrades (LVP, Hardwood, Carpet)
   let flooringSubtotal = 0;
@@ -110,50 +112,46 @@ function calculateSubmissionPricing(submission: BuyerSelection): {
     const unitTypeCode = extractUnitTypeCode(submission.unit_type, submission.upgrade_floor_selection);
     for (const upgrade of submission.area_upgrades) {
       if (['lvp', 'hardwood', 'carpet'].includes(upgrade.materialType)) {
-        const pricing = calculateAreaUpgradePrice(
+        const pricingCalc = calculateAreaUpgradePrice(
           unitTypeCode, 
           upgrade.areaId as UpgradeArea, 
           upgrade.materialType as 'lvp' | 'hardwood' | 'carpet' | 'tile'
         );
-        flooringSubtotal += pricing.markedUpCost;
+        flooringSubtotal += pricingCalc.markedUpCost;
       }
     }
   }
-  const flooringGst = flooringSubtotal * GST_RATE;
+  const flooringGst = flooringSubtotal * pricing.gstRate;
   
   // Tile Upgrades (bathroom tile, backsplash tile)
   let tileSubtotal = 0;
-  if (submission.bathroom_tile_selected) {
-    // Porcelain tile upgrade per bathroom
-    const bathrooms = submission.heated_floor_bathrooms || 1;
-    tileSubtotal += bathrooms * PORCELAIN_TILE_PER_ENSUITE;
-  }
+  // Note: Porcelain tile pricing is handled separately, but we keep this for compatibility
   if (submission.area_upgrades && submission.area_upgrades.length > 0) {
     const unitTypeCode = extractUnitTypeCode(submission.unit_type, submission.upgrade_floor_selection);
     for (const upgrade of submission.area_upgrades) {
       if (upgrade.materialType === 'tile') {
-        const pricing = calculateAreaUpgradePrice(
+        const pricingCalc = calculateAreaUpgradePrice(
           unitTypeCode, 
           upgrade.areaId as UpgradeArea, 
           'tile'
         );
-        tileSubtotal += pricing.markedUpCost;
+        tileSubtotal += pricingCalc.markedUpCost;
       }
     }
   }
-  const tileGst = tileSubtotal * GST_RATE;
+  const tileGst = tileSubtotal * pricing.gstRate;
   
   // Heated Floors
-  const heatedSubtotal = (submission.heated_floor_bathrooms || 0) * HEATED_FLOOR_PRICE;
-  const heatedGst = heatedSubtotal * GST_RATE;
+  const heatedSubtotal = (submission.heated_floor_bathrooms || 0) * pricing.heatedFloorPrice;
+  const heatedGst = heatedSubtotal * pricing.gstRate;
   
   // Backsplash Grout Color Change
-  const groutSubtotal = submission.backsplash_grout_enabled ? BACKSPLASH_GROUT_PRICE : 0;
-  const groutGst = groutSubtotal * GST_RATE;
+  const groutSubtotal = submission.backsplash_grout_enabled ? pricing.backsplashGroutPrice : 0;
+  const groutGst = groutSubtotal * pricing.gstRate;
   
   // Grand Total
   const grandSubtotal = windowSubtotal + flooringSubtotal + tileSubtotal + heatedSubtotal + groutSubtotal;
-  const grandGst = grandSubtotal * GST_RATE;
+  const grandGst = grandSubtotal * pricing.gstRate;
   const grandTotal = grandSubtotal + grandGst;
   
   return {
@@ -239,6 +237,24 @@ export default function AdminSubmissions() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Use dynamic pricing from database
+  const { 
+    getAdditionalWindowPrice,
+    getPatioDoorPrice,
+    getHeatedFloorPrice,
+    getGroutColorChangePrice,
+    gstRate,
+  } = useDynamicPricing();
+
+  // Build pricing values object for calculations
+  const pricingValues: PricingValues = {
+    patioDoorPrice: getPatioDoorPrice(),
+    additionalWindowPrice: getAdditionalWindowPrice(),
+    heatedFloorPrice: getHeatedFloorPrice(),
+    backsplashGroutPrice: getGroutColorChangePrice(),
+    gstRate,
+  };
 
   const fetchSubmissions = async () => {
     setLoading(true);
@@ -604,7 +620,7 @@ export default function AdminSubmissions() {
               <div className="space-y-6 mt-4">
                 {/* Pricing Summary - FIRST */}
                 {(() => {
-                  const pricing = calculateSubmissionPricing(selectedSubmission);
+                  const pricing = calculateSubmissionPricing(selectedSubmission, pricingValues);
                   const hasAnyUpgrades = pricing.grandTotal.total > 0;
                   
                   return hasAnyUpgrades ? (
