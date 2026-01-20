@@ -235,6 +235,167 @@ export default function AdminPricingControl() {
           </CardContent>
         </Card>
 
+        {/* Flat Rate Pricing Items */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              Flat Rate Pricing
+            </CardTitle>
+            <CardDescription>
+              Fixed costs for window coverings, heated floors, and other flat-rate items (pre-GST)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Additional Window Price */}
+              {(() => {
+                const config = pricingConfig.find(c => c.config_key === 'additional_window_price');
+                if (!config) return null;
+                const withGst = config.config_value * (1 + getGstRate());
+                return (
+                  <div className="space-y-2 p-4 border rounded-lg">
+                    <Label htmlFor="additional_window" className="font-medium">
+                      Additional Window Covering
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">$</span>
+                      <Input
+                        id="additional_window"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={config.config_value}
+                        onChange={(e) => updatePricingConfig(config.id, parseFloat(e.target.value) || 0)}
+                        className="w-32"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Per additional window • Client sees: <span className="font-medium text-primary">${withGst.toFixed(2)}</span> incl. GST
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Patio Door Price */}
+              {(() => {
+                const config = pricingConfig.find(c => c.config_key === 'patio_door_price');
+                if (!config) return null;
+                const withGst = config.config_value * (1 + getGstRate());
+                return (
+                  <div className="space-y-2 p-4 border rounded-lg">
+                    <Label htmlFor="patio_door" className="font-medium">
+                      Patio Door Panel Track
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">$</span>
+                      <Input
+                        id="patio_door"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={config.config_value}
+                        onChange={(e) => updatePricingConfig(config.id, parseFloat(e.target.value) || 0)}
+                        className="w-32"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Per patio door • Client sees: <span className="font-medium text-primary">${withGst.toFixed(2)}</span> incl. GST
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Somfy Automation Price */}
+              {(() => {
+                const config = pricingConfig.find(c => c.config_key === 'automated_motor_price');
+                if (!config) return null;
+                const withGst = config.config_value * (1 + getGstRate());
+                return (
+                  <div className="space-y-2 p-4 border rounded-lg">
+                    <Label htmlFor="automated_motor" className="font-medium">
+                      Somfy Motorization
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">$</span>
+                      <Input
+                        id="automated_motor"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={config.config_value}
+                        onChange={(e) => updatePricingConfig(config.id, parseFloat(e.target.value) || 0)}
+                        className="w-32"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Per window (motor + hub + install) • Client sees: <span className="font-medium text-primary">${withGst.toFixed(2)}</span> incl. GST
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Heated Floor Price */}
+              {(() => {
+                const config = pricingConfig.find(c => c.config_key === 'heated_floor_per_bathroom');
+                if (!config) return null;
+                const withGst = config.config_value * (1 + getGstRate());
+                return (
+                  <div className="space-y-2 p-4 border rounded-lg">
+                    <Label htmlFor="heated_floor" className="font-medium">
+                      Heated Tile Floor
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">$</span>
+                      <Input
+                        id="heated_floor"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={config.config_value}
+                        onChange={(e) => updatePricingConfig(config.id, parseFloat(e.target.value) || 0)}
+                        className="w-32"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Per bathroom • Client sees: <span className="font-medium text-primary">${withGst.toFixed(2)}</span> incl. GST
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Grout Color Change Price */}
+              {(() => {
+                const config = pricingConfig.find(c => c.config_key === 'grout_color_change_price');
+                if (!config) return null;
+                const withGst = config.config_value * (1 + getGstRate());
+                return (
+                  <div className="space-y-2 p-4 border rounded-lg">
+                    <Label htmlFor="grout_color" className="font-medium">
+                      Backsplash Grout Color Change
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">$</span>
+                      <Input
+                        id="grout_color"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={config.config_value}
+                        onChange={(e) => updatePricingConfig(config.id, parseFloat(e.target.value) || 0)}
+                        className="w-32"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Flat fee (no markup) • Client sees: <span className="font-medium text-primary">${withGst.toFixed(2)}</span> incl. GST
+                    </p>
+                  </div>
+                );
+              })()}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Materials Section */}
         <Card>
           <CardHeader>

@@ -25,9 +25,6 @@ import {
   carpetOptions,
   carpetSpecs,
   windowCoveringProduct,
-  calculateWindowExtensions,
-  windowPricing,
-  heatedFloorPricing,
 } from '@/lib/mockData';
 import { getUnitInfo, UnitInfo } from '@/lib/unitData';
 import { 
@@ -102,7 +99,24 @@ export default function SelectionWizard() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   
   // Use dynamic pricing from database
-  const { calculateTotalUpgradeCost, calculateBacksplashGroutPrice, markupPercentage, gstRate, getMaterialCost, getGroutColorFee } = useDynamicPricing();
+  const { 
+    calculateTotalUpgradeCost, 
+    calculateBacksplashGroutPrice, 
+    markupPercentage, 
+    gstRate, 
+    getMaterialCost, 
+    getGroutColorFee,
+    getAdditionalWindowPrice,
+    getPatioDoorPrice,
+    getAutomatedMotorPrice,
+    getHeatedFloorPrice,
+  } = useDynamicPricing();
+  
+  // Get dynamic pricing values
+  const additionalWindowPrice = getAdditionalWindowPrice();
+  const patioDoorPrice = getPatioDoorPrice();
+  const automatedMotorPrice = getAutomatedMotorPrice();
+  const heatedFloorPrice = getHeatedFloorPrice();
   
   const [selections, setSelections] = useState<SelectionState>({
     unitNumber: '',
@@ -211,7 +225,8 @@ export default function SelectionWizard() {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      const { total } = calculateWindowExtensions(selections.additionalWindowsQty, selections.patioDoorsQty);
+      const windowSubtotal = (selections.additionalWindowsQty * additionalWindowPrice) + (selections.patioDoorsQty * patioDoorPrice) + (selections.automatedWindowsQty * automatedMotorPrice);
+      const windowTotal = windowSubtotal * (1 + gstRate);
       
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-selections-email`, {
         method: 'POST',
@@ -223,7 +238,7 @@ export default function SelectionWizard() {
           ...selections,
           unitType: unitInfo?.unitType || null,
           bedroomLvpColour: selections.bedroomLvpSameAsMain ? selections.lvpColour : selections.bedroomLvpColour,
-          windowTotal: total,
+          windowTotal: windowTotal,
           // Include new upgrade data
           areaUpgrades: selections.areaUpgrades,
           upgradeFloorSelection: selections.upgradeFloorSelection,
@@ -417,7 +432,7 @@ export default function SelectionWizard() {
                 Additional Non-Bedroom Windows
               </Label>
               <p className="text-sm text-muted-foreground mb-2">
-                Living room, dining room, kitchen, etc. — $673.50 per window (pre-GST, installed)
+                Living room, dining room, kitchen, etc. — ${additionalWindowPrice.toFixed(2)} per window (pre-GST, installed)
               </p>
               <Input
                 id="additionalWindows"
@@ -435,7 +450,7 @@ export default function SelectionWizard() {
                 Patio Door Panel Track Systems
               </Label>
               <p className="text-sm text-muted-foreground mb-3">
-                Sliding panel track for patio doors — $2,347.80 per opening (pre-GST, installed)
+                Sliding panel track for patio doors — ${patioDoorPrice.toFixed(2)} per opening (pre-GST, installed)
               </p>
               <Input
                 id="patioDoors"
@@ -453,7 +468,7 @@ export default function SelectionWizard() {
                 Motorized Automation Upgrade
               </Label>
               <p className="text-sm text-muted-foreground mb-3">
-                Add Somfy motorization to any window — $495.00 per window (pre-GST, installed)
+                Add Somfy motorization to any window — ${automatedMotorPrice.toFixed(2)} per window (pre-GST, installed)
               </p>
               <Input
                 id="automatedWindows"
@@ -475,34 +490,34 @@ export default function SelectionWizard() {
                   {selections.additionalWindowsQty > 0 && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">
-                        Additional Windows ({selections.additionalWindowsQty} × ${windowPricing.additionalWindow})
+                        Additional Windows ({selections.additionalWindowsQty} × ${additionalWindowPrice.toFixed(2)})
                       </span>
-                      <span className="font-medium">${(selections.additionalWindowsQty * windowPricing.additionalWindow).toLocaleString()}</span>
+                      <span className="font-medium">${(selections.additionalWindowsQty * additionalWindowPrice).toLocaleString()}</span>
                     </div>
                   )}
                   {selections.patioDoorsQty > 0 && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">
-                        Patio Door Panels ({selections.patioDoorsQty} × ${windowPricing.patioDoor})
+                        Patio Door Panels ({selections.patioDoorsQty} × ${patioDoorPrice.toFixed(2)})
                       </span>
-                      <span className="font-medium">${(selections.patioDoorsQty * windowPricing.patioDoor).toLocaleString()}</span>
+                      <span className="font-medium">${(selections.patioDoorsQty * patioDoorPrice).toLocaleString()}</span>
                     </div>
                   )}
                   {selections.automatedWindowsQty > 0 && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">
-                        Motorized Automation ({selections.automatedWindowsQty} × ${windowPricing.automatedMotor})
+                        Motorized Automation ({selections.automatedWindowsQty} × ${automatedMotorPrice.toFixed(2)})
                       </span>
-                      <span className="font-medium">${(selections.automatedWindowsQty * windowPricing.automatedMotor).toLocaleString()}</span>
+                      <span className="font-medium">${(selections.automatedWindowsQty * automatedMotorPrice).toLocaleString()}</span>
                     </div>
                   )}
                   <div className="border-t border-border pt-2 mt-2">
                     {(() => {
-                      const subtotal = (selections.additionalWindowsQty * windowPricing.additionalWindow) + 
-                                       (selections.patioDoorsQty * windowPricing.patioDoor) + 
-                                       (selections.automatedWindowsQty * windowPricing.automatedMotor);
-                      const gst = subtotal * windowPricing.gstRate;
-                      const total = subtotal + gst;
+                      const subtotal = (selections.additionalWindowsQty * additionalWindowPrice) + 
+                                       (selections.patioDoorsQty * patioDoorPrice) + 
+                                       (selections.automatedWindowsQty * automatedMotorPrice);
+                      const windowGst = subtotal * gstRate;
+                      const total = subtotal + windowGst;
                       return (
                         <>
                           <div className="flex justify-between">
@@ -510,8 +525,8 @@ export default function SelectionWizard() {
                             <span>${subtotal.toLocaleString()}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">GST (5%)</span>
-                            <span>${gst.toLocaleString()}</span>
+                            <span className="text-muted-foreground">GST ({(gstRate * 100).toFixed(0)}%)</span>
+                            <span>${windowGst.toLocaleString()}</span>
                           </div>
                           <div className="flex justify-between font-semibold text-foreground pt-1">
                             <span>Total</span>
@@ -779,7 +794,7 @@ export default function SelectionWizard() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Additional Windows</span>
                   <span className="font-medium">
-                    {selections.additionalWindowsQty} × ${windowPricing.additionalWindow.toFixed(2)} = ${(selections.additionalWindowsQty * windowPricing.additionalWindow).toFixed(2)}
+                    {selections.additionalWindowsQty} × ${additionalWindowPrice.toFixed(2)} = ${(selections.additionalWindowsQty * additionalWindowPrice).toFixed(2)}
                   </span>
                 </div>
               )}
@@ -787,7 +802,7 @@ export default function SelectionWizard() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Patio Door Panel Track</span>
                   <span className="font-medium">
-                    {selections.patioDoorsQty} × ${windowPricing.patioDoor.toFixed(2)} = ${(selections.patioDoorsQty * windowPricing.patioDoor).toFixed(2)}
+                    {selections.patioDoorsQty} × ${patioDoorPrice.toFixed(2)} = ${(selections.patioDoorsQty * patioDoorPrice).toFixed(2)}
                   </span>
                 </div>
               )}
@@ -795,34 +810,33 @@ export default function SelectionWizard() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Somfy Automation</span>
                   <span className="font-medium">
-                    {selections.automatedWindowsQty} × ${windowPricing.automatedMotor.toFixed(2)} = ${(selections.automatedWindowsQty * windowPricing.automatedMotor).toFixed(2)}
+                    {selections.automatedWindowsQty} × ${automatedMotorPrice.toFixed(2)} = ${(selections.automatedWindowsQty * automatedMotorPrice).toFixed(2)}
                   </span>
                 </div>
               )}
-              <div className="flex justify-between pt-2 border-t border-border mt-2">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span className="font-medium">
-                  ${((selections.additionalWindowsQty * windowPricing.additionalWindow) + 
-                     (selections.patioDoorsQty * windowPricing.patioDoor) + 
-                     (selections.automatedWindowsQty * windowPricing.automatedMotor)).toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">GST (5%)</span>
-                <span className="font-medium">
-                  ${(((selections.additionalWindowsQty * windowPricing.additionalWindow) + 
-                      (selections.patioDoorsQty * windowPricing.patioDoor) + 
-                      (selections.automatedWindowsQty * windowPricing.automatedMotor)) * windowPricing.gstRate).toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between font-semibold">
-                <span className="text-foreground">Total</span>
-                <span className="text-primary">
-                  ${(((selections.additionalWindowsQty * windowPricing.additionalWindow) + 
-                      (selections.patioDoorsQty * windowPricing.patioDoor) + 
-                      (selections.automatedWindowsQty * windowPricing.automatedMotor)) * (1 + windowPricing.gstRate)).toFixed(2)}
-                </span>
-              </div>
+              {(() => {
+                const reviewSubtotal = (selections.additionalWindowsQty * additionalWindowPrice) + 
+                                       (selections.patioDoorsQty * patioDoorPrice) + 
+                                       (selections.automatedWindowsQty * automatedMotorPrice);
+                const reviewGst = reviewSubtotal * gstRate;
+                const reviewTotal = reviewSubtotal + reviewGst;
+                return (
+                  <>
+                    <div className="flex justify-between pt-2 border-t border-border mt-2">
+                      <span className="text-muted-foreground">Subtotal</span>
+                      <span className="font-medium">${reviewSubtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">GST ({(gstRate * 100).toFixed(0)}%)</span>
+                      <span className="font-medium">${reviewGst.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold">
+                      <span className="text-foreground">Total</span>
+                      <span className="text-primary">${reviewTotal.toFixed(2)}</span>
+                    </div>
+                  </>
+                );
+              })()}
               {selections.windowComments && (
                 <div className="pt-2 border-t border-border mt-2">
                   <span className="text-muted-foreground">Comments: </span>
