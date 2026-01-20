@@ -14,6 +14,7 @@ import AdminPipeline from "./pages/AdminPipeline";
 import AdminSalesAnalytics from "./pages/AdminSalesAnalytics";
 import AdminReports from "./pages/AdminReports";
 import AdminPricingControl from "./pages/AdminPricingControl";
+import AdminUsers from "./pages/AdminUsers";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
@@ -37,6 +38,7 @@ const App = () => (
           <Route path="/admin/sales-analytics" element={<ProtectedRoute><AdminSalesAnalytics /></ProtectedRoute>} />
           <Route path="/admin/reports" element={<ProtectedRoute><AdminReports /></ProtectedRoute>} />
           <Route path="/admin/pricing" element={<ProtectedRoute><AdminPricingControl /></ProtectedRoute>} />
+          <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

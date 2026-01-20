@@ -15,7 +15,8 @@ import {
   ChevronRight,
   Inbox,
   LogOut,
-  DollarSign
+  DollarSign,
+  Users
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -32,6 +33,7 @@ const navItems = [
   { icon: BarChart3, label: 'Sales Analytics', path: '/admin/sales-analytics' },
   { icon: FileText, label: 'Reports', path: '/admin/reports' },
   { icon: DollarSign, label: 'Pricing Control', path: '/admin/pricing' },
+  { icon: Users, label: 'User Management', path: '/admin/users' },
 ];
 
 export function AdminLayout({ children }: AdminLayoutProps) {
