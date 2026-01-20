@@ -592,9 +592,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const csvContent = generateCSV(data, savedSelection?.id as string | undefined);
     const csvFilename = `selection_${data.unitNumber.replace(/[^a-zA-Z0-9]/g, '_')}_${data.lastName}_${new Date().toISOString().split('T')[0]}.csv`;
 
+    // Send to BMD team including client CC
     const emailResponse = await sendEmailWithAttachment({
       from: "BMD Materials Portal <selections@bmdmaterials.com>",
-      to: ["dan@bmdmaterials.com", "office@bmdmaterials.com"],
+      to: ["dan@bmdmaterials.com", "noni@bmdmaterials.com", "office@bmdmaterials.com", data.email],
       subject: `New Selection Submission - Unit ${escapeHtml(data.unitNumber) || 'Unknown'}${data.unitType ? ` (${escapeHtml(data.unitType)})` : ''} - ${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}`,
       html: htmlContent,
       attachments: [
