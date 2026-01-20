@@ -232,9 +232,7 @@ export const heatedFloorPricing = {
 };
 
 // 2.11 Upgrade Interest Categories
-export const upgradeInterestCategories = [
-  { id: 'automation', name: 'Powered / Automated Window Coverings', description: 'Smart home integration with motorized controls' },
-];
+export const upgradeInterestCategories: { id: string; name: string; description: string }[] = [];
 
 // =====================================================
 // HELPER FUNCTIONS
