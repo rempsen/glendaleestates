@@ -14,6 +14,8 @@ interface UpgradePricingSummaryProps {
   heatedFloorBathrooms?: number;
   bathroomTileSelected?: boolean;
   backsplashGrout?: BacksplashGroutSelection;
+  upgradeComments?: string;
+  onUpgradeCommentsChange?: (comments: string) => void;
 }
 
 export function UpgradePricingSummary({
@@ -23,6 +25,8 @@ export function UpgradePricingSummary({
   heatedFloorBathrooms = 0,
   bathroomTileSelected = false,
   backsplashGrout,
+  upgradeComments = '',
+  onUpgradeCommentsChange,
 }: UpgradePricingSummaryProps) {
   // Use dynamic pricing from database
   const { calculateTotalUpgradeCost, calculateBacksplashGroutPrice, gstRate } = useDynamicPricing();
@@ -146,6 +150,22 @@ export function UpgradePricingSummary({
         <p className="text-xs text-muted-foreground mt-3">
           * A 10% material overage is allowed on all quoted amounts.
         </p>
+
+        {/* Comments Section */}
+        {onUpgradeCommentsChange && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <label htmlFor="upgrade-comments" className="block text-sm font-medium text-foreground mb-2">
+              Additional Comments or Questions
+            </label>
+            <textarea
+              id="upgrade-comments"
+              value={upgradeComments}
+              onChange={(e) => onUpgradeCommentsChange(e.target.value)}
+              placeholder="Any specific questions or notes about your upgrade selections..."
+              className="w-full min-h-[80px] p-3 text-sm rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y"
+            />
+          </div>
+        )}
       </div>
     </div>
   );
