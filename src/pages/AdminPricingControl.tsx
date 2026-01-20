@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AdminLayout } from '@/components/AdminLayout';
 import { useUpgradePricing } from '@/hooks/useUpgradePricing';
+import { UnitAreaDataManager } from '@/components/admin/UnitAreaDataManager';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -988,6 +989,9 @@ export default function AdminPricingControl() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Unit Area Data Manager */}
+        <UnitAreaDataManager />
       </div>
     </AdminLayout>
   );
