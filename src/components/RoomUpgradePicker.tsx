@@ -22,9 +22,9 @@ import {
   UPGRADE_MATERIALS,
   AREA_DEFINITIONS,
   UNIT_AREA_DATA,
-  calculateAreaUpgradePrice,
   requiresFloorSelection,
 } from '@/lib/upgradeCostData';
+import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 
 interface RoomUpgradePickerProps {
   unitTypeCode: string | null;
@@ -56,6 +56,9 @@ export function RoomUpgradePicker({
 }: RoomUpgradePickerProps) {
   const [expandedArea, setExpandedArea] = useState<UpgradeArea | null>(null);
   const [editingSelection, setEditingSelection] = useState<AreaUpgradeSelection | null>(null);
+  
+  // Use dynamic pricing from database
+  const { calculateAreaUpgradePrice } = useDynamicPricing();
 
   // Determine the effective unit code (with floor suffix for G/H)
   const effectiveUnitCode = unitTypeCode 
