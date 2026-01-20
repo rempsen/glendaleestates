@@ -86,7 +86,7 @@ export function UpgradePricingSummary({
                     <div className="text-muted-foreground">
                       <span>{area?.name}</span>
                       <span className="text-xs ml-1">
-                        ({lineItem?.quantity} {lineItem?.unit} • {material?.name})
+                        ({material?.name})
                       </span>
                       {selection.productName && (
                         <span className="text-xs block ml-4 text-muted-foreground/70">
