@@ -740,6 +740,26 @@ export default function SelectionWizard() {
               <span className="text-muted-foreground">Orientation</span>
               <span className="font-medium capitalize">{selections.backsplashOrientation || 'Not selected'}</span>
             </div>
+            {selections.backsplashGrout?.enabled && (
+              <>
+                <div className="flex justify-between pt-2 border-t border-border mt-2">
+                  <span className="text-muted-foreground">Grout Color Change</span>
+                  <span className="font-medium text-primary">$300.00 + GST</span>
+                </div>
+                {selections.backsplashGrout.groutColor && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Color</span>
+                    <span className="font-medium">{selections.backsplashGrout.groutColor}</span>
+                  </div>
+                )}
+                {selections.backsplashGrout.comments && (
+                  <div className="pt-1">
+                    <span className="text-muted-foreground">Comments: </span>
+                    <span className="text-foreground">{selections.backsplashGrout.comments}</span>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 
