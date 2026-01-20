@@ -26,8 +26,9 @@ export default function BuyerWelcome() {
   const upgradeOptions = [
     'Additional window coverings for other rooms',
     'Patio door panel track systems',
-    'Premium flooring upgrades (coming soon)',
-    'Heated tile floors (coming soon)',
+    'Premium flooring upgrades',
+    'Heated tile floors',
+    'Tile flooring & walls',
   ];
 
   return (
