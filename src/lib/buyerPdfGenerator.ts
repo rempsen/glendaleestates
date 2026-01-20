@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { 
   lvpOptions, 
   spcTileOptions, 
@@ -23,13 +23,6 @@ export interface PdfPricingConfig {
   gstRate: number;
   getMaterialCost: (materialType: 'lvp' | 'hardwood' | 'carpet' | 'tile') => number;
   getGroutColorFee: () => number;
-}
-
-// Extend jsPDF type to include autoTable
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF;
-  }
 }
 
 // BMD brand colors
@@ -252,7 +245,7 @@ export async function generateBuyerPreviewPDF(
     standardData.push(['Bedroom LVP Colour', lvpColor]);
   }
 
-  doc.autoTable({
+  autoTable(doc, {
     startY: yPos,
     head: [['Category', 'Selection']],
     body: standardData,
@@ -340,7 +333,7 @@ export async function generateBuyerPreviewPDF(
     windowData.push(['', 'GST (5%):', `$${windowGst.toFixed(2)}`]);
     windowData.push(['', 'Total:', `$${windowTotal.toFixed(2)}`]);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: yPos,
       body: windowData,
       margin: { left: margin, right: margin },
@@ -430,7 +423,7 @@ export async function generateBuyerPreviewPDF(
     upgradeData.push([`GST (${(pricing.gstRate * 100).toFixed(0)}%):`, `$${upgradesGst.toFixed(2)}`]);
     upgradeData.push(['Total:', `$${upgradesTotalWithGst.toFixed(2)}`]);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: yPos,
       body: upgradeData,
       margin: { left: margin, right: margin },

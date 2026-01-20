@@ -1,13 +1,6 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
-
-// Extend jsPDF type to include autoTable
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF;
-  }
-}
 
 // BMD brand colors
 const COLORS = {
@@ -228,7 +221,7 @@ export async function generateSubmissionPDF(submission: BuyerSubmission): Promis
     ''
   ]);
 
-  doc.autoTable({
+  autoTable(doc, {
     startY: yPos,
     head: [['Category', 'Selection', 'Notes']],
     body: standardData,
@@ -381,7 +374,7 @@ export async function generateSubmissionPDF(submission: BuyerSubmission): Promis
       u.productColor || 'N/A',
     ]);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: yPos,
       head: [['Area', 'Material', 'Product', 'Color']],
       body: upgradeData,

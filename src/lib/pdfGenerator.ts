@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { 
   HomeData, 
   lvpOptions, 
@@ -13,13 +13,6 @@ import {
   carpetSpecs,
   windowCoveringProduct
 } from '@/lib/mockData';
-
-// Extend jsPDF type to include autoTable
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF;
-  }
-}
 
 // BMD brand colors
 const COLORS = {
@@ -137,7 +130,7 @@ export async function generateBuyerSelectionPDF(home: HomeData): Promise<void> {
     standardData.push(['Bedroom Carpet Colour', carpetOptions.find(o => o.id === selections.bedroomCarpetColour)?.name || '', '']);
   }
 
-  doc.autoTable({
+  autoTable(doc, {
     startY: yPos,
     head: [['Category', 'Selection', 'Product Details']],
     body: standardData,
@@ -322,7 +315,7 @@ export async function generateAllSelectionsPDF(homes: HomeData[]): Promise<void>
       h.windowExtensionTotal > 0 ? `$${h.windowExtensionTotal.toLocaleString()}` : '—',
     ]);
 
-  doc.autoTable({
+  autoTable(doc, {
     startY: yPos,
     head: [['Lot', 'Buyer', 'LVP', 'SPC Tile', 'Backsplash', 'Stairs', 'Add. Win', 'Patio', 'Total']],
     body: tableData,
