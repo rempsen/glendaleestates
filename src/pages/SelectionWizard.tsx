@@ -165,13 +165,20 @@ export default function SelectionWizard() {
   const steps = getSteps(selections.hasStairs);
 
   // Draft save hook
-  const { saveDraft, loadDraft, deleteDraft, isSaving, lastSaved } = useDraftSave({
+  const { saveDraft, loadDraft, deleteDraft, isSaving, lastSaved, hasUnsavedChanges } = useDraftSave({
     userId: user?.id,
     unitNumber: selections.unitNumber,
     currentStep,
     highestStepReached,
     selections: selections as unknown as Record<string, unknown>,
   });
+
+  // Save & Exit handler
+  const handleSaveAndExit = async () => {
+    await saveDraft(false);
+    await supabase.auth.signOut();
+    navigate('/draft-saved');
+  };
 
   // Check authentication on mount
   useEffect(() => {
@@ -1806,14 +1813,30 @@ export default function SelectionWizard() {
                 </span>
               )}
               {user && (
-                <span className="text-xs text-muted-foreground hidden sm:block">
+                <span className="text-xs text-muted-foreground hidden lg:block">
                   {user.email}
                 </span>
               )}
-              <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-1">
-                <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline">Sign Out</span>
-              </Button>
+              {/* Save & Exit button */}
+              {selections.unitNumber && currentStep > 0 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleSaveAndExit}
+                  disabled={isSaving}
+                  className="gap-1 text-muted-foreground hover:text-foreground"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span className="hidden sm:inline">Save & Exit</span>
+                </Button>
+              )}
+              {/* Regular Sign Out (only show if no unit yet) */}
+              {(!selections.unitNumber || currentStep === 0) && (
+                <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-1">
+                  <LogOut className="w-4 h-4" />
+                  <span className="hidden sm:inline">Sign Out</span>
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -1852,6 +1875,7 @@ export default function SelectionWizard() {
             currentStep={currentStep}
             onStepClick={setCurrentStep}
             allStepsVisited={highestStepReached >= steps.length - 1}
+            hasUnsavedChanges={hasUnsavedChanges}
           />
         </div>
       </div>
