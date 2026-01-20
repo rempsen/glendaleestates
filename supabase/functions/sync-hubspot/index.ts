@@ -47,28 +47,35 @@ Deno.serve(async (req) => {
     console.log('Syncing submission to HubSpot:', submission.email);
 
     // First, search for existing contact by email
-    const searchResponse = await fetch(
-      'https://api.hubapi.com/crm/v3/objects/contacts/search',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${hubspotApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          filterGroups: [{
-            filters: [{
-              propertyName: 'email',
-              operator: 'EQ',
-              value: submission.email,
-            }],
-          }],
-        }),
+    // Use HubSpot's idProperty search to find existing contact by email
+    // This is more reliable than the search endpoint for recently created contacts
+    let existingContactId: string | null = null;
+    
+    try {
+      const lookupResponse = await fetch(
+        `https://api.hubapi.com/crm/v3/objects/contacts/${encodeURIComponent(submission.email)}?idProperty=email`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${hubspotApiKey}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      if (lookupResponse.ok) {
+        const existingContact = await lookupResponse.json();
+        existingContactId = existingContact.id;
+        console.log('Found existing HubSpot contact by email lookup:', existingContactId);
+      } else if (lookupResponse.status === 404) {
+        console.log('No existing contact found for email:', submission.email);
+      } else {
+        const lookupError = await lookupResponse.text();
+        console.log('Email lookup returned status', lookupResponse.status, ':', lookupError);
       }
-    );
-
-    const searchData = await searchResponse.json();
-    console.log('HubSpot search result:', JSON.stringify(searchData));
+    } catch (lookupErr) {
+      console.log('Email lookup error (will try to create):', lookupErr);
+    }
 
     // Prepare contact properties using BMD custom field names
     const contactProperties: Record<string, string> = {
@@ -103,15 +110,14 @@ Deno.serve(async (req) => {
     }
 
     let hubspotResponse;
-    let contactId: string | null = null;
+    let contactId: string | null = existingContactId;
 
-    if (searchData.total > 0) {
+    if (existingContactId) {
       // Update existing contact
-      contactId = searchData.results[0].id;
-      console.log('Updating existing HubSpot contact:', contactId);
+      console.log('Updating existing HubSpot contact:', existingContactId);
       
       hubspotResponse = await fetch(
-        `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`,
+        `https://api.hubapi.com/crm/v3/objects/contacts/${existingContactId}`,
         {
           method: 'PATCH',
           headers: {
@@ -142,8 +148,66 @@ Deno.serve(async (req) => {
       const errorData = await hubspotResponse.json();
       console.error('HubSpot API error:', JSON.stringify(errorData));
       
+      // Handle CONFLICT error - contact already exists, extract ID and update
+      if (errorData.category === 'CONFLICT' && errorData.message?.includes('Existing ID:')) {
+        const match = errorData.message.match(/Existing ID:\s*(\d+)/);
+        if (match && match[1]) {
+          contactId = match[1];
+          console.log('Contact exists, updating with ID:', contactId);
+          
+          // Retry as an update
+          hubspotResponse = await fetch(
+            `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`,
+            {
+              method: 'PATCH',
+              headers: {
+                'Authorization': `Bearer ${hubspotApiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ properties: contactProperties }),
+            }
+          );
+          
+          if (!hubspotResponse.ok) {
+            const updateError = await hubspotResponse.json();
+            console.error('Update after conflict failed:', JSON.stringify(updateError));
+            
+            // If update fails due to property issues, try with basic properties
+            if (updateError.message?.includes('property') || updateError.category === 'VALIDATION_ERROR') {
+              console.log('Retrying update with basic properties only');
+              const basicProperties = {
+                email: submission.email,
+                firstname: submission.first_name,
+                lastname: submission.last_name,
+                phone: submission.phone_number || '',
+              };
+              
+              hubspotResponse = await fetch(
+                `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`,
+                {
+                  method: 'PATCH',
+                  headers: {
+                    'Authorization': `Bearer ${hubspotApiKey}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ properties: basicProperties }),
+                }
+              );
+              
+              if (!hubspotResponse.ok) {
+                const retryError = await hubspotResponse.json();
+                throw new Error(`HubSpot API error: ${JSON.stringify(retryError)}`);
+              }
+            } else {
+              throw new Error(`HubSpot API error: ${JSON.stringify(updateError)}`);
+            }
+          }
+        } else {
+          throw new Error(`HubSpot API error: ${JSON.stringify(errorData)}`);
+        }
+      }
       // If custom properties don't exist, try with just basic properties
-      if (errorData.message?.includes('property') || errorData.category === 'VALIDATION_ERROR') {
+      else if (errorData.message?.includes('property') || errorData.category === 'VALIDATION_ERROR') {
         console.log('Retrying with basic properties only');
         
         const basicProperties = {
