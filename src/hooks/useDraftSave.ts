@@ -31,6 +31,10 @@ export function useDraftSave({
   const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
   const lastSavedDataRef = useRef<string>('');
 
+  // Track if there are unsaved changes
+  const currentDataJson = JSON.stringify({ currentStep, highestStepReached, selections });
+  const hasUnsavedChanges = lastSavedDataRef.current !== '' && currentDataJson !== lastSavedDataRef.current;
+
   const saveDraft = useCallback(async (showToast = true) => {
     if (!userId || !unitNumber) return;
 
@@ -183,5 +187,6 @@ export function useDraftSave({
     isSaving,
     lastSaved,
     hasLoadedDraft,
+    hasUnsavedChanges,
   };
 }

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import BuyerWelcome from "./pages/BuyerWelcome";
 import SelectionWizard from "./pages/SelectionWizard";
+import DraftSaved from "./pages/DraftSaved";
 import Auth from "./pages/Auth";
 import BuyerAuth from "./pages/BuyerAuth";
 import AdminSubmissions from "./pages/AdminSubmissions";
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/" element={<BuyerWelcome />} />
           <Route path="/buyer-auth" element={<BuyerAuth />} />
           <Route path="/select" element={<SelectionWizard />} />
+          <Route path="/draft-saved" element={<DraftSaved />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
           <Route path="/admin/pipeline" element={<ProtectedRoute><AdminPipeline /></ProtectedRoute>} />
