@@ -31,7 +31,8 @@ import {
 } from '@/lib/mockData';
 import { getUnitInfo, UnitInfo } from '@/lib/unitData';
 import { 
-  AreaUpgradeSelection, 
+  AreaUpgradeSelection,
+  BacksplashGroutSelection,
   requiresFloorSelection,
   AREA_DEFINITIONS,
   UPGRADE_MATERIALS,
@@ -72,6 +73,7 @@ interface SelectionState {
   // Area-based upgrades (new system)
   areaUpgrades: AreaUpgradeSelection[];
   upgradeFloorSelection: '1' | '2' | null; // For G/H units
+  backsplashGrout: BacksplashGroutSelection; // Backsplash grout color change
   // Heated floors (kept separate)
   bathroomTileSelected: boolean;
   heatedFloorBathrooms: number;
@@ -111,6 +113,7 @@ export default function SelectionWizard() {
     },
     areaUpgrades: [],
     upgradeFloorSelection: null,
+    backsplashGrout: { enabled: false, groutColor: '', comments: '' },
     bathroomTileSelected: false,
     heatedFloorBathrooms: 0,
   });
@@ -897,6 +900,8 @@ export default function SelectionWizard() {
                   selections={selections.areaUpgrades}
                   onSelectionsChange={(newSelections) => updateSelection('areaUpgrades', newSelections)}
                   onFloorChange={(floor) => updateSelection('upgradeFloorSelection', floor)}
+                  backsplashGrout={selections.backsplashGrout}
+                  onBacksplashGroutChange={(grout) => updateSelection('backsplashGrout', grout)}
                 />
               </div>
 
@@ -924,6 +929,7 @@ export default function SelectionWizard() {
                 patioDoors={selections.patioDoorsQty}
                 heatedFloorBathrooms={selections.heatedFloorBathrooms}
                 bathroomTileSelected={selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId))}
+                backsplashGrout={selections.backsplashGrout}
               />
 
               {/* Other Upgrade Interests */}

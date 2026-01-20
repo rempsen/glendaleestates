@@ -11,6 +11,7 @@ export const UPGRADE_COSTS = {
   hardwoodUpgrade: 10.00, // $/sq ft - upgrade from LVP to hardwood
   carpetUpgrade: 20.00, // $/sq yard - upgrade from standard carpet to premium
   tileUpgrade: 8.00, // $/sq ft - upgrade tile (backsplash)
+  backsplashGroutColor: 250.00, // flat fee to change backsplash grout color
 } as const;
 
 // Unit type labels for display
@@ -309,6 +310,22 @@ export interface AreaUpgradeSelection {
   productName: string;
   productColor: string;
   comments: string;
+}
+
+// Backsplash grout color change option
+export interface BacksplashGroutSelection {
+  enabled: boolean;
+  groutColor: string; // Custom color entered by buyer
+  comments: string;
+}
+
+// Calculate backsplash grout color change price
+export function calculateBacksplashGroutPrice(): { baseCost: number; markedUpCost: number; gst: number; total: number } {
+  const baseCost = UPGRADE_COSTS.backsplashGroutColor;
+  const markedUpCost = baseCost * (1 + MARKUP_PERCENTAGE);
+  const gst = markedUpCost * GST_RATE;
+  const total = markedUpCost + gst;
+  return { baseCost, markedUpCost, gst, total };
 }
 
 // Calculate price for a single area upgrade
