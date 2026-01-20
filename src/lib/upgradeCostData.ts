@@ -319,12 +319,12 @@ export interface BacksplashGroutSelection {
   comments: string;
 }
 
-// Calculate backsplash grout color change price
+// Calculate backsplash grout color change price (flat fee, no markup)
 export function calculateBacksplashGroutPrice(): { baseCost: number; markedUpCost: number; gst: number; total: number } {
-  const baseCost = UPGRADE_COSTS.backsplashGroutColor;
-  const markedUpCost = baseCost * (1 + MARKUP_PERCENTAGE);
-  const gst = markedUpCost * GST_RATE;
-  const total = markedUpCost + gst;
+  const baseCost = UPGRADE_COSTS.backsplashGroutColor; // $300 flat fee
+  const markedUpCost = baseCost; // No markup for grout color change
+  const gst = baseCost * GST_RATE;
+  const total = baseCost + gst;
   return { baseCost, markedUpCost, gst, total };
 }
 
