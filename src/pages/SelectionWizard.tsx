@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
@@ -114,11 +114,11 @@ export default function SelectionWizard() {
     getHeatedFloorPrice,
   } = useDynamicPricing();
   
-  // Get dynamic pricing values
-  const additionalWindowPrice = getAdditionalWindowPrice();
-  const patioDoorPrice = getPatioDoorPrice();
-  const automatedMotorPrice = getAutomatedMotorPrice();
-  const heatedFloorPrice = getHeatedFloorPrice();
+  // Get dynamic pricing values - use useMemo to ensure they update when pricing loads
+  const additionalWindowPrice = useMemo(() => getAdditionalWindowPrice(), [getAdditionalWindowPrice]);
+  const patioDoorPrice = useMemo(() => getPatioDoorPrice(), [getPatioDoorPrice]);
+  const automatedMotorPrice = useMemo(() => getAutomatedMotorPrice(), [getAutomatedMotorPrice]);
+  const heatedFloorPrice = useMemo(() => getHeatedFloorPrice(), [getHeatedFloorPrice]);
   
   const [selections, setSelections] = useState<SelectionState>({
     unitNumber: '',
