@@ -37,11 +37,12 @@ import {
   AREA_DEFINITIONS,
   UPGRADE_MATERIALS,
   calculateTotalUpgradeCost,
+  calculateBacksplashGroutPrice,
 } from '@/lib/upgradeCostData';
 import tileStackedImg from '@/assets/tile-stacked.jpg';
 import tileBrickedImg from '@/assets/tile-bricked.jpg';
 import tileHorizontalImg from '@/assets/tile-horizontal.jpg';
-import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Download, LogOut } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Download, LogOut, Palette } from 'lucide-react';
 import { toast } from 'sonner';
 import { User } from '@supabase/supabase-js';
 
@@ -506,6 +507,10 @@ export default function SelectionWizard() {
           vertical: tileHorizontalImg,
         };
         
+        const groutPrice = selections.backsplashGrout.enabled 
+          ? calculateBacksplashGroutPrice() 
+          : { markedUpCost: 0, gst: 0, total: 0 };
+        
         return (
           <StepContainer
             title="Kitchen Backsplash"
@@ -558,6 +563,101 @@ export default function SelectionWizard() {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* Grout Color Change Option */}
+              <div className="pt-6 border-t border-border">
+                <h3 className="font-medium text-foreground mb-3 flex items-center gap-2">
+                  <Palette className="w-5 h-5 text-primary" />
+                  Change Grout Color
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Your backsplash comes with standard white grout. Want a different color? Add a custom grout color for $250 + GST.
+                </p>
+                
+                <div className={`
+                  p-4 rounded-xl border-2 transition-all
+                  ${selections.backsplashGrout.enabled 
+                    ? 'border-primary bg-primary/5' 
+                    : 'border-border bg-card hover:border-primary/50'
+                  }
+                `}>
+                  <div 
+                    className="flex items-center justify-between cursor-pointer"
+                    onClick={() => updateSelection('backsplashGrout', {
+                      ...selections.backsplashGrout,
+                      enabled: !selections.backsplashGrout.enabled
+                    })}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`
+                        p-2 rounded-lg
+                        ${selections.backsplashGrout.enabled ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground'}
+                      `}>
+                        <Palette className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-foreground text-sm">Change Backsplash Grout Color</h4>
+                        <p className="text-xs text-muted-foreground">$250.00 + GST ($262.50 total)</p>
+                      </div>
+                    </div>
+                    
+                    <div className={`
+                      w-5 h-5 rounded-full border-2 flex items-center justify-center
+                      ${selections.backsplashGrout.enabled ? 'border-primary bg-primary' : 'border-muted-foreground'}
+                    `}>
+                      {selections.backsplashGrout.enabled && (
+                        <Check className="w-3 h-3 text-primary-foreground" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expanded form when enabled */}
+                  {selections.backsplashGrout.enabled && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="mt-4 pt-4 border-t border-border space-y-4"
+                    >
+                      <div>
+                        <Label className="text-sm">Grout Color</Label>
+                        <Input
+                          placeholder="e.g., Charcoal, Black, Light Gray..."
+                          value={selections.backsplashGrout.groutColor}
+                          onChange={(e) => updateSelection('backsplashGrout', {
+                            ...selections.backsplashGrout,
+                            groutColor: e.target.value
+                          })}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm">Comments / Notes</Label>
+                        <Input
+                          placeholder="Any special notes about the grout..."
+                          value={selections.backsplashGrout.comments}
+                          onChange={(e) => updateSelection('backsplashGrout', {
+                            ...selections.backsplashGrout,
+                            comments: e.target.value
+                          })}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="p-3 rounded-lg bg-secondary/50">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-muted-foreground">
+                            Grout Color Change
+                          </span>
+                          <span className="font-semibold text-primary">
+                            ${groutPrice.total.toFixed(2)} (incl. GST)
+                          </span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
               </div>
             </div>
           </StepContainer>
@@ -900,8 +1000,6 @@ export default function SelectionWizard() {
                   selections={selections.areaUpgrades}
                   onSelectionsChange={(newSelections) => updateSelection('areaUpgrades', newSelections)}
                   onFloorChange={(floor) => updateSelection('upgradeFloorSelection', floor)}
-                  backsplashGrout={selections.backsplashGrout}
-                  onBacksplashGroutChange={(grout) => updateSelection('backsplashGrout', grout)}
                 />
               </div>
 
