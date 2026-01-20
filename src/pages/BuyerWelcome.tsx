@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { CheckCircle2, Clock, FileText, ArrowRight, Home, Palette, Grid3X3, Blinds, Lock } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import MaterialsGuideViewer from '@/components/MaterialsGuideViewer';
 
 export default function BuyerWelcome() {
   const navigate = useNavigate();
@@ -79,6 +80,9 @@ export default function BuyerWelcome() {
           </svg>
         </div>
       </header>
+
+      {/* Materials Guide Viewer */}
+      <MaterialsGuideViewer />
 
       {/* Process Timeline */}
       <section className="py-16 md:py-24">
