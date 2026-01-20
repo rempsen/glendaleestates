@@ -19,7 +19,7 @@ const customProperties = [
     type: "string",
     fieldType: "text",
     groupName: "contactinformation",
-    description: "The type of unit (e.g., 2BR, 3BR)"
+    description: "The type of unit (e.g., A, B, C)"
   },
   {
     name: "bmd_possession_date",
@@ -117,7 +117,7 @@ const customProperties = [
   },
   {
     name: "bmd_tile_upgrade",
-    label: "Bathroom Tile Upgrade",
+    label: "Porcelain Tile Upgrade",
     type: "string",
     fieldType: "text",
     groupName: "contactinformation",
@@ -130,6 +130,54 @@ const customProperties = [
     fieldType: "number",
     groupName: "contactinformation",
     description: "Number of bathrooms with heated floor upgrade"
+  },
+  {
+    name: "bmd_area_upgrades",
+    label: "Area Upgrades Summary",
+    type: "string",
+    fieldType: "textarea",
+    groupName: "contactinformation",
+    description: "Summary of room-by-room upgrade selections"
+  },
+  {
+    name: "bmd_upgrade_interests",
+    label: "Upgrade Interests",
+    type: "string",
+    fieldType: "textarea",
+    groupName: "contactinformation",
+    description: "Additional upgrade interests and notes from buyer"
+  },
+  {
+    name: "bmd_backsplash_grout",
+    label: "Backsplash Grout Color",
+    type: "string",
+    fieldType: "text",
+    groupName: "contactinformation",
+    description: "Custom backsplash grout color selection"
+  },
+  {
+    name: "bmd_stair_carpet",
+    label: "Stair Carpet Colour",
+    type: "string",
+    fieldType: "text",
+    groupName: "contactinformation",
+    description: "Stair carpet colour selection"
+  },
+  {
+    name: "bmd_bedroom_carpet",
+    label: "Bedroom Carpet Colour",
+    type: "string",
+    fieldType: "text",
+    groupName: "contactinformation",
+    description: "Bedroom carpet colour selection"
+  },
+  {
+    name: "bmd_bedroom_lvp",
+    label: "Bedroom LVP Colour",
+    type: "string",
+    fieldType: "text",
+    groupName: "contactinformation",
+    description: "Bedroom LVP colour selection"
   }
 ];
 

@@ -3,6 +3,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface AreaUpgradeSelection {
+  areaId: string;
+  materialType: string;
+  productName: string;
+  productColor: string;
+  comments: string;
+}
+
 interface BuyerSelection {
   id: string;
   unit_number: string;
@@ -16,14 +24,67 @@ interface BuyerSelection {
   spc_tile_colour: string | null;
   backsplash_orientation: string | null;
   bedroom_flooring_choice: string | null;
+  bedroom_carpet_colour: string | null;
+  bedroom_lvp_colour: string | null;
+  stair_carpet_colour: string | null;
   additional_windows_qty: number;
   patio_doors_qty: number;
   window_total: number;
   hardwood_upgrade_selected: boolean;
   bathroom_tile_selected: boolean;
   heated_floor_bathrooms: number;
+  backsplash_grout_enabled: boolean;
+  backsplash_grout_color: string | null;
+  area_upgrades: AreaUpgradeSelection[] | null;
+  upgrade_interests: Record<string, boolean> | null;
   status: string;
   created_at: string;
+}
+
+// Material type display names
+const MATERIAL_NAMES: Record<string, string> = {
+  lvp: 'Premium LVP',
+  hardwood: 'Hardwood',
+  carpet: 'Premium Carpet',
+  tile: 'Porcelain Tile',
+};
+
+// Area display names
+const AREA_NAMES: Record<string, string> = {
+  mainLiving: 'Main Living Area',
+  secondBedroom: 'Second Bedroom',
+  masterBedroom: 'Master Bedroom',
+  secondBedroomCarpet: 'Second Bedroom Carpet',
+  guestBathroom: 'Guest Bathroom',
+  masterEnsuite: 'Master Ensuite',
+  laundry: 'Laundry Room',
+  backsplash: 'Kitchen Backsplash',
+  allLvp: 'Entire Unit LVP',
+};
+
+// Format area upgrades for HubSpot display
+function formatAreaUpgrades(upgrades: AreaUpgradeSelection[] | null): string {
+  if (!upgrades || upgrades.length === 0) return 'None selected';
+  
+  return upgrades.map(u => {
+    const areaName = AREA_NAMES[u.areaId] || u.areaId;
+    const materialName = MATERIAL_NAMES[u.materialType] || u.materialType;
+    let line = `${areaName}: ${materialName}`;
+    if (u.productName) line += ` - ${u.productName}`;
+    if (u.productColor) line += ` (${u.productColor})`;
+    return line;
+  }).join('; ');
+}
+
+// Format upgrade interests for HubSpot display
+function formatUpgradeInterests(interests: Record<string, boolean> | null): string {
+  if (!interests) return 'None';
+  
+  const selected = Object.entries(interests)
+    .filter(([_, value]) => value)
+    .map(([key, _]) => key.replace(/([A-Z])/g, ' $1').trim());
+  
+  return selected.length > 0 ? selected.join(', ') : 'None';
 }
 
 Deno.serve(async (req) => {
@@ -90,12 +151,18 @@ Deno.serve(async (req) => {
       bmd_bathroom_tile: submission.spc_tile_colour || '',
       bmd_backsplash: submission.backsplash_orientation || '',
       bmd_bedroom_flooring: submission.bedroom_flooring_choice || '',
+      bmd_bedroom_carpet: submission.bedroom_carpet_colour || '',
+      bmd_bedroom_lvp: submission.bedroom_lvp_colour || '',
+      bmd_stair_carpet: submission.stair_carpet_colour || '',
       bmd_additional_windows: String(submission.additional_windows_qty || 0),
       bmd_patio_doors: String(submission.patio_doors_qty || 0),
       bmd_window_total: String(submission.window_total || 0),
       bmd_hardwood_upgrade: submission.hardwood_upgrade_selected ? 'Yes' : 'No',
       bmd_tile_upgrade: submission.bathroom_tile_selected ? 'Yes' : 'No',
       bmd_heated_floor_bathrooms: String(submission.heated_floor_bathrooms || 0),
+      bmd_backsplash_grout: submission.backsplash_grout_enabled ? (submission.backsplash_grout_color || 'Custom') : '',
+      bmd_area_upgrades: formatAreaUpgrades(submission.area_upgrades),
+      bmd_upgrade_interests: formatUpgradeInterests(submission.upgrade_interests),
       bmd_submission_status: submission.status,
     };
 
