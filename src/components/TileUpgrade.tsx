@@ -111,7 +111,7 @@ export function TileUpgrade({
 
         {bathroomTileSelected && (
           <span className="mt-3 inline-block text-xs font-medium text-accent">
-            ✓ Upgrade to porcelain tile selected
+            ✓ Upgrade to Porcelain Tile selected
           </span>
         )}
       </motion.button>

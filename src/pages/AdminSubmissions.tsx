@@ -79,7 +79,7 @@ const MATERIAL_NAMES: Record<string, string> = {
   lvp: 'Premium LVP',
   hardwood: 'Hardwood',
   carpet: 'Premium Carpet',
-  tile: 'Premium Tile',
+  tile: 'Porcelain Tile',
 };
 
 // Pricing interface for dynamic values
