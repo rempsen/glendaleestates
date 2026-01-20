@@ -104,6 +104,32 @@ export function useDynamicPricing() {
     return config ? config.config_value / 100 : DEFAULT_GST;
   }, [state.config]);
 
+  // Get flat-rate pricing values
+  const getAdditionalWindowPrice = useCallback((): number => {
+    const config = state.config.find(c => c.config_key === 'additional_window_price');
+    return config ? config.config_value : 673.50; // Default from mockData
+  }, [state.config]);
+
+  const getPatioDoorPrice = useCallback((): number => {
+    const config = state.config.find(c => c.config_key === 'patio_door_price');
+    return config ? config.config_value : 2347.80; // Default from mockData
+  }, [state.config]);
+
+  const getAutomatedMotorPrice = useCallback((): number => {
+    const config = state.config.find(c => c.config_key === 'automated_motor_price');
+    return config ? config.config_value : 495.00; // Default from mockData
+  }, [state.config]);
+
+  const getHeatedFloorPrice = useCallback((): number => {
+    const config = state.config.find(c => c.config_key === 'heated_floor_per_bathroom');
+    return config ? config.config_value : 1650.00; // Default from mockData
+  }, [state.config]);
+
+  const getGroutColorChangePrice = useCallback((): number => {
+    const config = state.config.find(c => c.config_key === 'grout_color_change_price');
+    return config ? config.config_value : 300.00; // Default
+  }, [state.config]);
+
   // Get material cost from DB or fallback to defaults
   const getMaterialCost = useCallback((materialType: 'lvp' | 'hardwood' | 'carpet' | 'tile'): number => {
     const dbMaterial = state.materials.find(m => m.material_key === materialType);
@@ -120,11 +146,10 @@ export function useDynamicPricing() {
     return defaultMap[materialType] || 0;
   }, [state.materials]);
 
-  // Get grout color flat fee
+  // Get grout color flat fee (uses the new config)
   const getGroutColorFee = useCallback((): number => {
-    const dbMaterial = state.materials.find(m => m.material_key === 'backsplash_grout');
-    return dbMaterial ? dbMaterial.cost_per_unit : DEFAULT_UPGRADE_COSTS.backsplashGroutColor;
-  }, [state.materials]);
+    return getGroutColorChangePrice();
+  }, [getGroutColorChangePrice]);
 
   // Get material info for display
   const getMaterialInfo = useCallback((materialType: 'lvp' | 'hardwood' | 'carpet' | 'tile') => {
@@ -240,6 +265,11 @@ export function useDynamicPricing() {
     getMaterialInfo,
     getActiveMaterials,
     getGroutColorFee,
+    getAdditionalWindowPrice,
+    getPatioDoorPrice,
+    getAutomatedMotorPrice,
+    getHeatedFloorPrice,
+    getGroutColorChangePrice,
     calculateAreaUpgradePrice,
     calculateBacksplashGroutPrice,
     calculateTotalUpgradeCost,

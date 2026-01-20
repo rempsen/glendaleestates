@@ -4,7 +4,6 @@ import {
   AREA_DEFINITIONS,
   UPGRADE_MATERIALS,
 } from '@/lib/upgradeCostData';
-import { heatedFloorPricing } from '@/lib/mockData';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 
 interface UpgradePricingSummaryProps {
@@ -29,7 +28,11 @@ export function UpgradePricingSummary({
   onUpgradeCommentsChange,
 }: UpgradePricingSummaryProps) {
   // Use dynamic pricing from database
-  const { calculateTotalUpgradeCost, calculateBacksplashGroutPrice, gstRate } = useDynamicPricing();
+  const { calculateTotalUpgradeCost, calculateBacksplashGroutPrice, gstRate, getHeatedFloorPrice } = useDynamicPricing();
+  
+  // Get dynamic heated floor price
+  const heatedFloorPerBathroom = getHeatedFloorPrice();
+  
   // Determine effective unit code
   const effectiveUnitCode = unitTypeCode 
     ? (['G', 'H'].includes(unitTypeCode.toUpperCase()) && selectedFloor 
@@ -43,7 +46,7 @@ export function UpgradePricingSummary({
     : { subtotal: 0, gst: 0, total: 0, lineItems: [] };
 
   // Calculate heated floor costs (only if bathroom tile selected)
-  const heatedFloorSubtotal = bathroomTileSelected ? heatedFloorBathrooms * heatedFloorPricing.perBathroom : 0;
+  const heatedFloorSubtotal = bathroomTileSelected ? heatedFloorBathrooms * heatedFloorPerBathroom : 0;
   const heatedFloorGst = heatedFloorSubtotal * gstRate;
 
   // Calculate backsplash grout color change costs
@@ -103,7 +106,7 @@ export function UpgradePricingSummary({
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
-                  Heated Tile Floor ({heatedFloorBathrooms} bathroom{heatedFloorBathrooms > 1 ? 's' : ''} × ${heatedFloorPricing.perBathroom.toLocaleString()})
+                  Heated Tile Floor ({heatedFloorBathrooms} bathroom{heatedFloorBathrooms > 1 ? 's' : ''} × ${heatedFloorPerBathroom.toLocaleString()})
                 </span>
                 <span className="font-medium">${heatedFloorSubtotal.toLocaleString()}</span>
               </div>
