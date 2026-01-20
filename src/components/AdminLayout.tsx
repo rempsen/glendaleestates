@@ -21,11 +21,14 @@ interface AdminLayoutProps {
   children: React.ReactNode;
 }
 
+import { GitGraph } from 'lucide-react';
+
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
+  { icon: GitGraph, label: 'Pipeline', path: '/admin/pipeline' },
   { icon: Inbox, label: 'Submissions', path: '/admin/submissions' },
   { icon: Home, label: 'All Homes', path: '/admin/homes' },
-  { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
+  { icon: BarChart3, label: 'Sales Analytics', path: '/admin/sales-analytics' },
   { icon: FileText, label: 'Reports', path: '/admin/reports' },
 ];
 

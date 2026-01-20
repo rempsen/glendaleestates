@@ -134,6 +134,104 @@ export type Database = {
         }
         Relationships: []
       }
+      sales_pipeline: {
+        Row: {
+          buyer_email: string | null
+          buyer_first_name: string | null
+          buyer_last_name: string | null
+          buyer_phone: string | null
+          buyer_selection_id: string | null
+          contract_amount: number | null
+          contract_signed: boolean | null
+          created_at: string
+          deposit_amount: number | null
+          deposit_date: string | null
+          deposit_received: boolean | null
+          documents_sent: boolean | null
+          documents_signed: boolean | null
+          hubspot_contact_id: string | null
+          hubspot_deal_id: string | null
+          id: string
+          lead_date: string | null
+          meeting_date: string | null
+          notes: string | null
+          pipeline_stage: string
+          quoted_date: string | null
+          signed_date: string | null
+          tax_amount: number | null
+          total_amount: number | null
+          unit_number: string
+          unit_type: string | null
+          updated_at: string
+        }
+        Insert: {
+          buyer_email?: string | null
+          buyer_first_name?: string | null
+          buyer_last_name?: string | null
+          buyer_phone?: string | null
+          buyer_selection_id?: string | null
+          contract_amount?: number | null
+          contract_signed?: boolean | null
+          created_at?: string
+          deposit_amount?: number | null
+          deposit_date?: string | null
+          deposit_received?: boolean | null
+          documents_sent?: boolean | null
+          documents_signed?: boolean | null
+          hubspot_contact_id?: string | null
+          hubspot_deal_id?: string | null
+          id?: string
+          lead_date?: string | null
+          meeting_date?: string | null
+          notes?: string | null
+          pipeline_stage?: string
+          quoted_date?: string | null
+          signed_date?: string | null
+          tax_amount?: number | null
+          total_amount?: number | null
+          unit_number: string
+          unit_type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          buyer_email?: string | null
+          buyer_first_name?: string | null
+          buyer_last_name?: string | null
+          buyer_phone?: string | null
+          buyer_selection_id?: string | null
+          contract_amount?: number | null
+          contract_signed?: boolean | null
+          created_at?: string
+          deposit_amount?: number | null
+          deposit_date?: string | null
+          deposit_received?: boolean | null
+          documents_sent?: boolean | null
+          documents_signed?: boolean | null
+          hubspot_contact_id?: string | null
+          hubspot_deal_id?: string | null
+          id?: string
+          lead_date?: string | null
+          meeting_date?: string | null
+          notes?: string | null
+          pipeline_stage?: string
+          quoted_date?: string | null
+          signed_date?: string | null
+          tax_amount?: number | null
+          total_amount?: number | null
+          unit_number?: string
+          unit_type?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_pipeline_buyer_selection_id_fkey"
+            columns: ["buyer_selection_id"]
+            isOneToOne: false
+            referencedRelation: "buyer_selections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
