@@ -7,7 +7,6 @@ import { WizardProgress } from '@/components/WizardProgress';
 import { StepContainer } from '@/components/StepContainer';
 import { SelectionCard } from '@/components/SelectionCard';
 import { UpgradeTeaser } from '@/components/UpgradeTeaser';
-import { TileUpgrade } from '@/components/TileUpgrade';
 import { FloorPlanViewer } from '@/components/FloorPlanViewer';
 import { RoomUpgradePicker } from '@/components/RoomUpgradePicker';
 import { UpgradePricingSummary } from '@/components/UpgradePricingSummary';
@@ -81,6 +80,7 @@ interface SelectionState {
   windowComments: string;
   salesComments: string;
   upgradeInterests: Record<string, boolean>;
+  upgradeInterestsNotes: string; // Text notes for upgrade interests
   // Area-based upgrades (new system)
   areaUpgrades: AreaUpgradeSelection[];
   upgradeFloorSelection: '1' | '2' | null; // For G/H units
@@ -144,6 +144,7 @@ export default function SelectionWizard() {
     upgradeInterests: {
       automation: false,
     },
+    upgradeInterestsNotes: '',
     areaUpgrades: [],
     upgradeFloorSelection: null,
     backsplashGrout: { enabled: false, groutColor: '', comments: '' },
@@ -586,16 +587,86 @@ export default function SelectionWizard() {
 
         {/* Heated Floor Option - Only shown when bathroom/tile areas are selected */}
         {selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId) && s.materialType === 'tile') && (
-          <div>
-            <h3 className="text-lg font-medium text-foreground mb-4">Add Heated Floors</h3>
-            <TileUpgrade
-              unitTypeCode={unitInfo?.typeCode || null}
-              bathroomTileSelected={true}
-              heatedFloorBathrooms={selections.heatedFloorBathrooms}
-              maxBathrooms={unitInfo?.bathrooms ? parseFloat(unitInfo.bathrooms) : 2}
-              onToggleTile={() => {}} // Already selected via room picker
-              onHeatedFloorChange={(count) => updateSelection('heatedFloorBathrooms', count)}
-            />
+          <div className="p-5 rounded-xl border-2 border-border bg-card">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="p-2 rounded-lg bg-accent/10">
+                <span className="text-accent text-xl">🔥</span>
+              </div>
+              <div>
+                <h4 className="font-serif text-lg font-medium text-foreground">
+                  Add Heated Tile Floors
+                </h4>
+                <p className="text-sm text-muted-foreground">
+                  Add radiant floor heating to your upgraded porcelain tile bathrooms
+                </p>
+              </div>
+            </div>
+
+            {/* Karma Permission Warning */}
+            <div className="mb-4 p-3 rounded-lg bg-warning/10 border border-warning/30">
+              <div className="flex items-start gap-2">
+                <span className="text-warning mt-0.5 flex-shrink-0">⚠️</span>
+                <p className="text-xs text-warning">
+                  <strong>Important:</strong> Heated floor installation requires Karma's permission to run the electrical. Our team will coordinate this for you.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-muted-foreground">
+                Number of bathrooms with heated floors:
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selections.heatedFloorBathrooms > 0) {
+                      updateSelection('heatedFloorBathrooms', selections.heatedFloorBathrooms - 1);
+                    }
+                  }}
+                  className="w-8 h-8 rounded-lg border border-border bg-background flex items-center justify-center hover:bg-muted transition-colors"
+                  disabled={selections.heatedFloorBathrooms === 0}
+                >
+                  -
+                </button>
+                <span className="w-8 text-center font-medium">{selections.heatedFloorBathrooms}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const maxBathrooms = unitInfo?.bathrooms ? parseFloat(unitInfo.bathrooms) : 2;
+                    if (selections.heatedFloorBathrooms < maxBathrooms) {
+                      updateSelection('heatedFloorBathrooms', selections.heatedFloorBathrooms + 1);
+                    }
+                  }}
+                  className="w-8 h-8 rounded-lg border border-border bg-background flex items-center justify-center hover:bg-muted transition-colors"
+                  disabled={selections.heatedFloorBathrooms >= (unitInfo?.bathrooms ? parseFloat(unitInfo.bathrooms) : 2)}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-baseline gap-2">
+              <span className="text-lg font-semibold text-foreground">
+                ${heatedFloorPrice.toLocaleString()}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                per bathroom + GST
+              </span>
+            </div>
+
+            {selections.heatedFloorBathrooms > 0 && (
+              <div className="mt-3 pt-3 border-t border-border">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    {selections.heatedFloorBathrooms} bathroom{selections.heatedFloorBathrooms > 1 ? 's' : ''} × ${heatedFloorPrice.toLocaleString()}
+                  </span>
+                  <span className="font-medium">
+                    ${(selections.heatedFloorBathrooms * heatedFloorPrice).toLocaleString()} + GST
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -621,6 +692,20 @@ export default function SelectionWizard() {
           <p className="mt-4 text-sm text-muted-foreground">
             Mark any that interest you and our team will reach out with details and pricing.
           </p>
+          
+          {/* Text entry box for upgrade interests */}
+          <div className="mt-4">
+            <label htmlFor="upgrade-interests-notes" className="block text-sm font-medium text-foreground mb-2">
+              Describe Your Upgrade Interests
+            </label>
+            <textarea
+              id="upgrade-interests-notes"
+              value={selections.upgradeInterestsNotes || ''}
+              onChange={(e) => updateSelection('upgradeInterestsNotes', e.target.value)}
+              placeholder="Please describe any specific upgrades you're interested in, special requests, or questions you have for our team..."
+              className="w-full min-h-[100px] p-3 text-sm rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y"
+            />
+          </div>
         </div>
       </div>
     </StepContainer>
