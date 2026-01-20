@@ -1,13 +1,11 @@
 import { 
   AreaUpgradeSelection,
   BacksplashGroutSelection,
-  calculateTotalUpgradeCost,
-  calculateBacksplashGroutPrice,
   AREA_DEFINITIONS,
   UPGRADE_MATERIALS,
-  GST_RATE,
 } from '@/lib/upgradeCostData';
 import { heatedFloorPricing } from '@/lib/mockData';
+import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 
 interface UpgradePricingSummaryProps {
   unitTypeCode: string | null;
@@ -26,6 +24,8 @@ export function UpgradePricingSummary({
   bathroomTileSelected = false,
   backsplashGrout,
 }: UpgradePricingSummaryProps) {
+  // Use dynamic pricing from database
+  const { calculateTotalUpgradeCost, calculateBacksplashGroutPrice, gstRate } = useDynamicPricing();
   // Determine effective unit code
   const effectiveUnitCode = unitTypeCode 
     ? (['G', 'H'].includes(unitTypeCode.toUpperCase()) && selectedFloor 
@@ -40,7 +40,7 @@ export function UpgradePricingSummary({
 
   // Calculate heated floor costs (only if bathroom tile selected)
   const heatedFloorSubtotal = bathroomTileSelected ? heatedFloorBathrooms * heatedFloorPricing.perBathroom : 0;
-  const heatedFloorGst = heatedFloorSubtotal * GST_RATE;
+  const heatedFloorGst = heatedFloorSubtotal * gstRate;
 
   // Calculate backsplash grout color change costs
   const groutPrice = backsplashGrout?.enabled ? calculateBacksplashGroutPrice() : null;
@@ -143,9 +143,8 @@ export function UpgradePricingSummary({
           </div>
         </div>
 
-        {/* Note about 10% overage */}
         <p className="text-xs text-muted-foreground mt-3">
-          * Prices include 60% markup. A 10% material overage is allowed on all quoted amounts.
+          * Prices calculated with current markup. A 10% material overage is allowed on all quoted amounts.
         </p>
       </div>
     </div>

@@ -11,12 +11,19 @@ import {
 import { 
   AreaUpgradeSelection,
   BacksplashGroutSelection,
-  calculateTotalUpgradeCost,
-  calculateBacksplashGroutPrice,
   normalizeUnitTypeCode,
   AREA_DEFINITIONS,
-  GST_RATE,
+  UNIT_AREA_DATA,
+  UPGRADE_MATERIALS,
 } from '@/lib/upgradeCostData';
+
+// Pricing config interface for dynamic pricing
+export interface PdfPricingConfig {
+  markupPercentage: number;
+  gstRate: number;
+  getMaterialCost: (materialType: 'lvp' | 'hardwood' | 'carpet' | 'tile') => number;
+  getGroutColorFee: () => number;
+}
 
 // Extend jsPDF type to include autoTable
 declare module 'jspdf' {
@@ -33,6 +40,56 @@ const COLORS = {
   muted: [120, 120, 120] as [number, number, number],
   light: [245, 243, 240] as [number, number, number],
 };
+
+// Helper function to calculate upgrade cost with dynamic pricing
+function calculateUpgradeCost(
+  unitTypeCode: string,
+  selections: AreaUpgradeSelection[],
+  pricing: PdfPricingConfig
+): { subtotal: number; gst: number; total: number; lineItems: Array<{ areaName: string; quantity: number; unit: string; markedUpCost: number }> } {
+  let subtotal = 0;
+  const lineItems: Array<{ areaName: string; quantity: number; unit: string; markedUpCost: number }> = [];
+
+  const unitData = UNIT_AREA_DATA[unitTypeCode];
+  if (!unitData) {
+    return { subtotal: 0, gst: 0, total: 0, lineItems: [] };
+  }
+
+  for (const selection of selections) {
+    const quantity = unitData[selection.areaId] || 0;
+    if (quantity === 0) continue;
+
+    const costPerUnit = pricing.getMaterialCost(selection.materialType);
+    const material = UPGRADE_MATERIALS.find(m => m.id === selection.materialType);
+    const baseCost = quantity * costPerUnit;
+    const markedUpCost = baseCost * (1 + pricing.markupPercentage);
+    
+    if (markedUpCost > 0) {
+      subtotal += markedUpCost;
+      const areaInfo = AREA_DEFINITIONS.find(a => a.id === selection.areaId);
+      lineItems.push({
+        areaName: areaInfo?.name || selection.areaId,
+        quantity,
+        unit: material?.unit === 'sqyd' ? 'sq yd' : 'sq ft',
+        markedUpCost,
+      });
+    }
+  }
+
+  const gst = subtotal * pricing.gstRate;
+  const total = subtotal + gst;
+
+  return { subtotal, gst, total, lineItems };
+}
+
+// Helper function to calculate grout price with dynamic pricing
+function calculateGroutPrice(pricing: PdfPricingConfig): { baseCost: number; markedUpCost: number; gst: number; total: number } {
+  const baseCost = pricing.getGroutColorFee();
+  const markedUpCost = baseCost; // Flat fees don't get markup
+  const gst = baseCost * pricing.gstRate;
+  const total = baseCost + gst;
+  return { baseCost, markedUpCost, gst, total };
+}
 
 const loadLogo = (): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -85,8 +142,19 @@ interface BuyerSelections {
 
 export async function generateBuyerPreviewPDF(
   selections: BuyerSelections,
-  unitTypeCode: string | null
+  unitTypeCode: string | null,
+  pricingConfig?: PdfPricingConfig
 ): Promise<void> {
+  // Default pricing config if not provided (fallback to hardcoded values)
+  const pricing = pricingConfig || {
+    markupPercentage: 0.60,
+    gstRate: 0.05,
+    getMaterialCost: (type: 'lvp' | 'hardwood' | 'carpet' | 'tile') => {
+      const costs = { lvp: 4.00, hardwood: 10.00, carpet: 20.00, tile: 8.00 };
+      return costs[type];
+    },
+    getGroutColorFee: () => 300.00,
+  };
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -301,11 +369,13 @@ export async function generateBuyerPreviewPDF(
 
   // Upgrades Section
   const effectiveUnitCode = normalizeUnitTypeCode(unitTypeCode);
-  const upgradeCalc = calculateTotalUpgradeCost(effectiveUnitCode || '', selections.areaUpgrades);
+  
+  // Calculate upgrade costs using dynamic pricing
+  const upgradeCalc = calculateUpgradeCost(effectiveUnitCode || '', selections.areaUpgrades, pricing);
   const heatedFloorSubtotal = selections.bathroomTileSelected || selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId))
     ? selections.heatedFloorBathrooms * heatedFloorPricing.perBathroom
     : 0;
-  const groutPrice = selections.backsplashGrout?.enabled ? calculateBacksplashGroutPrice() : null;
+  const groutPrice = selections.backsplashGrout?.enabled ? calculateGroutPrice(pricing) : null;
   
   const upgradesSubtotal = upgradeCalc.subtotal + heatedFloorSubtotal + (groutPrice?.markedUpCost || 0);
 
@@ -353,11 +423,11 @@ export async function generateBuyerPreviewPDF(
       ]);
     }
 
-    const upgradesGst = upgradesSubtotal * GST_RATE;
+    const upgradesGst = upgradesSubtotal * pricing.gstRate;
     const upgradesTotalWithGst = upgradesSubtotal + upgradesGst;
 
     upgradeData.push(['Subtotal:', `$${upgradesSubtotal.toFixed(2)}`]);
-    upgradeData.push(['GST (5%):', `$${upgradesGst.toFixed(2)}`]);
+    upgradeData.push([`GST (${(pricing.gstRate * 100).toFixed(0)}%):`, `$${upgradesGst.toFixed(2)}`]);
     upgradeData.push(['Total:', `$${upgradesTotalWithGst.toFixed(2)}`]);
 
     doc.autoTable({
@@ -420,7 +490,7 @@ export async function generateBuyerPreviewPDF(
   }
 
   // Grand Total
-  const grandTotal = windowSubtotal * (1 + windowPricing.gstRate) + upgradesSubtotal * (1 + GST_RATE);
+  const grandTotal = windowSubtotal * (1 + windowPricing.gstRate) + upgradesSubtotal * (1 + pricing.gstRate);
   
   if (grandTotal > 0) {
     checkNewPage(40);

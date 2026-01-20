@@ -36,9 +36,8 @@ import {
   requiresFloorSelection,
   AREA_DEFINITIONS,
   UPGRADE_MATERIALS,
-  calculateTotalUpgradeCost,
-  calculateBacksplashGroutPrice,
 } from '@/lib/upgradeCostData';
+import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { generateBuyerPreviewPDF } from '@/lib/buyerPdfGenerator';
 import tileStackedImg from '@/assets/tile-stacked.jpg';
 import tileBrickedImg from '@/assets/tile-bricked.jpg';
@@ -100,6 +99,9 @@ export default function SelectionWizard() {
   const [unitInfo, setUnitInfo] = useState<UnitInfo | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  
+  // Use dynamic pricing from database
+  const { calculateTotalUpgradeCost, calculateBacksplashGroutPrice, markupPercentage, gstRate, getMaterialCost, getGroutColorFee } = useDynamicPricing();
   
   const [selections, setSelections] = useState<SelectionState>({
     unitNumber: '',
@@ -868,7 +870,8 @@ export default function SelectionWizard() {
               variant="outline"
               onClick={async () => {
                 try {
-                  await generateBuyerPreviewPDF(selections, unitInfo?.typeCode || null);
+                  const pricingConfig = { markupPercentage, gstRate, getMaterialCost, getGroutColorFee };
+                  await generateBuyerPreviewPDF(selections, unitInfo?.typeCode || null, pricingConfig);
                   toast.success('PDF downloaded successfully!');
                 } catch (error) {
                   console.error('Error generating PDF:', error);
