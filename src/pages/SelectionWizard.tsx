@@ -39,6 +39,7 @@ import {
   calculateTotalUpgradeCost,
   calculateBacksplashGroutPrice,
 } from '@/lib/upgradeCostData';
+import { generateBuyerPreviewPDF } from '@/lib/buyerPdfGenerator';
 import tileStackedImg from '@/assets/tile-stacked.jpg';
 import tileBrickedImg from '@/assets/tile-bricked.jpg';
 import tileHorizontalImg from '@/assets/tile-horizontal.jpg';
@@ -855,6 +856,32 @@ export default function SelectionWizard() {
             </div>
           </div>
         )}
+
+        {/* Download PDF Button */}
+        <div className="p-4 rounded-xl border border-primary/30 bg-primary/5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-foreground">Download Selection Summary</h4>
+              <p className="text-sm text-muted-foreground">Save a PDF copy of your selections for your records</p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                try {
+                  await generateBuyerPreviewPDF(selections, unitInfo?.typeCode || null);
+                  toast.success('PDF downloaded successfully!');
+                } catch (error) {
+                  console.error('Error generating PDF:', error);
+                  toast.error('Failed to generate PDF');
+                }
+              }}
+              className="gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Download PDF
+            </Button>
+          </div>
+        </div>
 
         {/* Note */}
         <div className="p-4 rounded-xl bg-muted/50">
