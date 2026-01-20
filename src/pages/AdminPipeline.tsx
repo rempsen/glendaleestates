@@ -71,6 +71,15 @@ export default function AdminPipeline() {
   const [stageFilter, setStageFilter] = useState<string>('all');
   const [editingRecord, setEditingRecord] = useState<PipelineRecord | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [addingUnit, setAddingUnit] = useState(false);
+  const [newUnitData, setNewUnitData] = useState({
+    unit_number: '',
+    buyer_first_name: '',
+    buyer_last_name: '',
+    buyer_email: '',
+    buyer_phone: '',
+  });
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -93,24 +102,96 @@ export default function AdminPipeline() {
   }, []);
 
   const initializeUnit = async (unitNumber: string) => {
-    const unitInfo = unitData[parseInt(unitNumber)];
-    const { error } = await supabase.from('sales_pipeline').insert({
-      unit_number: unitNumber,
-      unit_type: unitInfo?.unitType || null,
-      pipeline_stage: 'lead',
-      lead_date: new Date().toISOString(),
-    });
+    console.log('Initializing unit:', unitNumber);
+    setAddingUnit(true);
+    
+    try {
+      const unitInfo = unitData[parseInt(unitNumber)];
+      const { data, error } = await supabase.from('sales_pipeline').insert({
+        unit_number: unitNumber,
+        unit_type: unitInfo?.unitType || null,
+        pipeline_stage: 'lead',
+        lead_date: new Date().toISOString(),
+      }).select();
 
-    if (error) {
-      if (error.code === '23505') {
-        toast.error('Unit already exists in pipeline');
+      console.log('Insert result:', { data, error });
+
+      if (error) {
+        if (error.code === '23505') {
+          toast.error('Unit already exists in pipeline');
+        } else {
+          toast.error('Failed to add unit: ' + error.message);
+          console.error('Pipeline insert error:', error);
+        }
       } else {
-        toast.error('Failed to add unit: ' + error.message);
-        console.error('Pipeline insert error:', error);
+        toast.success(`Unit ${unitNumber} added to pipeline`);
+        fetchRecords();
       }
-    } else {
-      toast.success(`Unit ${unitNumber} added to pipeline`);
-      fetchRecords();
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      toast.error('An unexpected error occurred');
+    } finally {
+      setAddingUnit(false);
+    }
+  };
+
+  const addNewUnit = async () => {
+    if (!newUnitData.unit_number.trim()) {
+      toast.error('Please enter a unit number');
+      return;
+    }
+
+    console.log('Adding new unit with data:', newUnitData);
+    setAddingUnit(true);
+
+    try {
+      const unitNum = newUnitData.unit_number.trim();
+      const unitInfo = unitData[parseInt(unitNum)];
+      
+      const insertData = {
+        unit_number: unitNum,
+        unit_type: unitInfo?.unitType || null,
+        pipeline_stage: 'lead',
+        lead_date: new Date().toISOString(),
+        buyer_first_name: newUnitData.buyer_first_name.trim() || null,
+        buyer_last_name: newUnitData.buyer_last_name.trim() || null,
+        buyer_email: newUnitData.buyer_email.trim() || null,
+        buyer_phone: newUnitData.buyer_phone.trim() || null,
+      };
+
+      console.log('Insert data:', insertData);
+
+      const { data, error } = await supabase
+        .from('sales_pipeline')
+        .insert(insertData)
+        .select();
+
+      console.log('Insert result:', { data, error });
+
+      if (error) {
+        if (error.code === '23505') {
+          toast.error('Unit already exists in pipeline');
+        } else {
+          toast.error('Failed to add unit: ' + error.message);
+          console.error('Pipeline insert error:', error);
+        }
+      } else {
+        toast.success(`Unit ${unitNum} added to pipeline`);
+        setIsAddDialogOpen(false);
+        setNewUnitData({
+          unit_number: '',
+          buyer_first_name: '',
+          buyer_last_name: '',
+          buyer_email: '',
+          buyer_phone: '',
+        });
+        fetchRecords();
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      toast.error('An unexpected error occurred');
+    } finally {
+      setAddingUnit(false);
     }
   };
 
@@ -223,6 +304,86 @@ export default function AdminPipeline() {
             <p className="text-muted-foreground mt-1">Tracking {stats.totalTracked} of {TOTAL_UNITS} units</p>
           </div>
           <div className="flex gap-2">
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-2">
+                  <Plus className="w-4 h-4" />Add Unit
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Unit to Pipeline</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="new_unit_number">Unit Number *</Label>
+                    <Input
+                      id="new_unit_number"
+                      placeholder="e.g., 101"
+                      value={newUnitData.unit_number}
+                      onChange={(e) => setNewUnitData(prev => ({ ...prev, unit_number: e.target.value }))}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="new_first_name">First Name</Label>
+                      <Input
+                        id="new_first_name"
+                        placeholder="John"
+                        value={newUnitData.buyer_first_name}
+                        onChange={(e) => setNewUnitData(prev => ({ ...prev, buyer_first_name: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="new_last_name">Last Name</Label>
+                      <Input
+                        id="new_last_name"
+                        placeholder="Doe"
+                        value={newUnitData.buyer_last_name}
+                        onChange={(e) => setNewUnitData(prev => ({ ...prev, buyer_last_name: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new_email">Email</Label>
+                    <Input
+                      id="new_email"
+                      type="email"
+                      placeholder="john@example.com"
+                      value={newUnitData.buyer_email}
+                      onChange={(e) => setNewUnitData(prev => ({ ...prev, buyer_email: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new_phone">Phone</Label>
+                    <Input
+                      id="new_phone"
+                      placeholder="(555) 123-4567"
+                      value={newUnitData.buyer_phone}
+                      onChange={(e) => setNewUnitData(prev => ({ ...prev, buyer_phone: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={addNewUnit} disabled={addingUnit}>
+                      {addingUnit ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Adding...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Unit
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
             <Button variant="outline" size="sm" onClick={fetchRecords} className="gap-2">
               <RefreshCw className="w-4 h-4" />Refresh
             </Button>
