@@ -178,6 +178,7 @@ export const windowCoveringProduct = {
 export const windowPricing = {
   additionalWindow: 673.50,  // per window installed
   patioDoor: 2347.80,        // per patio door (panel track) installed
+  automatedMotor: 495.00,    // per window for motor, hub, programming & installation
   gstRate: 0.05,             // 5% GST
 };
 
