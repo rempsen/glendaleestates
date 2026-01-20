@@ -9,6 +9,7 @@ import { DateRange } from '@/components/dashboard/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Download, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 export default function AdminDashboard() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
@@ -91,7 +92,34 @@ export default function AdminDashboard() {
                 dateRange={dateRange} 
                 onDateRangeChange={setDateRange} 
               />
-              <Button variant="outline" size="icon" title="Export Report">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                title="Export Report"
+                onClick={() => {
+                  // Export dashboard data as CSV
+                  const csvData = [
+                    ['Metric', 'Value'],
+                    ['Total Submissions', submissions.length],
+                    ['Total Revenue', `$${stats.pipelineStats.totalRevenue}`],
+                    ['Contracts Signed', stats.pipelineStats.contractsSigned],
+                    ['Conversion Rate', `${stats.conversionRate.toFixed(1)}%`],
+                    ['Window Revenue', `$${stats.selectionStats.windowRevenue}`],
+                    ['Hardwood Upgrades', stats.selectionStats.hardwoodUpgrades],
+                    ['Tile Upgrades', stats.selectionStats.tileUpgrades],
+                    ['Heated Floors', stats.selectionStats.heatedFloors],
+                  ];
+                  const csv = csvData.map(row => row.join(',')).join('\n');
+                  const blob = new Blob([csv], { type: 'text/csv' });
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `dashboard-report-${new Date().toISOString().split('T')[0]}.csv`;
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  toast.success('Dashboard report exported');
+                }}
+              >
                 <Download className="w-4 h-4" />
               </Button>
             </div>

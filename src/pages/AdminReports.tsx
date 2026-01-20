@@ -365,8 +365,8 @@ export default function AdminReports() {
                   <p className="text-sm text-muted-foreground mb-4">
                     View and manage individual submissions. Available from the Submissions page.
                   </p>
-                  <Button variant="outline" asChild>
-                    <a href="/admin/submissions">Go to Submissions →</a>
+                  <Button variant="outline" onClick={() => window.location.href = '/admin/submissions'}>
+                    Go to Submissions →
                   </Button>
                 </div>
               </div>

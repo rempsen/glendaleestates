@@ -232,6 +232,8 @@ interface UpgradePopularityWidgetProps {
 }
 
 export function UpgradePopularityWidget({ data, total }: UpgradePopularityWidgetProps) {
+  const [selectedUpgrade, setSelectedUpgrade] = useState<string | null>(null);
+
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 h-full">
       {data.map((upgrade) => {
@@ -239,7 +241,13 @@ export function UpgradePopularityWidget({ data, total }: UpgradePopularityWidget
         return (
           <div 
             key={upgrade.name} 
-            className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+            className={`p-3 rounded-lg transition-colors cursor-pointer ${
+              selectedUpgrade === upgrade.name 
+                ? 'bg-primary/10 ring-1 ring-primary/30' 
+                : 'bg-muted/30 hover:bg-muted/50'
+            }`}
+            onClick={() => setSelectedUpgrade(selectedUpgrade === upgrade.name ? null : upgrade.name)}
+            title={`Click to ${selectedUpgrade === upgrade.name ? 'deselect' : 'highlight'} ${upgrade.name}`}
           >
             <p className="text-xs text-muted-foreground truncate">{upgrade.name}</p>
             <div className="flex items-end justify-between mt-1">
