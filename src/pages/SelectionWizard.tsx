@@ -94,6 +94,7 @@ interface SelectionState {
 export default function SelectionWizard() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
+  const [highestStepReached, setHighestStepReached] = useState(0);
   const [unitInfo, setUnitInfo] = useState<UnitInfo | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -213,7 +214,9 @@ export default function SelectionWizard() {
 
   const nextStep = () => {
     if (currentStep < steps.length - 1) {
-      setCurrentStep(prev => prev + 1);
+      const newStep = currentStep + 1;
+      setCurrentStep(newStep);
+      setHighestStepReached(prev => Math.max(prev, newStep));
     }
   };
 
@@ -1742,6 +1745,7 @@ export default function SelectionWizard() {
             steps={steps}
             currentStep={currentStep}
             onStepClick={setCurrentStep}
+            allStepsVisited={highestStepReached >= steps.length - 1}
           />
         </div>
       </div>
