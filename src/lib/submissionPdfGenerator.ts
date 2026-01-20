@@ -18,23 +18,33 @@ const COLORS = {
   light: [245, 243, 240] as [number, number, number],
 };
 
-const loadLogo = (): Promise<string> => {
-  return new Promise((resolve, reject) => {
+const loadLogo = (): Promise<string | null> => {
+  return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        resolve(canvas.toDataURL('image/png'));
-      } else {
-        reject(new Error('Could not get canvas context'));
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        } else {
+          console.warn('Could not get canvas context for logo');
+          resolve(null);
+        }
+      } catch (e) {
+        console.warn('Error converting logo to data URL:', e);
+        resolve(null);
       }
     };
-    img.onerror = reject;
+    img.onerror = () => {
+      console.warn('Could not load logo image');
+      resolve(null);
+    };
+    // Use absolute path from public folder
     img.src = '/images/bmd-logo.png';
   });
 };
@@ -114,13 +124,15 @@ export async function generateSubmissionPDF(submission: BuyerSubmission): Promis
   const margin = 20;
   let yPos = margin;
 
-  // Try to load logo
+  // Try to load logo (non-blocking)
   let logoData: string | null = null;
   try {
     logoData = await loadLogo();
   } catch (e) {
     console.warn('Could not load logo:', e);
   }
+
+  console.log('Starting PDF generation for unit:', submission.unit_number);
 
   // Header with logo
   if (logoData) {
@@ -507,7 +519,10 @@ export async function generateSubmissionPDF(submission: BuyerSubmission): Promis
   doc.text(`Status: ${submission.status}`, pageWidth - margin, footerY, { align: 'right' });
 
   // Save the PDF
-  doc.save(`unit-${submission.unit_number}-selection-summary.pdf`);
+  const filename = `unit-${submission.unit_number}-selection-summary.pdf`;
+  console.log('Saving PDF as:', filename);
+  doc.save(filename);
+  console.log('PDF save triggered');
 }
 
 function formatColour(colour: string | null): string {

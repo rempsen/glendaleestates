@@ -628,12 +628,16 @@ export default function AdminSubmissions() {
                       variant="outline"
                       size="sm"
                       onClick={async () => {
+                        console.log('Generating PDF for submission:', selectedSubmission.id);
                         try {
                           await generateSubmissionPDF(selectedSubmission);
+                          console.log('PDF generated successfully');
                           toast.success('PDF downloaded successfully');
                         } catch (error) {
                           console.error('PDF generation error:', error);
-                          toast.error('Failed to generate PDF');
+                          toast.error('Failed to generate PDF', {
+                            description: error instanceof Error ? error.message : 'Unknown error',
+                          });
                         }
                       }}
                     >
