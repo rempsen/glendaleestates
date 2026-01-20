@@ -426,20 +426,47 @@ export function RoomUpgradePicker({
 
                       {/* Price Preview */}
                       {effectiveUnitCode && (
-                        <div className="p-3 rounded-lg bg-secondary/50">
+                        <div className="p-3 rounded-lg bg-secondary/50 space-y-2">
                           {(() => {
                             const materialType = editingSelection?.materialType || selection?.materialType || area.upgradeTypes[0];
                             const materialName = UPGRADE_MATERIALS.find(m => m.id === materialType)?.name;
                             const price = calculateAreaUpgradePrice(effectiveUnitCode, area.id, materialType);
+                            const hasHeatedFloor = (editingSelection?.heatedFloor || selection?.heatedFloor) && materialType === 'tile';
+                            const heatedFloorCostWithGst = heatedFloorPrice * (1 + gstRate);
+                            const totalWithHeated = hasHeatedFloor ? price.markedUpCost + heatedFloorPrice : price.markedUpCost;
+                            
                             return (
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm text-foreground">
-                                  {area.name} {materialName} Upgrade
-                                </span>
-                                <span className="font-semibold text-primary">
-                                  ${price.markedUpCost.toFixed(2)}
-                                </span>
-                              </div>
+                              <>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-foreground">
+                                    {area.name} {materialName} Upgrade
+                                  </span>
+                                  <span className="font-semibold text-primary">
+                                    ${price.markedUpCost.toFixed(2)}
+                                  </span>
+                                </div>
+                                {hasHeatedFloor && (
+                                  <div className="flex justify-between items-center text-sm">
+                                    <span className="text-orange-600 flex items-center gap-1">
+                                      <Flame className="w-3 h-3" />
+                                      Heated Floor
+                                    </span>
+                                    <span className="font-semibold text-orange-600">
+                                      +${heatedFloorPrice.toFixed(2)}
+                                    </span>
+                                  </div>
+                                )}
+                                {hasHeatedFloor && (
+                                  <div className="flex justify-between items-center pt-2 border-t border-border">
+                                    <span className="text-sm font-medium text-foreground">
+                                      Area Total (before GST)
+                                    </span>
+                                    <span className="font-bold text-primary">
+                                      ${totalWithHeated.toFixed(2)}
+                                    </span>
+                                  </div>
+                                )}
+                              </>
                             );
                           })()}
                         </div>
@@ -498,17 +525,25 @@ export function RoomUpgradePicker({
                 ? calculateAreaUpgradePrice(effectiveUnitCode, selection.areaId, selection.materialType)
                 : null;
 
+              const hasHeatedFloor = selection.heatedFloor && selection.materialType === 'tile';
+              const itemTotal = (pricing?.markedUpCost || 0) + (hasHeatedFloor ? heatedFloorPrice : 0);
+
               return (
                 <div key={selection.areaId} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
                     <span className="text-foreground">{area?.name}</span>
                     <span className="text-muted-foreground">• {material?.name}</span>
+                    {hasHeatedFloor && (
+                      <span className="text-xs text-orange-600 flex items-center gap-0.5">
+                        <Flame className="w-3 h-3" /> Heated
+                      </span>
+                    )}
                     {selection.productName && (
                       <span className="text-xs text-muted-foreground">({selection.productName})</span>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">${pricing?.markedUpCost.toFixed(2)}</span>
+                    <span className="font-medium">${itemTotal.toFixed(2)}</span>
                     <button
                       onClick={() => handleEditSelection(selection)}
                       className="p-1 hover:bg-secondary rounded"
