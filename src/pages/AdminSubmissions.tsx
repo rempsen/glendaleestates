@@ -33,6 +33,36 @@ import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X } from 'lucide-
 import { generateSubmissionPDF } from '@/lib/submissionPdfGenerator';
 import { format } from 'date-fns';
 
+// Area upgrade interface
+interface AreaUpgrade {
+  areaId: string;
+  materialType: string;
+  productName: string;
+  productColor: string;
+  comments: string;
+}
+
+// Area name mapping for display
+const AREA_NAMES: Record<string, string> = {
+  mainLiving: 'Main Living Area',
+  secondBedroom: 'Second Bedroom',
+  masterBedroom: 'Master Bedroom',
+  secondBedroomCarpet: 'Second Bedroom Carpet',
+  guestBathroom: 'Guest Bathroom',
+  masterEnsuite: 'Master Ensuite',
+  laundry: 'Laundry Room',
+  backsplash: 'Kitchen Backsplash',
+  allLvp: 'Entire Unit LVP',
+};
+
+// Material type display names
+const MATERIAL_NAMES: Record<string, string> = {
+  lvp: 'Premium LVP',
+  hardwood: 'Hardwood',
+  carpet: 'Premium Carpet',
+  tile: 'Premium Tile',
+};
+
 interface BuyerSelection {
   id: string;
   created_at: string;
@@ -62,6 +92,15 @@ interface BuyerSelection {
   upgrade_interests: Record<string, boolean>;
   status: string;
   sales_comments: string | null;
+  // New upgrade fields
+  area_upgrades?: AreaUpgrade[];
+  upgrade_floor_selection?: string | null;
+  backsplash_grout_enabled?: boolean;
+  backsplash_grout_color?: string | null;
+  backsplash_grout_comments?: string | null;
+  heated_floor_bathrooms?: number;
+  bathroom_tile_selected?: boolean;
+  hardwood_upgrade_selected?: boolean;
 }
 
 const statusColors: Record<string, string> = {
@@ -96,6 +135,7 @@ export default function AdminSubmissions() {
       const typedData = (data || []).map(item => ({
         ...item,
         upgrade_interests: (item.upgrade_interests as unknown as Record<string, boolean>) || {},
+        area_upgrades: (item.area_upgrades as unknown as AreaUpgrade[]) || [],
       })) as BuyerSelection[];
       
       setSubmissions(typedData);
@@ -521,7 +561,26 @@ export default function AdminSubmissions() {
                 {/* Backsplash */}
                 <div className="space-y-2">
                   <h4 className="font-medium text-foreground">Kitchen Backsplash</h4>
-                  <p className="text-sm capitalize">{selectedSubmission.backsplash_orientation || 'Not selected'}</p>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Orientation:</span>
+                      <span className="ml-2 capitalize">{selectedSubmission.backsplash_orientation || 'Not selected'}</span>
+                    </div>
+                    {selectedSubmission.backsplash_grout_enabled && (
+                      <div>
+                        <span className="text-muted-foreground">Custom Grout Color:</span>
+                        <span className="ml-2">{selectedSubmission.backsplash_grout_color || 'Not specified'}</span>
+                      </div>
+                    )}
+                  </div>
+                  {selectedSubmission.backsplash_grout_enabled && (
+                    <div className="p-3 rounded-lg bg-amber-100/50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm">
+                      <span className="font-medium text-amber-800 dark:text-amber-300">Custom Grout Color Change: $300 + GST</span>
+                      {selectedSubmission.backsplash_grout_comments && (
+                        <p className="mt-1 text-muted-foreground">Comments: {selectedSubmission.backsplash_grout_comments}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Window Coverings */}
@@ -541,6 +600,68 @@ export default function AdminSubmissions() {
                         <span className="text-muted-foreground">Total:</span>
                         <span className="ml-2 font-medium">${selectedSubmission.window_total?.toFixed(2)}</span>
                       </div>
+                    </div>
+                    {selectedSubmission.window_comments && (
+                      <div className="p-3 rounded-lg bg-muted/50 text-sm mt-2">
+                        <span className="text-muted-foreground">Comments:</span> {selectedSubmission.window_comments}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Area Upgrades */}
+                {selectedSubmission.area_upgrades && selectedSubmission.area_upgrades.length > 0 && (
+                  <div className="space-y-2 p-4 rounded-lg bg-purple-100/50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                    <h4 className="font-medium text-foreground flex items-center gap-2">
+                      <span>🔧</span> Area Upgrades
+                      {selectedSubmission.upgrade_floor_selection && (
+                        <Badge variant="outline" className="ml-2">
+                          Floor {selectedSubmission.upgrade_floor_selection}
+                        </Badge>
+                      )}
+                    </h4>
+                    <div className="space-y-3">
+                      {selectedSubmission.area_upgrades.map((upgrade, index) => (
+                        <div key={index} className="p-3 rounded-lg bg-background/50 border border-border text-sm">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <span className="text-muted-foreground">Area:</span>
+                              <span className="ml-2 font-medium">{AREA_NAMES[upgrade.areaId] || upgrade.areaId}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Material:</span>
+                              <span className="ml-2">{MATERIAL_NAMES[upgrade.materialType] || upgrade.materialType}</span>
+                            </div>
+                            {upgrade.productName && (
+                              <div>
+                                <span className="text-muted-foreground">Product:</span>
+                                <span className="ml-2">{upgrade.productName}</span>
+                              </div>
+                            )}
+                            {upgrade.productColor && (
+                              <div>
+                                <span className="text-muted-foreground">Color:</span>
+                                <span className="ml-2">{upgrade.productColor}</span>
+                              </div>
+                            )}
+                          </div>
+                          {upgrade.comments && (
+                            <p className="mt-2 text-xs text-muted-foreground italic">Comments: {upgrade.comments}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Heated Floors & Other Options */}
+                {(selectedSubmission.heated_floor_bathrooms && selectedSubmission.heated_floor_bathrooms > 0) && (
+                  <div className="space-y-2 p-4 rounded-lg bg-orange-100/50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800">
+                    <h4 className="font-medium text-foreground">Heated Floors</h4>
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Bathrooms with Heated Floors:</span>
+                      <span className="ml-2 font-medium">{selectedSubmission.heated_floor_bathrooms}</span>
+                      <span className="ml-2 text-muted-foreground">($1,650 + GST per bathroom)</span>
                     </div>
                   </div>
                 )}

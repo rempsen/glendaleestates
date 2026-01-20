@@ -39,6 +39,36 @@ const loadLogo = (): Promise<string> => {
   });
 };
 
+// Area upgrade interface
+interface AreaUpgrade {
+  areaId: string;
+  materialType: string;
+  productName: string;
+  productColor: string;
+  comments: string;
+}
+
+// Area name mapping for display
+const AREA_NAMES: Record<string, string> = {
+  mainLiving: 'Main Living Area',
+  secondBedroom: 'Second Bedroom',
+  masterBedroom: 'Master Bedroom',
+  secondBedroomCarpet: 'Second Bedroom Carpet',
+  guestBathroom: 'Guest Bathroom',
+  masterEnsuite: 'Master Ensuite',
+  laundry: 'Laundry Room',
+  backsplash: 'Kitchen Backsplash',
+  allLvp: 'Entire Unit LVP',
+};
+
+// Material type display names
+const MATERIAL_NAMES: Record<string, string> = {
+  lvp: 'Premium LVP',
+  hardwood: 'Hardwood',
+  carpet: 'Premium Carpet',
+  tile: 'Premium Tile',
+};
+
 interface BuyerSubmission {
   id: string;
   created_at: string;
@@ -66,6 +96,15 @@ interface BuyerSubmission {
   window_comments?: string | null;
   upgrade_interests: Record<string, boolean>;
   status: string;
+  // New upgrade fields
+  area_upgrades?: AreaUpgrade[];
+  upgrade_floor_selection?: string | null;
+  backsplash_grout_enabled?: boolean;
+  backsplash_grout_color?: string | null;
+  backsplash_grout_comments?: string | null;
+  heated_floor_bathrooms?: number;
+  bathroom_tile_selected?: boolean;
+  sales_comments?: string | null;
 }
 
 export async function generateSubmissionPDF(submission: BuyerSubmission): Promise<void> {
@@ -269,8 +308,137 @@ export async function generateSubmissionPDF(submission: BuyerSubmission): Promis
     yPos += 10;
   }
 
+  // Backsplash Grout Color Change
+  if (submission.backsplash_grout_enabled) {
+    yPos += 10;
+    doc.setFontSize(14);
+    doc.setTextColor(...COLORS.primary);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Custom Backsplash Grout', margin, yPos);
+    yPos += 3;
+    
+    doc.setDrawColor(...COLORS.primary);
+    doc.setLineWidth(2);
+    doc.line(margin, yPos, margin + 55, yPos);
+    yPos += 10;
+
+    doc.setFillColor(255, 243, 205);
+    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 30, 3, 3, 'F');
+    
+    doc.setFontSize(10);
+    doc.setTextColor(...COLORS.dark);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Grout Color: ${submission.backsplash_grout_color || 'Not specified'}`, margin + 10, yPos + 12);
+    doc.text('Cost: $300.00 + GST ($315.00 total)', margin + 10, yPos + 22);
+    if (submission.backsplash_grout_comments) {
+      yPos += 35;
+      doc.setTextColor(...COLORS.muted);
+      doc.text(`Comments: ${submission.backsplash_grout_comments}`, margin, yPos);
+    }
+    yPos += 15;
+  }
+
+  // Area Upgrades Section
+  if (submission.area_upgrades && submission.area_upgrades.length > 0) {
+    // Check if we need a new page
+    if (yPos > pageHeight - 100) {
+      doc.addPage();
+      yPos = margin;
+    }
+
+    yPos += 10;
+    doc.setFontSize(14);
+    doc.setTextColor(...COLORS.primary);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Area Upgrades', margin, yPos);
+    if (submission.upgrade_floor_selection) {
+      doc.setFontSize(10);
+      doc.text(`(Floor ${submission.upgrade_floor_selection})`, margin + 45, yPos);
+    }
+    yPos += 3;
+    
+    doc.setDrawColor(...COLORS.primary);
+    doc.setLineWidth(2);
+    doc.line(margin, yPos, margin + 40, yPos);
+    yPos += 10;
+
+    const upgradeData: string[][] = submission.area_upgrades.map(u => [
+      AREA_NAMES[u.areaId] || u.areaId,
+      MATERIAL_NAMES[u.materialType] || u.materialType,
+      u.productName || 'N/A',
+      u.productColor || 'N/A',
+    ]);
+
+    doc.autoTable({
+      startY: yPos,
+      head: [['Area', 'Material', 'Product', 'Color']],
+      body: upgradeData,
+      margin: { left: margin, right: margin },
+      headStyles: {
+        fillColor: [155, 89, 182],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 9,
+      },
+      bodyStyles: {
+        fontSize: 9,
+        textColor: COLORS.dark,
+      },
+      alternateRowStyles: {
+        fillColor: [245, 238, 248],
+      },
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 10;
+
+    // Add upgrade comments if any
+    const upgradesWithComments = submission.area_upgrades.filter(u => u.comments);
+    if (upgradesWithComments.length > 0) {
+      doc.setFontSize(9);
+      doc.setTextColor(...COLORS.muted);
+      upgradesWithComments.forEach(u => {
+        doc.text(`${AREA_NAMES[u.areaId]}: ${u.comments}`, margin, yPos);
+        yPos += 6;
+      });
+    }
+  }
+
+  // Heated Floors Section
+  if (submission.heated_floor_bathrooms && submission.heated_floor_bathrooms > 0) {
+    yPos += 10;
+    doc.setFontSize(14);
+    doc.setTextColor(...COLORS.primary);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Heated Floors', margin, yPos);
+    yPos += 3;
+    
+    doc.setDrawColor(...COLORS.primary);
+    doc.setLineWidth(2);
+    doc.line(margin, yPos, margin + 35, yPos);
+    yPos += 10;
+
+    doc.setFillColor(255, 237, 213);
+    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 25, 3, 3, 'F');
+    
+    doc.setFontSize(10);
+    doc.setTextColor(...COLORS.dark);
+    doc.setFont('helvetica', 'normal');
+    const heatedTotal = submission.heated_floor_bathrooms * 1650 * 1.05;
+    doc.text(`Bathrooms with Heated Floors: ${submission.heated_floor_bathrooms}`, margin + 10, yPos + 12);
+    doc.text(`Cost: ${submission.heated_floor_bathrooms} × $1,650 + GST = $${heatedTotal.toFixed(2)}`, margin + 10, yPos + 20);
+    
+    yPos += 35;
+  }
+
   // Upgrade Interests
   yPos += 10;
+  
+  // Check if we need a new page
+  if (yPos > pageHeight - 60) {
+    doc.addPage();
+    yPos = margin;
+  }
+
   doc.setFontSize(14);
   doc.setTextColor(...COLORS.primary);
   doc.setFont('helvetica', 'bold');
@@ -302,6 +470,29 @@ export async function generateSubmissionPDF(submission: BuyerSubmission): Promis
   } else {
     doc.setTextColor(...COLORS.muted);
     doc.text('No upgrade interests indicated.', margin, yPos);
+  }
+
+  // Sales/Admin Comments
+  if (submission.sales_comments) {
+    yPos += 15;
+    doc.setFontSize(14);
+    doc.setTextColor(...COLORS.primary);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Admin Notes', margin, yPos);
+    yPos += 3;
+    
+    doc.setDrawColor(...COLORS.primary);
+    doc.setLineWidth(2);
+    doc.line(margin, yPos, margin + 35, yPos);
+    yPos += 10;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...COLORS.dark);
+    
+    // Split long comments into multiple lines
+    const splitComments = doc.splitTextToSize(submission.sales_comments, pageWidth - (margin * 2));
+    doc.text(splitComments, margin, yPos);
   }
 
   // Footer
