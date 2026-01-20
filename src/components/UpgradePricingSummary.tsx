@@ -144,7 +144,7 @@ export function UpgradePricingSummary({
         </div>
 
         <p className="text-xs text-muted-foreground mt-3">
-          * Prices calculated with current markup. A 10% material overage is allowed on all quoted amounts.
+          * A 10% material overage is allowed on all quoted amounts.
         </p>
       </div>
     </div>
