@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { DateRange } from '@/components/dashboard/types';
 import { isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
@@ -49,22 +49,30 @@ export function useDashboardData(dateRange: DateRange) {
   const [submissions, setSubmissions] = useState<BuyerSelection[]>([]);
   const [pipeline, setPipeline] = useState<PipelineRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    
+    const [submissionsResult, pipelineResult] = await Promise.all([
+      supabase.from('buyer_selections').select('*').order('created_at', { ascending: false }),
+      supabase.from('sales_pipeline').select('*').order('unit_number', { ascending: true }),
+    ]);
+
+    if (submissionsResult.data) setSubmissions(submissionsResult.data as BuyerSelection[]);
+    if (pipelineResult.data) setPipeline(pipelineResult.data as PipelineRecord[]);
+    
+    setLoading(false);
+    setRefreshing(false);
+  }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      const [submissionsResult, pipelineResult] = await Promise.all([
-        supabase.from('buyer_selections').select('*').order('created_at', { ascending: false }),
-        supabase.from('sales_pipeline').select('*').order('unit_number', { ascending: true }),
-      ]);
-
-      if (submissionsResult.data) setSubmissions(submissionsResult.data as BuyerSelection[]);
-      if (pipelineResult.data) setPipeline(pipelineResult.data as PipelineRecord[]);
-      setLoading(false);
-    };
-
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   // Filter data by date range
   const filteredSubmissions = useMemo(() => {
@@ -182,6 +190,8 @@ export function useDashboardData(dateRange: DateRange) {
     };
   }, [filteredSubmissions, filteredPipeline]);
 
+  const refetch = useCallback(() => fetchData(true), [fetchData]);
+
   return {
     submissions: filteredSubmissions,
     pipeline: filteredPipeline,
@@ -189,6 +199,8 @@ export function useDashboardData(dateRange: DateRange) {
     allPipeline: pipeline,
     stats,
     loading,
+    refreshing,
+    refetch,
     totalUnits: TOTAL_UNITS,
   };
 }
