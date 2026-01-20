@@ -29,9 +29,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X } from 'lucide-react';
+import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X, DollarSign } from 'lucide-react';
 import { generateSubmissionPDF } from '@/lib/submissionPdfGenerator';
 import { format } from 'date-fns';
+import { 
+  calculateAreaUpgradePrice, 
+  calculateBacksplashGroutPrice,
+  normalizeUnitTypeCode,
+  UNIT_AREA_DATA,
+  UpgradeArea
+} from '@/lib/upgradeCostData';
 
 // Area upgrade interface
 interface AreaUpgrade {
@@ -62,6 +69,103 @@ const MATERIAL_NAMES: Record<string, string> = {
   carpet: 'Premium Carpet',
   tile: 'Premium Tile',
 };
+
+// Pricing constants
+const PATIO_DOOR_PRICE = 2347.80;
+const ADDITIONAL_WINDOW_PRICE = 673.50;
+const HEATED_FLOOR_PRICE = 1650;
+const PORCELAIN_TILE_PER_ENSUITE = 1571;
+const BACKSPLASH_GROUT_PRICE = 300;
+const GST_RATE = 0.05;
+
+// Calculate all pricing for a submission
+function calculateSubmissionPricing(submission: BuyerSelection): {
+  windowCoverings: { subtotal: number; gst: number; total: number };
+  flooringUpgrades: { subtotal: number; gst: number; total: number };
+  tileUpgrades: { subtotal: number; gst: number; total: number };
+  heatedFloors: { subtotal: number; gst: number; total: number };
+  backsplashGrout: { subtotal: number; gst: number; total: number };
+  grandTotal: { subtotal: number; gst: number; total: number };
+} {
+  // Window Coverings
+  const patioTotal = (submission.patio_doors_qty || 0) * PATIO_DOOR_PRICE;
+  const windowTotal = (submission.additional_windows_qty || 0) * ADDITIONAL_WINDOW_PRICE;
+  const windowSubtotal = patioTotal + windowTotal;
+  const windowGst = windowSubtotal * GST_RATE;
+  
+  // Flooring Upgrades (LVP, Hardwood, Carpet)
+  let flooringSubtotal = 0;
+  if (submission.area_upgrades && submission.area_upgrades.length > 0) {
+    const unitTypeCode = extractUnitTypeCode(submission.unit_type, submission.upgrade_floor_selection);
+    for (const upgrade of submission.area_upgrades) {
+      if (['lvp', 'hardwood', 'carpet'].includes(upgrade.materialType)) {
+        const pricing = calculateAreaUpgradePrice(
+          unitTypeCode, 
+          upgrade.areaId as UpgradeArea, 
+          upgrade.materialType as 'lvp' | 'hardwood' | 'carpet' | 'tile'
+        );
+        flooringSubtotal += pricing.markedUpCost;
+      }
+    }
+  }
+  const flooringGst = flooringSubtotal * GST_RATE;
+  
+  // Tile Upgrades (bathroom tile, backsplash tile)
+  let tileSubtotal = 0;
+  if (submission.bathroom_tile_selected) {
+    // Porcelain tile upgrade per bathroom
+    const bathrooms = submission.heated_floor_bathrooms || 1;
+    tileSubtotal += bathrooms * PORCELAIN_TILE_PER_ENSUITE;
+  }
+  if (submission.area_upgrades && submission.area_upgrades.length > 0) {
+    const unitTypeCode = extractUnitTypeCode(submission.unit_type, submission.upgrade_floor_selection);
+    for (const upgrade of submission.area_upgrades) {
+      if (upgrade.materialType === 'tile') {
+        const pricing = calculateAreaUpgradePrice(
+          unitTypeCode, 
+          upgrade.areaId as UpgradeArea, 
+          'tile'
+        );
+        tileSubtotal += pricing.markedUpCost;
+      }
+    }
+  }
+  const tileGst = tileSubtotal * GST_RATE;
+  
+  // Heated Floors
+  const heatedSubtotal = (submission.heated_floor_bathrooms || 0) * HEATED_FLOOR_PRICE;
+  const heatedGst = heatedSubtotal * GST_RATE;
+  
+  // Backsplash Grout Color Change
+  const groutSubtotal = submission.backsplash_grout_enabled ? BACKSPLASH_GROUT_PRICE : 0;
+  const groutGst = groutSubtotal * GST_RATE;
+  
+  // Grand Total
+  const grandSubtotal = windowSubtotal + flooringSubtotal + tileSubtotal + heatedSubtotal + groutSubtotal;
+  const grandGst = grandSubtotal * GST_RATE;
+  const grandTotal = grandSubtotal + grandGst;
+  
+  return {
+    windowCoverings: { subtotal: windowSubtotal, gst: windowGst, total: windowSubtotal + windowGst },
+    flooringUpgrades: { subtotal: flooringSubtotal, gst: flooringGst, total: flooringSubtotal + flooringGst },
+    tileUpgrades: { subtotal: tileSubtotal, gst: tileGst, total: tileSubtotal + tileGst },
+    heatedFloors: { subtotal: heatedSubtotal, gst: heatedGst, total: heatedSubtotal + heatedGst },
+    backsplashGrout: { subtotal: groutSubtotal, gst: groutGst, total: groutSubtotal + groutGst },
+    grandTotal: { subtotal: grandSubtotal, gst: grandGst, total: grandTotal },
+  };
+}
+
+// Extract unit type code from unit_type string
+function extractUnitTypeCode(unitType: string | null, floorSelection?: string | null): string {
+  if (!unitType) return 'J'; // Default
+  const match = unitType.match(/[A-J]/i);
+  if (!match) return 'J';
+  const code = match[0].toUpperCase();
+  if ((code === 'G' || code === 'H') && floorSelection) {
+    return `${code}-${floorSelection}`;
+  }
+  return code;
+}
 
 interface BuyerSelection {
   id: string;
@@ -412,6 +516,107 @@ export default function AdminSubmissions() {
               </DialogHeader>
 
               <div className="space-y-6 mt-4">
+                {/* Pricing Summary - FIRST */}
+                {(() => {
+                  const pricing = calculateSubmissionPricing(selectedSubmission);
+                  const hasAnyUpgrades = pricing.grandTotal.total > 0;
+                  
+                  return hasAnyUpgrades ? (
+                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
+                      <div className="flex items-center gap-2 mb-4">
+                        <DollarSign className="w-5 h-5 text-primary" />
+                        <h4 className="font-semibold text-foreground">Upgrade Pricing Summary</h4>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        {/* Window Coverings */}
+                        {pricing.windowCoverings.subtotal > 0 && (
+                          <div className="flex justify-between items-center py-2 border-b border-border/50">
+                            <div>
+                              <p className="font-medium text-sm">Window Coverings</p>
+                              <p className="text-xs text-muted-foreground">
+                                {selectedSubmission.patio_doors_qty > 0 && `${selectedSubmission.patio_doors_qty} Patio Door(s)`}
+                                {selectedSubmission.patio_doors_qty > 0 && selectedSubmission.additional_windows_qty > 0 && ' + '}
+                                {selectedSubmission.additional_windows_qty > 0 && `${selectedSubmission.additional_windows_qty} Window(s)`}
+                              </p>
+                            </div>
+                            <span className="font-medium">${pricing.windowCoverings.total.toFixed(2)}</span>
+                          </div>
+                        )}
+                        
+                        {/* Flooring Upgrades */}
+                        {pricing.flooringUpgrades.subtotal > 0 && (
+                          <div className="flex justify-between items-center py-2 border-b border-border/50">
+                            <div>
+                              <p className="font-medium text-sm">Flooring Upgrades</p>
+                              <p className="text-xs text-muted-foreground">LVP, Hardwood, Carpet</p>
+                            </div>
+                            <span className="font-medium">${pricing.flooringUpgrades.total.toFixed(2)}</span>
+                          </div>
+                        )}
+                        
+                        {/* Tile Upgrades */}
+                        {pricing.tileUpgrades.subtotal > 0 && (
+                          <div className="flex justify-between items-center py-2 border-b border-border/50">
+                            <div>
+                              <p className="font-medium text-sm">Tile Upgrades</p>
+                              <p className="text-xs text-muted-foreground">Porcelain tile, backsplash</p>
+                            </div>
+                            <span className="font-medium">${pricing.tileUpgrades.total.toFixed(2)}</span>
+                          </div>
+                        )}
+                        
+                        {/* Heated Floors */}
+                        {pricing.heatedFloors.subtotal > 0 && (
+                          <div className="flex justify-between items-center py-2 border-b border-border/50">
+                            <div>
+                              <p className="font-medium text-sm">Heated Floors</p>
+                              <p className="text-xs text-muted-foreground">{selectedSubmission.heated_floor_bathrooms} bathroom(s)</p>
+                            </div>
+                            <span className="font-medium">${pricing.heatedFloors.total.toFixed(2)}</span>
+                          </div>
+                        )}
+                        
+                        {/* Backsplash Grout */}
+                        {pricing.backsplashGrout.subtotal > 0 && (
+                          <div className="flex justify-between items-center py-2 border-b border-border/50">
+                            <div>
+                              <p className="font-medium text-sm">Custom Grout Color</p>
+                              <p className="text-xs text-muted-foreground">{selectedSubmission.backsplash_grout_color}</p>
+                            </div>
+                            <span className="font-medium">${pricing.backsplashGrout.total.toFixed(2)}</span>
+                          </div>
+                        )}
+                        
+                        {/* Grand Total */}
+                        <div className="flex justify-between items-center pt-3">
+                          <div>
+                            <p className="font-bold text-foreground">Grand Total</p>
+                            <p className="text-xs text-muted-foreground">
+                              Subtotal: ${pricing.grandTotal.subtotal.toFixed(2)} + GST: ${pricing.grandTotal.gst.toFixed(2)}
+                            </p>
+                          </div>
+                          <span className="text-xl font-bold text-primary">${pricing.grandTotal.total.toFixed(2)}</span>
+                        </div>
+                      </div>
+                      
+                      {/* Payment Terms */}
+                      <div className="mt-4 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground">
+                        <p className="font-medium text-foreground mb-1">Payment Terms:</p>
+                        <p>• 50% deposit required upon contract signing (all major credit cards accepted)</p>
+                        <p>• Balance due one month before expected possession date</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-muted/30 border border-border">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <DollarSign className="w-5 h-5" />
+                        <span className="text-sm">No paid upgrades selected — standard selections only</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Status Control and Download */}
                 <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
                   <div>
@@ -422,7 +627,15 @@ export default function AdminSubmissions() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => generateSubmissionPDF(selectedSubmission)}
+                      onClick={async () => {
+                        try {
+                          await generateSubmissionPDF(selectedSubmission);
+                          toast.success('PDF downloaded successfully');
+                        } catch (error) {
+                          console.error('PDF generation error:', error);
+                          toast.error('Failed to generate PDF');
+                        }
+                      }}
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Download PDF
