@@ -6,11 +6,11 @@ import { Logo } from '@/components/Logo';
 import { WizardProgress } from '@/components/WizardProgress';
 import { StepContainer } from '@/components/StepContainer';
 import { SelectionCard } from '@/components/SelectionCard';
-import { PricingDisplay } from '@/components/PricingDisplay';
 import { UpgradeTeaser } from '@/components/UpgradeTeaser';
-import { HardwoodUpgrade } from '@/components/HardwoodUpgrade';
 import { TileUpgrade } from '@/components/TileUpgrade';
 import { FloorPlanViewer } from '@/components/FloorPlanViewer';
+import { RoomUpgradePicker } from '@/components/RoomUpgradePicker';
+import { UpgradePricingSummary } from '@/components/UpgradePricingSummary';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,11 +26,17 @@ import {
   carpetSpecs,
   windowCoveringProduct,
   calculateWindowExtensions,
-  hardwoodUpgradePricing,
-  hardwoodProduct,
   windowPricing,
+  heatedFloorPricing,
 } from '@/lib/mockData';
 import { getUnitInfo, UnitInfo } from '@/lib/unitData';
+import { 
+  AreaUpgradeSelection, 
+  requiresFloorSelection,
+  AREA_DEFINITIONS,
+  UPGRADE_MATERIALS,
+  calculateTotalUpgradeCost,
+} from '@/lib/upgradeCostData';
 import tileStackedImg from '@/assets/tile-stacked.jpg';
 import tileBrickedImg from '@/assets/tile-bricked.jpg';
 import tileHorizontalImg from '@/assets/tile-horizontal.jpg';
@@ -63,7 +69,10 @@ interface SelectionState {
   windowComments: string;
   salesComments: string;
   upgradeInterests: Record<string, boolean>;
-  hardwoodUpgradeSelected: boolean;
+  // Area-based upgrades (new system)
+  areaUpgrades: AreaUpgradeSelection[];
+  upgradeFloorSelection: '1' | '2' | null; // For G/H units
+  // Heated floors (kept separate)
   bathroomTileSelected: boolean;
   heatedFloorBathrooms: number;
 }
@@ -100,7 +109,8 @@ export default function SelectionWizard() {
     upgradeInterests: {
       automation: false,
     },
-    hardwoodUpgradeSelected: false,
+    areaUpgrades: [],
+    upgradeFloorSelection: null,
     bathroomTileSelected: false,
     heatedFloorBathrooms: 0,
   });
@@ -808,10 +818,43 @@ export default function SelectionWizard() {
                 </div>
 
                 <div className="mt-6">
-                  <PricingDisplay
-                    additionalWindows={selections.additionalWindowsQty}
-                    patioDoors={selections.patioDoorsQty}
-                  />
+                  {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0) && (
+                    <div className="p-4 rounded-xl bg-secondary/50 border border-border">
+                      <h4 className="font-medium text-foreground mb-3">Window Covering Pricing</h4>
+                      <div className="space-y-2 text-sm">
+                        {selections.additionalWindowsQty > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">
+                              Additional Windows ({selections.additionalWindowsQty} × ${windowPricing.additionalWindow})
+                            </span>
+                            <span className="font-medium">${(selections.additionalWindowsQty * windowPricing.additionalWindow).toLocaleString()}</span>
+                          </div>
+                        )}
+                        {selections.patioDoorsQty > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">
+                              Patio Door Panels ({selections.patioDoorsQty} × ${windowPricing.patioDoor})
+                            </span>
+                            <span className="font-medium">${(selections.patioDoorsQty * windowPricing.patioDoor).toLocaleString()}</span>
+                          </div>
+                        )}
+                        <div className="border-t border-border pt-2 mt-2">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Subtotal</span>
+                            <span>${calculateWindowExtensions(selections.additionalWindowsQty, selections.patioDoorsQty).subtotal.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">GST (5%)</span>
+                            <span>${calculateWindowExtensions(selections.additionalWindowsQty, selections.patioDoorsQty).gst.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between font-semibold text-foreground pt-1">
+                            <span>Total</span>
+                            <span className="text-primary">${calculateWindowExtensions(selections.additionalWindowsQty, selections.patioDoorsQty).total.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -838,39 +881,50 @@ export default function SelectionWizard() {
         return (
           <StepContainer
             title="Premium Upgrades"
-            subtitle="Select premium flooring and tile upgrades or express interest in other options"
+            subtitle="Select room-by-room flooring and tile upgrades for your home"
             badge="Step 8 of 10"
           >
             <div className="space-y-8">
-              {/* Hardwood Upgrade - Selectable with pricing */}
+              {/* Room-based Flooring & Tile Upgrades */}
               <div>
-                <h3 className="text-lg font-medium text-foreground mb-4">Hardwood Flooring Upgrade</h3>
-                <HardwoodUpgrade
+                <h3 className="text-lg font-medium text-foreground mb-2">Select Areas to Upgrade</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Click on a room to select upgrade materials. Pricing is calculated based on your unit's square footage.
+                </p>
+                <RoomUpgradePicker
                   unitTypeCode={unitInfo?.typeCode || null}
-                  selected={selections.hardwoodUpgradeSelected}
-                  onToggle={() => updateSelection('hardwoodUpgradeSelected', !selections.hardwoodUpgradeSelected)}
+                  selectedFloor={selections.upgradeFloorSelection}
+                  selections={selections.areaUpgrades}
+                  onSelectionsChange={(newSelections) => updateSelection('areaUpgrades', newSelections)}
+                  onFloorChange={(floor) => updateSelection('upgradeFloorSelection', floor)}
                 />
               </div>
 
-              {/* Bathroom Tile Upgrade - Selectable with pricing */}
-              <div>
-                <h3 className="text-lg font-medium text-foreground mb-4">Bathroom Tile Upgrade</h3>
-                <TileUpgrade
-                  unitTypeCode={unitInfo?.typeCode || null}
-                  bathroomTileSelected={selections.bathroomTileSelected}
-                  heatedFloorBathrooms={selections.heatedFloorBathrooms}
-                  maxBathrooms={unitInfo?.bathrooms ? parseFloat(unitInfo.bathrooms) : 2}
-                  onToggleTile={() => {
-                    const newValue = !selections.bathroomTileSelected;
-                    updateSelection('bathroomTileSelected', newValue);
-                    // Reset heated floor count if tile is deselected
-                    if (!newValue) {
-                      updateSelection('heatedFloorBathrooms', 0);
-                    }
-                  }}
-                  onHeatedFloorChange={(count) => updateSelection('heatedFloorBathrooms', count)}
-                />
-              </div>
+              {/* Heated Floor Option - Only shown when bathroom/tile areas are selected */}
+              {selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId) && s.materialType === 'tile') && (
+                <div>
+                  <h3 className="text-lg font-medium text-foreground mb-4">Add Heated Floors</h3>
+                  <TileUpgrade
+                    unitTypeCode={unitInfo?.typeCode || null}
+                    bathroomTileSelected={true}
+                    heatedFloorBathrooms={selections.heatedFloorBathrooms}
+                    maxBathrooms={unitInfo?.bathrooms ? parseFloat(unitInfo.bathrooms) : 2}
+                    onToggleTile={() => {}} // Already selected via room picker
+                    onHeatedFloorChange={(count) => updateSelection('heatedFloorBathrooms', count)}
+                  />
+                </div>
+              )}
+
+              {/* Pricing Summary */}
+              <UpgradePricingSummary
+                unitTypeCode={unitInfo?.typeCode || null}
+                selectedFloor={selections.upgradeFloorSelection}
+                areaUpgrades={selections.areaUpgrades}
+                additionalWindows={selections.additionalWindowsQty}
+                patioDoors={selections.patioDoorsQty}
+                heatedFloorBathrooms={selections.heatedFloorBathrooms}
+                bathroomTileSelected={selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId))}
+              />
 
               {/* Other Upgrade Interests */}
               <div>
@@ -1027,15 +1081,16 @@ export default function SelectionWizard() {
               </div>
 
               {/* Pricing Summary */}
-              {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0 || selections.hardwoodUpgradeSelected || selections.bathroomTileSelected) && (
+              {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0 || selections.areaUpgrades.length > 0 || selections.heatedFloorBathrooms > 0) && (
                 <div className="p-4 rounded-xl border border-primary/30 bg-primary/5">
-                  <PricingDisplay
+                  <UpgradePricingSummary
+                    unitTypeCode={unitInfo?.typeCode || null}
+                    selectedFloor={selections.upgradeFloorSelection}
+                    areaUpgrades={selections.areaUpgrades}
                     additionalWindows={selections.additionalWindowsQty}
                     patioDoors={selections.patioDoorsQty}
-                    hardwoodUpgradeSelected={selections.hardwoodUpgradeSelected}
-                    bathroomTileSelected={selections.bathroomTileSelected}
                     heatedFloorBathrooms={selections.heatedFloorBathrooms}
-                    unitTypeCode={unitInfo?.typeCode}
+                    bathroomTileSelected={selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId))}
                   />
                 </div>
               )}
