@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Responsive, WidthProvider } from 'react-grid-layout';
+import GridLayout, { verticalCompactor } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { DashboardWidget } from './DashboardWidget';
@@ -8,15 +8,13 @@ import {
   PipelineFunnelWidget, 
   StatusPieWidget, 
   RevenueChartWidget,
-
-const ResponsiveGridLayout = WidthProvider(Responsive);
   UpgradePopularityWidget,
   ColorPreferencesWidget 
 } from './widgets/ChartWidgets';
 import { InteractiveStatCard } from './widgets/InteractiveStatCard';
 import { RecentSubmissionsWidget } from './widgets/RecentSubmissionsWidget';
 import { QuickStatsWidget } from './widgets/QuickStatsWidget';
-import { DollarSign, TrendingUp, Users, Home, FileCheck, Blinds, Thermometer, Grid3X3 } from 'lucide-react';
+import { DollarSign, TrendingUp, Home, FileCheck } from 'lucide-react';
 
 interface WidgetGridProps {
   widgets: WidgetConfig[];
@@ -173,22 +171,26 @@ export function WidgetGrid({
 
   // Calculate columns based on width
   const cols = width >= 1200 ? 12 : width >= 768 ? 8 : 4;
-  const rowHeight = 80;
 
   return (
     <GridLayout
       className="layout"
       layout={layout}
-      cols={cols}
-      rowHeight={rowHeight}
+      gridConfig={{
+        cols,
+        rowHeight: 80,
+        margin: [16, 16],
+      }}
+      dragConfig={{
+        enabled: isEditing,
+        handle: ".drag-handle",
+      }}
+      resizeConfig={{
+        enabled: isEditing,
+      }}
+      compactor={verticalCompactor}
       width={width}
-      isDraggable={isEditing}
-      isResizable={isEditing}
       onLayoutChange={onLayoutChange}
-      draggableHandle=".drag-handle"
-      compactType="vertical"
-      preventCollision={false}
-      margin={[16, 16]}
     >
       {widgets.map((widget) => (
         <div key={widget.id}>
