@@ -42,11 +42,19 @@ import {
 import tileStackedImg from '@/assets/tile-stacked.jpg';
 import tileBrickedImg from '@/assets/tile-bricked.jpg';
 import tileHorizontalImg from '@/assets/tile-horizontal.jpg';
-import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Download, LogOut, Palette } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Download, LogOut, Palette, Play, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { User } from '@supabase/supabase-js';
+import panelTrackBlindsImg from '@/assets/panel-track-blinds.png';
 
-const STEPS = ['Home Info', 'Floor Plan', 'Flooring', 'Bathroom', 'Backsplash', 'Bedrooms', 'Windows', 'Upgrades', 'Comments', 'Review'];
+// Dynamic step configuration based on unit
+const getSteps = (hasStairs: boolean) => {
+  const baseSteps = ['Home Info', 'Floor Plan', 'Flooring', 'Bathroom', 'Backsplash', 'Bedrooms'];
+  if (hasStairs) {
+    return [...baseSteps, 'Stair Carpet', 'Windows', 'Upgrades', 'Comments', 'Review'];
+  }
+  return [...baseSteps, 'Windows', 'Upgrades', 'Comments', 'Review'];
+};
 
 interface SelectionState {
   unitNumber: string;
@@ -175,8 +183,10 @@ export default function SelectionWizard() {
     }));
   };
 
+  const steps = getSteps(selections.hasStairs);
+
   const nextStep = () => {
-    if (currentStep < STEPS.length - 1) {
+    if (currentStep < steps.length - 1) {
       setCurrentStep(prev => prev + 1);
     }
   };
@@ -229,6 +239,446 @@ export default function SelectionWizard() {
       setIsSubmitting(false);
     }
   };
+
+  // Helper function for Window Coverings step (enhanced with product showcase)
+  const renderWindowCoveringsStep = () => (
+    <StepContainer
+      title="Window Coverings"
+      subtitle="Match your patio doors with premium sliding panel track blinds"
+      badge="Standard + Optional"
+    >
+      <div className="space-y-8">
+        {/* Hero Product Showcase - Panel Track Blinds */}
+        <div className="rounded-2xl overflow-hidden border border-border bg-gradient-to-br from-card to-secondary/30">
+          <div className="grid md:grid-cols-2 gap-0">
+            {/* Product Image */}
+            <div className="relative aspect-[4/3] md:aspect-auto overflow-hidden">
+              <img 
+                src={panelTrackBlindsImg} 
+                alt="Sliding Panel Track Blinds for Patio Doors"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+              <div className="absolute bottom-4 left-4 right-4">
+                <span className="inline-block px-3 py-1 text-xs font-medium bg-primary text-primary-foreground rounded-full">
+                  Perfect for Patio Doors
+                </span>
+              </div>
+            </div>
+            
+            {/* Product Details */}
+            <div className="p-6 md:p-8 flex flex-col justify-center">
+              <h3 className="text-xl font-semibold text-foreground mb-2">
+                Sliding Panel Track Blinds
+              </h3>
+              <p className="text-muted-foreground mb-4">
+                Elegant, modern coverage for your patio doors that matches all your bedroom roller shades. 
+              </p>
+              
+              <ul className="space-y-2 mb-6">
+                <li className="flex items-start gap-2 text-sm">
+                  <Check className="w-4 h-4 text-success mt-0.5 shrink-0" />
+                  <span>Same fabric as bedroom roller shades — coordinated look</span>
+                </li>
+                <li className="flex items-start gap-2 text-sm">
+                  <Check className="w-4 h-4 text-success mt-0.5 shrink-0" />
+                  <span>Panels slide smoothly on an overhead track</span>
+                </li>
+                <li className="flex items-start gap-2 text-sm">
+                  <Check className="w-4 h-4 text-success mt-0.5 shrink-0" />
+                  <span>Stack on either side or split in the middle</span>
+                </li>
+                <li className="flex items-start gap-2 text-sm">
+                  <Check className="w-4 h-4 text-success mt-0.5 shrink-0" />
+                  <span>Light filtering option for privacy and natural light</span>
+                </li>
+              </ul>
+
+              <div className="flex items-center gap-3 mb-4">
+                <div className="text-2xl font-bold text-primary">$2,347.80</div>
+                <div className="text-sm text-muted-foreground">per patio door<br />(plus GST, installed)</div>
+              </div>
+
+              <a 
+                href="https://youtu.be/CKFOn8KJCzY" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+              >
+                <Play className="w-4 h-4" />
+                Watch Product Video
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Standard Confirmation */}
+        <div className="p-4 rounded-xl bg-success/10 border border-success/30">
+          <div className="flex items-start gap-3">
+            <Check className="w-5 h-5 text-success mt-0.5" />
+            <div>
+              <p className="font-medium text-foreground">{windowCoveringProduct.name} — Included in All Bedrooms</p>
+              <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                {windowCoveringProduct.features.map(f => (
+                  <li key={f}>• {f}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Optional Extensions */}
+        <div className="p-6 rounded-xl border border-border bg-card">
+          <h3 className="font-medium text-foreground mb-2">How Many Would You Like?</h3>
+          <p className="text-sm text-muted-foreground mb-6">
+            Select the number of windows and patio doors you'd like to add matching coverings to.
+          </p>
+
+          <div className="space-y-6">
+            <div>
+              <Label htmlFor="additionalWindows" className="text-foreground">
+                Additional Non-Bedroom Windows
+              </Label>
+              <p className="text-sm text-muted-foreground mb-2">
+                Living room, dining room, kitchen, etc. — $673.50 per window (pre-GST, installed)
+              </p>
+              <Input
+                id="additionalWindows"
+                type="number"
+                min={0}
+                max={20}
+                value={selections.additionalWindowsQty}
+                onChange={(e) => updateSelection('additionalWindowsQty', parseInt(e.target.value) || 0)}
+                className="max-w-24"
+              />
+            </div>
+
+            <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
+              <Label htmlFor="patioDoors" className="text-foreground font-medium">
+                Patio Door Panel Track Systems
+              </Label>
+              <p className="text-sm text-muted-foreground mb-3">
+                Sliding panel track for patio doors — $2,347.80 per opening (pre-GST, installed)
+              </p>
+              <Input
+                id="patioDoors"
+                type="number"
+                min={0}
+                max={5}
+                value={selections.patioDoorsQty}
+                onChange={(e) => updateSelection('patioDoorsQty', parseInt(e.target.value) || 0)}
+                className="max-w-24"
+              />
+            </div>
+          </div>
+
+          <div className="mt-6">
+            {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0) && (
+              <div className="p-4 rounded-xl bg-secondary/50 border border-border">
+                <h4 className="font-medium text-foreground mb-3">Window Covering Pricing</h4>
+                <div className="space-y-2 text-sm">
+                  {selections.additionalWindowsQty > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        Additional Windows ({selections.additionalWindowsQty} × ${windowPricing.additionalWindow})
+                      </span>
+                      <span className="font-medium">${(selections.additionalWindowsQty * windowPricing.additionalWindow).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {selections.patioDoorsQty > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        Patio Door Panels ({selections.patioDoorsQty} × ${windowPricing.patioDoor})
+                      </span>
+                      <span className="font-medium">${(selections.patioDoorsQty * windowPricing.patioDoor).toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="border-t border-border pt-2 mt-2">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Subtotal</span>
+                      <span>${calculateWindowExtensions(selections.additionalWindowsQty, selections.patioDoorsQty).subtotal.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">GST (5%)</span>
+                      <span>${calculateWindowExtensions(selections.additionalWindowsQty, selections.patioDoorsQty).gst.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-foreground pt-1">
+                      <span>Total</span>
+                      <span className="text-primary">${calculateWindowExtensions(selections.additionalWindowsQty, selections.patioDoorsQty).total.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Comments Section */}
+        <div className="pt-4 border-t border-border">
+          <Label htmlFor="windowComments" className="text-foreground">Notes or Comments</Label>
+          <p className="text-sm text-muted-foreground mb-2">
+            Add any special requests or notes about your window covering selection
+          </p>
+          <textarea
+            id="windowComments"
+            rows={3}
+            placeholder="Optional notes about your window covering preferences..."
+            value={selections.windowComments}
+            onChange={(e) => updateSelection('windowComments', e.target.value)}
+            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          />
+        </div>
+      </div>
+    </StepContainer>
+  );
+
+  // Helper function for Upgrades step
+  const renderUpgradesStep = () => (
+    <StepContainer
+      title="Premium Upgrades"
+      subtitle="Select room-by-room flooring and tile upgrades for your home"
+      badge="Optional"
+    >
+      <div className="space-y-8">
+        {/* Room-based Flooring & Tile Upgrades */}
+        <div>
+          <h3 className="text-lg font-medium text-foreground mb-2">Select Areas to Upgrade</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Click on a room to select upgrade materials. Pricing is calculated based on your unit's square footage.
+          </p>
+          <RoomUpgradePicker
+            unitTypeCode={unitInfo?.typeCode || null}
+            selectedFloor={selections.upgradeFloorSelection}
+            selections={selections.areaUpgrades}
+            onSelectionsChange={(newSelections) => updateSelection('areaUpgrades', newSelections)}
+            onFloorChange={(floor) => updateSelection('upgradeFloorSelection', floor)}
+          />
+        </div>
+
+        {/* Heated Floor Option - Only shown when bathroom/tile areas are selected */}
+        {selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId) && s.materialType === 'tile') && (
+          <div>
+            <h3 className="text-lg font-medium text-foreground mb-4">Add Heated Floors</h3>
+            <TileUpgrade
+              unitTypeCode={unitInfo?.typeCode || null}
+              bathroomTileSelected={true}
+              heatedFloorBathrooms={selections.heatedFloorBathrooms}
+              maxBathrooms={unitInfo?.bathrooms ? parseFloat(unitInfo.bathrooms) : 2}
+              onToggleTile={() => {}} // Already selected via room picker
+              onHeatedFloorChange={(count) => updateSelection('heatedFloorBathrooms', count)}
+            />
+          </div>
+        )}
+
+        {/* Pricing Summary */}
+        <UpgradePricingSummary
+          unitTypeCode={unitInfo?.typeCode || null}
+          selectedFloor={selections.upgradeFloorSelection}
+          areaUpgrades={selections.areaUpgrades}
+          additionalWindows={selections.additionalWindowsQty}
+          patioDoors={selections.patioDoorsQty}
+          heatedFloorBathrooms={selections.heatedFloorBathrooms}
+          bathroomTileSelected={selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId))}
+          backsplashGrout={selections.backsplashGrout}
+        />
+
+        {/* Other Upgrade Interests */}
+        <div>
+          <h3 className="text-lg font-medium text-foreground mb-4">Express Interest in Other Upgrades</h3>
+          <UpgradeTeaser
+            selectedInterests={selections.upgradeInterests}
+            onToggleInterest={toggleUpgradeInterest}
+          />
+          <p className="mt-4 text-sm text-muted-foreground">
+            Mark any that interest you and our team will reach out with details and pricing.
+          </p>
+        </div>
+      </div>
+    </StepContainer>
+  );
+
+  // Helper function for Comments step
+  const renderCommentsStep = () => (
+    <StepContainer
+      title="Sales Comments"
+      subtitle="For office use — add any notes or comments about this selection meeting"
+      badge="Internal"
+    >
+      <div className="space-y-6 max-w-2xl">
+        <div className="p-5 rounded-xl bg-secondary/50 border border-border">
+          <div className="flex items-center gap-3 mb-4">
+            <Info className="w-5 h-5 text-primary" />
+            <span className="font-medium text-foreground">Meeting Notes</span>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            Use this section to record any additional notes, special requests, or details discussed during the selection meeting that should be noted in the record.
+          </p>
+          <textarea
+            id="salesComments"
+            rows={6}
+            placeholder="Enter any notes or comments for the office staff to review..."
+            value={selections.salesComments}
+            onChange={(e) => updateSelection('salesComments', e.target.value)}
+            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          />
+        </div>
+      </div>
+    </StepContainer>
+  );
+
+  // Helper function for Review step
+  const renderReviewStep = () => (
+    <StepContainer
+      title="Review Your Selections"
+      subtitle="Please confirm everything looks correct before submitting"
+      badge="Final Step"
+    >
+      <div className="space-y-6">
+        {/* Home Info */}
+        <div className="p-4 rounded-xl border border-border bg-card">
+          <h4 className="font-medium text-foreground mb-3">Home Information</h4>
+          <div className="grid gap-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Unit Number</span>
+              <span className="font-medium">{selections.unitNumber || 'Not provided'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Buyer</span>
+              <span className="font-medium">
+                {selections.firstName || selections.lastName 
+                  ? `${selections.firstName} ${selections.lastName}`.trim() 
+                  : 'Not provided'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Phone</span>
+              <span className="font-medium">{selections.phoneNumber || 'Not provided'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Email</span>
+              <span className="font-medium">{selections.email || 'Not provided'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Est. Possession Date</span>
+              <span className="font-medium">
+                {selections.estimatedPossessionDate 
+                  ? new Date(selections.estimatedPossessionDate).toLocaleDateString() 
+                  : 'Not provided'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Flooring */}
+        <div className="p-4 rounded-xl border border-border bg-card">
+          <h4 className="font-medium text-foreground mb-3">Flooring Selections</h4>
+          <div className="grid gap-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Main Floor LVP</span>
+              <span className="font-medium">
+                {lvpOptions.find(o => o.id === selections.lvpColour)?.name || 'Not selected'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Bathroom/Laundry SPC</span>
+              <span className="font-medium">
+                {spcTileOptions.find(o => o.id === selections.spcTileColour)?.name || 'Not selected'}
+              </span>
+            </div>
+            {selections.hasStairs && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Stairs Carpet</span>
+                <span className="font-medium">
+                  {carpetOptions.find(o => o.id === selections.stairCarpetColour)?.name || 'Not selected'}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Bedroom Flooring</span>
+              <span className="font-medium capitalize">
+                {selections.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : selections.bedroomFlooringChoice || 'Not selected'}
+              </span>
+            </div>
+            {selections.bedroomFlooringChoice === 'carpet' && selections.bedroomCarpetColour && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Bedroom Carpet Colour</span>
+                <span className="font-medium">
+                  {carpetOptions.find(o => o.id === selections.bedroomCarpetColour)?.name}
+                </span>
+              </div>
+            )}
+            {selections.bedroomFlooringChoice === 'lvp' && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Bedroom LVP Colour</span>
+                <span className="font-medium">
+                  {selections.bedroomLvpSameAsMain
+                    ? `${lvpOptions.find(o => o.id === selections.lvpColour)?.name || 'Not selected'} (Same as Main Floor)`
+                    : lvpOptions.find(o => o.id === selections.bedroomLvpColour)?.name || 'Not selected'
+                  }
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Backsplash */}
+        <div className="p-4 rounded-xl border border-border bg-card">
+          <h4 className="font-medium text-foreground mb-3">Kitchen Backsplash</h4>
+          <div className="grid gap-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Tile</span>
+              <span className="font-medium">{backsplashProduct.name} ({backsplashProduct.size})</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Orientation</span>
+              <span className="font-medium capitalize">{selections.backsplashOrientation || 'Not selected'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Pricing Summary */}
+        {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0 || selections.areaUpgrades.length > 0 || selections.heatedFloorBathrooms > 0) && (
+          <div className="p-4 rounded-xl border border-primary/30 bg-primary/5">
+            <UpgradePricingSummary
+              unitTypeCode={unitInfo?.typeCode || null}
+              selectedFloor={selections.upgradeFloorSelection}
+              areaUpgrades={selections.areaUpgrades}
+              additionalWindows={selections.additionalWindowsQty}
+              patioDoors={selections.patioDoorsQty}
+              heatedFloorBathrooms={selections.heatedFloorBathrooms}
+              bathroomTileSelected={selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId))}
+            />
+          </div>
+        )}
+
+        {/* Upgrade Interests */}
+        {Object.values(selections.upgradeInterests).some(v => v) && (
+          <div className="p-4 rounded-xl border border-border bg-card">
+            <h4 className="font-medium text-foreground mb-3">Upgrade Interests</h4>
+            <p className="text-xs text-muted-foreground mb-2">Our team will contact you about:</p>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(selections.upgradeInterests)
+                .filter(([_, v]) => v)
+                .map(([key]) => (
+                  <span key={key} className="px-2 py-1 text-xs rounded-full bg-accent/20 text-accent capitalize">
+                    {key.replace('-', ' ')}
+                  </span>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Note */}
+        <div className="p-4 rounded-xl bg-muted/50">
+          <p className="text-sm text-muted-foreground">
+            <strong>Note:</strong> Final pricing and payment will be handled later. 
+            By submitting, you're confirming your selections for our team to review.
+          </p>
+        </div>
+      </div>
+    </StepContainer>
+  );
 
   const renderStep = () => {
     switch (currentStep) {
@@ -669,39 +1119,14 @@ export default function SelectionWizard() {
           </StepContainer>
         );
 
-      case 5: // Bedrooms & Stairs
+      case 5: // Bedroom Flooring
         return (
           <StepContainer
-            title="Stairs & Bedroom Flooring"
-            subtitle="Customize your upstairs areas with premium carpet or matching LVP — included at no additional cost"
+            title="Bedroom Flooring"
+            subtitle="Choose premium carpet or matching LVP for your bedrooms — included at no additional cost"
             badge="Included"
           >
             <div className="space-y-8">
-              {/* Stairs Carpet (if applicable) */}
-              {selections.hasStairs && (
-                <div>
-                  <div className="flex items-center gap-3 mb-4">
-                    <h3 className="font-medium text-foreground">Stairs Carpet Colour</h3>
-                    <span className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary">Required</span>
-                  </div>
-                  <div className="p-3 rounded-lg bg-muted/50 mb-4 text-sm">
-                    <p className="text-muted-foreground">{carpetSpecs.productType} — {carpetSpecs.features.join(' • ')}</p>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    {carpetOptions.map(option => (
-                      <SelectionCard
-                        key={option.id}
-                        id={option.id}
-                        name={option.name}
-                        image={option.image}
-                        selected={selections.stairCarpetColour === option.id}
-                        onSelect={(id) => updateSelection('stairCarpetColour', id)}
-                        variant="image"
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Bedroom Flooring Choice */}
               <div>
@@ -858,380 +1283,60 @@ export default function SelectionWizard() {
           </StepContainer>
         );
 
-      case 6: // Window Coverings
-        return (
-          <StepContainer
-            title="Window Coverings"
-            subtitle="Standard bedroom roller shades are included. Extend to other rooms for a cohesive look."
-            badge="Standard + Optional"
-          >
-            <div className="space-y-8">
-              {/* Standard Confirmation */}
-              <div className="p-4 rounded-xl bg-success/10 border border-success/30">
-                <div className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-success mt-0.5" />
-                  <div>
-                    <p className="font-medium text-foreground">{windowCoveringProduct.name} — Included in All Bedrooms</p>
-                    <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-                      {windowCoveringProduct.features.map(f => (
-                        <li key={f}>• {f}</li>
-                      ))}
-                    </ul>
-                  </div>
+      case 6: // Stair Carpet (only for units with stairs) OR Window Coverings (for units without stairs)
+        if (selections.hasStairs) {
+          // Stair Carpet Step
+          return (
+            <StepContainer
+              title="Stair Carpet"
+              subtitle="Select your preferred carpet colour for your stairs — included at no additional cost"
+              badge="Included"
+            >
+              <div className="space-y-6">
+                <div className="p-3 rounded-lg bg-muted/50 mb-4 text-sm">
+                  <p className="text-muted-foreground">{carpetSpecs.productType} — {carpetSpecs.features.join(' • ')}</p>
                 </div>
-              </div>
-
-              {/* Optional Extensions */}
-              <div className="p-6 rounded-xl border border-border bg-card">
-                <h3 className="font-medium text-foreground mb-2">Optional Extensions</h3>
-                <p className="text-sm text-muted-foreground mb-6">
-                  Add matching window coverings to other rooms for a cohesive look throughout your home.
-                </p>
-
-                <div className="space-y-6">
-                  <div>
-                    <Label htmlFor="additionalWindows" className="text-foreground">
-                      Additional Non-Bedroom Windows
-                    </Label>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Living room, dining room, kitchen, etc. — $673.50 per window (pre-GST, installed)
-                    </p>
-                    <Input
-                      id="additionalWindows"
-                      type="number"
-                      min={0}
-                      max={20}
-                      value={selections.additionalWindowsQty}
-                      onChange={(e) => updateSelection('additionalWindowsQty', parseInt(e.target.value) || 0)}
-                      className="max-w-24"
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {carpetOptions.map(option => (
+                    <SelectionCard
+                      key={option.id}
+                      id={option.id}
+                      name={option.name}
+                      image={option.image}
+                      selected={selections.stairCarpetColour === option.id}
+                      onSelect={(id) => updateSelection('stairCarpetColour', id)}
+                      variant="image"
                     />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="patioDoors" className="text-foreground">
-                      Patio Door Panel Track Systems
-                    </Label>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Sliding panel track for patio doors — $2,347.80 per opening (pre-GST, installed)
-                    </p>
-                    <Input
-                      id="patioDoors"
-                      type="number"
-                      min={0}
-                      max={5}
-                      value={selections.patioDoorsQty}
-                      onChange={(e) => updateSelection('patioDoorsQty', parseInt(e.target.value) || 0)}
-                      className="max-w-24"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0) && (
-                    <div className="p-4 rounded-xl bg-secondary/50 border border-border">
-                      <h4 className="font-medium text-foreground mb-3">Window Covering Pricing</h4>
-                      <div className="space-y-2 text-sm">
-                        {selections.additionalWindowsQty > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">
-                              Additional Windows ({selections.additionalWindowsQty} × ${windowPricing.additionalWindow})
-                            </span>
-                            <span className="font-medium">${(selections.additionalWindowsQty * windowPricing.additionalWindow).toLocaleString()}</span>
-                          </div>
-                        )}
-                        {selections.patioDoorsQty > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">
-                              Patio Door Panels ({selections.patioDoorsQty} × ${windowPricing.patioDoor})
-                            </span>
-                            <span className="font-medium">${(selections.patioDoorsQty * windowPricing.patioDoor).toLocaleString()}</span>
-                          </div>
-                        )}
-                        <div className="border-t border-border pt-2 mt-2">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Subtotal</span>
-                            <span>${calculateWindowExtensions(selections.additionalWindowsQty, selections.patioDoorsQty).subtotal.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">GST (5%)</span>
-                            <span>${calculateWindowExtensions(selections.additionalWindowsQty, selections.patioDoorsQty).gst.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between font-semibold text-foreground pt-1">
-                            <span>Total</span>
-                            <span className="text-primary">${calculateWindowExtensions(selections.additionalWindowsQty, selections.patioDoorsQty).total.toLocaleString()}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  ))}
                 </div>
               </div>
+            </StepContainer>
+          );
+        }
+        // Fall through to Window Coverings for units without stairs
+        return renderWindowCoveringsStep();
 
-              {/* Comments Section */}
-              <div className="pt-4 border-t border-border">
-                <Label htmlFor="windowComments" className="text-foreground">Notes or Comments</Label>
-                <p className="text-sm text-muted-foreground mb-2">
-                  Add any special requests or notes about your window covering selection
-                </p>
-                <textarea
-                  id="windowComments"
-                  rows={3}
-                  placeholder="Optional notes about your window covering preferences..."
-                  value={selections.windowComments}
-                  onChange={(e) => updateSelection('windowComments', e.target.value)}
-                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                />
-              </div>
-            </div>
-          </StepContainer>
-        );
+      case 7: // Window Coverings (for units with stairs) OR Upgrades (for units without stairs)
+        if (selections.hasStairs) {
+          return renderWindowCoveringsStep();
+        }
+        // Fall through to Upgrades for units without stairs
+        return renderUpgradesStep();
 
-      case 7: // Upgrades
-        return (
-          <StepContainer
-            title="Premium Upgrades"
-            subtitle="Select room-by-room flooring and tile upgrades for your home"
-            badge="Step 8 of 10"
-          >
-            <div className="space-y-8">
-              {/* Room-based Flooring & Tile Upgrades */}
-              <div>
-                <h3 className="text-lg font-medium text-foreground mb-2">Select Areas to Upgrade</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Click on a room to select upgrade materials. Pricing is calculated based on your unit's square footage.
-                </p>
-                <RoomUpgradePicker
-                  unitTypeCode={unitInfo?.typeCode || null}
-                  selectedFloor={selections.upgradeFloorSelection}
-                  selections={selections.areaUpgrades}
-                  onSelectionsChange={(newSelections) => updateSelection('areaUpgrades', newSelections)}
-                  onFloorChange={(floor) => updateSelection('upgradeFloorSelection', floor)}
-                />
-              </div>
+      case 8: // Upgrades (for units with stairs) OR Comments (for units without stairs)
+        if (selections.hasStairs) {
+          return renderUpgradesStep();
+        }
+        return renderCommentsStep();
 
-              {/* Heated Floor Option - Only shown when bathroom/tile areas are selected */}
-              {selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId) && s.materialType === 'tile') && (
-                <div>
-                  <h3 className="text-lg font-medium text-foreground mb-4">Add Heated Floors</h3>
-                  <TileUpgrade
-                    unitTypeCode={unitInfo?.typeCode || null}
-                    bathroomTileSelected={true}
-                    heatedFloorBathrooms={selections.heatedFloorBathrooms}
-                    maxBathrooms={unitInfo?.bathrooms ? parseFloat(unitInfo.bathrooms) : 2}
-                    onToggleTile={() => {}} // Already selected via room picker
-                    onHeatedFloorChange={(count) => updateSelection('heatedFloorBathrooms', count)}
-                  />
-                </div>
-              )}
+      case 9: // Comments (for units with stairs) OR Review (for units without stairs)
+        if (selections.hasStairs) {
+          return renderCommentsStep();
+        }
+        return renderReviewStep();
 
-              {/* Pricing Summary */}
-              <UpgradePricingSummary
-                unitTypeCode={unitInfo?.typeCode || null}
-                selectedFloor={selections.upgradeFloorSelection}
-                areaUpgrades={selections.areaUpgrades}
-                additionalWindows={selections.additionalWindowsQty}
-                patioDoors={selections.patioDoorsQty}
-                heatedFloorBathrooms={selections.heatedFloorBathrooms}
-                bathroomTileSelected={selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId))}
-                backsplashGrout={selections.backsplashGrout}
-              />
-
-              {/* Other Upgrade Interests */}
-              <div>
-                <h3 className="text-lg font-medium text-foreground mb-4">Express Interest in Other Upgrades</h3>
-                <UpgradeTeaser
-                  selectedInterests={selections.upgradeInterests}
-                  onToggleInterest={toggleUpgradeInterest}
-                />
-                <p className="mt-4 text-sm text-muted-foreground">
-                  Mark any that interest you and our team will reach out with details and pricing.
-                </p>
-              </div>
-            </div>
-          </StepContainer>
-        );
-
-      case 8: // Comments
-        return (
-          <StepContainer
-            title="Sales Comments"
-            subtitle="For office use — add any notes or comments about this selection meeting"
-            badge="Step 9 of 10"
-          >
-            <div className="space-y-6 max-w-2xl">
-              <div className="p-5 rounded-xl bg-secondary/50 border border-border">
-                <div className="flex items-center gap-3 mb-4">
-                  <Info className="w-5 h-5 text-primary" />
-                  <span className="font-medium text-foreground">Meeting Notes</span>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Use this section to record any additional notes, special requests, or details discussed during the selection meeting that should be noted in the record.
-                </p>
-                <textarea
-                  id="salesComments"
-                  rows={6}
-                  placeholder="Enter any notes or comments for the office staff to review..."
-                  value={selections.salesComments}
-                  onChange={(e) => updateSelection('salesComments', e.target.value)}
-                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                />
-              </div>
-            </div>
-          </StepContainer>
-        );
-
-      case 9: // Review
-        return (
-          <StepContainer
-            title="Review Your Selections"
-            subtitle="Please confirm everything looks correct before submitting"
-            badge="Final Step"
-          >
-            <div className="space-y-6">
-              {/* Home Info */}
-              <div className="p-4 rounded-xl border border-border bg-card">
-                <h4 className="font-medium text-foreground mb-3">Home Information</h4>
-                <div className="grid gap-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Unit Number</span>
-                    <span className="font-medium">{selections.unitNumber || 'Not provided'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Buyer</span>
-                    <span className="font-medium">
-                      {selections.firstName || selections.lastName 
-                        ? `${selections.firstName} ${selections.lastName}`.trim() 
-                        : 'Not provided'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Phone</span>
-                    <span className="font-medium">{selections.phoneNumber || 'Not provided'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Email</span>
-                    <span className="font-medium">{selections.email || 'Not provided'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Est. Possession Date</span>
-                    <span className="font-medium">
-                      {selections.estimatedPossessionDate 
-                        ? new Date(selections.estimatedPossessionDate).toLocaleDateString() 
-                        : 'Not provided'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Flooring */}
-              <div className="p-4 rounded-xl border border-border bg-card">
-                <h4 className="font-medium text-foreground mb-3">Flooring Selections</h4>
-                <div className="grid gap-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Main Floor LVP</span>
-                    <span className="font-medium">
-                      {lvpOptions.find(o => o.id === selections.lvpColour)?.name || 'Not selected'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Bathroom/Laundry SPC</span>
-                    <span className="font-medium">
-                      {spcTileOptions.find(o => o.id === selections.spcTileColour)?.name || 'Not selected'}
-                    </span>
-                  </div>
-                  {selections.hasStairs && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Stairs Carpet</span>
-                      <span className="font-medium">
-                        {carpetOptions.find(o => o.id === selections.stairCarpetColour)?.name || 'Not selected'}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Bedroom Flooring</span>
-                    <span className="font-medium capitalize">
-                      {selections.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : selections.bedroomFlooringChoice || 'Not selected'}
-                    </span>
-                  </div>
-                  {selections.bedroomFlooringChoice === 'carpet' && selections.bedroomCarpetColour && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Bedroom Carpet Colour</span>
-                      <span className="font-medium">
-                        {carpetOptions.find(o => o.id === selections.bedroomCarpetColour)?.name}
-                      </span>
-                    </div>
-                  )}
-                  {selections.bedroomFlooringChoice === 'lvp' && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Bedroom LVP Colour</span>
-                      <span className="font-medium">
-                        {selections.bedroomLvpSameAsMain
-                          ? `${lvpOptions.find(o => o.id === selections.lvpColour)?.name || 'Not selected'} (Same as Main Floor)`
-                          : lvpOptions.find(o => o.id === selections.bedroomLvpColour)?.name || 'Not selected'
-                        }
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Backsplash */}
-              <div className="p-4 rounded-xl border border-border bg-card">
-                <h4 className="font-medium text-foreground mb-3">Kitchen Backsplash</h4>
-                <div className="grid gap-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Tile</span>
-                    <span className="font-medium">{backsplashProduct.name} ({backsplashProduct.size})</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Orientation</span>
-                    <span className="font-medium capitalize">{selections.backsplashOrientation || 'Not selected'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Pricing Summary */}
-              {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0 || selections.areaUpgrades.length > 0 || selections.heatedFloorBathrooms > 0) && (
-                <div className="p-4 rounded-xl border border-primary/30 bg-primary/5">
-                  <UpgradePricingSummary
-                    unitTypeCode={unitInfo?.typeCode || null}
-                    selectedFloor={selections.upgradeFloorSelection}
-                    areaUpgrades={selections.areaUpgrades}
-                    additionalWindows={selections.additionalWindowsQty}
-                    patioDoors={selections.patioDoorsQty}
-                    heatedFloorBathrooms={selections.heatedFloorBathrooms}
-                    bathroomTileSelected={selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId))}
-                  />
-                </div>
-              )}
-
-              {/* Upgrade Interests */}
-              {Object.values(selections.upgradeInterests).some(v => v) && (
-                <div className="p-4 rounded-xl border border-border bg-card">
-                  <h4 className="font-medium text-foreground mb-3">Upgrade Interests</h4>
-                  <p className="text-xs text-muted-foreground mb-2">Our team will contact you about:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(selections.upgradeInterests)
-                      .filter(([_, v]) => v)
-                      .map(([key]) => (
-                        <span key={key} className="px-2 py-1 text-xs rounded-full bg-accent/20 text-accent capitalize">
-                          {key.replace('-', ' ')}
-                        </span>
-                      ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Note */}
-              <div className="p-4 rounded-xl bg-muted/50">
-                <p className="text-sm text-muted-foreground">
-                  <strong>Note:</strong> Final pricing and payment will be handled later. 
-                  By submitting, you're confirming your selections for our team to review.
-                </p>
-              </div>
-            </div>
-          </StepContainer>
-        );
+      case 10: // Review (for units with stairs only)
+        return renderReviewStep();
     }
   };
 
@@ -1273,7 +1378,7 @@ export default function SelectionWizard() {
       <div className="border-b border-border bg-card">
         <div className="container max-w-5xl mx-auto px-4">
           <WizardProgress
-            steps={STEPS}
+            steps={steps}
             currentStep={currentStep}
             onStepClick={setCurrentStep}
           />
@@ -1300,7 +1405,7 @@ export default function SelectionWizard() {
             Back
           </Button>
 
-          {currentStep < STEPS.length - 1 ? (
+          {currentStep < steps.length - 1 ? (
             <Button onClick={nextStep} className="gap-2">
               Continue
               <ArrowRight className="w-4 h-4" />
