@@ -88,6 +88,7 @@ interface SelectionState {
   areaUpgrades: AreaUpgradeSelection[];
   upgradeFloorSelection: '1' | '2' | null; // For G/H units
   backsplashGrout: BacksplashGroutSelection; // Backsplash grout color change
+  upgradeComments: string; // Comments for upgrade pricing summary
   // Heated floors (kept separate)
   bathroomTileSelected: boolean;
   heatedFloorBathrooms: number;
@@ -132,6 +133,7 @@ export default function SelectionWizard() {
     areaUpgrades: [],
     upgradeFloorSelection: null,
     backsplashGrout: { enabled: false, groutColor: '', comments: '' },
+    upgradeComments: '',
     bathroomTileSelected: false,
     heatedFloorBathrooms: 0,
   });
@@ -590,6 +592,8 @@ export default function SelectionWizard() {
           heatedFloorBathrooms={selections.heatedFloorBathrooms}
           bathroomTileSelected={selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId))}
           backsplashGrout={selections.backsplashGrout}
+          upgradeComments={selections.upgradeComments}
+          onUpgradeCommentsChange={(comments) => updateSelection('upgradeComments', comments)}
         />
 
         {/* Other Upgrade Interests */}
