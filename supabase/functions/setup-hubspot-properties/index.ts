@@ -258,6 +258,18 @@ const customProperties = [
     fieldType: "text",
     groupName: "contactinformation",
     description: "URL to the submission PDF document in HubSpot Files"
+  },
+  {
+    name: "glendale_estates_buyer",
+    label: "Glendale Estates Buyer",
+    type: "enumeration",
+    fieldType: "select",
+    groupName: "contactinformation",
+    description: "Whether this contact is a Glendale Estates buyer",
+    options: [
+      { label: "Yes", value: "Yes" },
+      { label: "No", value: "No" }
+    ]
   }
 ];
 

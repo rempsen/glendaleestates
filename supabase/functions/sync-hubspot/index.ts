@@ -207,6 +207,8 @@ Deno.serve(async (req) => {
       firstname: submission.first_name,
       lastname: submission.last_name,
       phone: submission.phone_number || '',
+      // Mark as Glendale Estates Buyer
+      glendale_estates_buyer: 'Yes',
       // BMD custom properties
       bmd_unit_number: submission.unit_number,
       bmd_unit_type: submission.unit_type || '',
@@ -349,12 +351,68 @@ Deno.serve(async (req) => {
     }
 
     const result = await hubspotResponse.json();
-    console.log('HubSpot sync successful:', result.id, pdfUrl ? '(with PDF)' : '');
+    const finalContactId = result.id;
+    console.log('HubSpot sync successful:', finalContactId, pdfUrl ? '(with PDF)' : '');
+
+    // Set contact as Marketing Contact
+    try {
+      console.log('Setting contact as Marketing Contact...');
+      const marketingResponse = await fetch(
+        'https://api.hubapi.com/marketing/v3/marketing-events-beta/attendance/subscriber-state/email-upsert',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${hubspotApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            inputs: [{
+              email: submission.email,
+              marketingContactStatus: 'set_marketing'
+            }]
+          }),
+        }
+      );
+      
+      if (!marketingResponse.ok) {
+        // Try alternate endpoint for marketing contacts
+        const marketingResponse2 = await fetch(
+          'https://api.hubapi.com/crm/v3/objects/contacts/batch/update',
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${hubspotApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              inputs: [{
+                id: finalContactId,
+                properties: {
+                  hs_marketable_status: 'true',
+                  hs_marketable_reason_id: 'FORM_SUBMISSION',
+                  hs_marketable_reason_type: 'FORM_SUBMISSION'
+                }
+              }]
+            }),
+          }
+        );
+        
+        if (marketingResponse2.ok) {
+          console.log('Contact set as marketing contact via batch update');
+        } else {
+          console.log('Marketing contact setting skipped - may need Marketing Hub subscription');
+        }
+      } else {
+        console.log('Contact set as Marketing Contact');
+      }
+    } catch (marketingErr) {
+      console.log('Marketing contact setting error (non-fatal):', marketingErr);
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        contactId: result.id,
+        contactId: finalContactId,
         action: contactId ? 'updated' : 'created',
         pdfUrl: pdfUrl || null,
       }),

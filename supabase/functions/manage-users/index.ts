@@ -143,15 +143,38 @@ serve(async (req) => {
           .from("user_roles")
           .select("user_id, role");
 
-        // Combine user data with roles
-        const usersWithRoles = users.map((user) => ({
-          id: user.id,
-          email: user.email,
-          created_at: user.created_at,
-          last_sign_in_at: user.last_sign_in_at,
-          email_confirmed_at: user.email_confirmed_at,
-          roles: roles?.filter((r) => r.user_id === user.id).map((r) => r.role) || [],
-        }));
+        // Get buyer info (first/last names) from buyer_selections
+        const { data: buyerInfo } = await supabaseAdmin
+          .from("buyer_selections")
+          .select("email, first_name, last_name, unit_number");
+
+        // Create a map of email to buyer info
+        const buyerMap = new Map<string, { first_name: string; last_name: string; unit_number: string }>();
+        if (buyerInfo) {
+          for (const buyer of buyerInfo) {
+            buyerMap.set(buyer.email.toLowerCase(), {
+              first_name: buyer.first_name,
+              last_name: buyer.last_name,
+              unit_number: buyer.unit_number,
+            });
+          }
+        }
+
+        // Combine user data with roles and buyer info
+        const usersWithRoles = users.map((user) => {
+          const buyerData = buyerMap.get(user.email?.toLowerCase() || "");
+          return {
+            id: user.id,
+            email: user.email,
+            first_name: buyerData?.first_name || null,
+            last_name: buyerData?.last_name || null,
+            unit_number: buyerData?.unit_number || null,
+            created_at: user.created_at,
+            last_sign_in_at: user.last_sign_in_at,
+            email_confirmed_at: user.email_confirmed_at,
+            roles: roles?.filter((r) => r.user_id === user.id).map((r) => r.role) || [],
+          };
+        });
 
         return new Response(
           JSON.stringify({ users: usersWithRoles }),
