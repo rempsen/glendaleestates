@@ -242,6 +242,8 @@ interface SelectionData {
   backsplashGroutEnabled?: boolean;
   backsplashGroutColor?: string | null;
   backsplashGroutComments?: string | null;
+  // PDF for HubSpot
+  pdfBase64?: string | null;
 }
 
 // Area name mapping for display
@@ -403,21 +405,34 @@ Deno.serve(async (req: Request): Promise<Response> => {
           email: data.email,
           phone_number: data.phoneNumber,
           estimated_possession_date: data.estimatedPossessionDate,
+          has_stairs: data.hasStairs,
           lvp_colour: data.lvpColour,
+          lvp_comments: data.lvpComments,
           spc_tile_colour: data.spcTileColour,
+          spc_tile_comments: data.spcTileComments,
           backsplash_orientation: data.backsplashOrientation,
           bedroom_flooring_choice: data.bedroomFlooringChoice,
+          bedroom_carpet_colour: data.bedroomCarpetColour,
+          bedroom_lvp_colour: data.bedroomLvpColour,
+          bedroom_lvp_same_as_main: data.bedroomLvpSameAsMain,
+          stair_carpet_colour: data.stairCarpetColour,
           additional_windows_qty: data.additionalWindowsQty,
           patio_doors_qty: data.patioDoorsQty,
           window_total: data.windowTotal,
+          window_comments: data.windowComments,
           hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
           bathroom_tile_selected: data.bathroomTileSelected,
           heated_floor_bathrooms: data.heatedFloorBathrooms,
           backsplash_grout_enabled: data.backsplashGroutEnabled,
           backsplash_grout_color: data.backsplashGroutColor,
+          backsplash_grout_comments: data.backsplashGroutComments,
           area_upgrades: data.areaUpgrades,
+          upgrade_floor_selection: data.upgradeFloorSelection,
+          upgrade_interests: data.upgradeInterests,
+          sales_comments: data.salesComments,
           status: 'submitted',
           created_at: savedSelection?.created_at,
+          pdf_base64: data.pdfBase64 || null,
         }),
       }).then(res => {
         if (res.ok) {

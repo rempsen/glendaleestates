@@ -144,11 +144,19 @@ interface BuyerSelections {
   upgradeInterests: Record<string, boolean>;
 }
 
+// Options for PDF output
+interface PdfOutputOptions {
+  returnBase64?: boolean;
+  saveToFile?: boolean;
+}
+
 export async function generateBuyerPreviewPDF(
   selections: BuyerSelections,
   unitTypeCode: string | null,
-  pricingConfig?: PdfPricingConfig
-): Promise<void> {
+  pricingConfig?: PdfPricingConfig,
+  outputOptions?: PdfOutputOptions
+): Promise<string | void> {
+  const { returnBase64 = false, saveToFile = true } = outputOptions || {};
   // Default pricing config if not provided (fallback to hardcoded values)
   const pricing = pricingConfig || {
     markupPercentage: 0.60,
@@ -530,7 +538,18 @@ export async function generateBuyerPreviewPDF(
   doc.text('BMD Materials | Glendale Estates Selection Portal', margin, footerY);
   doc.text('PREVIEW — Not a final submission', pageWidth - margin, footerY, { align: 'right' });
 
-  // Save the PDF
+  // Handle output based on options
   const fileName = `Unit-${selections.unitNumber || 'Preview'}-Selections.pdf`;
-  doc.save(fileName);
+  
+  if (saveToFile) {
+    doc.save(fileName);
+  }
+  
+  if (returnBase64) {
+    // Return base64 string (without data URL prefix)
+    const pdfOutput = doc.output('datauristring');
+    // Extract just the base64 part
+    const base64 = pdfOutput.split(',')[1];
+    return base64;
+  }
 }

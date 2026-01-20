@@ -296,6 +296,59 @@ export default function SelectionWizard() {
       const windowSubtotal = (selections.additionalWindowsQty * additionalWindowPrice) + (selections.patioDoorsQty * patioDoorPrice) + (selections.automatedWindowsQty * automatedMotorPrice);
       const windowTotal = windowSubtotal * (1 + gstRate);
       
+      // Generate PDF as base64 for HubSpot
+      let pdfBase64: string | null = null;
+      try {
+        // Construct pricing config for PDF generation
+        const pdfPricingConfig = { 
+          markupPercentage, 
+          gstRate, 
+          getMaterialCost, 
+          getGroutColorFee,
+          getAdditionalWindowPrice,
+          getPatioDoorPrice,
+          getAutomatedMotorPrice,
+          getHeatedFloorPrice,
+        };
+        
+        const pdfResult = await generateBuyerPreviewPDF(
+          {
+            unitNumber: selections.unitNumber,
+            firstName: selections.firstName,
+            lastName: selections.lastName,
+            phoneNumber: selections.phoneNumber,
+            email: selections.email,
+            estimatedPossessionDate: selections.estimatedPossessionDate,
+            hasStairs: selections.hasStairs,
+            lvpColour: selections.lvpColour,
+            spcTileColour: selections.spcTileColour,
+            backsplashOrientation: selections.backsplashOrientation,
+            stairCarpetColour: selections.stairCarpetColour,
+            bedroomFlooringChoice: selections.bedroomFlooringChoice,
+            bedroomCarpetColour: selections.bedroomCarpetColour,
+            bedroomLvpColour: selections.bedroomLvpSameAsMain ? selections.lvpColour : selections.bedroomLvpColour,
+            bedroomLvpSameAsMain: selections.bedroomLvpSameAsMain,
+            additionalWindowsQty: selections.additionalWindowsQty,
+            patioDoorsQty: selections.patioDoorsQty,
+            automatedWindowsQty: selections.automatedWindowsQty,
+            windowComments: selections.windowComments,
+            areaUpgrades: selections.areaUpgrades,
+            upgradeFloorSelection: selections.upgradeFloorSelection,
+            backsplashGrout: selections.backsplashGrout,
+            bathroomTileSelected: selections.bathroomTileSelected,
+            heatedFloorBathrooms: selections.heatedFloorBathrooms,
+            upgradeInterests: selections.upgradeInterests,
+          },
+          unitInfo?.unitType || null,
+          pdfPricingConfig,
+          { returnBase64: true, saveToFile: false }
+        );
+        pdfBase64 = typeof pdfResult === 'string' ? pdfResult : null;
+        console.log('PDF generated for HubSpot:', pdfBase64 ? 'success' : 'empty');
+      } catch (pdfError) {
+        console.warn('PDF generation failed, continuing without PDF:', pdfError);
+      }
+      
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-selections-email`, {
         method: 'POST',
         headers: {
@@ -313,6 +366,8 @@ export default function SelectionWizard() {
           backsplashGroutEnabled: selections.backsplashGrout.enabled,
           backsplashGroutColor: selections.backsplashGrout.groutColor,
           backsplashGroutComments: selections.backsplashGrout.comments,
+          // Include PDF for HubSpot
+          pdfBase64: pdfBase64,
         }),
       });
 
