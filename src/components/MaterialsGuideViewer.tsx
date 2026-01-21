@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, BookOpen, Maximize2, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogClose } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 // Import all guide pages
 import page1 from '@/assets/guide/page_1.jpg';
@@ -40,6 +40,73 @@ const slides = [
   { src: page15, title: 'Selection Process' },
   { src: page16, title: 'Contact Info' },
 ];
+
+// Lazy loading image component for thumbnails
+function LazyThumbnail({ 
+  src, 
+  alt, 
+  isActive, 
+  onClick 
+}: { 
+  src: string; 
+  alt: string; 
+  isActive: boolean; 
+  onClick: () => void;
+}) {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const imgRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '50px', threshold: 0.01 }
+    );
+
+    if (imgRef.current) {
+      observer.observe(imgRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <button
+      ref={imgRef}
+      onClick={onClick}
+      className={cn(
+        'flex-shrink-0 w-20 h-12 rounded-md overflow-hidden border-2 transition-all relative',
+        isActive 
+          ? 'border-primary ring-2 ring-primary/20' 
+          : 'border-transparent opacity-60 hover:opacity-100'
+      )}
+      aria-label={`Go to slide: ${alt}`}
+    >
+      {!isLoaded && (
+        <div className="absolute inset-0 bg-muted animate-pulse" />
+      )}
+      {isInView && (
+        <img
+          src={src}
+          alt={alt}
+          className={cn(
+            'w-full h-full object-cover transition-opacity duration-200',
+            isLoaded ? 'opacity-100' : 'opacity-0'
+          )}
+          onLoad={() => setIsLoaded(true)}
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+        />
+      )}
+    </button>
+  );
+}
 
 export default function MaterialsGuideViewer() {
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -171,23 +238,13 @@ export default function MaterialsGuideViewer() {
           className="mt-4 flex gap-2 overflow-x-auto pb-2 scrollbar-thin"
         >
           {slides.map((slide, index) => (
-            <button
+            <LazyThumbnail
               key={index}
+              src={slide.src}
+              alt={slide.title}
+              isActive={index === currentSlide}
               onClick={() => goToSlide(index)}
-              className={`flex-shrink-0 w-20 h-12 rounded-md overflow-hidden border-2 transition-all ${
-                index === currentSlide 
-                  ? 'border-primary ring-2 ring-primary/20' 
-                  : 'border-transparent opacity-60 hover:opacity-100'
-              }`}
-              aria-label={`Go to slide ${index + 1}: ${slide.title}`}
-            >
-              <img
-                src={slide.src}
-                alt={slide.title}
-                className="w-full h-full object-cover"
-                draggable={false}
-              />
-            </button>
+            />
           ))}
         </motion.div>
 
@@ -209,23 +266,13 @@ export default function MaterialsGuideViewer() {
             </div>
             <div className="mt-4 flex gap-2 overflow-x-auto pb-2 justify-center">
               {slides.map((slide, index) => (
-                <button
+                <LazyThumbnail
                   key={index}
+                  src={slide.src}
+                  alt={slide.title}
+                  isActive={index === currentSlide}
                   onClick={() => goToSlide(index)}
-                  className={`flex-shrink-0 w-16 h-10 rounded-md overflow-hidden border-2 transition-all ${
-                    index === currentSlide 
-                      ? 'border-primary ring-2 ring-primary/20' 
-                      : 'border-transparent opacity-60 hover:opacity-100'
-                  }`}
-                  aria-label={`Go to slide ${index + 1}: ${slide.title}`}
-                >
-                  <img
-                    src={slide.src}
-                    alt={slide.title}
-                    className="w-full h-full object-cover"
-                    draggable={false}
-                  />
-                </button>
+                />
               ))}
             </div>
           </div>
