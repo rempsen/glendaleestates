@@ -1,8 +1,6 @@
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
+
+// Dynamic CORS headers will be used for responses
 
 // HTML escape function to prevent XSS in email content
 function escapeHtml(text: string | undefined | null): string {
