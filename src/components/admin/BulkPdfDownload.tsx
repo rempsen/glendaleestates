@@ -28,17 +28,39 @@ import JSZip from 'jszip';
 interface BuyerSubmission {
   id: string;
   unit_number: string;
+  unit_type: string | null;
   first_name: string;
   last_name: string;
-  email?: string;
+  phone_number: string | null;
+  email: string;
   estimated_possession_date: string | null;
   created_at: string;
   status: string;
-  lvp_colour?: string | null;
-  spc_tile_colour?: string | null;
-  backsplash_orientation?: string | null;
-  bedroom_flooring_choice?: string | null;
-  [key: string]: any;
+  has_stairs: boolean;
+  lvp_colour: string | null;
+  lvp_comments: string | null;
+  spc_tile_colour: string | null;
+  spc_tile_comments: string | null;
+  backsplash_orientation: string | null;
+  stair_carpet_colour: string | null;
+  bedroom_flooring_choice: string | null;
+  bedroom_carpet_colour: string | null;
+  bedroom_lvp_colour: string | null;
+  bedroom_lvp_same_as_main: boolean;
+  additional_windows_qty: number;
+  patio_doors_qty: number;
+  window_total: number;
+  window_comments?: string | null;
+  upgrade_interests: Record<string, boolean>;
+  area_upgrades?: any[];
+  upgrade_floor_selection?: string | null;
+  backsplash_grout_enabled?: boolean;
+  backsplash_grout_color?: string | null;
+  backsplash_grout_comments?: string | null;
+  heated_floor_bathrooms?: number;
+  bathroom_tile_selected?: boolean;
+  sales_comments?: string | null;
+  admin_notes?: string | null;
 }
 
 interface BulkPdfDownloadProps {
