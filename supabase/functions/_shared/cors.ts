@@ -3,8 +3,8 @@
 
 const ALLOWED_ORIGINS = [
   'https://glendaleestates.lovable.app',
+  'https://glendale.bmdmaterials.com',
   'https://id-preview--451d344e-78b6-4641-b6ef-cc909ef041ed.lovable.app',
-  // Allow all lovable.app preview subdomains
 ];
 
 export function getCorsHeaders(req: Request): Record<string, string> {
@@ -13,6 +13,7 @@ export function getCorsHeaders(req: Request): Record<string, string> {
   // Check if origin is allowed
   const isAllowed = ALLOWED_ORIGINS.includes(origin) || 
     origin.endsWith('.lovable.app') ||
+    origin.endsWith('.lovableproject.com') ||
     origin.includes('localhost');
   
   return {
@@ -24,6 +25,6 @@ export function getCorsHeaders(req: Request): Record<string, string> {
 
 // For backwards compatibility - static headers for internal/cron calls
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://glendaleestates.lovable.app',
+  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
