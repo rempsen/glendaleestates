@@ -197,7 +197,7 @@ export default function MaterialsGuideViewer() {
   );
 
   return (
-    <section className="py-16 md:py-20">
+    <section className="py-12 md:py-14">
       <div className="container max-w-5xl mx-auto px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -247,11 +247,6 @@ export default function MaterialsGuideViewer() {
             />
           ))}
         </motion.div>
-
-        {/* Slide Title */}
-        <p className="mt-3 text-center text-sm text-muted-foreground">
-          {slides[currentSlide].title}
-        </p>
       </div>
 
       {/* Fullscreen Dialog */}
