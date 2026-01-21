@@ -663,7 +663,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 });
 
-// Generate a beautiful confirmation email for buyers
+// Generate a beautiful confirmation email for buyers with full details and costs
 function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string | undefined): string {
   const submissionDate = new Date().toLocaleDateString('en-US', { 
     weekday: 'long', 
@@ -672,45 +672,310 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     day: 'numeric' 
   });
   
-  // Build selection summary items
-  const selectionItems: { label: string; value: string }[] = [
-    { label: 'Main Floor LVP', value: data.lvpColour || 'Not selected' },
-    { label: 'Bathroom/Laundry Tile', value: data.spcTileColour || 'Not selected' },
-    { label: 'Kitchen Backsplash', value: data.backsplashOrientation || 'Not selected' },
-    { label: 'Bedroom Flooring', value: data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : data.bedroomFlooringChoice || 'Not selected' },
-  ];
-
+  // Build comprehensive selection details
+  const standardSelections: { label: string; value: string; detail?: string }[] = [];
+  
+  // Main Floor LVP
+  if (data.lvpColour) {
+    standardSelections.push({ 
+      label: 'Main Floor LVP', 
+      value: data.lvpColour,
+      detail: data.lvpComments || undefined
+    });
+  }
+  
+  // Bathroom/Laundry Tile
+  if (data.spcTileColour) {
+    standardSelections.push({ 
+      label: 'Bathroom/Laundry Tile', 
+      value: data.spcTileColour,
+      detail: data.spcTileComments || undefined
+    });
+  }
+  
+  // Kitchen Backsplash
+  if (data.backsplashOrientation) {
+    standardSelections.push({ 
+      label: 'Kitchen Backsplash Orientation', 
+      value: data.backsplashOrientation
+    });
+  }
+  
+  // Bedroom Flooring
+  if (data.bedroomFlooringChoice) {
+    let bedroomValue = data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : 
+                       data.bedroomFlooringChoice === 'carpet' ? 'Carpet' : data.bedroomFlooringChoice;
+    if (data.bedroomFlooringChoice === 'carpet' && data.bedroomCarpetColour) {
+      bedroomValue += ` - ${data.bedroomCarpetColour}`;
+    } else if (data.bedroomFlooringChoice === 'lvp' && !data.bedroomLvpSameAsMain && data.bedroomLvpColour) {
+      bedroomValue += ` - ${data.bedroomLvpColour}`;
+    } else if (data.bedroomFlooringChoice === 'lvp' && data.bedroomLvpSameAsMain) {
+      bedroomValue += ' (Same as Main Floor)';
+    }
+    standardSelections.push({ label: 'Bedroom Flooring', value: bedroomValue });
+  }
+  
+  // Stair Carpet (if applicable)
   if (data.hasStairs && data.stairCarpetColour) {
-    selectionItems.push({ label: 'Stair Carpet', value: data.stairCarpetColour });
+    standardSelections.push({ label: 'Stair Carpet', value: data.stairCarpetColour });
   }
 
-  if (data.bedroomFlooringChoice === 'carpet' && data.bedroomCarpetColour) {
-    selectionItems.push({ label: 'Bedroom Carpet Color', value: data.bedroomCarpetColour });
-  }
-
-  // Window coverings
-  const windowOptions: string[] = [];
-  if (data.additionalWindowsQty > 0) windowOptions.push(`${data.additionalWindowsQty} Additional Window(s)`);
-  if (data.patioDoorsQty > 0) windowOptions.push(`${data.patioDoorsQty} Patio Door(s)`);
-  if (windowOptions.length > 0) {
-    selectionItems.push({ label: 'Window Coverings', value: windowOptions.join(', ') });
-  }
-
-  // Area upgrades count
-  if (data.areaUpgrades && data.areaUpgrades.length > 0) {
-    selectionItems.push({ label: 'Premium Upgrades', value: `${data.areaUpgrades.length} area(s) selected` });
-  }
-
-  if (data.backsplashGroutEnabled) {
-    selectionItems.push({ label: 'Custom Grout Color', value: data.backsplashGroutColor || 'Yes' });
-  }
-
-  const selectionRows = selectionItems.map(item => `
+  // Build standard selections HTML
+  const standardSelectionsHtml = standardSelections.length > 0 ? `
     <tr>
-      <td style="padding: 12px 16px; border-bottom: 1px solid #f0f0f0; color: #666; font-size: 14px;">${escapeHtml(item.label)}</td>
-      <td style="padding: 12px 16px; border-bottom: 1px solid #f0f0f0; color: #1a1a2e; font-size: 14px; font-weight: 500;">${escapeHtml(item.value)}</td>
+      <td style="background: #ffffff; padding: 0 40px 30px;">
+        <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">🏠 Your Standard Selections</h2>
+        <table role="presentation" style="width: 100%; border-collapse: collapse; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+          ${standardSelections.map(item => `
+            <tr>
+              <td style="padding: 14px 16px; border-bottom: 1px solid #f0f0f0; color: #666; font-size: 14px; width: 40%;">${escapeHtml(item.label)}</td>
+              <td style="padding: 14px 16px; border-bottom: 1px solid #f0f0f0; color: #1a1a2e; font-size: 14px; font-weight: 500;">
+                ${escapeHtml(item.value)}
+                ${item.detail ? `<div style="color: #888; font-size: 12px; margin-top: 4px; font-style: italic;">Notes: ${escapeHtml(item.detail)}</div>` : ''}
+              </td>
+            </tr>
+          `).join('')}
+        </table>
+        <p style="margin: 12px 0 0; color: #666; font-size: 13px; text-align: center;">✓ Standard selections included with your home</p>
+      </td>
     </tr>
-  `).join('');
+  ` : '';
+
+  // Window Coverings Section with Pricing
+  let windowCoveringsHtml = '';
+  if (data.additionalWindowsQty > 0 || data.patioDoorsQty > 0) {
+    const windowItems: { item: string; qty: number; cost: string }[] = [];
+    
+    // Calculate window costs (using typical pricing - will be confirmed by team)
+    if (data.additionalWindowsQty > 0) {
+      windowItems.push({
+        item: 'Additional Window Covering',
+        qty: data.additionalWindowsQty,
+        cost: 'See total below'
+      });
+    }
+    if (data.patioDoorsQty > 0) {
+      windowItems.push({
+        item: 'Patio Door Panel Track',
+        qty: data.patioDoorsQty,
+        cost: 'See total below'
+      });
+    }
+
+    windowCoveringsHtml = `
+      <tr>
+        <td style="background: #ffffff; padding: 0 40px 30px;">
+          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">🪟 Window Covering Upgrades</h2>
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-radius: 12px; overflow: hidden;">
+            <tr style="background: #0369a1;">
+              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: left; font-weight: 600;">Item</th>
+              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: center; font-weight: 600;">Qty</th>
+            </tr>
+            ${windowItems.map(item => `
+              <tr>
+                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(3,105,161,0.1); color: #0c4a6e; font-size: 14px;">${escapeHtml(item.item)}</td>
+                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(3,105,161,0.1); color: #0c4a6e; font-size: 14px; text-align: center; font-weight: 600;">${item.qty}</td>
+              </tr>
+            `).join('')}
+            <tr style="background: #0369a1;">
+              <td style="padding: 14px 16px; color: white; font-size: 15px; font-weight: 600;">Total (incl. GST)</td>
+              <td style="padding: 14px 16px; color: #fbbf24; font-size: 18px; text-align: center; font-weight: 700;">$${data.windowTotal.toFixed(2)}</td>
+            </tr>
+          </table>
+          ${data.windowComments ? `<p style="margin: 12px 0 0; color: #666; font-size: 13px; font-style: italic; background: #fffbeb; padding: 10px 14px; border-radius: 6px; border-left: 3px solid #f59e0b;">📝 ${escapeHtml(data.windowComments)}</p>` : ''}
+        </td>
+      </tr>
+    `;
+  }
+
+  // Premium Area Upgrades Section
+  let areaUpgradesHtml = '';
+  if (data.areaUpgrades && data.areaUpgrades.length > 0) {
+    const upgradeRows = data.areaUpgrades.map(upgrade => {
+      const areaName = AREA_NAMES[upgrade.areaId] || upgrade.areaId;
+      const materialName = MATERIAL_NAMES[upgrade.materialType] || upgrade.materialType;
+      
+      return `
+        <tr>
+          <td style="padding: 14px 16px; border-bottom: 1px solid rgba(147,51,234,0.1);">
+            <div style="color: #581c87; font-size: 14px; font-weight: 600;">${escapeHtml(areaName)}</div>
+            <div style="color: #7e22ce; font-size: 12px; margin-top: 2px;">${escapeHtml(materialName)}</div>
+          </td>
+          <td style="padding: 14px 16px; border-bottom: 1px solid rgba(147,51,234,0.1);">
+            <div style="color: #581c87; font-size: 14px;">${escapeHtml(upgrade.productName) || 'Standard'}</div>
+            ${upgrade.productColor ? `<div style="color: #9333ea; font-size: 12px; margin-top: 2px;">Color: ${escapeHtml(upgrade.productColor)}</div>` : ''}
+          </td>
+          <td style="padding: 14px 16px; border-bottom: 1px solid rgba(147,51,234,0.1); text-align: center;">
+            ${upgrade.heatedFloor ? '<span style="background: #fbbf24; color: #78350f; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">🔥 HEATED</span>' : '<span style="color: #a1a1aa; font-size: 12px;">—</span>'}
+          </td>
+        </tr>
+        ${upgrade.comments ? `
+          <tr>
+            <td colspan="3" style="padding: 0 16px 14px; border-bottom: 1px solid rgba(147,51,234,0.15);">
+              <div style="background: #faf5ff; padding: 8px 12px; border-radius: 6px; color: #7e22ce; font-size: 12px; font-style: italic;">📝 ${escapeHtml(upgrade.comments)}</div>
+            </td>
+          </tr>
+        ` : ''}
+      `;
+    }).join('');
+
+    areaUpgradesHtml = `
+      <tr>
+        <td style="background: #ffffff; padding: 0 40px 30px;">
+          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">✨ Premium Area Upgrades</h2>
+          ${data.upgradeFloorSelection ? `<p style="margin: 0 0 12px; color: #7e22ce; font-size: 14px; background: #faf5ff; padding: 10px 14px; border-radius: 6px;"><strong>Floor Selection:</strong> Floor ${escapeHtml(data.upgradeFloorSelection)}</p>` : ''}
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-radius: 12px; overflow: hidden;">
+            <tr style="background: linear-gradient(135deg, #9333ea 0%, #7e22ce 100%);">
+              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: left; font-weight: 600;">Area</th>
+              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: left; font-weight: 600;">Product</th>
+              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: center; font-weight: 600;">Heated</th>
+            </tr>
+            ${upgradeRows}
+          </table>
+          <p style="margin: 12px 0 0; color: #7e22ce; font-size: 13px; text-align: center;">💰 Pricing will be confirmed by our team</p>
+        </td>
+      </tr>
+    `;
+  }
+
+  // Backsplash Grout Color Change
+  let groutHtml = '';
+  if (data.backsplashGroutEnabled) {
+    groutHtml = `
+      <tr>
+        <td style="background: #ffffff; padding: 0 40px 30px;">
+          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">🎨 Custom Backsplash Grout</h2>
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 12px; overflow: hidden;">
+            <tr>
+              <td style="padding: 16px 20px;">
+                <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="color: #92400e; font-size: 14px; padding: 8px 0;"><strong>Grout Color:</strong></td>
+                    <td style="color: #78350f; font-size: 14px; font-weight: 600; padding: 8px 0;">${escapeHtml(data.backsplashGroutColor) || 'To be confirmed'}</td>
+                  </tr>
+                  <tr>
+                    <td style="color: #92400e; font-size: 14px; padding: 8px 0;"><strong>Cost:</strong></td>
+                    <td style="color: #78350f; font-size: 16px; font-weight: 700; padding: 8px 0;">$315.00 <span style="font-size: 12px; font-weight: 400;">(incl. GST)</span></td>
+                  </tr>
+                </table>
+                ${data.backsplashGroutComments ? `<p style="margin: 12px 0 0; color: #92400e; font-size: 13px; font-style: italic;">📝 ${escapeHtml(data.backsplashGroutComments)}</p>` : ''}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    `;
+  }
+
+  // Heated Floors Section
+  let heatedFloorsHtml = '';
+  if (data.heatedFloorBathrooms && data.heatedFloorBathrooms > 0) {
+    heatedFloorsHtml = `
+      <tr>
+        <td style="background: #ffffff; padding: 0 40px 30px;">
+          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">🔥 Heated Tile Floors</h2>
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%); border-radius: 12px;">
+            <tr>
+              <td style="padding: 20px;">
+                <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="color: #991b1b; font-size: 14px;"><strong>Bathrooms with Heated Floors:</strong></td>
+                    <td style="color: #7f1d1d; font-size: 20px; font-weight: 700; text-align: right;">${data.heatedFloorBathrooms} bathroom${data.heatedFloorBathrooms > 1 ? 's' : ''}</td>
+                  </tr>
+                </table>
+                <p style="margin: 12px 0 0; color: #b91c1c; font-size: 13px; text-align: center;">💰 Pricing will be confirmed by our team</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    `;
+  }
+
+  // Upgrade Interests Section
+  let upgradeInterestsHtml = '';
+  const interests = Object.entries(data.upgradeInterests || {})
+    .filter(([_, v]) => v)
+    .map(([key]) => key.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
+  
+  if (interests.length > 0) {
+    upgradeInterestsHtml = `
+      <tr>
+        <td style="background: #ffffff; padding: 0 40px 30px;">
+          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">💡 Additional Interests</h2>
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 16px 20px;">
+            <p style="margin: 0; color: #166534; font-size: 14px;">You've expressed interest in learning more about:</p>
+            <div style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
+              ${interests.map(interest => `<span style="display: inline-block; background: #dcfce7; color: #15803d; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 500;">${escapeHtml(interest)}</span>`).join(' ')}
+            </div>
+            <p style="margin: 12px 0 0; color: #16a34a; font-size: 12px;">Our team will reach out to discuss these options with you.</p>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  // Sales Comments Section
+  let salesCommentsHtml = '';
+  if (data.salesComments) {
+    salesCommentsHtml = `
+      <tr>
+        <td style="background: #ffffff; padding: 0 40px 30px;">
+          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">💬 Your Comments</h2>
+          <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 16px 20px;">
+            <p style="margin: 0; color: #1e40af; font-size: 14px; line-height: 1.6;">${escapeHtml(data.salesComments)}</p>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  // Estimated Total Section (if there are any priced items)
+  let estimatedTotalHtml = '';
+  const hasWindowCosts = data.windowTotal > 0;
+  const hasGroutCost = data.backsplashGroutEnabled;
+  
+  if (hasWindowCosts || hasGroutCost) {
+    const groutCost = hasGroutCost ? 315 : 0;
+    const totalEstimate = data.windowTotal + groutCost;
+    
+    estimatedTotalHtml = `
+      <tr>
+        <td style="background: #ffffff; padding: 0 40px 30px;">
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 12px; overflow: hidden;">
+            <tr>
+              <td style="padding: 24px;">
+                <h2 style="margin: 0 0 16px; color: white; font-size: 18px; font-weight: 600; text-align: center;">📊 Estimated Costs Summary</h2>
+                <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                  ${hasWindowCosts ? `
+                    <tr>
+                      <td style="padding: 10px 0; color: rgba(255,255,255,0.8); font-size: 14px;">Window Coverings</td>
+                      <td style="padding: 10px 0; color: white; font-size: 14px; text-align: right; font-weight: 500;">$${data.windowTotal.toFixed(2)}</td>
+                    </tr>
+                  ` : ''}
+                  ${hasGroutCost ? `
+                    <tr>
+                      <td style="padding: 10px 0; color: rgba(255,255,255,0.8); font-size: 14px;">Custom Backsplash Grout</td>
+                      <td style="padding: 10px 0; color: white; font-size: 14px; text-align: right; font-weight: 500;">$315.00</td>
+                    </tr>
+                  ` : ''}
+                  <tr style="border-top: 1px solid rgba(255,255,255,0.2);">
+                    <td style="padding: 16px 0 0; color: white; font-size: 16px; font-weight: 600;">Confirmed Total (incl. GST)</td>
+                    <td style="padding: 16px 0 0; color: #10b981; font-size: 24px; text-align: right; font-weight: 700;">$${totalEstimate.toFixed(2)}</td>
+                  </tr>
+                </table>
+                ${(data.areaUpgrades && data.areaUpgrades.length > 0) || (data.heatedFloorBathrooms && data.heatedFloorBathrooms > 0) ? `
+                  <p style="margin: 16px 0 0; color: rgba(255,255,255,0.7); font-size: 12px; text-align: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 16px;">
+                    ⚠️ Premium area upgrades and heated floors will be quoted separately by our team
+                  </p>
+                ` : ''}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    `;
+  }
 
   return `
     <!DOCTYPE html>
@@ -724,14 +989,14 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
       <table role="presentation" style="width: 100%; border-collapse: collapse;">
         <tr>
           <td align="center" style="padding: 40px 20px;">
-            <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse;">
+            <table role="presentation" style="width: 100%; max-width: 640px; border-collapse: collapse;">
               
               <!-- Header -->
               <tr>
                 <td align="center" style="padding: 30px 40px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px 16px 0 0;">
                   <img src="https://glendaleestates.lovable.app/images/bmd-logo.png" alt="Glendale Estates" style="height: 45px; margin-bottom: 20px;">
                   <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">Your Selections Are Confirmed!</h1>
-                  <p style="margin: 10px 0 0; color: rgba(255,255,255,0.8); font-size: 15px;">Thank you for completing your home selections</p>
+                  <p style="margin: 10px 0 0; color: rgba(255,255,255,0.8); font-size: 15px;">Thank you for completing your home selections, ${escapeHtml(data.firstName)}!</p>
                 </td>
               </tr>
               
@@ -758,13 +1023,17 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
                       <td style="padding: 24px;">
                         <table role="presentation" style="width: 100%; border-collapse: collapse;">
                           <tr>
-                            <td style="width: 50%;">
+                            <td style="width: 33%;">
                               <p style="margin: 0 0 4px; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Unit Number</p>
                               <p style="margin: 0; color: #1a1a2e; font-size: 20px; font-weight: 700;">${escapeHtml(data.unitNumber)}</p>
                             </td>
-                            <td style="width: 50%;">
+                            <td style="width: 33%;">
                               <p style="margin: 0 0 4px; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Unit Type</p>
                               <p style="margin: 0; color: #1a1a2e; font-size: 20px; font-weight: 700;">${escapeHtml(data.unitType || 'N/A')}</p>
+                            </td>
+                            <td style="width: 33%;">
+                              <p style="margin: 0 0 4px; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Has Stairs</p>
+                              <p style="margin: 0; color: #1a1a2e; font-size: 20px; font-weight: 700;">${data.hasStairs ? 'Yes' : 'No'}</p>
                             </td>
                           </tr>
                         </table>
@@ -774,15 +1043,29 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
                 </td>
               </tr>
               
-              <!-- Selection Summary -->
-              <tr>
-                <td style="background: #ffffff; padding: 0 40px 30px;">
-                  <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Your Selection Summary</h2>
-                  <table role="presentation" style="width: 100%; border-collapse: collapse; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
-                    ${selectionRows}
-                  </table>
-                </td>
-              </tr>
+              <!-- Standard Selections -->
+              ${standardSelectionsHtml}
+              
+              <!-- Window Coverings with Pricing -->
+              ${windowCoveringsHtml}
+              
+              <!-- Premium Area Upgrades -->
+              ${areaUpgradesHtml}
+              
+              <!-- Custom Grout Color -->
+              ${groutHtml}
+              
+              <!-- Heated Floors -->
+              ${heatedFloorsHtml}
+              
+              <!-- Upgrade Interests -->
+              ${upgradeInterestsHtml}
+              
+              <!-- Sales Comments -->
+              ${salesCommentsHtml}
+              
+              <!-- Estimated Total -->
+              ${estimatedTotalHtml}
               
               <!-- Reference Number -->
               <tr>
