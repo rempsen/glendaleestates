@@ -7,7 +7,10 @@ export type WidgetType =
   | 'recent-submissions'
   | 'quick-stats'
   | 'color-preferences'
-  | 'conversion-metrics';
+  | 'conversion-metrics'
+  | 'alerts'
+  | 'possession-calendar'
+  | 'material-popularity';
 
 export interface WidgetConfig {
   id: string;
@@ -52,6 +55,9 @@ export const WIDGET_CATALOG: { type: WidgetType; title: string; defaultSize: { w
   { type: 'quick-stats', title: 'Quick Stats Grid', defaultSize: { w: 12, h: 2 }, minSize: { w: 6, h: 2 } },
   { type: 'color-preferences', title: 'Color Preferences', defaultSize: { w: 6, h: 4 }, minSize: { w: 4, h: 3 } },
   { type: 'conversion-metrics', title: 'Conversion Metrics', defaultSize: { w: 6, h: 3 }, minSize: { w: 4, h: 2 } },
+  { type: 'alerts', title: 'Action Alerts', defaultSize: { w: 4, h: 4 }, minSize: { w: 3, h: 3 } },
+  { type: 'possession-calendar', title: 'Possession Calendar', defaultSize: { w: 6, h: 5 }, minSize: { w: 4, h: 4 } },
+  { type: 'material-popularity', title: 'Material Popularity', defaultSize: { w: 6, h: 4 }, minSize: { w: 4, h: 3 } },
 ];
 
 export const DEFAULT_LAYOUT: WidgetConfig[] = [
