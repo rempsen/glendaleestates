@@ -720,7 +720,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     standardSelections.push({ label: 'Stair Carpet', value: data.stairCarpetColour });
   }
 
-  // Build standard selections HTML
+  // Build standard selections HTML (no comments - those are internal)
   const standardSelectionsHtml = standardSelections.length > 0 ? `
     <tr>
       <td style="background: #ffffff; padding: 0 40px 30px;">
@@ -731,7 +731,6 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
               <td style="padding: 14px 16px; border-bottom: 1px solid #f0f0f0; color: #666; font-size: 14px; width: 40%;">${escapeHtml(item.label)}</td>
               <td style="padding: 14px 16px; border-bottom: 1px solid #f0f0f0; color: #1a1a2e; font-size: 14px; font-weight: 500;">
                 ${escapeHtml(item.value)}
-                ${item.detail ? `<div style="color: #888; font-size: 12px; margin-top: 4px; font-style: italic;">Notes: ${escapeHtml(item.detail)}</div>` : ''}
               </td>
             </tr>
           `).join('')}
@@ -782,7 +781,6 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
               <td style="padding: 14px 16px; color: #fbbf24; font-size: 18px; text-align: center; font-weight: 700;">$${data.windowTotal.toFixed(2)}</td>
             </tr>
           </table>
-          ${data.windowComments ? `<p style="margin: 12px 0 0; color: #666; font-size: 13px; font-style: italic; background: #fffbeb; padding: 10px 14px; border-radius: 6px; border-left: 3px solid #f59e0b;">📝 ${escapeHtml(data.windowComments)}</p>` : ''}
         </td>
       </tr>
     `;
@@ -809,13 +807,6 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
             ${upgrade.heatedFloor ? '<span style="background: #fbbf24; color: #78350f; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">🔥 HEATED</span>' : '<span style="color: #a1a1aa; font-size: 12px;">—</span>'}
           </td>
         </tr>
-        ${upgrade.comments ? `
-          <tr>
-            <td colspan="3" style="padding: 0 16px 14px; border-bottom: 1px solid rgba(147,51,234,0.15);">
-              <div style="background: #faf5ff; padding: 8px 12px; border-radius: 6px; color: #7e22ce; font-size: 12px; font-style: italic;">📝 ${escapeHtml(upgrade.comments)}</div>
-            </td>
-          </tr>
-        ` : ''}
       `;
     }).join('');
 
@@ -858,7 +849,6 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
                     <td style="color: #78350f; font-size: 16px; font-weight: 700; padding: 8px 0;">$315.00 <span style="font-size: 12px; font-weight: 400;">(incl. GST)</span></td>
                   </tr>
                 </table>
-                ${data.backsplashGroutComments ? `<p style="margin: 12px 0 0; color: #92400e; font-size: 13px; font-style: italic;">📝 ${escapeHtml(data.backsplashGroutComments)}</p>` : ''}
               </td>
             </tr>
           </table>
