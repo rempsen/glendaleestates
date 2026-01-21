@@ -612,10 +612,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const csvContent = generateCSV(data, savedSelection?.id as string | undefined);
     const csvFilename = `selection_${data.unitNumber.replace(/[^a-zA-Z0-9]/g, '_')}_${data.lastName}_${new Date().toISOString().split('T')[0]}.csv`;
 
-    // Send to BMD team including client CC
-    const emailResponse = await sendEmailWithAttachment({
+    // Send to BMD team (internal email with CSV)
+    const adminEmailResponse = await sendEmailWithAttachment({
       from: "BMD Materials Portal <selections@bmdmaterials.com>",
-      to: ["dan@bmdmaterials.com", "noni@bmdmaterials.com", "office@bmdmaterials.com", data.email],
+      to: ["dan@bmdmaterials.com", "noni@bmdmaterials.com", "office@bmdmaterials.com"],
       subject: `New Selection Submission - Unit ${escapeHtml(data.unitNumber) || 'Unknown'}${data.unitType ? ` (${escapeHtml(data.unitType)})` : ''} - ${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}`,
       html: htmlContent,
       attachments: [
@@ -626,10 +626,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
       ],
     });
 
-    console.log("Email sent successfully:", emailResponse);
+    console.log("Admin email sent successfully:", adminEmailResponse);
+
+    // Send styled confirmation email to buyer
+    const buyerConfirmationHtml = generateBuyerConfirmationEmail(data, savedSelection?.id as string | undefined);
+    
+    try {
+      await sendEmailWithAttachment({
+        from: "BMD Materials <selections@bmdmaterials.com>",
+        to: [data.email],
+        subject: `Your Glendale Estates Selections Confirmed - Unit ${escapeHtml(data.unitNumber)}`,
+        html: buyerConfirmationHtml,
+      });
+      console.log("Buyer confirmation email sent to:", data.email);
+    } catch (buyerEmailError) {
+      console.error("Failed to send buyer confirmation email:", buyerEmailError);
+      // Don't fail the whole request if buyer email fails
+    }
 
     return new Response(JSON.stringify({ 
-      ...emailResponse, 
+      ...adminEmailResponse, 
       selectionId: savedSelection?.id 
     }), {
       status: 200,
@@ -646,3 +662,225 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 });
+
+// Generate a beautiful confirmation email for buyers
+function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string | undefined): string {
+  const submissionDate = new Date().toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+  
+  // Build selection summary items
+  const selectionItems: { label: string; value: string }[] = [
+    { label: 'Main Floor LVP', value: data.lvpColour || 'Not selected' },
+    { label: 'Bathroom/Laundry Tile', value: data.spcTileColour || 'Not selected' },
+    { label: 'Kitchen Backsplash', value: data.backsplashOrientation || 'Not selected' },
+    { label: 'Bedroom Flooring', value: data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : data.bedroomFlooringChoice || 'Not selected' },
+  ];
+
+  if (data.hasStairs && data.stairCarpetColour) {
+    selectionItems.push({ label: 'Stair Carpet', value: data.stairCarpetColour });
+  }
+
+  if (data.bedroomFlooringChoice === 'carpet' && data.bedroomCarpetColour) {
+    selectionItems.push({ label: 'Bedroom Carpet Color', value: data.bedroomCarpetColour });
+  }
+
+  // Window coverings
+  const windowOptions: string[] = [];
+  if (data.additionalWindowsQty > 0) windowOptions.push(`${data.additionalWindowsQty} Additional Window(s)`);
+  if (data.patioDoorsQty > 0) windowOptions.push(`${data.patioDoorsQty} Patio Door(s)`);
+  if (windowOptions.length > 0) {
+    selectionItems.push({ label: 'Window Coverings', value: windowOptions.join(', ') });
+  }
+
+  // Area upgrades count
+  if (data.areaUpgrades && data.areaUpgrades.length > 0) {
+    selectionItems.push({ label: 'Premium Upgrades', value: `${data.areaUpgrades.length} area(s) selected` });
+  }
+
+  if (data.backsplashGroutEnabled) {
+    selectionItems.push({ label: 'Custom Grout Color', value: data.backsplashGroutColor || 'Yes' });
+  }
+
+  const selectionRows = selectionItems.map(item => `
+    <tr>
+      <td style="padding: 12px 16px; border-bottom: 1px solid #f0f0f0; color: #666; font-size: 14px;">${escapeHtml(item.label)}</td>
+      <td style="padding: 12px 16px; border-bottom: 1px solid #f0f0f0; color: #1a1a2e; font-size: 14px; font-weight: 500;">${escapeHtml(item.value)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Your Selections are Confirmed</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+      <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td align="center" style="padding: 40px 20px;">
+            <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse;">
+              
+              <!-- Header -->
+              <tr>
+                <td align="center" style="padding: 30px 40px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px 16px 0 0;">
+                  <img src="https://glendaleestates.lovable.app/images/bmd-logo.png" alt="Glendale Estates" style="height: 45px; margin-bottom: 20px;">
+                  <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">Your Selections Are Confirmed!</h1>
+                  <p style="margin: 10px 0 0; color: rgba(255,255,255,0.8); font-size: 15px;">Thank you for completing your home selections</p>
+                </td>
+              </tr>
+              
+              <!-- Success Badge -->
+              <tr>
+                <td style="background: #ffffff; padding: 0;">
+                  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                      <td align="center" style="padding: 30px 40px 20px;">
+                        <div style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 50%; width: 64px; height: 64px; line-height: 64px; text-align: center;">
+                          <span style="color: white; font-size: 28px;">✓</span>
+                        </div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- Unit Info Card -->
+              <tr>
+                <td style="background: #ffffff; padding: 0 40px 30px;">
+                  <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px;">
+                    <tr>
+                      <td style="padding: 24px;">
+                        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                          <tr>
+                            <td style="width: 50%;">
+                              <p style="margin: 0 0 4px; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Unit Number</p>
+                              <p style="margin: 0; color: #1a1a2e; font-size: 20px; font-weight: 700;">${escapeHtml(data.unitNumber)}</p>
+                            </td>
+                            <td style="width: 50%;">
+                              <p style="margin: 0 0 4px; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Unit Type</p>
+                              <p style="margin: 0; color: #1a1a2e; font-size: 20px; font-weight: 700;">${escapeHtml(data.unitType || 'N/A')}</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- Selection Summary -->
+              <tr>
+                <td style="background: #ffffff; padding: 0 40px 30px;">
+                  <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Your Selection Summary</h2>
+                  <table role="presentation" style="width: 100%; border-collapse: collapse; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+                    ${selectionRows}
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- Reference Number -->
+              <tr>
+                <td style="background: #ffffff; padding: 0 40px 30px;">
+                  <table role="presentation" style="width: 100%; border-collapse: collapse; background: #fff8e6; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                    <tr>
+                      <td style="padding: 16px 20px;">
+                        <p style="margin: 0 0 4px; color: #92400e; font-size: 12px; text-transform: uppercase; font-weight: 600;">Your Reference Number</p>
+                        <p style="margin: 0; color: #78350f; font-size: 16px; font-family: monospace; font-weight: 600;">${escapeHtml(selectionId || 'Pending')}</p>
+                        <p style="margin: 8px 0 0; color: #a16207; font-size: 13px;">Please save this for your records</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- What's Next -->
+              <tr>
+                <td style="background: #ffffff; padding: 0 40px 30px;">
+                  <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">What Happens Next?</h2>
+                  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                      <td style="padding: 12px 0; vertical-align: top;">
+                        <table role="presentation" style="border-collapse: collapse;">
+                          <tr>
+                            <td style="width: 32px; vertical-align: top;">
+                              <div style="background: #e0f2fe; border-radius: 50%; width: 28px; height: 28px; line-height: 28px; text-align: center; color: #0369a1; font-weight: 600; font-size: 13px;">1</div>
+                            </td>
+                            <td style="padding-left: 12px;">
+                              <p style="margin: 0; color: #1a1a2e; font-size: 14px; font-weight: 500;">Review by our team</p>
+                              <p style="margin: 4px 0 0; color: #666; font-size: 13px;">We'll verify your selections and prepare any upgrade quotes</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 12px 0; vertical-align: top;">
+                        <table role="presentation" style="border-collapse: collapse;">
+                          <tr>
+                            <td style="width: 32px; vertical-align: top;">
+                              <div style="background: #e0f2fe; border-radius: 50%; width: 28px; height: 28px; line-height: 28px; text-align: center; color: #0369a1; font-weight: 600; font-size: 13px;">2</div>
+                            </td>
+                            <td style="padding-left: 12px;">
+                              <p style="margin: 0; color: #1a1a2e; font-size: 14px; font-weight: 500;">We'll be in touch</p>
+                              <p style="margin: 4px 0 0; color: #666; font-size: 13px;">If any clarification is needed or to discuss upgrade options</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 12px 0; vertical-align: top;">
+                        <table role="presentation" style="border-collapse: collapse;">
+                          <tr>
+                            <td style="width: 32px; vertical-align: top;">
+                              <div style="background: #e0f2fe; border-radius: 50%; width: 28px; height: 28px; line-height: 28px; text-align: center; color: #0369a1; font-weight: 600; font-size: 13px;">3</div>
+                            </td>
+                            <td style="padding-left: 12px;">
+                              <p style="margin: 0; color: #1a1a2e; font-size: 14px; font-weight: 500;">Installation coordination</p>
+                              <p style="margin: 4px 0 0; color: #666; font-size: 13px;">Materials will be ordered and scheduled for your possession date</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- Contact Card -->
+              <tr>
+                <td style="background: #ffffff; padding: 0 40px 30px;">
+                  <table role="presentation" style="width: 100%; border-collapse: collapse; background: #f8f9fa; border-radius: 12px;">
+                    <tr>
+                      <td style="padding: 24px; text-align: center;">
+                        <p style="margin: 0 0 8px; color: #1a1a2e; font-size: 15px; font-weight: 500;">Questions about your selections?</p>
+                        <p style="margin: 0; color: #666; font-size: 14px;">Contact us at <a href="mailto:office@bmdmaterials.com" style="color: #e94560; text-decoration: none; font-weight: 500;">office@bmdmaterials.com</a></p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- Footer -->
+              <tr>
+                <td style="background: #1a1a2e; padding: 30px 40px; border-radius: 0 0 16px 16px; text-align: center;">
+                  <p style="margin: 0 0 8px; color: rgba(255,255,255,0.9); font-size: 14px; font-weight: 500;">BMD Materials</p>
+                  <p style="margin: 0 0 16px; color: rgba(255,255,255,0.6); font-size: 13px;">Glendale Estates Selection Portal</p>
+                  <p style="margin: 0; color: rgba(255,255,255,0.4); font-size: 12px;">Submitted on ${submissionDate}</p>
+                </td>
+              </tr>
+              
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+}

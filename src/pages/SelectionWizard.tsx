@@ -38,6 +38,7 @@ import {
 } from '@/lib/upgradeCostData';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { generateBuyerPreviewPDF } from '@/lib/buyerPdfGenerator';
+import { SubmissionProgress, SubmissionStep } from '@/components/SubmissionProgress';
 import tileStackedImg from '@/assets/tile-stacked.jpg';
 import tileBrickedImg from '@/assets/tile-bricked.jpg';
 import tileHorizontalImg from '@/assets/tile-horizontal.jpg';
@@ -157,6 +158,7 @@ export default function SelectionWizard() {
     heatedFloorBathrooms: 0,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionStep, setSubmissionStep] = useState<SubmissionStep>('preparing');
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
   const [pendingDraft, setPendingDraft] = useState<{
     currentStep: number;
@@ -292,14 +294,16 @@ export default function SelectionWizard() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
+    setSubmissionStep('preparing');
+    
     try {
       const windowSubtotal = (selections.additionalWindowsQty * additionalWindowPrice) + (selections.patioDoorsQty * patioDoorPrice) + (selections.automatedWindowsQty * automatedMotorPrice);
       const windowTotal = windowSubtotal * (1 + gstRate);
       
-      // Generate PDF as base64 for HubSpot
+      // Step 1: Generate PDF
+      setSubmissionStep('generating-pdf');
       let pdfBase64: string | null = null;
       try {
-        // Construct pricing config for PDF generation
         const pdfPricingConfig = { 
           markupPercentage, 
           gstRate, 
@@ -349,6 +353,11 @@ export default function SelectionWizard() {
         console.warn('PDF generation failed, continuing without PDF:', pdfError);
       }
       
+      // Step 2: Save & Send
+      setSubmissionStep('saving');
+      await new Promise(resolve => setTimeout(resolve, 300)); // Brief pause for UX
+      
+      setSubmissionStep('sending');
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-selections-email`, {
         method: 'POST',
         headers: {
@@ -360,13 +369,11 @@ export default function SelectionWizard() {
           unitType: unitInfo?.unitType || null,
           bedroomLvpColour: selections.bedroomLvpSameAsMain ? selections.lvpColour : selections.bedroomLvpColour,
           windowTotal: windowTotal,
-          // Include new upgrade data
           areaUpgrades: selections.areaUpgrades,
           upgradeFloorSelection: selections.upgradeFloorSelection,
           backsplashGroutEnabled: selections.backsplashGrout.enabled,
           backsplashGroutColor: selections.backsplashGrout.groutColor,
           backsplashGroutComments: selections.backsplashGrout.comments,
-          // Include PDF for HubSpot
           pdfBase64: pdfBase64,
         }),
       });
@@ -375,11 +382,16 @@ export default function SelectionWizard() {
         throw new Error('Failed to send email');
       }
 
-      // Delete draft on successful submission
+      // Step 3: Finalize
+      setSubmissionStep('syncing');
       await deleteDraft();
       
+      // Step 4: Complete
+      setSubmissionStep('complete');
+      await new Promise(resolve => setTimeout(resolve, 1500)); // Show success briefly
+      
       toast.success('Selections submitted successfully!', {
-        description: 'Your selections have been saved and emailed to our team.',
+        description: 'Check your email for a confirmation with your selections.',
       });
       navigate('/');
     } catch (error) {
@@ -1996,6 +2008,9 @@ export default function SelectionWizard() {
           )}
         </div>
       </main>
+      
+      {/* Submission Progress Overlay */}
+      <SubmissionProgress currentStep={submissionStep} isVisible={isSubmitting} />
     </div>
   );
 }
