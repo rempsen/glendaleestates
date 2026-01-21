@@ -468,6 +468,50 @@ export default function AdminPricingControl() {
                   </div>
                 );
               })()}
+
+              {/* Premium Carpet Stairs Price */}
+              {(() => {
+                const config = pricingConfig.find(c => c.config_key === 'premium_carpet_stairs_price');
+                if (!config) return null;
+                const withGst = config.config_value * (1 + getGstRate());
+                const isActive = (config as any).is_active !== false;
+                return (
+                  <div className={`space-y-3 p-4 border rounded-lg transition-opacity ${!isActive ? 'opacity-50 bg-muted/50' : ''}`}>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="premium_carpet_stairs" className="font-medium">
+                        Premium Carpet for Stairs
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={isActive}
+                          onCheckedChange={(checked) => updatePricingConfig(config.id, { is_active: checked })}
+                        />
+                        {isActive ? (
+                          <Eye className="h-4 w-4 text-primary" />
+                        ) : (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">$</span>
+                      <Input
+                        id="premium_carpet_stairs"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={config.config_value}
+                        onChange={(e) => updatePricingConfig(config.id, { config_value: parseFloat(e.target.value) || 0 })}
+                        className="w-32"
+                        disabled={!isActive}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Flat fee for stair carpet upgrade • Client sees: <span className="font-medium text-primary">${withGst.toFixed(2)}</span> incl. GST
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
           </CardContent>
         </Card>
