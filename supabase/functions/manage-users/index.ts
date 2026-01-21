@@ -72,9 +72,11 @@ async function sendNotification(
 }
 
 serve(async (req) => {
+  const headers = getCorsHeaders(req);
+  
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers });
   }
 
   try {
@@ -94,7 +96,7 @@ serve(async (req) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: "No authorization header" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 401, headers: { ...headers, "Content-Type": "application/json" } }
       );
     }
 
@@ -104,7 +106,7 @@ serve(async (req) => {
     if (authError || !requestingUser) {
       return new Response(
         JSON.stringify({ error: "Invalid token" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 401, headers: { ...headers, "Content-Type": "application/json" } }
       );
     }
 
@@ -119,7 +121,7 @@ serve(async (req) => {
     if (!roleData) {
       return new Response(
         JSON.stringify({ error: "Unauthorized - Admin access required" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 403, headers: { ...headers, "Content-Type": "application/json" } }
       );
     }
 
@@ -175,7 +177,7 @@ serve(async (req) => {
 
         return new Response(
           JSON.stringify({ users: usersWithRoles }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { headers: { ...headers, "Content-Type": "application/json" } }
         );
       }
 
@@ -185,7 +187,7 @@ serve(async (req) => {
         if (!email || !password) {
           return new Response(
             JSON.stringify({ error: "Email and password are required" }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
           );
         }
 
@@ -215,7 +217,7 @@ serve(async (req) => {
 
         return new Response(
           JSON.stringify({ user: newUser.user, message: "User created successfully" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { headers: { ...headers, "Content-Type": "application/json" } }
         );
       }
 
@@ -225,7 +227,7 @@ serve(async (req) => {
         if (!userId || !role) {
           return new Response(
             JSON.stringify({ error: "User ID and role are required" }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
           );
         }
 
@@ -275,7 +277,7 @@ serve(async (req) => {
 
         return new Response(
           JSON.stringify({ message: "Role updated successfully" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { headers: { ...headers, "Content-Type": "application/json" } }
         );
       }
 
@@ -285,7 +287,7 @@ serve(async (req) => {
         if (!userId || !newPassword) {
           return new Response(
             JSON.stringify({ error: "User ID and new password are required" }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
           );
         }
 
@@ -318,7 +320,7 @@ serve(async (req) => {
 
         return new Response(
           JSON.stringify({ message: "Password reset successfully" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { headers: { ...headers, "Content-Type": "application/json" } }
         );
       }
 
@@ -328,7 +330,7 @@ serve(async (req) => {
         if (!userId) {
           return new Response(
             JSON.stringify({ error: "User ID is required" }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
           );
         }
 
@@ -336,7 +338,7 @@ serve(async (req) => {
         if (userId === requestingUser.id) {
           return new Response(
             JSON.stringify({ error: "Cannot delete your own account" }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
           );
         }
 
@@ -362,7 +364,7 @@ serve(async (req) => {
 
         return new Response(
           JSON.stringify({ message: "User deleted successfully" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { headers: { ...headers, "Content-Type": "application/json" } }
         );
       }
 
@@ -381,14 +383,14 @@ serve(async (req) => {
 
         return new Response(
           JSON.stringify({ logs: logs || [], total: count || 0 }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { headers: { ...headers, "Content-Type": "application/json" } }
         );
       }
 
       default:
         return new Response(
           JSON.stringify({ error: "Invalid action" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
         );
     }
   } catch (error: unknown) {
@@ -396,7 +398,7 @@ serve(async (req) => {
     console.error("Error:", errorMessage);
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
     );
   }
 });
