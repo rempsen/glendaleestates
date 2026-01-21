@@ -50,6 +50,7 @@ export type Database = {
       buyer_selections: {
         Row: {
           additional_windows_qty: number | null
+          admin_notes: string | null
           area_upgrades: Json | null
           backsplash_grout_color: string | null
           backsplash_grout_comments: string | null
@@ -60,6 +61,7 @@ export type Database = {
           bedroom_flooring_choice: string | null
           bedroom_lvp_colour: string | null
           bedroom_lvp_same_as_main: boolean | null
+          completed_at: string | null
           created_at: string
           email: string
           estimated_possession_date: string | null
@@ -74,6 +76,8 @@ export type Database = {
           lvp_comments: string | null
           patio_doors_qty: number | null
           phone_number: string | null
+          quoted_at: string | null
+          reviewed_at: string | null
           sales_comments: string | null
           spc_tile_colour: string | null
           spc_tile_comments: string | null
@@ -89,6 +93,7 @@ export type Database = {
         }
         Insert: {
           additional_windows_qty?: number | null
+          admin_notes?: string | null
           area_upgrades?: Json | null
           backsplash_grout_color?: string | null
           backsplash_grout_comments?: string | null
@@ -99,6 +104,7 @@ export type Database = {
           bedroom_flooring_choice?: string | null
           bedroom_lvp_colour?: string | null
           bedroom_lvp_same_as_main?: boolean | null
+          completed_at?: string | null
           created_at?: string
           email: string
           estimated_possession_date?: string | null
@@ -113,6 +119,8 @@ export type Database = {
           lvp_comments?: string | null
           patio_doors_qty?: number | null
           phone_number?: string | null
+          quoted_at?: string | null
+          reviewed_at?: string | null
           sales_comments?: string | null
           spc_tile_colour?: string | null
           spc_tile_comments?: string | null
@@ -128,6 +136,7 @@ export type Database = {
         }
         Update: {
           additional_windows_qty?: number | null
+          admin_notes?: string | null
           area_upgrades?: Json | null
           backsplash_grout_color?: string | null
           backsplash_grout_comments?: string | null
@@ -138,6 +147,7 @@ export type Database = {
           bedroom_flooring_choice?: string | null
           bedroom_lvp_colour?: string | null
           bedroom_lvp_same_as_main?: boolean | null
+          completed_at?: string | null
           created_at?: string
           email?: string
           estimated_possession_date?: string | null
@@ -152,6 +162,8 @@ export type Database = {
           lvp_comments?: string | null
           patio_doors_qty?: number | null
           phone_number?: string | null
+          quoted_at?: string | null
+          reviewed_at?: string | null
           sales_comments?: string | null
           spc_tile_colour?: string | null
           spc_tile_comments?: string | null
