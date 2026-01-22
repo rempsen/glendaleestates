@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminLayout } from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
@@ -39,8 +39,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X, DollarSign, Trash2 } from 'lucide-react';
+import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X, DollarSign, Trash2, Mail, GitCompare } from 'lucide-react';
 import { generateSubmissionPDF } from '@/lib/submissionPdfGenerator';
 import { format } from 'date-fns';
 import { 
@@ -52,6 +53,7 @@ import {
 } from '@/lib/upgradeCostData';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
+import { SubmissionComparisonView } from '@/components/admin/SubmissionComparisonView';
 
 // Area upgrade interface
 interface AreaUpgrade {
@@ -242,6 +244,9 @@ export default function AdminSubmissions() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [originalSubmission, setOriginalSubmission] = useState<BuyerSelection | null>(null);
+  const [activeTab, setActiveTab] = useState<'details' | 'compare'>('details');
 
   // Use dynamic pricing from database
   const { 
@@ -330,10 +335,42 @@ export default function AdminSubmissions() {
     return matchesSearch && matchesStatus;
   });
 
-  const openDetails = (submission: BuyerSelection) => {
+  const openDetails = async (submission: BuyerSelection) => {
     setSelectedSubmission(submission);
+    // Store original submission for comparison
+    setOriginalSubmission({ ...submission });
     setEditMode(false);
+    setActiveTab('details');
     setDetailsOpen(true);
+  };
+
+  // Resend confirmation email
+  const resendConfirmationEmail = async () => {
+    if (!selectedSubmission) return;
+    
+    setSendingEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('resend-confirmation-email', {
+        body: {
+          submissionId: selectedSubmission.id,
+          sendToBuyer: true,
+          editedBy: 'Admin',
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success('Confirmation email sent', {
+        description: `Email sent to ${selectedSubmission.email}`,
+      });
+    } catch (error: any) {
+      console.error('Failed to send email:', error);
+      toast.error('Failed to send email', {
+        description: error.message || 'Unknown error',
+      });
+    } finally {
+      setSendingEmail(false);
+    }
   };
 
   // Selection handlers
@@ -551,17 +588,52 @@ export default function AdminSubmissions() {
                           <Badge variant="outline">{selectedSubmission.unit_type}</Badge>
                         )}
                       </DialogTitle>
-                      <Button variant="outline" size="sm" onClick={() => setEditMode(true)}>
-                        <Pencil className="w-4 h-4 mr-1" />
-                        Edit
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={resendConfirmationEmail}
+                          disabled={sendingEmail}
+                        >
+                          {sendingEmail ? (
+                            <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                          ) : (
+                            <Mail className="w-4 h-4 mr-1" />
+                          )}
+                          {sendingEmail ? 'Sending...' : 'Resend Email'}
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setEditMode(true)}>
+                          <Pencil className="w-4 h-4 mr-1" />
+                          Edit
+                        </Button>
+                      </div>
                     </div>
                     <DialogDescription>
                       Submitted {format(new Date(selectedSubmission.created_at), 'MMMM d, yyyy at h:mm a')}
                     </DialogDescription>
                   </DialogHeader>
 
-              <div className="space-y-6 mt-4">
+                  {/* Tabs for Details vs Compare */}
+                  <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'details' | 'compare')} className="mt-4">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="details">Details</TabsTrigger>
+                      <TabsTrigger value="compare" className="flex items-center gap-1">
+                        <GitCompare className="w-3 h-3" />
+                        Changes
+                      </TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="compare" className="mt-4">
+                      {originalSubmission && (
+                        <SubmissionComparisonView 
+                          original={originalSubmission} 
+                          current={selectedSubmission} 
+                        />
+                      )}
+                    </TabsContent>
+                    
+                    <TabsContent value="details" className="mt-4">
+              <div className="space-y-6">
                 {/* Pricing Summary - FIRST */}
                 {(() => {
                   const pricing = calculateSubmissionPricing(selectedSubmission, pricingValues);
@@ -909,6 +981,8 @@ export default function AdminSubmissions() {
                   </div>
                 </div>
               </div>
+                    </TabsContent>
+                  </Tabs>
                 </>
               )}
             </>
