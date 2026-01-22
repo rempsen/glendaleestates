@@ -51,6 +51,7 @@ import {
   UpgradeArea
 } from '@/lib/upgradeCostData';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
+import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
 
 // Area upgrade interface
 interface AreaUpgrade {
@@ -331,73 +332,8 @@ export default function AdminSubmissions() {
 
   const openDetails = (submission: BuyerSelection) => {
     setSelectedSubmission(submission);
-    setEditData({
-      first_name: submission.first_name,
-      last_name: submission.last_name,
-      email: submission.email,
-      phone_number: submission.phone_number,
-      unit_number: submission.unit_number,
-      unit_type: submission.unit_type,
-      sales_comments: submission.sales_comments,
-    });
     setEditMode(false);
     setDetailsOpen(true);
-  };
-
-  const handleEditChange = (field: keyof BuyerSelection, value: string | null) => {
-    setEditData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const saveChanges = async () => {
-    if (!selectedSubmission) return;
-    
-    setSaving(true);
-    try {
-      const { error } = await supabase
-        .from('buyer_selections')
-        .update({
-          first_name: editData.first_name,
-          last_name: editData.last_name,
-          email: editData.email,
-          phone_number: editData.phone_number,
-          unit_number: editData.unit_number,
-          unit_type: editData.unit_type,
-          sales_comments: editData.sales_comments,
-        })
-        .eq('id', selectedSubmission.id);
-
-      if (error) throw error;
-
-      // Update local state
-      const updatedSubmission = { ...selectedSubmission, ...editData };
-      setSubmissions(prev => 
-        prev.map(s => s.id === selectedSubmission.id ? updatedSubmission as BuyerSelection : s)
-      );
-      setSelectedSubmission(updatedSubmission as BuyerSelection);
-      setEditMode(false);
-      toast.success('Changes saved successfully');
-    } catch (error: any) {
-      toast.error('Failed to save changes', {
-        description: error.message,
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const cancelEdit = () => {
-    if (selectedSubmission) {
-      setEditData({
-        first_name: selectedSubmission.first_name,
-        last_name: selectedSubmission.last_name,
-        email: selectedSubmission.email,
-        phone_number: selectedSubmission.phone_number,
-        unit_number: selectedSubmission.unit_number,
-        unit_type: selectedSubmission.unit_type,
-        sales_comments: selectedSubmission.sales_comments,
-      });
-    }
-    setEditMode(false);
   };
 
   // Selection handlers
@@ -583,43 +519,47 @@ export default function AdminSubmissions() {
       </div>
 
       {/* Details Dialog */}
-      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <Dialog open={detailsOpen} onOpenChange={(open) => {
+        setDetailsOpen(open);
+        if (!open) setEditMode(false);
+      }}>
+        <DialogContent className={editMode ? "max-w-4xl max-h-[90vh] overflow-y-auto" : "max-w-2xl max-h-[80vh] overflow-y-auto"}>
           {selectedSubmission && (
             <>
-              <DialogHeader>
-                <div className="flex items-center justify-between">
-                  <DialogTitle className="flex items-center gap-2">
-                    <Home className="w-5 h-5" />
-                    Unit {selectedSubmission.unit_number}
-                    {selectedSubmission.unit_type && (
-                      <Badge variant="outline">{selectedSubmission.unit_type}</Badge>
-                    )}
-                  </DialogTitle>
-                  <div className="flex items-center gap-2">
-                    {editMode ? (
-                      <>
-                        <Button variant="outline" size="sm" onClick={cancelEdit} disabled={saving}>
-                          <X className="w-4 h-4 mr-1" />
-                          Cancel
-                        </Button>
-                        <Button size="sm" onClick={saveChanges} disabled={saving}>
-                          <Save className="w-4 h-4 mr-1" />
-                          {saving ? 'Saving...' : 'Save'}
-                        </Button>
-                      </>
-                    ) : (
+              {editMode ? (
+                // Full Editor Mode
+                <SubmissionEditor
+                  submission={selectedSubmission}
+                  onSave={(updatedSubmission) => {
+                    setSubmissions(prev => 
+                      prev.map(s => s.id === updatedSubmission.id ? updatedSubmission : s)
+                    );
+                    setSelectedSubmission(updatedSubmission);
+                    setEditMode(false);
+                  }}
+                  onCancel={() => setEditMode(false)}
+                />
+              ) : (
+                // View Mode
+                <>
+                  <DialogHeader>
+                    <div className="flex items-center justify-between">
+                      <DialogTitle className="flex items-center gap-2">
+                        <Home className="w-5 h-5" />
+                        Unit {selectedSubmission.unit_number}
+                        {selectedSubmission.unit_type && (
+                          <Badge variant="outline">{selectedSubmission.unit_type}</Badge>
+                        )}
+                      </DialogTitle>
                       <Button variant="outline" size="sm" onClick={() => setEditMode(true)}>
                         <Pencil className="w-4 h-4 mr-1" />
                         Edit
                       </Button>
-                    )}
-                  </div>
-                </div>
-                <DialogDescription>
-                  Submitted {format(new Date(selectedSubmission.created_at), 'MMMM d, yyyy at h:mm a')}
-                </DialogDescription>
-              </DialogHeader>
+                    </div>
+                    <DialogDescription>
+                      Submitted {format(new Date(selectedSubmission.created_at), 'MMMM d, yyyy at h:mm a')}
+                    </DialogDescription>
+                  </DialogHeader>
 
               <div className="space-y-6 mt-4">
                 {/* Pricing Summary - FIRST */}
@@ -777,82 +717,28 @@ export default function AdminSubmissions() {
                 {/* Buyer Info */}
                 <div className="space-y-3">
                   <h4 className="font-medium text-foreground">Buyer Information</h4>
-                  {editMode ? (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="first_name">First Name</Label>
-                        <Input
-                          id="first_name"
-                          value={editData.first_name || ''}
-                          onChange={(e) => handleEditChange('first_name', e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="last_name">Last Name</Label>
-                        <Input
-                          id="last_name"
-                          value={editData.last_name || ''}
-                          onChange={(e) => handleEditChange('last_name', e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          value={editData.email || ''}
-                          onChange={(e) => handleEditChange('email', e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="phone">Phone</Label>
-                        <Input
-                          id="phone"
-                          value={editData.phone_number || ''}
-                          onChange={(e) => handleEditChange('phone_number', e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="unit_number">Unit Number</Label>
-                        <Input
-                          id="unit_number"
-                          value={editData.unit_number || ''}
-                          onChange={(e) => handleEditChange('unit_number', e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="unit_type">Unit Type</Label>
-                        <Input
-                          id="unit_type"
-                          value={editData.unit_type || ''}
-                          onChange={(e) => handleEditChange('unit_type', e.target.value)}
-                        />
-                      </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Name:</span>
+                      <span className="ml-2">{selectedSubmission.first_name} {selectedSubmission.last_name}</span>
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Name:</span>
-                        <span className="ml-2">{selectedSubmission.first_name} {selectedSubmission.last_name}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Email:</span>
-                        <span className="ml-2">{selectedSubmission.email}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Phone:</span>
-                        <span className="ml-2">{selectedSubmission.phone_number || 'Not provided'}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Possession:</span>
-                        <span className="ml-2">
-                          {selectedSubmission.estimated_possession_date 
-                            ? format(new Date(selectedSubmission.estimated_possession_date), 'MMM d, yyyy')
-                            : 'Not provided'}
-                        </span>
-                      </div>
+                    <div>
+                      <span className="text-muted-foreground">Email:</span>
+                      <span className="ml-2">{selectedSubmission.email}</span>
                     </div>
-                  )}
+                    <div>
+                      <span className="text-muted-foreground">Phone:</span>
+                      <span className="ml-2">{selectedSubmission.phone_number || 'Not provided'}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Possession:</span>
+                      <span className="ml-2">
+                        {selectedSubmission.estimated_possession_date 
+                          ? format(new Date(selectedSubmission.estimated_possession_date), 'MMM d, yyyy')
+                          : 'Not provided'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Flooring */}
@@ -905,8 +791,8 @@ export default function AdminSubmissions() {
                     )}
                   </div>
                   {selectedSubmission.backsplash_grout_enabled && (
-                    <div className="p-3 rounded-lg bg-amber-100/50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm">
-                      <span className="font-medium text-amber-800 dark:text-amber-300">Custom Grout Color Change: $300 + GST</span>
+                    <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
+                      <span className="font-medium text-warning">Custom Grout Color Change: $300 + GST</span>
                       {selectedSubmission.backsplash_grout_comments && (
                         <p className="mt-1 text-muted-foreground">Comments: {selectedSubmission.backsplash_grout_comments}</p>
                       )}
@@ -942,7 +828,7 @@ export default function AdminSubmissions() {
 
                 {/* Area Upgrades */}
                 {selectedSubmission.area_upgrades && selectedSubmission.area_upgrades.length > 0 && (
-                  <div className="space-y-2 p-4 rounded-lg bg-purple-100/50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                  <div className="space-y-2 p-4 rounded-lg bg-secondary/50 border border-border">
                     <h4 className="font-medium text-foreground flex items-center gap-2">
                       <span>🔧</span> Area Upgrades
                       {selectedSubmission.upgrade_floor_selection && (
@@ -987,12 +873,12 @@ export default function AdminSubmissions() {
 
                 {/* Heated Floors & Other Options */}
                 {(selectedSubmission.heated_floor_bathrooms && selectedSubmission.heated_floor_bathrooms > 0) && (
-                  <div className="space-y-2 p-4 rounded-lg bg-orange-100/50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800">
+                  <div className="space-y-2 p-4 rounded-lg bg-warning/10 border border-warning/30">
                     <h4 className="font-medium text-foreground">Heated Floors</h4>
                     <div className="text-sm">
                       <span className="text-muted-foreground">Bathrooms with Heated Floors:</span>
                       <span className="ml-2 font-medium">{selectedSubmission.heated_floor_bathrooms}</span>
-                      <span className="ml-2 text-muted-foreground">($1,650 + GST per bathroom)</span>
+                      <span className="ml-2 text-muted-foreground">($640 + GST per bathroom)</span>
                     </div>
                   </div>
                 )}
@@ -1016,23 +902,15 @@ export default function AdminSubmissions() {
                 {/* Admin Notes */}
                 <div className="space-y-2">
                   <h4 className="font-medium text-foreground">Admin Notes & Comments</h4>
-                  {editMode ? (
-                    <Textarea
-                      placeholder="Add internal notes about this client..."
-                      value={editData.sales_comments || ''}
-                      onChange={(e) => handleEditChange('sales_comments', e.target.value)}
-                      rows={4}
-                      className="resize-none"
-                    />
-                  ) : (
-                    <div className="p-3 rounded-lg bg-muted/50 min-h-[80px] text-sm">
-                      {selectedSubmission.sales_comments || (
-                        <span className="text-muted-foreground italic">No notes added yet. Click Edit to add notes.</span>
-                      )}
-                    </div>
-                  )}
+                  <div className="p-3 rounded-lg bg-muted/50 min-h-[80px] text-sm">
+                    {selectedSubmission.sales_comments || (
+                      <span className="text-muted-foreground italic">No notes added yet. Click Edit to add notes.</span>
+                    )}
+                  </div>
                 </div>
               </div>
+                </>
+              )}
             </>
           )}
         </DialogContent>
