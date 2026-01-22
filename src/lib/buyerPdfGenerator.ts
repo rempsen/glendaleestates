@@ -161,9 +161,12 @@ export async function generateBuyerPreviewPDF(
   const pricing = pricingConfig || {
     markupPercentage: 0.60,
     gstRate: 0.05,
-    getMaterialCost: (type: 'lvp' | 'hardwood' | 'carpet' | 'tile') => {
-      const costs = { lvp: 4.00, hardwood: 10.00, carpet: 20.00, tile: 8.00 };
-      return costs[type];
+    getMaterialCost: (type: string) => {
+      const costs: Record<string, number> = { 
+        lvp: 4.00, hardwood: 10.00, lvt: 4.00, carpet: 20.00, tile: 8.00,
+        nonstandard_lvp: 2.50, nonstandard_lvt: 2.50, nonstandard_tile: 3.00
+      };
+      return costs[type] || 0;
     },
     getGroutColorFee: () => 300.00,
     getAdditionalWindowPrice: () => 673.50,

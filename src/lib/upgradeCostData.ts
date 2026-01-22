@@ -46,12 +46,15 @@ export type UpgradeArea =
 // Area categories for determining available upgrade types
 export type AreaCategory = 'living' | 'bedroom' | 'bedroom-carpet' | 'stairs' | 'bathroom' | 'laundry' | 'backsplash';
 
+// Upgrade material type definitions (moved here so AreaInfo can reference it)
+export type MaterialType = 'lvp' | 'hardwood' | 'lvt' | 'carpet' | 'tile' | 'nonstandard_lvp' | 'nonstandard_lvt' | 'nonstandard_tile';
+
 export interface AreaInfo {
   id: UpgradeArea;
   name: string;
   description: string;
   unit: 'sqft' | 'sqyd';
-  upgradeTypes: ('lvp' | 'hardwood' | 'lvt' | 'carpet' | 'tile')[];
+  upgradeTypes: MaterialType[];
   category: AreaCategory;
   supportsHeatedFloor?: boolean; // Only for tile in bathrooms
   icon: string; // Lucide icon name
@@ -63,7 +66,7 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     name: 'Main Living Area',
     description: 'Living room, dining room, and kitchen flooring',
     unit: 'sqft',
-    upgradeTypes: ['lvp', 'hardwood', 'lvt'],
+    upgradeTypes: ['lvp', 'hardwood', 'lvt', 'nonstandard_lvp', 'nonstandard_lvt'],
     category: 'living',
     icon: 'Sofa',
   },
@@ -72,7 +75,7 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     name: 'Second Bedroom',
     description: 'Guest bedroom or office area flooring (LVP standard)',
     unit: 'sqft',
-    upgradeTypes: ['lvp', 'hardwood', 'lvt'],
+    upgradeTypes: ['lvp', 'hardwood', 'lvt', 'nonstandard_lvp', 'nonstandard_lvt'],
     category: 'bedroom',
     icon: 'BedDouble',
   },
@@ -81,7 +84,7 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     name: 'Master Bedroom',
     description: 'Primary bedroom flooring (LVP standard)',
     unit: 'sqft',
-    upgradeTypes: ['lvp', 'hardwood', 'lvt'],
+    upgradeTypes: ['lvp', 'hardwood', 'lvt', 'nonstandard_lvp', 'nonstandard_lvt'],
     category: 'bedroom',
     icon: 'Bed',
   },
@@ -117,7 +120,7 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     name: 'Guest Bathroom',
     description: 'Secondary bathroom flooring',
     unit: 'sqft',
-    upgradeTypes: ['tile'],
+    upgradeTypes: ['tile', 'nonstandard_tile'],
     category: 'bathroom',
     supportsHeatedFloor: true,
     icon: 'Bath',
@@ -127,7 +130,7 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     name: 'Master Ensuite',
     description: 'Primary bathroom flooring',
     unit: 'sqft',
-    upgradeTypes: ['tile'],
+    upgradeTypes: ['tile', 'nonstandard_tile'],
     category: 'bathroom',
     supportsHeatedFloor: true,
     icon: 'ShowerHead',
@@ -137,7 +140,7 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     name: 'Laundry Room',
     description: 'Laundry room flooring',
     unit: 'sqft',
-    upgradeTypes: ['tile', 'lvt'],
+    upgradeTypes: ['tile', 'lvt', 'nonstandard_tile', 'nonstandard_lvt'],
     category: 'laundry',
     icon: 'WashingMachine',
   },
@@ -155,7 +158,7 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     name: 'Entire Unit LVP',
     description: 'All LVP flooring throughout the unit',
     unit: 'sqft',
-    upgradeTypes: ['lvp', 'hardwood', 'lvt'],
+    upgradeTypes: ['lvp', 'hardwood', 'lvt', 'nonstandard_lvp', 'nonstandard_lvt'],
     category: 'living',
     icon: 'Home',
   },
@@ -323,9 +326,6 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
   },
 };
 
-// Upgrade material type definitions
-export type MaterialType = 'lvp' | 'hardwood' | 'lvt' | 'carpet' | 'tile';
-
 export interface UpgradeMaterial {
   id: MaterialType;
   name: string;
@@ -368,6 +368,27 @@ export const UPGRADE_MATERIALS: UpgradeMaterial[] = [
     name: 'Porcelain Tile',
     description: 'Upgrade to porcelain tile flooring',
     costPerUnit: UPGRADE_COSTS.tileUpgrade,
+    unit: 'sqft',
+  },
+  {
+    id: 'nonstandard_lvp',
+    name: 'Non Standard LVP Color',
+    description: 'Select a non-standard color from the LVP collection',
+    costPerUnit: 2.50,
+    unit: 'sqft',
+  },
+  {
+    id: 'nonstandard_lvt',
+    name: 'Non Standard LVT Color',
+    description: 'Select a non-standard color from the LVT collection',
+    costPerUnit: 2.50,
+    unit: 'sqft',
+  },
+  {
+    id: 'nonstandard_tile',
+    name: 'Non Standard Tile Color',
+    description: 'Select a non-standard color from the tile collection',
+    costPerUnit: 3.00,
     unit: 'sqft',
   },
 ];
