@@ -52,8 +52,12 @@ interface BuyerSelection {
 const MATERIAL_NAMES: Record<string, string> = {
   lvp: 'Premium LVP',
   hardwood: 'Hardwood',
+  lvt: 'Premium LVT',
   carpet: 'Premium Carpet',
   tile: 'Porcelain Tile',
+  nonstandard_lvp: 'Non Standard LVP Color',
+  nonstandard_lvt: 'Non Standard LVT Color',
+  nonstandard_tile: 'Non Standard Tile Color',
 };
 
 // Area display names

@@ -294,7 +294,8 @@ export function RoomUpgradePicker({
                         <Select
                           value={editingSelection?.materialType || selection?.materialType || area.upgradeTypes[0]}
                           onValueChange={(value: MaterialType) => {
-                            setEditingSelection(prev => prev ? { ...prev, materialType: value, heatedFloor: value === 'tile' ? prev.heatedFloor : undefined } : {
+                            const isTileType = value === 'tile' || value === 'nonstandard_tile';
+                            setEditingSelection(prev => prev ? { ...prev, materialType: value, heatedFloor: isTileType ? prev.heatedFloor : undefined } : {
                               areaId: area.id,
                               materialType: value,
                               productName: '',
@@ -320,9 +321,10 @@ export function RoomUpgradePicker({
                         </Select>
                       </div>
 
-                      {/* Heated Floor Option - Only for tile in bathrooms */}
+                      {/* Heated Floor Option - Only for tile types in bathrooms */}
                       {area.supportsHeatedFloor && 
-                       (editingSelection?.materialType === 'tile' || (!editingSelection && selection?.materialType === 'tile')) && 
+                       ((editingSelection?.materialType === 'tile' || editingSelection?.materialType === 'nonstandard_tile') || 
+                        (!editingSelection && (selection?.materialType === 'tile' || selection?.materialType === 'nonstandard_tile'))) && 
                        heatedFloorPrice > 0 && (
                         <div className="p-4 rounded-lg border border-orange-200 bg-orange-50/50">
                           <div className="flex items-start justify-between gap-3">
@@ -431,7 +433,7 @@ export function RoomUpgradePicker({
                             const materialType = editingSelection?.materialType || selection?.materialType || area.upgradeTypes[0];
                             const materialName = UPGRADE_MATERIALS.find(m => m.id === materialType)?.name;
                             const price = calculateAreaUpgradePrice(effectiveUnitCode, area.id, materialType);
-                            const hasHeatedFloor = (editingSelection?.heatedFloor || selection?.heatedFloor) && materialType === 'tile';
+                            const hasHeatedFloor = (editingSelection?.heatedFloor || selection?.heatedFloor) && (materialType === 'tile' || materialType === 'nonstandard_tile');
                             const heatedFloorCostWithGst = heatedFloorPrice * (1 + gstRate);
                             const totalWithHeated = hasHeatedFloor ? price.markedUpCost + heatedFloorPrice : price.markedUpCost;
                             
