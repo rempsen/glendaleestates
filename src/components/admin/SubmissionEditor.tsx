@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { createAuditLog, calculateChanges, generateChangeSummary } from '@/lib/auditLog';
 import {
   AREA_DEFINITIONS,
   UPGRADE_MATERIALS,
@@ -253,6 +254,24 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
         .eq('id', submission.id);
 
       if (error) throw error;
+
+      // Calculate changes for audit log
+      const originalData = submission as unknown as Record<string, unknown>;
+      const newData = { ...updatePayload, area_upgrades: editData.area_upgrades } as unknown as Record<string, unknown>;
+      const { changes, changedFields } = calculateChanges(originalData, newData);
+
+      // Create audit log if there were changes
+      if (changedFields.length > 0) {
+        const changeSummary = generateChangeSummary(changedFields);
+        await createAuditLog({
+          submission_id: submission.id,
+          action_type: 'update',
+          changes,
+          previous_values: originalData,
+          new_values: newData,
+          change_summary: changeSummary,
+        });
+      }
 
       // Update local state with new values
       const updatedSubmission: BuyerSelection = {
