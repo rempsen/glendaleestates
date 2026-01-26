@@ -55,6 +55,7 @@ interface UserData {
   first_name: string | null;
   last_name: string | null;
   unit_number: string | null;
+  phone_number: string | null;
   created_at: string;
   last_sign_in_at: string | null;
   email_confirmed_at: string | null;
@@ -106,6 +107,7 @@ export default function AdminUsers() {
   const [editLastName, setEditLastName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editUnitNumber, setEditUnitNumber] = useState('');
+  const [editPhoneNumber, setEditPhoneNumber] = useState('');
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -317,6 +319,7 @@ export default function AdminUsers() {
     setEditLastName(user.last_name || '');
     setEditEmail(user.email || '');
     setEditUnitNumber(user.unit_number || '');
+    setEditPhoneNumber(user.phone_number || '');
     setEditDialogOpen(true);
   };
 
@@ -333,6 +336,7 @@ export default function AdminUsers() {
           firstName: editFirstName,
           lastName: editLastName,
           unitNumber: editUnitNumber,
+          phoneNumber: editPhoneNumber,
         },
       });
 
@@ -795,14 +799,26 @@ export default function AdminUsers() {
                   Changing the email will update the user's login credentials
                 </p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="editUnitNumber">Unit Number</Label>
-                <Input
-                  id="editUnitNumber"
-                  placeholder="e.g., 101"
-                  value={editUnitNumber}
-                  onChange={(e) => setEditUnitNumber(e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editUnitNumber">Unit Number</Label>
+                  <Input
+                    id="editUnitNumber"
+                    placeholder="e.g., 101"
+                    value={editUnitNumber}
+                    onChange={(e) => setEditUnitNumber(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editPhoneNumber">Phone Number</Label>
+                  <Input
+                    id="editPhoneNumber"
+                    type="tel"
+                    placeholder="e.g., 204-555-1234"
+                    value={editPhoneNumber}
+                    onChange={(e) => setEditPhoneNumber(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
             <DialogFooter>
