@@ -480,6 +480,7 @@ serve(async (req) => {
         if (firstName !== undefined) profileData.first_name = firstName;
         if (lastName !== undefined) profileData.last_name = lastName;
         if (phoneNumber !== undefined) profileData.phone_number = phoneNumber;
+        if (unitNumber !== undefined) profileData.unit_number = unitNumber;
         if (email) profileData.email = email;
 
         if (existingProfile) {
@@ -509,6 +510,7 @@ serve(async (req) => {
                 first_name: firstName || null,
                 last_name: lastName || null,
                 phone_number: phoneNumber || null,
+                unit_number: unitNumber || null,
               });
 
             if (createProfileError) {
