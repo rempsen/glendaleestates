@@ -150,7 +150,7 @@ serve(async (req) => {
         // Get profile info as fallback
         const { data: profileInfo } = await supabaseAdmin
           .from("profiles")
-          .select("user_id, email, first_name, last_name, phone_number");
+          .select("user_id, email, first_name, last_name, phone_number, unit_number");
 
         // Create a map of email to buyer info
         const buyerMap = new Map<string, { first_name: string; last_name: string; unit_number: string; phone_number: string | null }>();
@@ -166,13 +166,14 @@ serve(async (req) => {
         }
 
         // Create a map of user_id to profile info
-        const profileMap = new Map<string, { first_name: string | null; last_name: string | null; phone_number: string | null }>();
+        const profileMap = new Map<string, { first_name: string | null; last_name: string | null; phone_number: string | null; unit_number: string | null }>();
         if (profileInfo) {
           for (const profile of profileInfo) {
             profileMap.set(profile.user_id, {
               first_name: profile.first_name,
               last_name: profile.last_name,
               phone_number: profile.phone_number,
+              unit_number: profile.unit_number,
             });
           }
         }
@@ -186,7 +187,7 @@ serve(async (req) => {
             email: user.email,
             first_name: buyerData?.first_name || profileData?.first_name || null,
             last_name: buyerData?.last_name || profileData?.last_name || null,
-            unit_number: buyerData?.unit_number || null,
+            unit_number: buyerData?.unit_number || profileData?.unit_number || null,
             phone_number: buyerData?.phone_number || profileData?.phone_number || null,
             created_at: user.created_at,
             last_sign_in_at: user.last_sign_in_at,
