@@ -41,7 +41,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X, DollarSign, Trash2, Mail, GitCompare } from 'lucide-react';
+import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X, DollarSign, Trash2, Mail, GitCompare, History } from 'lucide-react';
 import { generateSubmissionPDF } from '@/lib/submissionPdfGenerator';
 import { format } from 'date-fns';
 import { 
@@ -54,6 +54,9 @@ import {
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
 import { SubmissionComparisonView } from '@/components/admin/SubmissionComparisonView';
+import { SubmissionAuditLog } from '@/components/admin/SubmissionAuditLog';
+import { EmailPreviewDialog } from '@/components/admin/EmailPreviewDialog';
+import { generateEmailPreviewHtml } from '@/lib/emailPreview';
 
 // Area upgrade interface
 interface AreaUpgrade {
@@ -246,7 +249,9 @@ export default function AdminSubmissions() {
   const [deleting, setDeleting] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [originalSubmission, setOriginalSubmission] = useState<BuyerSelection | null>(null);
-  const [activeTab, setActiveTab] = useState<'details' | 'compare'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'compare' | 'history'>('details');
+  const [emailPreviewOpen, setEmailPreviewOpen] = useState(false);
+  const [emailPreviewHtml, setEmailPreviewHtml] = useState('');
 
   // Use dynamic pricing from database
   const { 
@@ -342,6 +347,14 @@ export default function AdminSubmissions() {
     setEditMode(false);
     setActiveTab('details');
     setDetailsOpen(true);
+  };
+
+  // Open email preview
+  const openEmailPreview = () => {
+    if (!selectedSubmission) return;
+    const html = generateEmailPreviewHtml(selectedSubmission);
+    setEmailPreviewHtml(html);
+    setEmailPreviewOpen(true);
   };
 
   // Resend confirmation email
@@ -592,6 +605,14 @@ export default function AdminSubmissions() {
                         <Button 
                           variant="outline" 
                           size="sm" 
+                          onClick={openEmailPreview}
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          Preview Email
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
                           onClick={resendConfirmationEmail}
                           disabled={sendingEmail}
                         >
@@ -600,7 +621,7 @@ export default function AdminSubmissions() {
                           ) : (
                             <Mail className="w-4 h-4 mr-1" />
                           )}
-                          {sendingEmail ? 'Sending...' : 'Resend Email'}
+                          {sendingEmail ? 'Sending...' : 'Send Email'}
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => setEditMode(true)}>
                           <Pencil className="w-4 h-4 mr-1" />
@@ -613,13 +634,17 @@ export default function AdminSubmissions() {
                     </DialogDescription>
                   </DialogHeader>
 
-                  {/* Tabs for Details vs Compare */}
-                  <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'details' | 'compare')} className="mt-4">
-                    <TabsList className="grid w-full grid-cols-2">
+                  {/* Tabs for Details vs Compare vs History */}
+                  <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'details' | 'compare' | 'history')} className="mt-4">
+                    <TabsList className="grid w-full grid-cols-3">
                       <TabsTrigger value="details">Details</TabsTrigger>
                       <TabsTrigger value="compare" className="flex items-center gap-1">
                         <GitCompare className="w-3 h-3" />
                         Changes
+                      </TabsTrigger>
+                      <TabsTrigger value="history" className="flex items-center gap-1">
+                        <History className="w-3 h-3" />
+                        Audit Log
                       </TabsTrigger>
                     </TabsList>
                     
@@ -630,6 +655,10 @@ export default function AdminSubmissions() {
                           current={selectedSubmission} 
                         />
                       )}
+                    </TabsContent>
+
+                    <TabsContent value="history" className="mt-4">
+                      <SubmissionAuditLog submissionId={selectedSubmission.id} />
                     </TabsContent>
                     
                     <TabsContent value="details" className="mt-4">
@@ -1012,6 +1041,19 @@ export default function AdminSubmissions() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Email Preview Dialog */}
+      {selectedSubmission && (
+        <EmailPreviewDialog
+          open={emailPreviewOpen}
+          onOpenChange={setEmailPreviewOpen}
+          emailHtml={emailPreviewHtml}
+          recipientEmail={selectedSubmission.email}
+          subject={`Updated Selection Confirmation - Unit ${selectedSubmission.unit_number} | BMD Materials`}
+          onSend={resendConfirmationEmail}
+          sending={sendingEmail}
+        />
+      )}
     </AdminLayout>
   );
 }

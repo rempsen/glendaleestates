@@ -346,6 +346,45 @@ export type Database = {
           },
         ]
       }
+      submission_audit_logs: {
+        Row: {
+          action_type: string
+          change_summary: string | null
+          changed_by_email: string | null
+          changed_by_user_id: string | null
+          changes: Json
+          created_at: string
+          id: string
+          new_values: Json | null
+          previous_values: Json | null
+          submission_id: string
+        }
+        Insert: {
+          action_type?: string
+          change_summary?: string | null
+          changed_by_email?: string | null
+          changed_by_user_id?: string | null
+          changes?: Json
+          created_at?: string
+          id?: string
+          new_values?: Json | null
+          previous_values?: Json | null
+          submission_id: string
+        }
+        Update: {
+          action_type?: string
+          change_summary?: string | null
+          changed_by_email?: string | null
+          changed_by_user_id?: string | null
+          changes?: Json
+          created_at?: string
+          id?: string
+          new_values?: Json | null
+          previous_values?: Json | null
+          submission_id?: string
+        }
+        Relationships: []
+      }
       unit_area_data: {
         Row: {
           all_lvp: number
