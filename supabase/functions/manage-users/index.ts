@@ -142,32 +142,52 @@ serve(async (req) => {
           .from("user_roles")
           .select("user_id, role");
 
-        // Get buyer info (first/last names) from buyer_selections
+        // Get buyer info (first/last names, phone) from buyer_selections
         const { data: buyerInfo } = await supabaseAdmin
           .from("buyer_selections")
-          .select("email, first_name, last_name, unit_number");
+          .select("email, first_name, last_name, unit_number, phone_number");
+
+        // Get profile info as fallback
+        const { data: profileInfo } = await supabaseAdmin
+          .from("profiles")
+          .select("user_id, email, first_name, last_name, phone_number");
 
         // Create a map of email to buyer info
-        const buyerMap = new Map<string, { first_name: string; last_name: string; unit_number: string }>();
+        const buyerMap = new Map<string, { first_name: string; last_name: string; unit_number: string; phone_number: string | null }>();
         if (buyerInfo) {
           for (const buyer of buyerInfo) {
             buyerMap.set(buyer.email.toLowerCase(), {
               first_name: buyer.first_name,
               last_name: buyer.last_name,
               unit_number: buyer.unit_number,
+              phone_number: buyer.phone_number,
             });
           }
         }
 
-        // Combine user data with roles and buyer info
+        // Create a map of user_id to profile info
+        const profileMap = new Map<string, { first_name: string | null; last_name: string | null; phone_number: string | null }>();
+        if (profileInfo) {
+          for (const profile of profileInfo) {
+            profileMap.set(profile.user_id, {
+              first_name: profile.first_name,
+              last_name: profile.last_name,
+              phone_number: profile.phone_number,
+            });
+          }
+        }
+
+        // Combine user data with roles, buyer info, and profile info
         const usersWithRoles = users.map((user) => {
           const buyerData = buyerMap.get(user.email?.toLowerCase() || "");
+          const profileData = profileMap.get(user.id);
           return {
             id: user.id,
             email: user.email,
-            first_name: buyerData?.first_name || null,
-            last_name: buyerData?.last_name || null,
+            first_name: buyerData?.first_name || profileData?.first_name || null,
+            last_name: buyerData?.last_name || profileData?.last_name || null,
             unit_number: buyerData?.unit_number || null,
+            phone_number: buyerData?.phone_number || profileData?.phone_number || null,
             created_at: user.created_at,
             last_sign_in_at: user.last_sign_in_at,
             email_confirmed_at: user.email_confirmed_at,
@@ -388,7 +408,7 @@ serve(async (req) => {
       }
 
       case "updateUser": {
-        const { userId, email, firstName, lastName, unitNumber } = params;
+        const { userId, email, firstName, lastName, unitNumber, phoneNumber } = params;
         
         if (!userId) {
           return new Response(
@@ -401,6 +421,8 @@ serve(async (req) => {
         const { data: { user: targetUser } } = await supabaseAdmin.auth.admin.getUserById(userId);
         const oldEmail = targetUser?.email || "Unknown";
 
+        console.log("Updating user:", { userId, email, firstName, lastName, unitNumber, phoneNumber });
+
         // Update auth email if provided and different
         if (email && email !== oldEmail) {
           const { error: emailError } = await supabaseAdmin.auth.admin.updateUserById(
@@ -409,25 +431,29 @@ serve(async (req) => {
           );
 
           if (emailError) {
+            console.error("Failed to update auth email:", emailError);
             throw emailError;
           }
+          console.log("Auth email updated successfully");
         }
 
-        // Update buyer_selections table if we have matching email
+        // Update buyer_selections table - try by email first, then by checking all records
         const { data: existingSelection } = await supabaseAdmin
           .from("buyer_selections")
-          .select("id")
-          .eq("email", oldEmail)
+          .select("id, email")
+          .or(`email.eq.${oldEmail},email.ilike.${oldEmail}`)
           .maybeSingle();
 
         if (existingSelection) {
-          const updateData: Record<string, string> = {};
+          const updateData: Record<string, string | null> = {};
           if (firstName !== undefined) updateData.first_name = firstName;
           if (lastName !== undefined) updateData.last_name = lastName;
           if (unitNumber !== undefined) updateData.unit_number = unitNumber;
+          if (phoneNumber !== undefined) updateData.phone_number = phoneNumber;
           if (email && email !== oldEmail) updateData.email = email;
 
           if (Object.keys(updateData).length > 0) {
+            console.log("Updating buyer_selections:", updateData);
             const { error: selectionError } = await supabaseAdmin
               .from("buyer_selections")
               .update(updateData)
@@ -435,31 +461,60 @@ serve(async (req) => {
 
             if (selectionError) {
               console.error("Failed to update buyer_selections:", selectionError);
+            } else {
+              console.log("buyer_selections updated successfully");
             }
           }
+        } else {
+          console.log("No buyer_selections record found for email:", oldEmail);
         }
 
-        // Update profiles table
+        // Update or create profiles table entry
         const { data: existingProfile } = await supabaseAdmin
           .from("profiles")
           .select("id")
           .eq("user_id", userId)
           .maybeSingle();
 
-        if (existingProfile) {
-          const profileUpdate: Record<string, string> = {};
-          if (firstName !== undefined) profileUpdate.first_name = firstName;
-          if (lastName !== undefined) profileUpdate.last_name = lastName;
-          if (email && email !== oldEmail) profileUpdate.email = email;
+        const profileData: Record<string, string | null> = {};
+        if (firstName !== undefined) profileData.first_name = firstName;
+        if (lastName !== undefined) profileData.last_name = lastName;
+        if (phoneNumber !== undefined) profileData.phone_number = phoneNumber;
+        if (email) profileData.email = email;
 
-          if (Object.keys(profileUpdate).length > 0) {
+        if (existingProfile) {
+          // Update existing profile
+          if (Object.keys(profileData).length > 0) {
+            console.log("Updating profile:", profileData);
             const { error: profileError } = await supabaseAdmin
               .from("profiles")
-              .update(profileUpdate)
+              .update(profileData)
               .eq("id", existingProfile.id);
 
             if (profileError) {
               console.error("Failed to update profiles:", profileError);
+            } else {
+              console.log("Profile updated successfully");
+            }
+          }
+        } else {
+          // Create new profile if we have data to save
+          if (Object.keys(profileData).length > 0) {
+            console.log("Creating new profile for user:", userId);
+            const { error: createProfileError } = await supabaseAdmin
+              .from("profiles")
+              .insert({
+                user_id: userId,
+                email: email || oldEmail,
+                first_name: firstName || null,
+                last_name: lastName || null,
+                phone_number: phoneNumber || null,
+              });
+
+            if (createProfileError) {
+              console.error("Failed to create profile:", createProfileError);
+            } else {
+              console.log("Profile created successfully");
             }
           }
         }
@@ -477,7 +532,8 @@ serve(async (req) => {
             new_email: email || oldEmail,
             first_name: firstName,
             last_name: lastName,
-            unit_number: unitNumber
+            unit_number: unitNumber,
+            phone_number: phoneNumber
           }
         );
 
