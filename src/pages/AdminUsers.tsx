@@ -45,7 +45,8 @@ import {
   UserCheck,
   UserMinus,
   KeyRound,
-  UserX
+  UserX,
+  Pencil
 } from 'lucide-react';
 
 interface UserData {
@@ -76,6 +77,7 @@ const ACTION_LABELS: Record<string, { label: string; icon: typeof UserPlus; colo
   role_removed: { label: 'Role Removed', icon: UserMinus, color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
   user_deleted: { label: 'User Deleted', icon: UserX, color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
   client_signup: { label: 'Client Signup', icon: UserCheck, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' },
+  user_updated: { label: 'User Updated', icon: UserCheck, color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400' },
 };
 
 export default function AdminUsers() {
@@ -96,6 +98,14 @@ export default function AdminUsers() {
   const [resetUserId, setResetUserId] = useState<string | null>(null);
   const [resetUserEmail, setResetUserEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
+
+  // Edit user dialog
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editUser, setEditUser] = useState<UserData | null>(null);
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editUnitNumber, setEditUnitNumber] = useState('');
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -301,6 +311,50 @@ export default function AdminUsers() {
     setResetDialogOpen(true);
   };
 
+  const openEditDialog = (user: UserData) => {
+    setEditUser(user);
+    setEditFirstName(user.first_name || '');
+    setEditLastName(user.last_name || '');
+    setEditEmail(user.email || '');
+    setEditUnitNumber(user.unit_number || '');
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editUser) return;
+
+    setActionLoading('edit');
+    try {
+      const response = await supabase.functions.invoke('manage-users', {
+        body: { 
+          action: 'updateUser',
+          userId: editUser.id,
+          email: editEmail,
+          firstName: editFirstName,
+          lastName: editLastName,
+          unitNumber: editUnitNumber,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      toast.success('User updated successfully');
+      setEditDialogOpen(false);
+      setEditUser(null);
+      fetchUsers();
+      if (activeTab === 'logs') {
+        fetchActivityLogs();
+      }
+    } catch (error: any) {
+      console.error('Error updating user:', error);
+      toast.error('Failed to update user: ' + error.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const adminUsers = users.filter(u => u.roles.includes('admin'));
   const regularUsers = users.filter(u => !u.roles.includes('admin'));
 
@@ -377,13 +431,22 @@ export default function AdminUsers() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => openEditDialog(user)}
+                        title="Edit User"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => openResetDialog(user.id, user.email || '')}
+                        title="Reset Password"
                       >
                         <Key className="w-4 h-4" />
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" title="Delete User">
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </AlertDialogTrigger>
@@ -684,6 +747,71 @@ export default function AdminUsers() {
               <Button onClick={handleResetPassword} disabled={actionLoading === 'reset'}>
                 {actionLoading === 'reset' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Reset Password
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit User Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit User</DialogTitle>
+              <DialogDescription>
+                Update user information. Changes will also update related buyer selections.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editFirstName">First Name</Label>
+                  <Input
+                    id="editFirstName"
+                    placeholder="First name"
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editLastName">Last Name</Label>
+                  <Input
+                    id="editLastName"
+                    placeholder="Last name"
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editEmail">Email</Label>
+                <Input
+                  id="editEmail"
+                  type="email"
+                  placeholder="user@example.com"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Changing the email will update the user's login credentials
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editUnitNumber">Unit Number</Label>
+                <Input
+                  id="editUnitNumber"
+                  placeholder="e.g., 101"
+                  value={editUnitNumber}
+                  onChange={(e) => setEditUnitNumber(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateUser} disabled={actionLoading === 'edit'}>
+                {actionLoading === 'edit' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Save Changes
               </Button>
             </DialogFooter>
           </DialogContent>
