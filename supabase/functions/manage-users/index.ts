@@ -387,6 +387,106 @@ serve(async (req) => {
         );
       }
 
+      case "updateUser": {
+        const { userId, email, firstName, lastName, unitNumber } = params;
+        
+        if (!userId) {
+          return new Response(
+            JSON.stringify({ error: "User ID is required" }),
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Get current user info for logging
+        const { data: { user: targetUser } } = await supabaseAdmin.auth.admin.getUserById(userId);
+        const oldEmail = targetUser?.email || "Unknown";
+
+        // Update auth email if provided and different
+        if (email && email !== oldEmail) {
+          const { error: emailError } = await supabaseAdmin.auth.admin.updateUserById(
+            userId,
+            { email }
+          );
+
+          if (emailError) {
+            throw emailError;
+          }
+        }
+
+        // Update buyer_selections table if we have matching email
+        const { data: existingSelection } = await supabaseAdmin
+          .from("buyer_selections")
+          .select("id")
+          .eq("email", oldEmail)
+          .maybeSingle();
+
+        if (existingSelection) {
+          const updateData: Record<string, string> = {};
+          if (firstName !== undefined) updateData.first_name = firstName;
+          if (lastName !== undefined) updateData.last_name = lastName;
+          if (unitNumber !== undefined) updateData.unit_number = unitNumber;
+          if (email && email !== oldEmail) updateData.email = email;
+
+          if (Object.keys(updateData).length > 0) {
+            const { error: selectionError } = await supabaseAdmin
+              .from("buyer_selections")
+              .update(updateData)
+              .eq("id", existingSelection.id);
+
+            if (selectionError) {
+              console.error("Failed to update buyer_selections:", selectionError);
+            }
+          }
+        }
+
+        // Update profiles table
+        const { data: existingProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("id")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (existingProfile) {
+          const profileUpdate: Record<string, string> = {};
+          if (firstName !== undefined) profileUpdate.first_name = firstName;
+          if (lastName !== undefined) profileUpdate.last_name = lastName;
+          if (email && email !== oldEmail) profileUpdate.email = email;
+
+          if (Object.keys(profileUpdate).length > 0) {
+            const { error: profileError } = await supabaseAdmin
+              .from("profiles")
+              .update(profileUpdate)
+              .eq("id", existingProfile.id);
+
+            if (profileError) {
+              console.error("Failed to update profiles:", profileError);
+            }
+          }
+        }
+
+        // Log the activity
+        await logActivity(
+          supabaseAdmin,
+          "user_updated",
+          userId,
+          email || oldEmail,
+          requestingUser.id,
+          performerEmail,
+          { 
+            old_email: oldEmail,
+            new_email: email || oldEmail,
+            first_name: firstName,
+            last_name: lastName,
+            unit_number: unitNumber
+          }
+        );
+
+        return new Response(
+          JSON.stringify({ message: "User updated successfully" }),
+          { headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: "Invalid action" }),
