@@ -271,6 +271,121 @@ const MATERIAL_NAMES: Record<string, string> = {
   nonstandard_tile: 'Non Standard Tile Color',
 };
 
+// Fetch dynamic pricing from database
+async function fetchDynamicPricing(): Promise<{
+  materials: Record<string, number>;
+  config: Record<string, number>;
+  unitAreas: Record<string, Record<string, number>>;
+  markupPercentage: number;
+  gstRate: number;
+}> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  const headers = {
+    "apikey": supabaseServiceKey,
+    "Authorization": `Bearer ${supabaseServiceKey}`,
+    "Content-Type": "application/json",
+  };
+
+  // Fetch materials, config, and unit areas in parallel
+  const [materialsRes, configRes, unitAreasRes] = await Promise.all([
+    fetch(`${supabaseUrl}/rest/v1/upgrade_materials?is_active=eq.true`, { headers }),
+    fetch(`${supabaseUrl}/rest/v1/pricing_config`, { headers }),
+    fetch(`${supabaseUrl}/rest/v1/unit_area_data`, { headers }),
+  ]);
+
+  const materials: Record<string, number> = {};
+  const config: Record<string, number> = {};
+  const unitAreas: Record<string, Record<string, number>> = {};
+
+  // Parse materials
+  if (materialsRes.ok) {
+    const data = await materialsRes.json();
+    for (const m of data) {
+      materials[m.material_key] = Number(m.cost_per_unit);
+    }
+  }
+
+  // Parse config
+  let markupPercentage = 0.60;
+  let gstRate = 0.05;
+  if (configRes.ok) {
+    const data = await configRes.json();
+    for (const c of data) {
+      config[c.config_key] = Number(c.config_value);
+      if (c.config_key === 'markup_percentage') markupPercentage = Number(c.config_value) / 100;
+      if (c.config_key === 'gst_rate') gstRate = Number(c.config_value) / 100;
+    }
+  }
+
+  // Parse unit areas
+  if (unitAreasRes.ok) {
+    const data = await unitAreasRes.json();
+    for (const u of data) {
+      unitAreas[u.unit_type_code] = {
+        allLvp: Number(u.all_lvp),
+        mainLiving: Number(u.main_living),
+        secondBedroom: Number(u.second_bedroom),
+        masterBedroom: Number(u.master_bedroom),
+        secondBedroomCarpet: Number(u.second_bedroom_carpet),
+        guestBathroom: Number(u.guest_bathroom),
+        masterEnsuite: Number(u.master_ensuite),
+        laundry: Number(u.laundry),
+        backsplash: Number(u.backsplash),
+      };
+    }
+  }
+
+  return { materials, config, unitAreas, markupPercentage, gstRate };
+}
+
+// Calculate area upgrade costs
+function calculateAreaUpgradeCosts(
+  unitTypeCode: string,
+  areaUpgrades: AreaUpgrade[],
+  pricing: {
+    materials: Record<string, number>;
+    unitAreas: Record<string, Record<string, number>>;
+    markupPercentage: number;
+    heatedFloorPrice: number;
+  }
+): { lineItems: Array<{ area: string; material: string; cost: number; heatedFloor?: boolean; heatedCost?: number }>; subtotal: number } {
+  const lineItems: Array<{ area: string; material: string; cost: number; heatedFloor?: boolean; heatedCost?: number }> = [];
+  let subtotal = 0;
+
+  const unitData = pricing.unitAreas[unitTypeCode];
+  if (!unitData) {
+    return { lineItems, subtotal };
+  }
+
+  for (const upgrade of areaUpgrades) {
+    const quantity = unitData[upgrade.areaId] || 0;
+    if (quantity === 0) continue;
+
+    const costPerUnit = pricing.materials[upgrade.materialType] || 0;
+    const baseCost = quantity * costPerUnit;
+    const markedUpCost = baseCost * (1 + pricing.markupPercentage);
+
+    // Check for heated floor (tile in bathroom areas)
+    const hasHeatedFloor = upgrade.heatedFloor && ['guestBathroom', 'masterEnsuite'].includes(upgrade.areaId);
+    const heatedCost = hasHeatedFloor ? pricing.heatedFloorPrice : 0;
+
+    if (markedUpCost > 0 || heatedCost > 0) {
+      subtotal += markedUpCost + heatedCost;
+      lineItems.push({
+        area: AREA_NAMES[upgrade.areaId] || upgrade.areaId,
+        material: MATERIAL_NAMES[upgrade.materialType] || upgrade.materialType,
+        cost: markedUpCost,
+        heatedFloor: hasHeatedFloor,
+        heatedCost: heatedCost,
+      });
+    }
+  }
+
+  return { lineItems, subtotal };
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -450,12 +565,47 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }).catch(err => console.error('HubSpot sync error:', err));
     }
     
+    // Fetch dynamic pricing for accurate cost calculations
+    const pricing = await fetchDynamicPricing();
+    const additionalWindowPrice = pricing.config['additional_window_price'] || 673.50;
+    const patioDoorPrice = pricing.config['patio_door_price'] || 2347.80;
+    const automatedMotorPrice = pricing.config['automated_motor_price'] || 495.00;
+    const heatedFloorPrice = pricing.config['heated_floor_per_bathroom'] || 1650.00;
+    const stairLvpPrice = pricing.config['stair_lvp_upgrade_price'] || 2160.00;
+    const groutColorPrice = pricing.config['grout_color_change_price'] || 300.00;
+    const gstRate = pricing.gstRate;
+    
+    // Calculate all upgrade costs
+    const windowSubtotal = (data.additionalWindowsQty * additionalWindowPrice) + 
+                           (data.patioDoorsQty * patioDoorPrice) + 
+                           (data.automatedWindowsQty * automatedMotorPrice);
+    const stairLvpSubtotal = data.stairLvpUpgradeSelected ? stairLvpPrice : 0;
+    const groutSubtotal = data.backsplashGroutEnabled ? groutColorPrice : 0;
+    
+    // Calculate area upgrade costs (flooring/tile)
+    const effectiveUnitCode = data.unitType || '';
+    const areaUpgradeCosts = calculateAreaUpgradeCosts(
+      effectiveUnitCode,
+      data.areaUpgrades || [],
+      {
+        materials: pricing.materials,
+        unitAreas: pricing.unitAreas,
+        markupPercentage: pricing.markupPercentage,
+        heatedFloorPrice: heatedFloorPrice,
+      }
+    );
+    
+    // Calculate grand totals
+    const grandSubtotal = windowSubtotal + stairLvpSubtotal + groutSubtotal + areaUpgradeCosts.subtotal;
+    const grandGst = grandSubtotal * gstRate;
+    const grandTotal = grandSubtotal + grandGst;
+    
     const upgradesList = Object.entries(data.upgradeInterests)
       .filter(([_, v]) => v)
       .map(([key]) => escapeHtml(key.replace('-', ' ')))
       .join(', ') || 'None';
 
-    // Build area upgrades HTML section
+    // Build area upgrades HTML section WITH PRICING
     let areaUpgradesHtml = '';
     if (data.areaUpgrades && data.areaUpgrades.length > 0) {
       areaUpgradesHtml = `
@@ -469,33 +619,112 @@ Deno.serve(async (req: Request): Promise<Response> => {
               <th style="text-align: left; padding: 8px 0;">Product</th>
               <th style="text-align: left; padding: 8px 0;">Color</th>
               <th style="text-align: left; padding: 8px 0;">Heated</th>
+              <th style="text-align: right; padding: 8px 0;">Cost</th>
             </tr>
-            ${data.areaUpgrades.map(u => `
+            ${data.areaUpgrades.map(u => {
+              const lineItem = areaUpgradeCosts.lineItems.find(l => l.area === (AREA_NAMES[u.areaId] || u.areaId));
+              const materialCost = lineItem?.cost || 0;
+              const heatedCost = lineItem?.heatedCost || 0;
+              return `
               <tr style="border-bottom: 1px solid rgba(255,255,255,0.2);">
                 <td style="padding: 8px 0;">${escapeHtml(AREA_NAMES[u.areaId] || u.areaId)}</td>
                 <td style="padding: 8px 0;">${escapeHtml(MATERIAL_NAMES[u.materialType] || u.materialType)}</td>
                 <td style="padding: 8px 0;">${escapeHtml(u.productName) || 'N/A'}</td>
                 <td style="padding: 8px 0;">${escapeHtml(u.productColor) || 'N/A'}</td>
-                <td style="padding: 8px 0;">${u.heatedFloor ? '<strong style="color: #ffd700;">Yes</strong>' : 'No'}</td>
+                <td style="padding: 8px 0;">${u.heatedFloor ? '<strong style="color: #ffd700;">Yes (+$' + heatedFloorPrice.toFixed(0) + ')</strong>' : 'No'}</td>
+                <td style="padding: 8px 0; text-align: right; font-weight: bold;">$${(materialCost + heatedCost).toFixed(2)}</td>
               </tr>
-              ${u.comments ? `<tr><td colspan="5" style="padding: 4px 0 12px; font-size: 12px; font-style: italic;">Comments: ${escapeHtml(u.comments)}</td></tr>` : ''}
-            `).join('')}
+              ${u.comments ? `<tr><td colspan="6" style="padding: 4px 0 12px; font-size: 12px; font-style: italic;">Comments: ${escapeHtml(u.comments)}</td></tr>` : ''}
+            `}).join('')}
+            <tr style="border-top: 2px solid rgba(255,255,255,0.5);">
+              <td colspan="5" style="padding: 12px 0 0; font-weight: bold;">Area Upgrades Subtotal:</td>
+              <td style="padding: 12px 0 0; text-align: right; font-weight: bold; font-size: 16px;">$${areaUpgradeCosts.subtotal.toFixed(2)}</td>
+            </tr>
           </table>
         </div>
       `;
     }
 
-    // Build backsplash grout HTML section
+    // Build backsplash grout HTML section with dynamic pricing
     let groutHtml = '';
     if (data.backsplashGroutEnabled) {
+      const groutWithGst = groutColorPrice * (1 + gstRate);
       groutHtml = `
         <div class="section" style="background: #f39c12; color: white;">
           <h2 style="color: white; margin-top: 0;">Custom Backsplash Grout Color</h2>
           <table style="color: white;">
             <tr><td><strong>Grout Color:</strong></td><td>${escapeHtml(data.backsplashGroutColor) || 'Not specified'}</td></tr>
-            <tr><td><strong>Cost:</strong></td><td>$300.00 + GST ($315.00 total)</td></tr>
+            <tr><td><strong>Cost:</strong></td><td>$${groutColorPrice.toFixed(2)} + GST ($${groutWithGst.toFixed(2)} total)</td></tr>
           </table>
           ${data.backsplashGroutComments ? `<p style="margin-top: 10px; font-size: 14px;"><em>Comments: ${escapeHtml(data.backsplashGroutComments)}</em></p>` : ''}
+        </div>
+      `;
+    }
+    
+    // Build stair LVP upgrade section
+    let stairLvpHtml = '';
+    if (data.stairLvpUpgradeSelected) {
+      const stairLvpWithGst = stairLvpPrice * (1 + gstRate);
+      stairLvpHtml = `
+        <div class="section" style="background: #27ae60; color: white;">
+          <h2 style="color: white; margin-top: 0;">Stair Flooring Upgrade</h2>
+          <table style="color: white;">
+            <tr><td><strong>Selection:</strong></td><td>LVP with Custom Stair Nosings</td></tr>
+            <tr><td><strong>Cost:</strong></td><td>$${stairLvpPrice.toFixed(2)} + GST ($${stairLvpWithGst.toFixed(2)} total)</td></tr>
+          </table>
+        </div>
+      `;
+    }
+    
+    // Build comprehensive upgrade summary section for admin
+    let upgradeSummaryHtml = '';
+    if (grandSubtotal > 0) {
+      const summaryItems: string[] = [];
+      
+      if (stairLvpSubtotal > 0) {
+        summaryItems.push(`<tr><td style="padding: 8px 0;">Stair LVP Upgrade</td><td style="text-align: right; font-weight: bold;">$${stairLvpSubtotal.toFixed(2)}</td></tr>`);
+      }
+      if (groutSubtotal > 0) {
+        summaryItems.push(`<tr><td style="padding: 8px 0;">Custom Grout Color${data.backsplashGroutColor ? ` (${escapeHtml(data.backsplashGroutColor)})` : ''}</td><td style="text-align: right; font-weight: bold;">$${groutSubtotal.toFixed(2)}</td></tr>`);
+      }
+      if (data.additionalWindowsQty > 0) {
+        summaryItems.push(`<tr><td style="padding: 8px 0;">Additional Windows (${data.additionalWindowsQty} × $${additionalWindowPrice.toFixed(2)})</td><td style="text-align: right; font-weight: bold;">$${(data.additionalWindowsQty * additionalWindowPrice).toFixed(2)}</td></tr>`);
+      }
+      if (data.patioDoorsQty > 0) {
+        summaryItems.push(`<tr><td style="padding: 8px 0;">Patio Door Panel Track (${data.patioDoorsQty} × $${patioDoorPrice.toFixed(2)})</td><td style="text-align: right; font-weight: bold;">$${(data.patioDoorsQty * patioDoorPrice).toFixed(2)}</td></tr>`);
+      }
+      if (data.automatedWindowsQty > 0) {
+        summaryItems.push(`<tr><td style="padding: 8px 0;">Somfy Automation (${data.automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)})</td><td style="text-align: right; font-weight: bold;">$${(data.automatedWindowsQty * automatedMotorPrice).toFixed(2)}</td></tr>`);
+      }
+      
+      // Add area upgrade line items
+      for (const item of areaUpgradeCosts.lineItems) {
+        let label = `${item.area} - ${item.material}`;
+        if (item.heatedFloor && item.heatedCost) {
+          label += ` (incl. Heated Floor)`;
+        }
+        summaryItems.push(`<tr><td style="padding: 8px 0;">${escapeHtml(label)}</td><td style="text-align: right; font-weight: bold;">$${(item.cost + (item.heatedCost || 0)).toFixed(2)}</td></tr>`);
+      }
+      
+      upgradeSummaryHtml = `
+        <div class="section" style="background: #1a1a2e; color: white;">
+          <h2 style="color: white; margin-top: 0;">Complete Upgrade Summary</h2>
+          <table style="color: white; width: 100%;">
+            ${summaryItems.join('')}
+            <tr style="border-top: 2px solid rgba(255,255,255,0.3);">
+              <td style="padding: 12px 0 8px;">Subtotal (pre-GST)</td>
+              <td style="text-align: right; padding: 12px 0 8px;">$${grandSubtotal.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0;">GST (${(gstRate * 100).toFixed(0)}%)</td>
+              <td style="text-align: right; padding: 8px 0;">$${grandGst.toFixed(2)}</td>
+            </tr>
+            <tr style="border-top: 2px solid rgba(255,255,255,0.5);">
+              <td style="padding: 12px 0; font-size: 18px; font-weight: bold;">GRAND TOTAL (incl. GST)</td>
+              <td style="text-align: right; padding: 12px 0; font-size: 20px; font-weight: bold; color: #10b981;">$${grandTotal.toFixed(2)}</td>
+            </tr>
+          </table>
+          <p style="margin-top: 12px; font-size: 11px; color: rgba(255,255,255,0.6);">* A 10% material overage is allowed on all quoted amounts.</p>
         </div>
       `;
     }
@@ -572,28 +801,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
           </div>
 
           ${groutHtml}
+          
+          ${stairLvpHtml}
 
-          ${data.additionalWindowsQty > 0 || data.patioDoorsQty > 0 ? `
+          ${windowSubtotal > 0 ? `
           <div class="section highlight">
-            <h2 style="color: white; margin-top: 0;">Window Covering Extensions</h2>
+            <h2 style="color: white; margin-top: 0;">Window Covering Upgrades</h2>
             <table style="color: white;">
-              <tr><td>Additional Windows:</td><td>${data.additionalWindowsQty}</td></tr>
-              <tr><td>Patio Doors:</td><td>${data.patioDoorsQty}</td></tr>
-              <tr><td><strong>Total (incl. GST):</strong></td><td><strong>$${data.windowTotal.toFixed(2)}</strong></td></tr>
+              ${data.additionalWindowsQty > 0 ? `<tr><td>Additional Windows (${data.additionalWindowsQty} × $${additionalWindowPrice.toFixed(2)}):</td><td style="text-align: right; font-weight: bold;">$${(data.additionalWindowsQty * additionalWindowPrice).toFixed(2)}</td></tr>` : ''}
+              ${data.patioDoorsQty > 0 ? `<tr><td>Patio Door Panel Track (${data.patioDoorsQty} × $${patioDoorPrice.toFixed(2)}):</td><td style="text-align: right; font-weight: bold;">$${(data.patioDoorsQty * patioDoorPrice).toFixed(2)}</td></tr>` : ''}
+              ${data.automatedWindowsQty > 0 ? `<tr><td>Somfy Automation (${data.automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)}):</td><td style="text-align: right; font-weight: bold;">$${(data.automatedWindowsQty * automatedMotorPrice).toFixed(2)}</td></tr>` : ''}
+              <tr style="border-top: 1px solid rgba(255,255,255,0.3);"><td style="padding-top: 8px;"><strong>Window Coverings Subtotal:</strong></td><td style="text-align: right; padding-top: 8px; font-weight: bold;">$${windowSubtotal.toFixed(2)}</td></tr>
             </table>
             ${data.windowComments ? `<p style="margin-top: 10px; font-size: 14px;"><em>Notes: ${escapeHtml(data.windowComments)}</em></p>` : ''}
           </div>
           ` : ''}
 
           ${areaUpgradesHtml}
-
-          <div class="section">
-            <h2>Heated Floors & Other Options</h2>
-            <table>
-              <tr><td class="label">Heated Floor Bathrooms:</td><td class="value">${data.heatedFloorBathrooms || 0} bathroom(s)</td></tr>
-              <tr><td class="label">Bathroom Tile Upgrade:</td><td class="value">${data.bathroomTileSelected ? 'Yes' : 'No'}</td></tr>
-            </table>
-          </div>
+          
+          ${upgradeSummaryHtml}
 
           <div class="section">
             <h2>Upgrade Interests</h2>
@@ -635,8 +861,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     console.log("Admin email sent successfully:", adminEmailResponse);
 
-    // Send styled confirmation email to buyer
-    const buyerConfirmationHtml = generateBuyerConfirmationEmail(data, savedSelection?.id as string | undefined);
+    // Send styled confirmation email to buyer with pricing data
+    const buyerConfirmationHtml = generateBuyerConfirmationEmail(data, savedSelection?.id as string | undefined, {
+      additionalWindowPrice,
+      patioDoorPrice,
+      automatedMotorPrice,
+      heatedFloorPrice,
+      stairLvpPrice,
+      groutColorPrice,
+      gstRate,
+      areaUpgradeCosts,
+    });
     
     try {
       await sendEmailWithAttachment({
@@ -670,8 +905,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 });
 
+// Pricing parameters for buyer confirmation email
+interface BuyerEmailPricing {
+  additionalWindowPrice: number;
+  patioDoorPrice: number;
+  automatedMotorPrice: number;
+  heatedFloorPrice: number;
+  stairLvpPrice: number;
+  groutColorPrice: number;
+  gstRate: number;
+  areaUpgradeCosts: { lineItems: Array<{ area: string; material: string; cost: number; heatedFloor?: boolean; heatedCost?: number }>; subtotal: number };
+}
+
 // Generate a beautiful confirmation email for buyers with full details and costs
-function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string | undefined): string {
+function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string | undefined, pricing: BuyerEmailPricing): string {
   const submissionDate = new Date().toLocaleDateString('en-US', { 
     weekday: 'long', 
     year: 'numeric', 
@@ -722,10 +969,10 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     standardSelections.push({ label: 'Bedroom Flooring', value: bedroomValue });
   }
   
-  // Stair Flooring (if applicable)
+  // Stair Flooring (if applicable) - use dynamic pricing
   if (data.hasStairs) {
     if (data.stairLvpUpgradeSelected) {
-      standardSelections.push({ label: 'Stair Flooring', value: 'LVP Upgrade with Custom Nosings ($2,160 + GST)' });
+      standardSelections.push({ label: 'Stair Flooring', value: `LVP Upgrade with Custom Nosings ($${pricing.stairLvpPrice.toFixed(0)} + GST)` });
     } else if (data.stairCarpetColour) {
       standardSelections.push({ label: 'Stair Carpet', value: data.stairCarpetColour });
     }
@@ -797,12 +1044,16 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     `;
   }
 
-  // Premium Area Upgrades Section
+  // Premium Area Upgrades Section with PRICING
   let areaUpgradesHtml = '';
   if (data.areaUpgrades && data.areaUpgrades.length > 0) {
     const upgradeRows = data.areaUpgrades.map(upgrade => {
       const areaName = AREA_NAMES[upgrade.areaId] || upgrade.areaId;
       const materialName = MATERIAL_NAMES[upgrade.materialType] || upgrade.materialType;
+      const lineItem = pricing.areaUpgradeCosts.lineItems.find(l => l.area === areaName);
+      const materialCost = lineItem?.cost || 0;
+      const heatedCost = lineItem?.heatedCost || 0;
+      const totalCost = materialCost + heatedCost;
       
       return `
         <tr>
@@ -815,7 +1066,10 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
             ${upgrade.productColor ? `<div style="color: #9333ea; font-size: 12px; margin-top: 2px;">Color: ${escapeHtml(upgrade.productColor)}</div>` : ''}
           </td>
           <td style="padding: 14px 16px; border-bottom: 1px solid rgba(147,51,234,0.1); text-align: center;">
-            ${upgrade.heatedFloor ? '<span style="background: #fbbf24; color: #78350f; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">HEATED</span>' : '<span style="color: #a1a1aa; font-size: 12px;">—</span>'}
+            ${upgrade.heatedFloor ? `<span style="background: #fbbf24; color: #78350f; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">+$${pricing.heatedFloorPrice.toFixed(0)}</span>` : '<span style="color: #a1a1aa; font-size: 12px;">—</span>'}
+          </td>
+          <td style="padding: 14px 16px; border-bottom: 1px solid rgba(147,51,234,0.1); text-align: right;">
+            <div style="color: #581c87; font-size: 14px; font-weight: 700;">$${totalCost.toFixed(2)}</div>
           </td>
         </tr>
       `;
@@ -831,18 +1085,23 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
               <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: left; font-weight: 600;">Area</th>
               <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: left; font-weight: 600;">Product</th>
               <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: center; font-weight: 600;">Heated</th>
+              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: right; font-weight: 600;">Cost</th>
             </tr>
             ${upgradeRows}
+            <tr style="background: linear-gradient(135deg, #7e22ce 0%, #581c87 100%);">
+              <td colspan="3" style="padding: 14px 16px; color: white; font-size: 14px; font-weight: 600;">Area Upgrades Subtotal</td>
+              <td style="padding: 14px 16px; color: #fbbf24; font-size: 16px; text-align: right; font-weight: 700;">$${pricing.areaUpgradeCosts.subtotal.toFixed(2)}</td>
+            </tr>
           </table>
-          <p style="margin: 12px 0 0; color: #7e22ce; font-size: 13px; text-align: center;">Pricing will be confirmed by our team</p>
         </td>
       </tr>
     `;
   }
 
-  // Backsplash Grout Color Change
+  // Backsplash Grout Color Change with dynamic pricing
   let groutHtml = '';
   if (data.backsplashGroutEnabled) {
+    const groutWithGst = pricing.groutColorPrice * (1 + pricing.gstRate);
     groutHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
@@ -857,7 +1116,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
                   </tr>
                   <tr>
                     <td style="color: #92400e; font-size: 14px; padding: 8px 0;"><strong>Cost:</strong></td>
-                    <td style="color: #78350f; font-size: 16px; font-weight: 700; padding: 8px 0;">$315.00 <span style="font-size: 12px; font-weight: 400;">(incl. GST)</span></td>
+                    <td style="color: #78350f; font-size: 16px; font-weight: 700; padding: 8px 0;">$${groutWithGst.toFixed(2)} <span style="font-size: 12px; font-weight: 400;">(incl. GST)</span></td>
                   </tr>
                 </table>
               </td>
@@ -935,45 +1194,32 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     `;
   }
 
-  // Complete Upgrade Summary Section - consolidate ALL upgrade costs
+  // Complete Upgrade Summary Section - consolidate ALL upgrade costs using dynamic pricing
   let estimatedTotalHtml = '';
   
-  // Calculate all costs dynamically
-  // Window coverings pricing
-  const additionalWindowPrice = 673.50;
-  const patioDoorPrice = 2347.80;
-  const automatedMotorPrice = 495.00;
-  const heatedFloorPrice = 1650.00;
-  const stairLvpPrice = 2160.00;
-  const groutPrice = 300.00;
-  const gstRate = 0.05;
-  
-  // Window costs
+  // Window costs using dynamic pricing
   const additionalWindowsQty = data.additionalWindowsQty || 0;
   const patioDoorsQty = data.patioDoorsQty || 0;
   const automatedWindowsQty = data.automatedWindowsQty || 0;
-  const windowSubtotal = (additionalWindowsQty * additionalWindowPrice) + 
-                         (patioDoorsQty * patioDoorPrice) + 
-                         (automatedWindowsQty * automatedMotorPrice);
+  const windowSubtotal = (additionalWindowsQty * pricing.additionalWindowPrice) + 
+                         (patioDoorsQty * pricing.patioDoorPrice) + 
+                         (automatedWindowsQty * pricing.automatedMotorPrice);
   
   // Stair LVP upgrade
-  const stairLvpSubtotal = data.stairLvpUpgradeSelected ? stairLvpPrice : 0;
+  const stairLvpSubtotal = data.stairLvpUpgradeSelected ? pricing.stairLvpPrice : 0;
   
   // Grout color change
-  const groutSubtotal = data.backsplashGroutEnabled ? groutPrice : 0;
+  const groutSubtotal = data.backsplashGroutEnabled ? pricing.groutColorPrice : 0;
   
-  // Heated floors from area upgrades
-  const heatedFloorAreas = (data.areaUpgrades || []).filter(
-    u => u.heatedFloor && ['guestBathroom', 'masterEnsuite'].includes(u.areaId)
-  );
-  const heatedFloorSubtotal = heatedFloorAreas.length * heatedFloorPrice;
+  // Area upgrade subtotal (already includes heated floors)
+  const areaUpgradeSubtotal = pricing.areaUpgradeCosts.subtotal;
   
-  // Grand totals
-  const grandSubtotal = windowSubtotal + stairLvpSubtotal + groutSubtotal + heatedFloorSubtotal;
-  const grandGst = grandSubtotal * gstRate;
+  // Grand totals (including area upgrades)
+  const grandSubtotal = windowSubtotal + stairLvpSubtotal + groutSubtotal + areaUpgradeSubtotal;
+  const grandGst = grandSubtotal * pricing.gstRate;
   const grandTotal = grandSubtotal + grandGst;
   
-  const hasAnyUpgrades = grandSubtotal > 0 || (data.areaUpgrades && data.areaUpgrades.length > 0);
+  const hasAnyUpgrades = grandSubtotal > 0;
   
   if (hasAnyUpgrades) {
     const upgradeLineItems: { label: string; cost: number }[] = [];
@@ -994,28 +1240,32 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     // Window coverings breakdown
     if (additionalWindowsQty > 0) {
       upgradeLineItems.push({ 
-        label: `Additional Windows (${additionalWindowsQty} × $${additionalWindowPrice.toFixed(2)})`, 
-        cost: additionalWindowsQty * additionalWindowPrice 
+        label: `Additional Windows (${additionalWindowsQty} × $${pricing.additionalWindowPrice.toFixed(2)})`, 
+        cost: additionalWindowsQty * pricing.additionalWindowPrice 
       });
     }
     if (patioDoorsQty > 0) {
       upgradeLineItems.push({ 
-        label: `Patio Door Panel Track (${patioDoorsQty} × $${patioDoorPrice.toFixed(2)})`, 
-        cost: patioDoorsQty * patioDoorPrice 
+        label: `Patio Door Panel Track (${patioDoorsQty} × $${pricing.patioDoorPrice.toFixed(2)})`, 
+        cost: patioDoorsQty * pricing.patioDoorPrice 
       });
     }
     if (automatedWindowsQty > 0) {
       upgradeLineItems.push({ 
-        label: `Somfy Automation (${automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)})`, 
-        cost: automatedWindowsQty * automatedMotorPrice 
+        label: `Somfy Automation (${automatedWindowsQty} × $${pricing.automatedMotorPrice.toFixed(2)})`, 
+        cost: automatedWindowsQty * pricing.automatedMotorPrice 
       });
     }
     
-    // Heated floors
-    if (heatedFloorSubtotal > 0) {
+    // Area upgrade line items with heated floor costs
+    for (const item of pricing.areaUpgradeCosts.lineItems) {
+      let label = `${item.area} - ${item.material}`;
+      if (item.heatedFloor && item.heatedCost) {
+        label += ` (incl. Heated Floor +$${item.heatedCost.toFixed(0)})`;
+      }
       upgradeLineItems.push({ 
-        label: `Heated Tile Floors (${heatedFloorAreas.length} area${heatedFloorAreas.length > 1 ? 's' : ''} × $${heatedFloorPrice.toFixed(2)})`, 
-        cost: heatedFloorSubtotal 
+        label, 
+        cost: item.cost + (item.heatedCost || 0) 
       });
     }
     
@@ -1026,18 +1276,6 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
       </tr>
     `).join('');
     
-    // Premium area upgrades note
-    const hasPremiumAreaUpgrades = data.areaUpgrades && data.areaUpgrades.length > 0;
-    const areaUpgradesNote = hasPremiumAreaUpgrades ? `
-      <tr>
-        <td colspan="2" style="padding: 12px 0 0; border-top: 1px solid rgba(255,255,255,0.15);">
-          <p style="margin: 0; color: rgba(255,255,255,0.7); font-size: 12px; text-align: center;">
-            Premium area upgrades (flooring/tile) will be quoted separately by our team
-          </p>
-        </td>
-      </tr>
-    ` : '';
-    
     estimatedTotalHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
@@ -1047,21 +1285,18 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
                 <h2 style="margin: 0 0 16px; color: white; font-size: 18px; font-weight: 600; text-align: center;">Complete Upgrade Summary</h2>
                 <table role="presentation" style="width: 100%; border-collapse: collapse;">
                   ${lineItemsHtml}
-                  ${grandSubtotal > 0 ? `
-                    <tr style="border-top: 1px solid rgba(255,255,255,0.2);">
-                      <td style="padding: 14px 0 8px; color: rgba(255,255,255,0.8); font-size: 14px;">Subtotal (pre-GST)</td>
-                      <td style="padding: 14px 0 8px; color: white; font-size: 14px; text-align: right;">$${grandSubtotal.toFixed(2)}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px 0; color: rgba(255,255,255,0.8); font-size: 14px;">GST (5%)</td>
-                      <td style="padding: 8px 0; color: white; font-size: 14px; text-align: right;">$${grandGst.toFixed(2)}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 16px 0 0; color: white; font-size: 16px; font-weight: 600;">Grand Total (incl. GST)</td>
-                      <td style="padding: 16px 0 0; color: #10b981; font-size: 24px; text-align: right; font-weight: 700;">$${grandTotal.toFixed(2)}</td>
-                    </tr>
-                  ` : ''}
-                  ${areaUpgradesNote}
+                  <tr style="border-top: 1px solid rgba(255,255,255,0.2);">
+                    <td style="padding: 14px 0 8px; color: rgba(255,255,255,0.8); font-size: 14px;">Subtotal (pre-GST)</td>
+                    <td style="padding: 14px 0 8px; color: white; font-size: 14px; text-align: right;">$${grandSubtotal.toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: rgba(255,255,255,0.8); font-size: 14px;">GST (${(pricing.gstRate * 100).toFixed(0)}%)</td>
+                    <td style="padding: 8px 0; color: white; font-size: 14px; text-align: right;">$${grandGst.toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 16px 0 0; color: white; font-size: 16px; font-weight: 600;">Grand Total (incl. GST)</td>
+                    <td style="padding: 16px 0 0; color: #10b981; font-size: 24px; text-align: right; font-weight: 700;">$${grandTotal.toFixed(2)}</td>
+                  </tr>
                 </table>
                 <p style="margin: 16px 0 0; color: rgba(255,255,255,0.5); font-size: 11px; text-align: center;">* A 10% material overage is allowed on all quoted amounts.</p>
               </td>
