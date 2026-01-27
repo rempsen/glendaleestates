@@ -98,6 +98,7 @@ interface PricingValues {
   additionalWindowPrice: number;
   heatedFloorPrice: number;
   backsplashGroutPrice: number;
+  stairLvpUpgradePrice: number;
   gstRate: number;
 }
 
@@ -255,10 +256,11 @@ export default function AdminSubmissions() {
 
   // Use dynamic pricing from database
   const { 
-    getAdditionalWindowPrice,
+    getAdditionalWindowPrice, 
     getPatioDoorPrice,
     getHeatedFloorPrice,
     getGroutColorChangePrice,
+    getStairLvpUpgradePrice,
     gstRate,
   } = useDynamicPricing();
 
@@ -268,6 +270,7 @@ export default function AdminSubmissions() {
     additionalWindowPrice: getAdditionalWindowPrice(),
     heatedFloorPrice: getHeatedFloorPrice(),
     backsplashGroutPrice: getGroutColorChangePrice(),
+    stairLvpUpgradePrice: getStairLvpUpgradePrice(),
     gstRate,
   };
 
@@ -860,7 +863,7 @@ export default function AdminSubmissions() {
                         {(selectedSubmission as any).stair_lvp_upgrade_selected ? (
                           <span className="ml-2">
                             <Badge className="bg-primary/10 text-primary border-primary/30">
-                              LVP Upgrade with Custom Stair Nosings ($2,160 + GST)
+                              LVP Upgrade with Custom Stair Nosings (${pricingValues.stairLvpUpgradePrice.toLocaleString()} + GST)
                             </Badge>
                           </span>
                         ) : (

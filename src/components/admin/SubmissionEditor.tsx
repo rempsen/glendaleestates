@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,6 +32,8 @@ import {
   UpgradeArea,
   AreaUpgradeSelection,
 } from '@/lib/upgradeCostData';
+import { useUpgradePricing } from '@/hooks/useUpgradePricing';
+import { getUnitInfo } from '@/lib/unitData';
 
 // LVP color options (standard selections from wizard)
 const LVP_COLORS = [
@@ -128,6 +130,15 @@ interface SubmissionEditorProps {
 export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEditorProps) {
   const [editData, setEditData] = useState<BuyerSelection>({ ...submission });
   const [saving, setSaving] = useState(false);
+  
+  // Fetch dynamic pricing
+  const { pricingConfig, loading: pricingLoading } = useUpgradePricing();
+  
+  // Get the stair LVP upgrade price from config
+  const stairLvpUpgradePrice = useMemo(() => {
+    const config = pricingConfig.find(c => c.config_key === 'stair_lvp_upgrade_price');
+    return config?.config_value || 2160;
+  }, [pricingConfig]);
 
   // Area names for display
   const AREA_NAMES: Record<string, string> = {
@@ -580,7 +591,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                       />
                       <span className="text-sm text-muted-foreground">
                         {editData.stair_lvp_upgrade_selected 
-                          ? 'Upgrade to LVP with Custom Stair Nosings ($2,160 + GST)' 
+                          ? `Upgrade to LVP with Custom Stair Nosings ($${stairLvpUpgradePrice.toLocaleString()} + GST)` 
                           : 'Standard Carpet (Included)'}
                       </span>
                     </div>

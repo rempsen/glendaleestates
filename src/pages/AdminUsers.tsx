@@ -46,8 +46,10 @@ import {
   UserMinus,
   KeyRound,
   UserX,
-  Pencil
+  Pencil,
+  Home
 } from 'lucide-react';
+import { unitData, getUnitInfo } from '@/lib/unitData';
 
 interface UserData {
   id: string;
@@ -108,6 +110,7 @@ export default function AdminUsers() {
   const [editEmail, setEditEmail] = useState('');
   const [editUnitNumber, setEditUnitNumber] = useState('');
   const [editPhoneNumber, setEditPhoneNumber] = useState('');
+  const [editUnitType, setEditUnitType] = useState('');
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -320,7 +323,19 @@ export default function AdminUsers() {
     setEditEmail(user.email || '');
     setEditUnitNumber(user.unit_number || '');
     setEditPhoneNumber(user.phone_number || '');
+    // Auto-populate unit type from unit number
+    const unitNum = parseInt(user.unit_number || '0');
+    const unitInfo = getUnitInfo(unitNum);
+    setEditUnitType(unitInfo?.typeCode || '');
     setEditDialogOpen(true);
+  };
+
+  // Handle unit number change and auto-populate unit type
+  const handleUnitNumberChange = (value: string) => {
+    setEditUnitNumber(value);
+    const unitNum = parseInt(value);
+    const unitInfo = getUnitInfo(unitNum);
+    setEditUnitType(unitInfo?.typeCode || '');
   };
 
   const handleUpdateUser = async () => {
@@ -336,6 +351,7 @@ export default function AdminUsers() {
           firstName: editFirstName,
           lastName: editLastName,
           unitNumber: editUnitNumber,
+          unitType: editUnitType, // Include unit type
           phoneNumber: editPhoneNumber,
         },
       });
@@ -804,21 +820,33 @@ export default function AdminUsers() {
                   <Label htmlFor="editUnitNumber">Unit Number</Label>
                   <Input
                     id="editUnitNumber"
-                    placeholder="e.g., 101"
+                    placeholder="e.g., 25"
                     value={editUnitNumber}
-                    onChange={(e) => setEditUnitNumber(e.target.value)}
+                    onChange={(e) => handleUnitNumberChange(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="editPhoneNumber">Phone Number</Label>
-                  <Input
-                    id="editPhoneNumber"
-                    type="tel"
-                    placeholder="e.g., 204-555-1234"
-                    value={editPhoneNumber}
-                    onChange={(e) => setEditPhoneNumber(e.target.value)}
-                  />
+                  <Label htmlFor="editUnitType">Unit Type</Label>
+                  <div className="flex items-center gap-2 h-10 px-3 py-2 border rounded-md bg-muted">
+                    <Home className="w-4 h-4 text-muted-foreground" />
+                    <span className={editUnitType ? 'font-medium' : 'text-muted-foreground'}>
+                      {editUnitType || 'Auto-detected'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Auto-populated from unit number
+                  </p>
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editPhoneNumber">Phone Number</Label>
+                <Input
+                  id="editPhoneNumber"
+                  type="tel"
+                  placeholder="e.g., 204-555-1234"
+                  value={editPhoneNumber}
+                  onChange={(e) => setEditPhoneNumber(e.target.value)}
+                />
               </div>
             </div>
             <DialogFooter>
