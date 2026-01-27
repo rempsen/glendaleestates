@@ -563,7 +563,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const adminHtml = generateAdminNotificationEmail(submission, editedBy);
       await sendEmail({
         from: "BMD Materials <noreply@resend.dev>",
-        to: ["dan@bmdmaterials.com", "noni@bmdmaterials.com", "office@bmdmaterials.com"],
+        to: ["dan@bmdmaterials.com", "noni@bmdmaterials.com", "brian@bmdmaterials.com", "office@bmdmaterials.com"],
         subject: `[Resent] Confirmation Email - Unit ${unitNumber} - ${firstName}`,
         html: adminHtml,
       });
