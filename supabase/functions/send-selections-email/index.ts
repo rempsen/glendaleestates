@@ -228,6 +228,7 @@ interface SelectionData {
   bedroomLvpSameAsMain: boolean;
   additionalWindowsQty: number;
   patioDoorsQty: number;
+  automatedWindowsQty: number;
   windowComments?: string | null;
   salesComments?: string | null;
   upgradeInterests: Record<string, boolean>;
@@ -333,6 +334,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       bedroomLvpSameAsMain: Boolean(rawData.bedroomLvpSameAsMain),
       additionalWindowsQty: Math.max(0, Math.min(100, Number(rawData.additionalWindowsQty) || 0)),
       patioDoorsQty: Math.max(0, Math.min(50, Number(rawData.patioDoorsQty) || 0)),
+      automatedWindowsQty: Math.max(0, Math.min(50, Number(rawData.automatedWindowsQty) || 0)),
       windowComments: rawData.windowComments ? String(rawData.windowComments).trim().slice(0, 2000) : null,
       salesComments: rawData.salesComments ? String(rawData.salesComments).trim().slice(0, 5000) : null,
       upgradeInterests: typeof rawData.upgradeInterests === 'object' ? rawData.upgradeInterests : {},
@@ -733,7 +735,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
   const standardSelectionsHtml = standardSelections.length > 0 ? `
     <tr>
       <td style="background: #ffffff; padding: 0 40px 30px;">
-        <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">🏠 Your Standard Selections</h2>
+        <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Your Standard Selections</h2>
         <table role="presentation" style="width: 100%; border-collapse: collapse; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
           ${standardSelections.map(item => `
             <tr>
@@ -744,7 +746,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
             </tr>
           `).join('')}
         </table>
-        <p style="margin: 12px 0 0; color: #666; font-size: 13px; text-align: center;">✓ Standard selections included with your home</p>
+        <p style="margin: 12px 0 0; color: #666; font-size: 13px; text-align: center;">Standard selections included with your home</p>
       </td>
     </tr>
   ` : '';
@@ -773,7 +775,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     windowCoveringsHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">🪟 Window Covering Upgrades</h2>
+          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Window Covering Upgrades</h2>
           <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-radius: 12px; overflow: hidden;">
             <tr style="background: #0369a1;">
               <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: left; font-weight: 600;">Item</th>
@@ -813,7 +815,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
             ${upgrade.productColor ? `<div style="color: #9333ea; font-size: 12px; margin-top: 2px;">Color: ${escapeHtml(upgrade.productColor)}</div>` : ''}
           </td>
           <td style="padding: 14px 16px; border-bottom: 1px solid rgba(147,51,234,0.1); text-align: center;">
-            ${upgrade.heatedFloor ? '<span style="background: #fbbf24; color: #78350f; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">🔥 HEATED</span>' : '<span style="color: #a1a1aa; font-size: 12px;">—</span>'}
+            ${upgrade.heatedFloor ? '<span style="background: #fbbf24; color: #78350f; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">HEATED</span>' : '<span style="color: #a1a1aa; font-size: 12px;">—</span>'}
           </td>
         </tr>
       `;
@@ -822,7 +824,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     areaUpgradesHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">✨ Premium Area Upgrades</h2>
+          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Premium Area Upgrades</h2>
           ${data.upgradeFloorSelection ? `<p style="margin: 0 0 12px; color: #7e22ce; font-size: 14px; background: #faf5ff; padding: 10px 14px; border-radius: 6px;"><strong>Floor Selection:</strong> Floor ${escapeHtml(data.upgradeFloorSelection)}</p>` : ''}
           <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-radius: 12px; overflow: hidden;">
             <tr style="background: linear-gradient(135deg, #9333ea 0%, #7e22ce 100%);">
@@ -832,7 +834,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
             </tr>
             ${upgradeRows}
           </table>
-          <p style="margin: 12px 0 0; color: #7e22ce; font-size: 13px; text-align: center;">💰 Pricing will be confirmed by our team</p>
+          <p style="margin: 12px 0 0; color: #7e22ce; font-size: 13px; text-align: center;">Pricing will be confirmed by our team</p>
         </td>
       </tr>
     `;
@@ -844,7 +846,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     groutHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">🎨 Custom Backsplash Grout</h2>
+          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Custom Backsplash Grout</h2>
           <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 12px; overflow: hidden;">
             <tr>
               <td style="padding: 16px 20px;">
@@ -866,13 +868,18 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     `;
   }
 
-  // Heated Floors Section
+  // Heated Floors Section - now consolidated into Complete Upgrade Summary
+  // Only show if using legacy heatedFloorBathrooms field AND not captured in area upgrades
+  const heatedFloorAreasCheck = (data.areaUpgrades || []).filter(
+    u => u.heatedFloor && ['guestBathroom', 'masterEnsuite'].includes(u.areaId)
+  );
   let heatedFloorsHtml = '';
-  if (data.heatedFloorBathrooms && data.heatedFloorBathrooms > 0) {
+  // Only show legacy heated floors section if there are legacy selections not in area upgrades
+  if (data.heatedFloorBathrooms && data.heatedFloorBathrooms > 0 && heatedFloorAreasCheck.length === 0) {
     heatedFloorsHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">🔥 Heated Tile Floors</h2>
+          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Heated Tile Floors</h2>
           <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%); border-radius: 12px;">
             <tr>
               <td style="padding: 20px;">
@@ -882,7 +889,6 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
                     <td style="color: #7f1d1d; font-size: 20px; font-weight: 700; text-align: right;">${data.heatedFloorBathrooms} bathroom${data.heatedFloorBathrooms > 1 ? 's' : ''}</td>
                   </tr>
                 </table>
-                <p style="margin: 12px 0 0; color: #b91c1c; font-size: 13px; text-align: center;">💰 Pricing will be confirmed by our team</p>
               </td>
             </tr>
           </table>
@@ -901,7 +907,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     upgradeInterestsHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">💡 Additional Interests</h2>
+          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Additional Interests</h2>
           <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 16px 20px;">
             <p style="margin: 0; color: #166534; font-size: 14px;">You've expressed interest in learning more about:</p>
             <div style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
@@ -920,7 +926,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     salesCommentsHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">💬 Your Comments</h2>
+          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Your Comments</h2>
           <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 16px 20px;">
             <p style="margin: 0; color: #1e40af; font-size: 14px; line-height: 1.6;">${escapeHtml(data.salesComments)}</p>
           </div>
@@ -929,14 +935,108 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     `;
   }
 
-  // Estimated Total Section (if there are any priced items)
+  // Complete Upgrade Summary Section - consolidate ALL upgrade costs
   let estimatedTotalHtml = '';
-  const hasWindowCosts = data.windowTotal > 0;
-  const hasGroutCost = data.backsplashGroutEnabled;
   
-  if (hasWindowCosts || hasGroutCost) {
-    const groutCost = hasGroutCost ? 315 : 0;
-    const totalEstimate = data.windowTotal + groutCost;
+  // Calculate all costs dynamically
+  // Window coverings pricing
+  const additionalWindowPrice = 673.50;
+  const patioDoorPrice = 2347.80;
+  const automatedMotorPrice = 495.00;
+  const heatedFloorPrice = 1650.00;
+  const stairLvpPrice = 2160.00;
+  const groutPrice = 300.00;
+  const gstRate = 0.05;
+  
+  // Window costs
+  const additionalWindowsQty = data.additionalWindowsQty || 0;
+  const patioDoorsQty = data.patioDoorsQty || 0;
+  const automatedWindowsQty = data.automatedWindowsQty || 0;
+  const windowSubtotal = (additionalWindowsQty * additionalWindowPrice) + 
+                         (patioDoorsQty * patioDoorPrice) + 
+                         (automatedWindowsQty * automatedMotorPrice);
+  
+  // Stair LVP upgrade
+  const stairLvpSubtotal = data.stairLvpUpgradeSelected ? stairLvpPrice : 0;
+  
+  // Grout color change
+  const groutSubtotal = data.backsplashGroutEnabled ? groutPrice : 0;
+  
+  // Heated floors from area upgrades
+  const heatedFloorAreas = (data.areaUpgrades || []).filter(
+    u => u.heatedFloor && ['guestBathroom', 'masterEnsuite'].includes(u.areaId)
+  );
+  const heatedFloorSubtotal = heatedFloorAreas.length * heatedFloorPrice;
+  
+  // Grand totals
+  const grandSubtotal = windowSubtotal + stairLvpSubtotal + groutSubtotal + heatedFloorSubtotal;
+  const grandGst = grandSubtotal * gstRate;
+  const grandTotal = grandSubtotal + grandGst;
+  
+  const hasAnyUpgrades = grandSubtotal > 0 || (data.areaUpgrades && data.areaUpgrades.length > 0);
+  
+  if (hasAnyUpgrades) {
+    const upgradeLineItems: { label: string; cost: number }[] = [];
+    
+    // Stair LVP
+    if (stairLvpSubtotal > 0) {
+      upgradeLineItems.push({ label: 'Stair LVP Upgrade with Custom Nosings', cost: stairLvpSubtotal });
+    }
+    
+    // Grout color change
+    if (groutSubtotal > 0) {
+      upgradeLineItems.push({ 
+        label: `Custom Backsplash Grout${data.backsplashGroutColor ? ` (${data.backsplashGroutColor})` : ''}`, 
+        cost: groutSubtotal 
+      });
+    }
+    
+    // Window coverings breakdown
+    if (additionalWindowsQty > 0) {
+      upgradeLineItems.push({ 
+        label: `Additional Windows (${additionalWindowsQty} × $${additionalWindowPrice.toFixed(2)})`, 
+        cost: additionalWindowsQty * additionalWindowPrice 
+      });
+    }
+    if (patioDoorsQty > 0) {
+      upgradeLineItems.push({ 
+        label: `Patio Door Panel Track (${patioDoorsQty} × $${patioDoorPrice.toFixed(2)})`, 
+        cost: patioDoorsQty * patioDoorPrice 
+      });
+    }
+    if (automatedWindowsQty > 0) {
+      upgradeLineItems.push({ 
+        label: `Somfy Automation (${automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)})`, 
+        cost: automatedWindowsQty * automatedMotorPrice 
+      });
+    }
+    
+    // Heated floors
+    if (heatedFloorSubtotal > 0) {
+      upgradeLineItems.push({ 
+        label: `Heated Tile Floors (${heatedFloorAreas.length} area${heatedFloorAreas.length > 1 ? 's' : ''} × $${heatedFloorPrice.toFixed(2)})`, 
+        cost: heatedFloorSubtotal 
+      });
+    }
+    
+    const lineItemsHtml = upgradeLineItems.map(item => `
+      <tr>
+        <td style="padding: 10px 0; color: rgba(255,255,255,0.9); font-size: 14px;">${escapeHtml(item.label)}</td>
+        <td style="padding: 10px 0; color: white; font-size: 14px; text-align: right; font-weight: 500;">$${item.cost.toFixed(2)}</td>
+      </tr>
+    `).join('');
+    
+    // Premium area upgrades note
+    const hasPremiumAreaUpgrades = data.areaUpgrades && data.areaUpgrades.length > 0;
+    const areaUpgradesNote = hasPremiumAreaUpgrades ? `
+      <tr>
+        <td colspan="2" style="padding: 12px 0 0; border-top: 1px solid rgba(255,255,255,0.15);">
+          <p style="margin: 0; color: rgba(255,255,255,0.7); font-size: 12px; text-align: center;">
+            Premium area upgrades (flooring/tile) will be quoted separately by our team
+          </p>
+        </td>
+      </tr>
+    ` : '';
     
     estimatedTotalHtml = `
       <tr>
@@ -944,30 +1044,26 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
           <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 12px; overflow: hidden;">
             <tr>
               <td style="padding: 24px;">
-                <h2 style="margin: 0 0 16px; color: white; font-size: 18px; font-weight: 600; text-align: center;">📊 Estimated Costs Summary</h2>
+                <h2 style="margin: 0 0 16px; color: white; font-size: 18px; font-weight: 600; text-align: center;">Complete Upgrade Summary</h2>
                 <table role="presentation" style="width: 100%; border-collapse: collapse;">
-                  ${hasWindowCosts ? `
+                  ${lineItemsHtml}
+                  ${grandSubtotal > 0 ? `
+                    <tr style="border-top: 1px solid rgba(255,255,255,0.2);">
+                      <td style="padding: 14px 0 8px; color: rgba(255,255,255,0.8); font-size: 14px;">Subtotal (pre-GST)</td>
+                      <td style="padding: 14px 0 8px; color: white; font-size: 14px; text-align: right;">$${grandSubtotal.toFixed(2)}</td>
+                    </tr>
                     <tr>
-                      <td style="padding: 10px 0; color: rgba(255,255,255,0.8); font-size: 14px;">Window Coverings</td>
-                      <td style="padding: 10px 0; color: white; font-size: 14px; text-align: right; font-weight: 500;">$${data.windowTotal.toFixed(2)}</td>
+                      <td style="padding: 8px 0; color: rgba(255,255,255,0.8); font-size: 14px;">GST (5%)</td>
+                      <td style="padding: 8px 0; color: white; font-size: 14px; text-align: right;">$${grandGst.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 16px 0 0; color: white; font-size: 16px; font-weight: 600;">Grand Total (incl. GST)</td>
+                      <td style="padding: 16px 0 0; color: #10b981; font-size: 24px; text-align: right; font-weight: 700;">$${grandTotal.toFixed(2)}</td>
                     </tr>
                   ` : ''}
-                  ${hasGroutCost ? `
-                    <tr>
-                      <td style="padding: 10px 0; color: rgba(255,255,255,0.8); font-size: 14px;">Custom Backsplash Grout</td>
-                      <td style="padding: 10px 0; color: white; font-size: 14px; text-align: right; font-weight: 500;">$315.00</td>
-                    </tr>
-                  ` : ''}
-                  <tr style="border-top: 1px solid rgba(255,255,255,0.2);">
-                    <td style="padding: 16px 0 0; color: white; font-size: 16px; font-weight: 600;">Confirmed Total (incl. GST)</td>
-                    <td style="padding: 16px 0 0; color: #10b981; font-size: 24px; text-align: right; font-weight: 700;">$${totalEstimate.toFixed(2)}</td>
-                  </tr>
+                  ${areaUpgradesNote}
                 </table>
-                ${(data.areaUpgrades && data.areaUpgrades.length > 0) || (data.heatedFloorBathrooms && data.heatedFloorBathrooms > 0) ? `
-                  <p style="margin: 16px 0 0; color: rgba(255,255,255,0.7); font-size: 12px; text-align: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 16px;">
-                    ⚠️ Premium area upgrades and heated floors will be quoted separately by our team
-                  </p>
-                ` : ''}
+                <p style="margin: 16px 0 0; color: rgba(255,255,255,0.5); font-size: 11px; text-align: center;">* A 10% material overage is allowed on all quoted amounts.</p>
               </td>
             </tr>
           </table>
