@@ -219,7 +219,7 @@ serve(async (req) => {
     console.log(`Processing notification: type=${type}, user=${userEmail}`);
 
     // Admin notification recipients
-    const adminEmails = ["dan@bmdmaterials.com", "office@bmdmaterials.com"];
+    const adminEmails = ["dan@bmdmaterials.com", "noni@bmdmaterials.com", "brian@bmdmaterials.com", "office@bmdmaterials.com"];
     
     let results: { success: boolean; error?: string }[] = [];
 
