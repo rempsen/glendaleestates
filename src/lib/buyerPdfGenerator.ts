@@ -27,6 +27,7 @@ export interface PdfPricingConfig {
   getAutomatedMotorPrice: () => number;
   getHeatedFloorPrice: () => number;
   getStairLvpUpgradePrice?: () => number;
+  getStairCarpetUpgradePrice?: () => number;
 }
 
 // BMD brand colors
@@ -130,6 +131,7 @@ interface BuyerSelections {
   backsplashOrientation: string;
   stairCarpetColour: string;
   stairLvpUpgradeSelected?: boolean;
+  stairPremiumCarpetSelected?: boolean;
   bedroomFlooringChoice: 'carpet' | 'lvp' | '';
   bedroomCarpetColour: string;
   bedroomLvpColour: string;
@@ -176,6 +178,7 @@ export async function generateBuyerPreviewPDF(
     getAutomatedMotorPrice: () => 495.00,
     getHeatedFloorPrice: () => 1650.00,
     getStairLvpUpgradePrice: () => 2160.00,
+    getStairCarpetUpgradePrice: () => 640.00,
   };
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -263,8 +266,13 @@ export async function generateBuyerPreviewPDF(
     if (selections.stairLvpUpgradeSelected) {
       const stairLvpPrice = pricing.getStairLvpUpgradePrice?.() || 2160;
       standardData.push(['Stair Flooring', `LVP Upgrade with Custom Nosings — $${stairLvpPrice.toLocaleString()} + GST`]);
+    } else if (selections.stairPremiumCarpetSelected) {
+      const stairCarpetPrice = pricing.getStairCarpetUpgradePrice?.() || 640;
+      standardData.push(['Stair Flooring', `Premium Carpet Upgrade — $${stairCarpetPrice.toLocaleString()} + GST`]);
     } else {
-      standardData.push(['Stair Carpet', carpetOptions.find(o => o.id === selections.stairCarpetColour)?.name || 'Not selected']);
+      standardData.push(['Stair Flooring', selections.stairCarpetColour 
+        ? carpetOptions.find(o => o.id === selections.stairCarpetColour)?.name || 'Standard Carpet (Included)'
+        : 'Standard Carpet (Included)']);
     }
   }
 
@@ -408,8 +416,11 @@ export async function generateBuyerPreviewPDF(
   // Stair LVP upgrade cost
   const stairLvpPrice = selections.stairLvpUpgradeSelected ? (pricing.getStairLvpUpgradePrice?.() || 2160) : 0;
   
+  // Stair Premium Carpet upgrade cost
+  const stairCarpetPrice = selections.stairPremiumCarpetSelected ? (pricing.getStairCarpetUpgradePrice?.() || 640) : 0;
+  
   // Note: heated floor costs are now included in upgradeCalc.subtotal per area
-  const upgradesSubtotal = upgradeCalc.subtotal + (groutPrice?.markedUpCost || 0) + stairLvpPrice;
+  const upgradesSubtotal = upgradeCalc.subtotal + (groutPrice?.markedUpCost || 0) + stairLvpPrice + stairCarpetPrice;
 
   if (upgradesSubtotal > 0) {
     checkNewPage(80);
@@ -455,6 +466,14 @@ export async function generateBuyerPreviewPDF(
       upgradeData.push([
         'Stair LVP Upgrade with Custom Nosings',
         `$${stairLvpPrice.toFixed(2)}`
+      ]);
+    }
+    
+    // Stair Premium Carpet upgrade
+    if (stairCarpetPrice > 0) {
+      upgradeData.push([
+        'Premium Carpet Stairs Upgrade',
+        `$${stairCarpetPrice.toFixed(2)}`
       ]);
     }
 

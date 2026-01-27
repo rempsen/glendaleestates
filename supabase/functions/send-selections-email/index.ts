@@ -222,6 +222,7 @@ interface SelectionData {
   backsplashOrientation?: string | null;
   stairCarpetColour?: string | null;
   stairLvpUpgradeSelected?: boolean;
+  stairPremiumCarpetSelected?: boolean;
   bedroomFlooringChoice?: string | null;
   bedroomCarpetColour?: string | null;
   bedroomLvpColour?: string | null;
@@ -443,6 +444,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       backsplashOrientation: rawData.backsplashOrientation ? String(rawData.backsplashOrientation).trim().slice(0, 100) : null,
       stairCarpetColour: rawData.stairCarpetColour ? String(rawData.stairCarpetColour).trim().slice(0, 100) : null,
       stairLvpUpgradeSelected: Boolean(rawData.stairLvpUpgradeSelected),
+      stairPremiumCarpetSelected: Boolean(rawData.stairPremiumCarpetSelected),
       bedroomFlooringChoice: rawData.bedroomFlooringChoice ? String(rawData.bedroomFlooringChoice).trim().slice(0, 100) : null,
       bedroomCarpetColour: rawData.bedroomCarpetColour ? String(rawData.bedroomCarpetColour).trim().slice(0, 100) : null,
       bedroomLvpColour: rawData.bedroomLvpColour ? String(rawData.bedroomLvpColour).trim().slice(0, 100) : null,
@@ -572,6 +574,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const automatedMotorPrice = pricing.config['automated_motor_price'] || 495.00;
     const heatedFloorPrice = pricing.config['heated_floor_per_bathroom'] || 1650.00;
     const stairLvpPrice = pricing.config['stair_lvp_upgrade_price'] || 2160.00;
+    const stairCarpetUpgradePrice = pricing.config['premium_carpet_stairs_price'] || 640.00;
     const groutColorPrice = pricing.config['grout_color_change_price'] || 300.00;
     const gstRate = pricing.gstRate;
     
@@ -580,6 +583,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
                            (data.patioDoorsQty * patioDoorPrice) + 
                            (data.automatedWindowsQty * automatedMotorPrice);
     const stairLvpSubtotal = data.stairLvpUpgradeSelected ? stairLvpPrice : 0;
+    const stairCarpetSubtotal = data.stairPremiumCarpetSelected ? stairCarpetUpgradePrice : 0;
     const groutSubtotal = data.backsplashGroutEnabled ? groutColorPrice : 0;
     
     // Calculate area upgrade costs (flooring/tile)
@@ -596,7 +600,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
     
     // Calculate grand totals
-    const grandSubtotal = windowSubtotal + stairLvpSubtotal + groutSubtotal + areaUpgradeCosts.subtotal;
+    const grandSubtotal = windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal + areaUpgradeCosts.subtotal;
     const grandGst = grandSubtotal * gstRate;
     const grandTotal = grandSubtotal + grandGst;
     
@@ -661,16 +665,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
       `;
     }
     
-    // Build stair LVP upgrade section
-    let stairLvpHtml = '';
+    // Build stair flooring upgrade section
+    let stairUpgradeHtml = '';
     if (data.stairLvpUpgradeSelected) {
       const stairLvpWithGst = stairLvpPrice * (1 + gstRate);
-      stairLvpHtml = `
+      stairUpgradeHtml = `
         <div class="section" style="background: #27ae60; color: white;">
           <h2 style="color: white; margin-top: 0;">Stair Flooring Upgrade</h2>
           <table style="color: white;">
             <tr><td><strong>Selection:</strong></td><td>LVP with Custom Stair Nosings</td></tr>
             <tr><td><strong>Cost:</strong></td><td>$${stairLvpPrice.toFixed(2)} + GST ($${stairLvpWithGst.toFixed(2)} total)</td></tr>
+          </table>
+        </div>
+      `;
+    } else if (data.stairPremiumCarpetSelected) {
+      const stairCarpetWithGst = stairCarpetUpgradePrice * (1 + gstRate);
+      stairUpgradeHtml = `
+        <div class="section" style="background: #8e44ad; color: white;">
+          <h2 style="color: white; margin-top: 0;">Stair Flooring Upgrade</h2>
+          <table style="color: white;">
+            <tr><td><strong>Selection:</strong></td><td>Premium Carpet Upgrade</td></tr>
+            <tr><td><strong>Cost:</strong></td><td>$${stairCarpetUpgradePrice.toFixed(2)} + GST ($${stairCarpetWithGst.toFixed(2)} total)</td></tr>
           </table>
         </div>
       `;
@@ -682,7 +697,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const summaryItems: string[] = [];
       
       if (stairLvpSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Stair LVP Upgrade</td><td style="text-align: right; font-weight: bold;">$${stairLvpSubtotal.toFixed(2)}</td></tr>`);
+        summaryItems.push(`<tr><td style="padding: 8px 0;">Stair LVP Upgrade with Custom Nosings</td><td style="text-align: right; font-weight: bold;">$${stairLvpSubtotal.toFixed(2)}</td></tr>`);
+      }
+      if (stairCarpetSubtotal > 0) {
+        summaryItems.push(`<tr><td style="padding: 8px 0;">Premium Carpet Stairs Upgrade</td><td style="text-align: right; font-weight: bold;">$${stairCarpetSubtotal.toFixed(2)}</td></tr>`);
       }
       if (groutSubtotal > 0) {
         summaryItems.push(`<tr><td style="padding: 8px 0;">Custom Grout Color${data.backsplashGroutColor ? ` (${escapeHtml(data.backsplashGroutColor)})` : ''}</td><td style="text-align: right; font-weight: bold;">$${groutSubtotal.toFixed(2)}</td></tr>`);
@@ -802,7 +820,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
           ${groutHtml}
           
-          ${stairLvpHtml}
+          ${stairUpgradeHtml}
 
           ${windowSubtotal > 0 ? `
           <div class="section highlight">
@@ -868,6 +886,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       automatedMotorPrice,
       heatedFloorPrice,
       stairLvpPrice,
+      stairCarpetUpgradePrice,
       groutColorPrice,
       gstRate,
       areaUpgradeCosts,
@@ -912,6 +931,7 @@ interface BuyerEmailPricing {
   automatedMotorPrice: number;
   heatedFloorPrice: number;
   stairLvpPrice: number;
+  stairCarpetUpgradePrice: number;
   groutColorPrice: number;
   gstRate: number;
   areaUpgradeCosts: { lineItems: Array<{ area: string; material: string; cost: number; heatedFloor?: boolean; heatedCost?: number }>; subtotal: number };
@@ -973,8 +993,12 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
   if (data.hasStairs) {
     if (data.stairLvpUpgradeSelected) {
       standardSelections.push({ label: 'Stair Flooring', value: `LVP Upgrade with Custom Nosings ($${pricing.stairLvpPrice.toFixed(0)} + GST)` });
+    } else if (data.stairPremiumCarpetSelected) {
+      standardSelections.push({ label: 'Stair Flooring', value: `Premium Carpet Upgrade ($${pricing.stairCarpetUpgradePrice.toFixed(0)} + GST)` });
     } else if (data.stairCarpetColour) {
       standardSelections.push({ label: 'Stair Carpet', value: data.stairCarpetColour });
+    } else {
+      standardSelections.push({ label: 'Stair Flooring', value: 'Standard Carpet (Included)' });
     }
   }
 
@@ -1208,6 +1232,9 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
   // Stair LVP upgrade
   const stairLvpSubtotal = data.stairLvpUpgradeSelected ? pricing.stairLvpPrice : 0;
   
+  // Stair Premium Carpet upgrade
+  const stairCarpetSubtotal = data.stairPremiumCarpetSelected ? pricing.stairCarpetUpgradePrice : 0;
+  
   // Grout color change
   const groutSubtotal = data.backsplashGroutEnabled ? pricing.groutColorPrice : 0;
   
@@ -1215,7 +1242,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
   const areaUpgradeSubtotal = pricing.areaUpgradeCosts.subtotal;
   
   // Grand totals (including area upgrades)
-  const grandSubtotal = windowSubtotal + stairLvpSubtotal + groutSubtotal + areaUpgradeSubtotal;
+  const grandSubtotal = windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal + areaUpgradeSubtotal;
   const grandGst = grandSubtotal * pricing.gstRate;
   const grandTotal = grandSubtotal + grandGst;
   
@@ -1229,11 +1256,16 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
       upgradeLineItems.push({ label: 'Stair LVP Upgrade with Custom Nosings', cost: stairLvpSubtotal });
     }
     
+    // Stair Premium Carpet
+    if (stairCarpetSubtotal > 0) {
+      upgradeLineItems.push({ label: 'Premium Carpet Stairs Upgrade', cost: stairCarpetSubtotal });
+    }
+    
     // Grout color change
     if (groutSubtotal > 0) {
       upgradeLineItems.push({ 
         label: `Custom Backsplash Grout${data.backsplashGroutColor ? ` (${data.backsplashGroutColor})` : ''}`, 
-        cost: groutSubtotal 
+        cost: groutSubtotal
       });
     }
     
