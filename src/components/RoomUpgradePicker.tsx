@@ -60,8 +60,10 @@ export function RoomUpgradePicker({
   const [editingSelection, setEditingSelection] = useState<AreaUpgradeSelection | null>(null);
   
   // Use dynamic pricing from database
-  const { calculateAreaUpgradePrice, getHeatedFloorPrice, gstRate } = useDynamicPricing();
+  const { calculateAreaUpgradePrice, getHeatedFloorPrice, getStairLvpUpgradePrice, getStairCarpetUpgradePrice, gstRate } = useDynamicPricing();
   const heatedFloorPrice = getHeatedFloorPrice();
+  const stairLvpPrice = getStairLvpUpgradePrice();
+  const stairCarpetPrice = getStairCarpetUpgradePrice();
 
   // Determine the effective unit code (with floor suffix for G/H)
   const effectiveUnitCode = unitTypeCode 
@@ -72,6 +74,25 @@ export function RoomUpgradePicker({
 
   const availableAreas = effectiveUnitCode ? getAvailableAreasForUnit(effectiveUnitCode) : [];
   const unitData = effectiveUnitCode ? UNIT_AREA_DATA[effectiveUnitCode] : null;
+
+  // Helper to get stair upgrade pricing (uses flat rates, not per-sqft)
+  const getStairUpgradePrice = (materialType: MaterialType): { markedUpCost: number; quantity: number; unit: string } => {
+    if (materialType === 'lvp') {
+      return { markedUpCost: stairLvpPrice, quantity: 1, unit: 'flat' };
+    } else if (materialType === 'carpet') {
+      return { markedUpCost: stairCarpetPrice, quantity: 1, unit: 'flat' };
+    }
+    return { markedUpCost: 0, quantity: 0, unit: 'flat' };
+  };
+
+  // Get pricing for an area - handles stairs specially
+  const getAreaPricing = (areaId: UpgradeArea, materialType: MaterialType) => {
+    if (areaId === 'stairs') {
+      return getStairUpgradePrice(materialType);
+    }
+    if (!effectiveUnitCode) return null;
+    return calculateAreaUpgradePrice(effectiveUnitCode, areaId, materialType);
+  };
 
   const isAreaSelected = (areaId: UpgradeArea) => {
     return selections.some(s => s.areaId === areaId);
@@ -200,9 +221,9 @@ export function RoomUpgradePicker({
           const isSelected = isAreaSelected(area.id);
           const selection = getSelectionForArea(area.id);
           const isExpanded = expandedArea === area.id;
-          const quantity = unitData?.[area.id] || 0;
-          const pricing = effectiveUnitCode && isSelected && selection
-            ? calculateAreaUpgradePrice(effectiveUnitCode, area.id, selection.materialType)
+          const quantity = area.id === 'stairs' ? 1 : (unitData?.[area.id] || 0);
+          const pricing = isSelected && selection
+            ? getAreaPricing(area.id, selection.materialType)
             : null;
 
           return (
@@ -311,9 +332,16 @@ export function RoomUpgradePicker({
                           <SelectContent>
                             {area.upgradeTypes.map(type => {
                               const material = UPGRADE_MATERIALS.find(m => m.id === type);
+                              // Custom labels for stair options
+                              const isStairs = area.id === 'stairs';
+                              const label = isStairs && type === 'lvp' 
+                                ? `LVP with Custom Nosings ($${stairLvpPrice.toLocaleString()})` 
+                                : isStairs && type === 'carpet'
+                                  ? `Premium Carpet ($${stairCarpetPrice.toLocaleString()})`
+                                  : material?.name;
                               return (
                                 <SelectItem key={type} value={type}>
-                                  {material?.name}
+                                  {label}
                                 </SelectItem>
                               );
                             })}
@@ -427,52 +455,58 @@ export function RoomUpgradePicker({
                       </div>
 
                       {/* Price Preview */}
-                      {effectiveUnitCode && (
-                        <div className="p-3 rounded-lg bg-secondary/50 space-y-2">
-                          {(() => {
-                            const materialType = editingSelection?.materialType || selection?.materialType || area.upgradeTypes[0];
-                            const materialName = UPGRADE_MATERIALS.find(m => m.id === materialType)?.name;
-                            const price = calculateAreaUpgradePrice(effectiveUnitCode, area.id, materialType);
-                            const hasHeatedFloor = (editingSelection?.heatedFloor || selection?.heatedFloor) && (materialType === 'tile' || materialType === 'nonstandard_tile');
-                            const heatedFloorCostWithGst = heatedFloorPrice * (1 + gstRate);
-                            const totalWithHeated = hasHeatedFloor ? price.markedUpCost + heatedFloorPrice : price.markedUpCost;
-                            
-                            return (
-                              <>
-                                <div className="flex justify-between items-center">
-                                  <span className="text-sm text-foreground">
-                                    {area.name} {materialName} Upgrade
+                      <div className="p-3 rounded-lg bg-secondary/50 space-y-2">
+                        {(() => {
+                          const materialType = editingSelection?.materialType || selection?.materialType || area.upgradeTypes[0];
+                          const materialName = UPGRADE_MATERIALS.find(m => m.id === materialType)?.name;
+                          const price = getAreaPricing(area.id, materialType);
+                          const hasHeatedFloor = (editingSelection?.heatedFloor || selection?.heatedFloor) && (materialType === 'tile' || materialType === 'nonstandard_tile');
+                          const heatedFloorCostWithGst = heatedFloorPrice * (1 + gstRate);
+                          const totalWithHeated = hasHeatedFloor ? (price?.markedUpCost || 0) + heatedFloorPrice : (price?.markedUpCost || 0);
+                          
+                          // For stairs, show which upgrade type
+                          const isStairs = area.id === 'stairs';
+                          const stairLabel = isStairs && materialType === 'lvp' 
+                            ? 'LVP with Custom Nosings' 
+                            : isStairs && materialType === 'carpet'
+                              ? 'Premium Carpet'
+                              : materialName;
+                          
+                          return (
+                            <>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-foreground">
+                                  {area.name} {stairLabel} Upgrade
+                                </span>
+                                <span className="font-semibold text-primary">
+                                  ${(price?.markedUpCost || 0).toFixed(2)}
+                                </span>
+                              </div>
+                              {hasHeatedFloor && (
+                                <div className="flex justify-between items-center text-sm">
+                                  <span className="text-orange-600 flex items-center gap-1">
+                                    <Flame className="w-3 h-3" />
+                                    Heated Floor
                                   </span>
-                                  <span className="font-semibold text-primary">
-                                    ${price.markedUpCost.toFixed(2)}
+                                  <span className="font-semibold text-orange-600">
+                                    +${heatedFloorPrice.toFixed(2)}
                                   </span>
                                 </div>
-                                {hasHeatedFloor && (
-                                  <div className="flex justify-between items-center text-sm">
-                                    <span className="text-orange-600 flex items-center gap-1">
-                                      <Flame className="w-3 h-3" />
-                                      Heated Floor
-                                    </span>
-                                    <span className="font-semibold text-orange-600">
-                                      +${heatedFloorPrice.toFixed(2)}
-                                    </span>
-                                  </div>
-                                )}
-                                {hasHeatedFloor && (
-                                  <div className="flex justify-between items-center pt-2 border-t border-border">
-                                    <span className="text-sm font-medium text-foreground">
-                                      Area Total (before GST)
-                                    </span>
-                                    <span className="font-bold text-primary">
-                                      ${totalWithHeated.toFixed(2)}
-                                    </span>
-                                  </div>
-                                )}
-                              </>
-                            );
-                          })()}
-                        </div>
-                      )}
+                              )}
+                              {hasHeatedFloor && (
+                                <div className="flex justify-between items-center pt-2 border-t border-border">
+                                  <span className="text-sm font-medium text-foreground">
+                                    Area Total (before GST)
+                                  </span>
+                                  <span className="font-bold text-primary">
+                                    ${totalWithHeated.toFixed(2)}
+                                  </span>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
 
                       {/* Action Buttons */}
                       <div className="flex gap-2 pt-2">
@@ -523,18 +557,24 @@ export function RoomUpgradePicker({
             {selections.map(selection => {
               const area = AREA_DEFINITIONS.find(a => a.id === selection.areaId);
               const material = UPGRADE_MATERIALS.find(m => m.id === selection.materialType);
-              const pricing = effectiveUnitCode 
-                ? calculateAreaUpgradePrice(effectiveUnitCode, selection.areaId, selection.materialType)
-                : null;
+              const pricing = getAreaPricing(selection.areaId, selection.materialType);
 
-              const hasHeatedFloor = selection.heatedFloor && selection.materialType === 'tile';
+              const hasHeatedFloor = selection.heatedFloor && (selection.materialType === 'tile' || selection.materialType === 'nonstandard_tile');
               const itemTotal = (pricing?.markedUpCost || 0) + (hasHeatedFloor ? heatedFloorPrice : 0);
+              
+              // For stairs, show which upgrade type
+              const isStairs = selection.areaId === 'stairs';
+              const materialLabel = isStairs && selection.materialType === 'lvp' 
+                ? 'LVP w/ Nosings' 
+                : isStairs && selection.materialType === 'carpet'
+                  ? 'Premium Carpet'
+                  : material?.name;
 
               return (
                 <div key={selection.areaId} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
                     <span className="text-foreground">{area?.name}</span>
-                    <span className="text-muted-foreground">• {material?.name}</span>
+                    <span className="text-muted-foreground">• {materialLabel}</span>
                     {hasHeatedFloor && (
                       <span className="text-xs text-orange-600 flex items-center gap-0.5">
                         <Flame className="w-3 h-3" /> Heated
