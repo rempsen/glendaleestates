@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
       lastname: submission.last_name,
       phone: submission.phone_number || '',
       // Mark as Glendale Estates Buyer
-      glendale_estates_buyer: 'Yes',
+      glendale_estates_buyer: 'true',
       // BMD custom properties
       bmd_unit_number: submission.unit_number,
       bmd_unit_type: submission.unit_type || '',
