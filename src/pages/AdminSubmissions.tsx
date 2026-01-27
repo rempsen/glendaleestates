@@ -908,7 +908,7 @@ export default function AdminSubmissions() {
                   </div>
                   {selectedSubmission.backsplash_grout_enabled && (
                     <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
-                      <span className="font-medium text-warning">Custom Grout Color Change: $300 + GST</span>
+                      <span className="font-medium text-warning">Custom Grout Color Change: ${pricingValues.backsplashGroutPrice.toLocaleString()} + GST</span>
                       {selectedSubmission.backsplash_grout_comments && (
                         <p className="mt-1 text-muted-foreground">Comments: {selectedSubmission.backsplash_grout_comments}</p>
                       )}
