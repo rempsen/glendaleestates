@@ -266,11 +266,18 @@ export default function SelectionWizard() {
 
   // Preload flooring images for Step 3 while user is on earlier steps
   useEffect(() => {
-    // Preload LVP options (Step 3) and SPC tile options (Step 4) early
+    // Preload all product images early: LVP, SPC tile, carpet, bedroom previews, backsplash
     const imagesToPreload = [
       ...lvpOptions.map(o => o.image),
       ...spcTileOptions.map(o => o.image),
       ...carpetOptions.map(o => o.image),
+      // Stage 6 bedroom flooring preview images
+      bedroomCarpetPreviewImg,
+      bedroomLvpPreviewImg,
+      // Backsplash illustrations
+      tileStackedImg,
+      tileBrickedImg,
+      tileHorizontalImg,
     ];
     
     imagesToPreload.forEach(src => {
@@ -1670,6 +1677,8 @@ export default function SelectionWizard() {
                       <img 
                         src={bedroomCarpetPreviewImg} 
                         alt="Bedroom with carpet flooring" 
+                        loading="eager"
+                        decoding="async"
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                     </div>
@@ -1699,6 +1708,8 @@ export default function SelectionWizard() {
                       <img 
                         src={bedroomLvpPreviewImg} 
                         alt="Bedroom with LVP flooring" 
+                        loading="eager"
+                        decoding="async"
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                     </div>
@@ -1721,7 +1732,7 @@ export default function SelectionWizard() {
                 <div>
                   <h3 className="font-medium text-foreground mb-4">Bedroom Carpet Colour</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    {carpetOptions.map(option => (
+                    {carpetOptions.map((option, index) => (
                       <SelectionCard
                         key={option.id}
                         id={option.id}
@@ -1730,6 +1741,7 @@ export default function SelectionWizard() {
                         selected={selections.bedroomCarpetColour === option.id}
                         onSelect={(id) => updateSelection('bedroomCarpetColour', id)}
                         variant="image"
+                        priority={index < 4}
                       />
                     ))}
                   </div>
