@@ -1057,17 +1057,18 @@ export default function SelectionWizard() {
               variant="outline"
               onClick={async () => {
                 try {
-                  const pricingConfig = { 
-                    markupPercentage, 
-                    gstRate, 
-                    getMaterialCost, 
-                    getGroutColorFee,
-                    getAdditionalWindowPrice,
-                    getPatioDoorPrice,
-                    getAutomatedMotorPrice,
-                    getHeatedFloorPrice,
-                  };
-                  await generateBuyerPreviewPDF(selections, unitInfo?.typeCode || null, pricingConfig);
+              const pricingConfig = { 
+                markupPercentage, 
+                gstRate, 
+                getMaterialCost, 
+                getGroutColorFee,
+                getAdditionalWindowPrice,
+                getPatioDoorPrice,
+                getAutomatedMotorPrice,
+                getHeatedFloorPrice,
+                getStairLvpUpgradePrice,
+              };
+              await generateBuyerPreviewPDF(selections, unitInfo?.typeCode || null, pricingConfig);
                   toast.success('PDF downloaded successfully!');
                 } catch (error) {
                   console.error('Error generating PDF:', error);
