@@ -221,6 +221,7 @@ interface SelectionData {
   spcTileComments?: string | null;
   backsplashOrientation?: string | null;
   stairCarpetColour?: string | null;
+  stairLvpUpgradeSelected?: boolean;
   bedroomFlooringChoice?: string | null;
   bedroomCarpetColour?: string | null;
   bedroomLvpColour?: string | null;
@@ -325,6 +326,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       spcTileComments: rawData.spcTileComments ? String(rawData.spcTileComments).trim().slice(0, 2000) : null,
       backsplashOrientation: rawData.backsplashOrientation ? String(rawData.backsplashOrientation).trim().slice(0, 100) : null,
       stairCarpetColour: rawData.stairCarpetColour ? String(rawData.stairCarpetColour).trim().slice(0, 100) : null,
+      stairLvpUpgradeSelected: Boolean(rawData.stairLvpUpgradeSelected),
       bedroomFlooringChoice: rawData.bedroomFlooringChoice ? String(rawData.bedroomFlooringChoice).trim().slice(0, 100) : null,
       bedroomCarpetColour: rawData.bedroomCarpetColour ? String(rawData.bedroomCarpetColour).trim().slice(0, 100) : null,
       bedroomLvpColour: rawData.bedroomLvpColour ? String(rawData.bedroomLvpColour).trim().slice(0, 100) : null,
@@ -361,6 +363,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       spc_tile_comments: data.spcTileComments || null,
       backsplash_orientation: data.backsplashOrientation || null,
       stair_carpet_colour: data.stairCarpetColour || null,
+      stair_lvp_upgrade_selected: data.stairLvpUpgradeSelected || false,
       bedroom_flooring_choice: data.bedroomFlooringChoice || null,
       bedroom_carpet_colour: data.bedroomCarpetColour || null,
       bedroom_lvp_colour: data.bedroomLvpColour || null,
@@ -717,9 +720,13 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     standardSelections.push({ label: 'Bedroom Flooring', value: bedroomValue });
   }
   
-  // Stair Carpet (if applicable)
-  if (data.hasStairs && data.stairCarpetColour) {
-    standardSelections.push({ label: 'Stair Carpet', value: data.stairCarpetColour });
+  // Stair Flooring (if applicable)
+  if (data.hasStairs) {
+    if (data.stairLvpUpgradeSelected) {
+      standardSelections.push({ label: 'Stair Flooring', value: 'LVP Upgrade with Custom Nosings ($2,160 + GST)' });
+    } else if (data.stairCarpetColour) {
+      standardSelections.push({ label: 'Stair Carpet', value: data.stairCarpetColour });
+    }
   }
 
   // Build standard selections HTML (no comments - those are internal)
