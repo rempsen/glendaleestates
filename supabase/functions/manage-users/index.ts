@@ -409,7 +409,7 @@ serve(async (req) => {
       }
 
       case "updateUser": {
-        const { userId, email, firstName, lastName, unitNumber, phoneNumber } = params;
+        const { userId, email, firstName, lastName, unitNumber, unitType, phoneNumber } = params;
         
         if (!userId) {
           return new Response(
@@ -422,7 +422,7 @@ serve(async (req) => {
         const { data: { user: targetUser } } = await supabaseAdmin.auth.admin.getUserById(userId);
         const oldEmail = targetUser?.email || "Unknown";
 
-        console.log("Updating user:", { userId, email, firstName, lastName, unitNumber, phoneNumber });
+        console.log("Updating user:", { userId, email, firstName, lastName, unitNumber, unitType, phoneNumber });
 
         // Update auth email if provided and different
         if (email && email !== oldEmail) {
@@ -450,6 +450,7 @@ serve(async (req) => {
           if (firstName !== undefined) updateData.first_name = firstName;
           if (lastName !== undefined) updateData.last_name = lastName;
           if (unitNumber !== undefined) updateData.unit_number = unitNumber;
+          if (unitType !== undefined) updateData.unit_type = unitType;
           if (phoneNumber !== undefined) updateData.phone_number = phoneNumber;
           if (email && email !== oldEmail) updateData.email = email;
 
