@@ -255,7 +255,7 @@ export default function SelectionWizard() {
     toast.info('Starting fresh');
   }, [deleteDraft]);
 
-  // Auto-detect unit info when unit number changes
+// Auto-detect unit info when unit number changes
   useEffect(() => {
     const info = getUnitInfo(selections.unitNumber);
     setUnitInfo(info);
@@ -263,6 +263,31 @@ export default function SelectionWizard() {
       updateSelection('hasStairs', info.hasStairs);
     }
   }, [selections.unitNumber]);
+
+  // Preload flooring images for Step 3 while user is on earlier steps
+  useEffect(() => {
+    // Preload LVP options (Step 3) and SPC tile options (Step 4) early
+    const imagesToPreload = [
+      ...lvpOptions.map(o => o.image),
+      ...spcTileOptions.map(o => o.image),
+      ...carpetOptions.map(o => o.image),
+    ];
+    
+    imagesToPreload.forEach(src => {
+      if (src) {
+        const link = document.createElement('link');
+        link.rel = 'preload';
+        link.as = 'image';
+        link.href = src;
+        document.head.appendChild(link);
+      }
+    });
+
+    return () => {
+      // Cleanup preload links on unmount
+      document.querySelectorAll('link[rel="preload"][as="image"]').forEach(el => el.remove());
+    };
+  }, []);
 
   const handleSignOut = async () => {
     // Save draft before signing out
@@ -1363,7 +1388,7 @@ export default function SelectionWizard() {
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-3 gap-4">
+<div className="grid sm:grid-cols-3 gap-4">
                 {lvpOptions.map(option => (
                   <SelectionCard
                     key={option.id}
@@ -1374,6 +1399,7 @@ export default function SelectionWizard() {
                     selected={selections.lvpColour === option.id}
                     onSelect={(id) => updateSelection('lvpColour', id)}
                     variant="image"
+                    priority={true}
                   />
                 ))}
               </div>
