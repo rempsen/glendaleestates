@@ -26,6 +26,7 @@ export interface PdfPricingConfig {
   getPatioDoorPrice: () => number;
   getAutomatedMotorPrice: () => number;
   getHeatedFloorPrice: () => number;
+  getStairLvpUpgradePrice?: () => number;
 }
 
 // BMD brand colors
@@ -128,6 +129,7 @@ interface BuyerSelections {
   spcTileColour: string;
   backsplashOrientation: string;
   stairCarpetColour: string;
+  stairLvpUpgradeSelected?: boolean;
   bedroomFlooringChoice: 'carpet' | 'lvp' | '';
   bedroomCarpetColour: string;
   bedroomLvpColour: string;
@@ -173,6 +175,7 @@ export async function generateBuyerPreviewPDF(
     getPatioDoorPrice: () => 2347.80,
     getAutomatedMotorPrice: () => 495.00,
     getHeatedFloorPrice: () => 1650.00,
+    getStairLvpUpgradePrice: () => 2160.00,
   };
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -257,7 +260,12 @@ export async function generateBuyerPreviewPDF(
   ];
 
   if (selections.hasStairs) {
-    standardData.push(['Stairs Carpet', carpetOptions.find(o => o.id === selections.stairCarpetColour)?.name || 'Not selected']);
+    if (selections.stairLvpUpgradeSelected) {
+      const stairLvpPrice = pricing.getStairLvpUpgradePrice?.() || 2160;
+      standardData.push(['Stair Flooring', `LVP Upgrade with Custom Nosings — $${stairLvpPrice.toLocaleString()} + GST`]);
+    } else {
+      standardData.push(['Stair Carpet', carpetOptions.find(o => o.id === selections.stairCarpetColour)?.name || 'Not selected']);
+    }
   }
 
   if (selections.bedroomFlooringChoice === 'carpet' && selections.bedroomCarpetColour) {
@@ -397,8 +405,11 @@ export async function generateBuyerPreviewPDF(
   const upgradeCalc = calculateUpgradeCost(effectiveUnitCode || '', selections.areaUpgrades, pricing);
   const groutPrice = selections.backsplashGrout?.enabled ? calculateGroutPrice(pricing) : null;
   
+  // Stair LVP upgrade cost
+  const stairLvpPrice = selections.stairLvpUpgradeSelected ? (pricing.getStairLvpUpgradePrice?.() || 2160) : 0;
+  
   // Note: heated floor costs are now included in upgradeCalc.subtotal per area
-  const upgradesSubtotal = upgradeCalc.subtotal + (groutPrice?.markedUpCost || 0);
+  const upgradesSubtotal = upgradeCalc.subtotal + (groutPrice?.markedUpCost || 0) + stairLvpPrice;
 
   if (upgradesSubtotal > 0) {
     checkNewPage(80);
@@ -438,6 +449,14 @@ export async function generateBuyerPreviewPDF(
         }
       }
     });
+
+    // Stair LVP upgrade
+    if (stairLvpPrice > 0) {
+      upgradeData.push([
+        'Stair LVP Upgrade with Custom Nosings',
+        `$${stairLvpPrice.toFixed(2)}`
+      ]);
+    }
 
     // Grout color change
     if (groutPrice) {

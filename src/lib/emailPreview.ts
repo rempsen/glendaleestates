@@ -58,6 +58,7 @@ interface BuyerSubmission {
   bedroom_lvp_same_as_main: boolean;
   has_stairs: boolean;
   stair_carpet_colour: string | null;
+  stair_lvp_upgrade_selected?: boolean;
   additional_windows_qty: number;
   patio_doors_qty: number;
   window_total: number;
@@ -121,8 +122,12 @@ export function generateEmailPreviewHtml(submission: BuyerSubmission): string {
     standardSelections.push({ label: 'Bedroom Flooring', value: bedroomValue });
   }
   
-  if (hasStairs && stairCarpetColour) {
-    standardSelections.push({ label: 'Stair Carpet', value: stairCarpetColour });
+  if (hasStairs) {
+    if (submission.stair_lvp_upgrade_selected) {
+      standardSelections.push({ label: 'Stair Flooring', value: 'LVP Upgrade with Custom Nosings ($2,160 + GST)' });
+    } else if (stairCarpetColour) {
+      standardSelections.push({ label: 'Stair Carpet', value: stairCarpetColour });
+    }
   }
 
   const standardSelectionsHtml = standardSelections.length > 0 ? `
