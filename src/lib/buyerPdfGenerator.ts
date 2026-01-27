@@ -532,21 +532,76 @@ export async function generateBuyerPreviewPDF(
     yPos += 15;
   }
 
-  // Grand Total
-  const grandTotal = windowSubtotal * (1 + pricing.gstRate) + upgradesSubtotal * (1 + pricing.gstRate);
+  // Grand Total - Consolidated summary of all upgrades
+  const grandSubtotal = windowSubtotal + upgradesSubtotal;
+  const grandGst = grandSubtotal * pricing.gstRate;
+  const grandTotal = grandSubtotal + grandGst;
   
   if (grandTotal > 0) {
-    checkNewPage(40);
+    checkNewPage(60);
     
+    // Summary box header
+    doc.setFontSize(14);
+    doc.setTextColor(...COLORS.primary);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Complete Upgrade Summary', margin, yPos);
+    yPos += 3;
+    
+    doc.setDrawColor(...COLORS.primary);
+    doc.setLineWidth(2);
+    doc.line(margin, yPos, margin + 55, yPos);
+    yPos += 12;
+    
+    // Summary breakdown
+    doc.setFontSize(10);
+    doc.setTextColor(...COLORS.dark);
+    doc.setFont('helvetica', 'normal');
+    
+    if (windowSubtotal > 0) {
+      doc.text('Window Coverings:', margin, yPos);
+      doc.text(`$${windowSubtotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+      yPos += 8;
+    }
+    
+    if (upgradesSubtotal > 0) {
+      doc.text('Premium Upgrades:', margin, yPos);
+      doc.text(`$${upgradesSubtotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+      yPos += 8;
+    }
+    
+    // Totals
+    yPos += 5;
+    doc.setDrawColor(...COLORS.muted);
+    doc.setLineWidth(0.5);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 8;
+    
+    doc.text('Subtotal (pre-GST):', margin, yPos);
+    doc.text(`$${grandSubtotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+    yPos += 8;
+    
+    doc.text(`GST (${(pricing.gstRate * 100).toFixed(0)}%):`, margin, yPos);
+    doc.text(`$${grandGst.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+    yPos += 12;
+    
+    // Grand total highlight box
     doc.setFillColor(...COLORS.primary);
     doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 25, 3, 3, 'F');
     
     doc.setFontSize(14);
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.text('Estimated Grand Total (including GST):', margin + 10, yPos + 16);
+    doc.text('Grand Total (incl. GST):', margin + 10, yPos + 16);
     doc.setFontSize(18);
     doc.text(`$${grandTotal.toFixed(2)}`, pageWidth - margin - 10, yPos + 16, { align: 'right' });
+    
+    yPos += 35;
+    
+    // Material overage note
+    doc.setFontSize(8);
+    doc.setTextColor(...COLORS.muted);
+    doc.setFont('helvetica', 'italic');
+    doc.text('* A 10% material overage is allowed on all quoted amounts.', margin, yPos);
   }
 
   // Footer

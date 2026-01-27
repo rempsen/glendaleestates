@@ -16,8 +16,6 @@ interface UpgradePricingSummaryProps {
   unitTypeCode: string | null;
   selectedFloor?: '1' | '2' | null;
   areaUpgrades: AreaUpgradeSelection[];
-  heatedFloorBathrooms?: number;
-  bathroomTileSelected?: boolean;
   backsplashGrout?: BacksplashGroutSelection;
   stairLvpUpgradeSelected?: boolean;
   windowCoverings?: WindowCoveringsData;
@@ -31,8 +29,6 @@ export function UpgradePricingSummary({
   unitTypeCode,
   selectedFloor,
   areaUpgrades,
-  heatedFloorBathrooms = 0,
-  bathroomTileSelected = false,
   backsplashGrout,
   stairLvpUpgradeSelected = false,
   windowCoverings,
@@ -72,8 +68,11 @@ export function UpgradePricingSummary({
     ? calculateTotalUpgradeCost(effectiveUnitCode, areaUpgrades)
     : { subtotal: 0, gst: 0, total: 0, lineItems: [] };
 
-  // Calculate heated floor costs (only if bathroom tile selected)
-  const heatedFloorSubtotal = bathroomTileSelected ? heatedFloorBathrooms * heatedFloorPerBathroom : 0;
+  // Calculate heated floor costs from area upgrades that have heatedFloor enabled
+  const heatedFloorAreas = areaUpgrades.filter(
+    s => s.heatedFloor && ['guestBathroom', 'masterEnsuite'].includes(s.areaId)
+  );
+  const heatedFloorSubtotal = heatedFloorAreas.length * heatedFloorPerBathroom;
 
   // Calculate backsplash grout color change costs
   const groutPrice = backsplashGrout?.enabled ? calculateBacksplashGroutPrice() : null;
@@ -219,7 +218,7 @@ export function UpgradePricingSummary({
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
-                  Heated Tile Floor ({heatedFloorBathrooms} bathroom{heatedFloorBathrooms > 1 ? 's' : ''} × ${heatedFloorPerBathroom.toLocaleString()})
+                  Heated Tile Floor ({heatedFloorAreas.length} area{heatedFloorAreas.length > 1 ? 's' : ''} × ${heatedFloorPerBathroom.toLocaleString()})
                 </span>
                 <span className="font-medium">${heatedFloorSubtotal.toLocaleString()}</span>
               </div>
