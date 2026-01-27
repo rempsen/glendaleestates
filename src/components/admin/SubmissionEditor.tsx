@@ -97,6 +97,7 @@ interface BuyerSelection {
   spc_tile_comments: string | null;
   backsplash_orientation: string | null;
   stair_carpet_colour: string | null;
+  stair_lvp_upgrade_selected?: boolean;
   bedroom_flooring_choice: string | null;
   bedroom_carpet_colour: string | null;
   bedroom_lvp_colour: string | null;
@@ -226,6 +227,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
         bedroom_lvp_colour: editData.bedroom_lvp_colour,
         bedroom_lvp_same_as_main: editData.bedroom_lvp_same_as_main,
         stair_carpet_colour: editData.stair_carpet_colour,
+        stair_lvp_upgrade_selected: editData.stair_lvp_upgrade_selected || false,
         
         // Backsplash
         backsplash_orientation: editData.backsplash_orientation,
@@ -540,24 +542,50 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                 </>
               )}
 
-              {/* Stair Carpet - only if has_stairs */}
+              {/* Stair Flooring - only if has_stairs */}
               {editData.has_stairs && (
-                <div className="space-y-2">
-                  <Label>Stair Carpet Color</Label>
-                  <Select
-                    value={editData.stair_carpet_colour || ''}
-                    onValueChange={(value) => handleChange('stair_carpet_colour', value || null)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select color" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CARPET_COLORS.map(color => (
-                        <SelectItem key={color.id} value={color.name}>{color.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <>
+                  <div className="space-y-2 col-span-2">
+                    <Label>Stair LVP Upgrade</Label>
+                    <div className="flex items-center gap-2 pt-2">
+                      <Switch
+                        checked={editData.stair_lvp_upgrade_selected || false}
+                        onCheckedChange={(checked) => {
+                          handleChange('stair_lvp_upgrade_selected', checked);
+                          // Clear carpet color if upgrading to LVP
+                          if (checked) {
+                            handleChange('stair_carpet_colour', null);
+                          }
+                        }}
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {editData.stair_lvp_upgrade_selected 
+                          ? 'Upgrade to LVP with Custom Stair Nosings ($2,160 + GST)' 
+                          : 'Standard Carpet (Included)'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Show carpet color selector only if NOT upgrading to LVP */}
+                  {!editData.stair_lvp_upgrade_selected && (
+                    <div className="space-y-2">
+                      <Label>Stair Carpet Color</Label>
+                      <Select
+                        value={editData.stair_carpet_colour || ''}
+                        onValueChange={(value) => handleChange('stair_carpet_colour', value || null)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select color" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CARPET_COLORS.map(color => (
+                            <SelectItem key={color.id} value={color.name}>{color.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </AccordionContent>
