@@ -168,6 +168,12 @@ export function useDynamicPricing() {
     return config.config_value;
   }, [state.config]);
 
+  const getStairCarpetUpgradePrice = useCallback((): number => {
+    const config = state.config.find(c => c.config_key === 'premium_carpet_stairs_price');
+    if (!config || config.is_active === false) return 0;
+    return config.config_value;
+  }, [state.config]);
+
   // Check if a flat-rate pricing item is enabled
   const isFlatRateEnabled = useCallback((configKey: string): boolean => {
     const config = state.config.find(c => c.config_key === configKey);
@@ -339,6 +345,7 @@ export function useDynamicPricing() {
     getHeatedFloorPrice,
     getGroutColorChangePrice,
     getStairLvpUpgradePrice,
+    getStairCarpetUpgradePrice,
     isFlatRateEnabled,
     calculateAreaUpgradePrice,
     calculateBacksplashGroutPrice,

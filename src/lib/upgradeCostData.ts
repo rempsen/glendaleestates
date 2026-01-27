@@ -109,9 +109,9 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
   {
     id: 'stairs',
     name: 'Stairs',
-    description: 'Upgrade carpet on stairs (carpet standard)',
+    description: 'Upgrade flooring on stairs (carpet standard)',
     unit: 'sqyd',
-    upgradeTypes: ['carpet'],
+    upgradeTypes: ['carpet', 'lvp'],
     category: 'stairs',
     icon: 'Home',
   },
