@@ -47,9 +47,11 @@ import {
   KeyRound,
   UserX,
   Pencil,
-  Home
+  Home,
+  AlertTriangle
 } from 'lucide-react';
 import { unitData, getUnitInfo } from '@/lib/unitData';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface UserData {
   id: string;
@@ -111,6 +113,7 @@ export default function AdminUsers() {
   const [editUnitNumber, setEditUnitNumber] = useState('');
   const [editPhoneNumber, setEditPhoneNumber] = useState('');
   const [editUnitType, setEditUnitType] = useState('');
+  const [unitValidationWarning, setUnitValidationWarning] = useState<string | null>(null);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -323,19 +326,32 @@ export default function AdminUsers() {
     setEditEmail(user.email || '');
     setEditUnitNumber(user.unit_number || '');
     setEditPhoneNumber(user.phone_number || '');
-    // Auto-populate unit type from unit number
+    // Auto-populate unit type from unit number and check validation
     const unitNum = parseInt(user.unit_number || '0');
     const unitInfo = getUnitInfo(unitNum);
     setEditUnitType(unitInfo?.typeCode || '');
+    // Set validation warning if unit doesn't exist
+    if (user.unit_number && !isNaN(unitNum) && !unitInfo) {
+      setUnitValidationWarning(`Unit ${user.unit_number} is not recognized in the system. Please verify this is a valid Glendale Estates unit number.`);
+    } else {
+      setUnitValidationWarning(null);
+    }
     setEditDialogOpen(true);
   };
 
-  // Handle unit number change and auto-populate unit type
+  // Handle unit number change and auto-populate unit type with validation
   const handleUnitNumberChange = (value: string) => {
     setEditUnitNumber(value);
     const unitNum = parseInt(value);
     const unitInfo = getUnitInfo(unitNum);
     setEditUnitType(unitInfo?.typeCode || '');
+    
+    // Validate unit number exists in unitData
+    if (value && !isNaN(unitNum) && !unitInfo) {
+      setUnitValidationWarning(`Unit ${value} is not recognized in the system. Please verify this is a valid Glendale Estates unit number.`);
+    } else {
+      setUnitValidationWarning(null);
+    }
   };
 
   const handleUpdateUser = async () => {
@@ -401,6 +417,7 @@ export default function AdminUsers() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Unit</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead>Last Sign In</TableHead>
                 <TableHead>Status</TableHead>
@@ -425,6 +442,26 @@ export default function AdminUsers() {
                   </TableCell>
                   <TableCell>
                     {user.unit_number || <span className="text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      if (!user.unit_number) return <span className="text-muted-foreground">—</span>;
+                      const unitNum = parseInt(user.unit_number);
+                      const unitInfo = getUnitInfo(unitNum);
+                      if (unitInfo) {
+                        return (
+                          <Badge variant="outline" className="font-medium">
+                            {unitInfo.typeCode}
+                          </Badge>
+                        );
+                      }
+                      return (
+                        <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700">
+                          <AlertTriangle className="w-3 h-3 mr-1" />
+                          Unknown
+                        </Badge>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>
                     {format(new Date(user.created_at), 'MMM d, yyyy')}
@@ -848,6 +885,12 @@ export default function AdminUsers() {
                   onChange={(e) => setEditPhoneNumber(e.target.value)}
                 />
               </div>
+              {unitValidationWarning && (
+                <Alert variant="destructive" className="bg-amber-50 border-amber-300 text-amber-800 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-200">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{unitValidationWarning}</AlertDescription>
+                </Alert>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
@@ -855,7 +898,7 @@ export default function AdminUsers() {
               </Button>
               <Button onClick={handleUpdateUser} disabled={actionLoading === 'edit'}>
                 {actionLoading === 'edit' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Save Changes
+                {unitValidationWarning ? 'Save Anyway' : 'Save Changes'}
               </Button>
             </DialogFooter>
           </DialogContent>
