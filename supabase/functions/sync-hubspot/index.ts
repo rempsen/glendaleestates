@@ -31,6 +31,7 @@ interface BuyerSelection {
   stair_carpet_colour: string | null;
   additional_windows_qty: number;
   patio_doors_qty: number;
+  automated_windows_qty?: number;
   window_total: number;
   window_comments: string | null;
   hardwood_upgrade_selected: boolean;
@@ -43,10 +44,22 @@ interface BuyerSelection {
   upgrade_floor_selection: string | null;
   upgrade_interests: Record<string, boolean> | null;
   sales_comments: string | null;
+  stair_lvp_upgrade_selected?: boolean;
   status: string;
   created_at: string;
   pdf_base64?: string;
 }
+
+// Pricing constants (should match database values)
+const PRICING = {
+  additionalWindow: 375,
+  patioDoor: 750,
+  automatedMotor: 450,
+  heatedFloorPerBathroom: 950,
+  stairLvpUpgrade: 2160,
+  groutColorChange: 300,
+  gstRate: 0.05,
+};
 
 // Material type display names
 const MATERIAL_NAMES: Record<string, string> = {
@@ -97,6 +110,81 @@ function formatUpgradeInterests(interests: Record<string, boolean> | null): stri
     .map(([key, _]) => key.replace(/([A-Z])/g, ' $1').trim());
   
   return selected.length > 0 ? selected.join(', ') : 'None';
+}
+
+// Calculate upgrade pricing breakdown
+function calculateUpgradePricing(submission: BuyerSelection): {
+  windowCoveringsCost: number;
+  heatedFloorCost: number;
+  stairLvpCost: number;
+  groutColorCost: number;
+  subtotal: number;
+  gst: number;
+  grandTotal: number;
+  breakdown: string;
+} {
+  const additionalWindowsQty = submission.additional_windows_qty || 0;
+  const patioDoorsQty = submission.patio_doors_qty || 0;
+  const automatedWindowsQty = submission.automated_windows_qty || 0;
+  
+  // Window coverings
+  const windowCoveringsCost = 
+    (additionalWindowsQty * PRICING.additionalWindow) +
+    (patioDoorsQty * PRICING.patioDoor) +
+    (automatedWindowsQty * PRICING.automatedMotor);
+  
+  // Heated floors from area upgrades
+  const heatedFloorAreas = (submission.area_upgrades || []).filter(
+    u => u.heatedFloor && ['guestBathroom', 'masterEnsuite'].includes(u.areaId)
+  );
+  const heatedFloorCost = heatedFloorAreas.length * PRICING.heatedFloorPerBathroom;
+  
+  // Stair LVP upgrade
+  const stairLvpCost = submission.stair_lvp_upgrade_selected ? PRICING.stairLvpUpgrade : 0;
+  
+  // Grout color change
+  const groutColorCost = submission.backsplash_grout_enabled ? PRICING.groutColorChange : 0;
+  
+  // Calculate totals
+  const subtotal = windowCoveringsCost + heatedFloorCost + stairLvpCost + groutColorCost;
+  const gst = subtotal * PRICING.gstRate;
+  const grandTotal = subtotal + gst;
+  
+  // Build breakdown string
+  const breakdownParts: string[] = [];
+  if (additionalWindowsQty > 0) {
+    breakdownParts.push(`Additional Windows (${additionalWindowsQty}): $${(additionalWindowsQty * PRICING.additionalWindow).toLocaleString()}`);
+  }
+  if (patioDoorsQty > 0) {
+    breakdownParts.push(`Patio Doors (${patioDoorsQty}): $${(patioDoorsQty * PRICING.patioDoor).toLocaleString()}`);
+  }
+  if (automatedWindowsQty > 0) {
+    breakdownParts.push(`Somfy Automation (${automatedWindowsQty}): $${(automatedWindowsQty * PRICING.automatedMotor).toLocaleString()}`);
+  }
+  if (heatedFloorAreas.length > 0) {
+    breakdownParts.push(`Heated Tile Floors (${heatedFloorAreas.length}): $${heatedFloorCost.toLocaleString()}`);
+  }
+  if (stairLvpCost > 0) {
+    breakdownParts.push(`Stair LVP Upgrade: $${stairLvpCost.toLocaleString()}`);
+  }
+  if (groutColorCost > 0) {
+    breakdownParts.push(`Custom Grout Color: $${groutColorCost.toLocaleString()}`);
+  }
+  
+  const breakdown = breakdownParts.length > 0 
+    ? `${breakdownParts.join('; ')} | Subtotal: $${subtotal.toLocaleString()} + GST: $${gst.toFixed(2)} = Total: $${grandTotal.toFixed(2)}`
+    : 'No upgrades selected';
+  
+  return {
+    windowCoveringsCost,
+    heatedFloorCost,
+    stairLvpCost,
+    groutColorCost,
+    subtotal,
+    gst,
+    grandTotal,
+    breakdown,
+  };
 }
 
 // Upload PDF to HubSpot Files and return URL
@@ -166,6 +254,10 @@ Deno.serve(async (req) => {
     const submission: BuyerSelection = await req.json();
     console.log('Syncing submission to HubSpot:', submission.email);
 
+    // Calculate upgrade pricing
+    const pricing = calculateUpgradePricing(submission);
+    console.log('Calculated upgrade pricing:', pricing);
+
     // Upload PDF if provided
     let pdfUrl: string | null = null;
     if (submission.pdf_base64) {
@@ -202,7 +294,7 @@ Deno.serve(async (req) => {
       console.log('Email lookup error (will try to create):', lookupErr);
     }
 
-    // Prepare contact properties - ALL fields
+    // Prepare contact properties - ALL fields including pricing
     const contactProperties: Record<string, string> = {
       email: submission.email,
       firstname: submission.first_name,
@@ -226,11 +318,13 @@ Deno.serve(async (req) => {
       bmd_stair_carpet: submission.stair_carpet_colour || '',
       bmd_additional_windows: String(submission.additional_windows_qty || 0),
       bmd_patio_doors: String(submission.patio_doors_qty || 0),
+      bmd_automated_windows: String(submission.automated_windows_qty || 0),
       bmd_window_total: String(submission.window_total || 0),
       bmd_window_comments: submission.window_comments || '',
       bmd_hardwood_upgrade: submission.hardwood_upgrade_selected ? 'Yes' : 'No',
       bmd_tile_upgrade: submission.bathroom_tile_selected ? 'Yes' : 'No',
       bmd_heated_floor_bathrooms: String(submission.heated_floor_bathrooms || 0),
+      bmd_stair_lvp_upgrade: submission.stair_lvp_upgrade_selected ? 'Yes' : 'No',
       bmd_backsplash_grout: submission.backsplash_grout_enabled ? (submission.backsplash_grout_color || 'Custom') : '',
       bmd_backsplash_grout_comments: submission.backsplash_grout_comments || '',
       bmd_area_upgrades: formatAreaUpgrades(submission.area_upgrades),
@@ -238,6 +332,15 @@ Deno.serve(async (req) => {
       bmd_upgrade_interests: formatUpgradeInterests(submission.upgrade_interests),
       bmd_sales_comments: submission.sales_comments || '',
       bmd_submission_status: submission.status,
+      // Upgrade pricing breakdown
+      bmd_window_coverings_cost: String(pricing.windowCoveringsCost),
+      bmd_heated_floor_cost: String(pricing.heatedFloorCost),
+      bmd_stair_lvp_cost: String(pricing.stairLvpCost),
+      bmd_grout_color_cost: String(pricing.groutColorCost),
+      bmd_upgrade_subtotal: String(pricing.subtotal),
+      bmd_upgrade_gst: pricing.gst.toFixed(2),
+      bmd_upgrade_grand_total: pricing.grandTotal.toFixed(2),
+      bmd_upgrade_breakdown: pricing.breakdown,
     };
 
     // Add possession date if provided
