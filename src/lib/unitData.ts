@@ -10,7 +10,7 @@ export interface UnitInfo {
   garage: string;
   floorPlanUrl: string; // PNG image for interactive display
   pdfPlanUrl: string; // PDF for download/reference
-  hasStairs: boolean; // Townhomes (G, H) have stairs, bungalows don't
+  hasStairs: boolean; // All units have one standard carpeted staircase included
 }
 
 // Unit data extracted from Glendale Estates website
@@ -25,7 +25,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J-Reverse@2-New.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_JReverse_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   2: {
     unitNumber: 2,
@@ -37,7 +37,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J@2-NEW_r.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_J_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   3: {
     unitNumber: 3,
@@ -49,7 +49,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J-Reverse@2-New.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_JReverse_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   4: {
     unitNumber: 4,
@@ -61,7 +61,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J@2-NEW_r.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_J_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   5: {
     unitNumber: 5,
@@ -73,7 +73,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J-Reverse@2-New.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_JReverse_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   6: {
     unitNumber: 6,
@@ -85,7 +85,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J@2-NEW_r.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_J_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   7: {
     unitNumber: 7,
@@ -97,7 +97,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J-Reverse@2-New.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_JReverseCorner_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   8: {
     unitNumber: 8,
@@ -193,7 +193,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/B-2-Type-3600x4850-1.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_B.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   16: {
     unitNumber: 16,
@@ -205,7 +205,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/B-End-Unit-16-Level-1-e1714066747997.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_BReverse.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   17: {
     unitNumber: 17,
@@ -217,7 +217,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/B-2-End-Unit-15-Level-1-2.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_B.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   18: {
     unitNumber: 18,
@@ -229,7 +229,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/B-End-Unit-16-Level-1.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_BReverse.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   19: {
     unitNumber: 19,
@@ -241,7 +241,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/B-2-End-Unit-15-Level-1-2.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_B.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   20: {
     unitNumber: 20,
@@ -253,7 +253,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/B-End-Unit-16-Level-1.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_BReverse.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   21: {
     unitNumber: 21,
@@ -265,7 +265,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/B-2-End-Unit-15-Level-1-2.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_B.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   22: {
     unitNumber: 22,
@@ -277,7 +277,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/B-End-Unit-16-Level-1.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_BReverse.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   23: {
     unitNumber: 23,
@@ -289,7 +289,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/D-Type-23-Corner-Unit.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_D.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   24: {
     unitNumber: 24,
@@ -301,7 +301,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/C.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_C.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   25: {
     unitNumber: 25,
@@ -313,7 +313,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/A-2-3600x5600-1.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_A_r.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   26: {
     unitNumber: 26,
@@ -325,7 +325,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/A-Type-2628304345474951535557.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_AReverse_r.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   27: {
     unitNumber: 27,
@@ -337,7 +337,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/A-2-3600x5600-1.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_A_r.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   28: {
     unitNumber: 28,
@@ -349,7 +349,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/A-Type-2628304345474951535557.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_AReverse_r.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   29: {
     unitNumber: 29,
@@ -361,7 +361,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/A-2-3600x5600-1.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_A_r.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   30: {
     unitNumber: 30,
@@ -373,7 +373,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/A-Type-2628304345474951535557.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_AReverse_r.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   31: {
     unitNumber: 31,
@@ -385,7 +385,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/E-Type-31-37-Corner-Unit.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_E.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   32: {
     unitNumber: 32,
@@ -397,7 +397,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/F-Type-Feaure-Floor-Plan-32-34-38-40.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_F.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   33: {
     unitNumber: 33,
@@ -409,7 +409,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2025/11/F-Type-Rev-33-35-39-Mid-Unit-B_1.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_FReverse.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   34: {
     unitNumber: 34,
@@ -421,7 +421,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/F-Type-Feaure-Floor-Plan-32-34-38-40.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_F.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   35: {
     unitNumber: 35,
@@ -433,7 +433,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2025/11/F-Type-Rev-33-35-39-Mid-Unit-B_1.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_FReverse.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   36: {
     unitNumber: 36,
@@ -445,7 +445,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/E2-Type-Rev-36-Corner-Unit.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_EReverse.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   37: {
     unitNumber: 37,
@@ -457,7 +457,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/E-Type-31-37-Corner-Unit.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_E.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   38: {
     unitNumber: 38,
@@ -469,7 +469,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/F-Type-Feaure-Floor-Plan-32-34-38-40.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_F.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   39: {
     unitNumber: 39,
@@ -481,7 +481,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2025/11/F-Type-Rev-33-35-39-Mid-Unit-B_1.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_FReverse.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   40: {
     unitNumber: 40,
@@ -493,7 +493,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/F-Type-Feaure-Floor-Plan-32-34-38-40.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_F.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   41: {
     unitNumber: 41,
@@ -505,7 +505,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/E2-Type-Rev-36-Corner-Unit.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/GlendaleEstates_2DSellSheets_EReverse.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   42: {
     unitNumber: 42,
@@ -517,7 +517,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/A-2-3600x5600-1.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_A_r.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   43: {
     unitNumber: 43,
@@ -529,7 +529,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/A-Type-2628304345474951535557.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_AReverse_r.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   44: {
     unitNumber: 44,
@@ -541,7 +541,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/A-2-3600x5600-1.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_A_r.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   45: {
     unitNumber: 45,
@@ -553,7 +553,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/A-Type-2628304345474951535557.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_AReverse_r.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   46: {
     unitNumber: 46,
@@ -565,7 +565,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J-Reverse@2-New.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_JReverseCorner_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   47: {
     unitNumber: 47,
@@ -577,7 +577,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J@2-NEW_r.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_J_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   48: {
     unitNumber: 48,
@@ -589,7 +589,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J-Reverse@2-New.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_JReverse_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   49: {
     unitNumber: 49,
@@ -601,7 +601,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J@2-NEW_r.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_J_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   50: {
     unitNumber: 50,
@@ -613,7 +613,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J-Reverse@2-New.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_JReverse_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   51: {
     unitNumber: 51,
@@ -625,7 +625,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J@2-NEW_r.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_J_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   52: {
     unitNumber: 52,
@@ -637,7 +637,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J-Reverse@2-New.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_JReverse_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   53: {
     unitNumber: 53,
@@ -649,7 +649,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J@2-NEW_r.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_J_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   54: {
     unitNumber: 54,
@@ -661,7 +661,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J-Reverse@2-New.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_JReverse_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   55: {
     unitNumber: 55,
@@ -673,7 +673,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J@2-NEW_r.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_JCorner_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   56: {
     unitNumber: 56,
@@ -685,7 +685,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/A-2-3600x5600-1.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_A_r.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   57: {
     unitNumber: 57,
@@ -697,7 +697,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/A-Type-2628304345474951535557.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_AReverse_r.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   58: {
     unitNumber: 58,
@@ -781,7 +781,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J@2-NEW_r.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_JCorner_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   65: {
     unitNumber: 65,
@@ -793,7 +793,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J-Reverse@2-New.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_JReverse_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   66: {
     unitNumber: 66,
@@ -805,7 +805,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J@2-NEW_r.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_J_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   67: {
     unitNumber: 67,
@@ -817,7 +817,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J-Reverse@2-New.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_JReverse_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   68: {
     unitNumber: 68,
@@ -829,7 +829,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached single garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/06/Type-J@2-NEW_r.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_J_r2.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   69: {
     unitNumber: 69,
@@ -841,7 +841,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/A-2-3600x5600-1.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_A_r.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
   70: {
     unitNumber: 70,
@@ -853,7 +853,7 @@ export const unitData: Record<number, UnitInfo> = {
     garage: "attached double garage",
     floorPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/04/A-Type-2628304345474951535557.png",
     pdfPlanUrl: "https://glendaleestates.ca/wp-content/uploads/2024/11/GlendaleEstates_2DSellSheets_AReverse_r.pdf",
-    hasStairs: false,
+    hasStairs: true,
   },
 };
 
