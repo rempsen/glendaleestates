@@ -855,9 +855,21 @@ export default function AdminSubmissions() {
                       <span className="ml-2">{selectedSubmission.spc_tile_colour || 'Not selected'}</span>
                     </div>
                     {selectedSubmission.has_stairs && (
-                      <div>
-                        <span className="text-muted-foreground">Stairs Carpet:</span>
-                        <span className="ml-2">{selectedSubmission.stair_carpet_colour || 'Not selected'}</span>
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground">Stair Flooring:</span>
+                        {(selectedSubmission as any).stair_lvp_upgrade_selected ? (
+                          <span className="ml-2">
+                            <Badge className="bg-primary/10 text-primary border-primary/30">
+                              LVP Upgrade with Custom Stair Nosings ($2,160 + GST)
+                            </Badge>
+                          </span>
+                        ) : (
+                          <span className="ml-2">
+                            Standard Carpet{selectedSubmission.stair_carpet_colour 
+                              ? ` — ${selectedSubmission.stair_carpet_colour}` 
+                              : ' (color not selected)'}
+                          </span>
+                        )}
                       </div>
                     )}
                     <div>
