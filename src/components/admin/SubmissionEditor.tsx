@@ -188,7 +188,27 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
     return (editData.area_upgrades || []).filter(u => u.heatedFloor).length;
   };
 
+  // Validation helper for stair flooring
+  const validateStairFlooring = (): string | null => {
+    if (!editData.has_stairs) return null;
+    
+    // Check if either stair LVP upgrade is selected OR a stair carpet color is chosen
+    if (!editData.stair_lvp_upgrade_selected && !editData.stair_carpet_colour) {
+      return 'Please select a stair flooring option: either upgrade to LVP or choose a carpet color.';
+    }
+    return null;
+  };
+
   const handleSave = async () => {
+    // Validate stair flooring selection
+    const stairValidationError = validateStairFlooring();
+    if (stairValidationError) {
+      toast.error('Validation Error', {
+        description: stairValidationError,
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       // Calculate heated floor count from area upgrades
