@@ -991,9 +991,7 @@ export default function SelectionWizard() {
               selections.stairLvpUpgradeSelected ? (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Stairs Flooring</span>
-                  <span className="font-medium text-primary">
-                    LVP Upgrade with Custom Nosings (${stairLvpUpgradePrice.toLocaleString()} + GST)
-                  </span>
+                  <span className="font-medium text-primary">LVP Upgrade with Custom Nosings</span>
                 </div>
               ) : (
                 <div className="flex justify-between">
@@ -1045,29 +1043,17 @@ export default function SelectionWizard() {
               <span className="font-medium capitalize">{selections.backsplashOrientation || 'Not selected'}</span>
             </div>
             {selections.backsplashGrout?.enabled && (
-              <>
-                <div className="flex justify-between pt-2 border-t border-border mt-2">
-                  <span className="text-muted-foreground">Grout Color Change</span>
-                  <span className="font-medium text-primary">${groutColorChangePrice.toLocaleString()} + GST</span>
-                </div>
-                {selections.backsplashGrout.groutColor && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Color</span>
-                    <span className="font-medium">{selections.backsplashGrout.groutColor}</span>
-                  </div>
-                )}
-                {selections.backsplashGrout.comments && (
-                  <div className="pt-1">
-                    <span className="text-muted-foreground">Comments: </span>
-                    <span className="text-foreground">{selections.backsplashGrout.comments}</span>
-                  </div>
-                )}
-              </>
+              <div className="flex justify-between pt-2 border-t border-border mt-2">
+                <span className="text-muted-foreground">Grout Color Change</span>
+                <span className="font-medium text-primary">
+                  {selections.backsplashGrout.groutColor || 'Custom'} — See pricing below
+                </span>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Window Coverings */}
+        {/* Window Coverings - Selection details only, pricing in summary */}
         {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0 || selections.automatedWindowsQty > 0) && (
           <div className="p-4 rounded-xl border border-border bg-card">
             <h4 className="font-medium text-foreground mb-3">Window Coverings</h4>
@@ -1075,50 +1061,21 @@ export default function SelectionWizard() {
               {selections.additionalWindowsQty > 0 && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Additional Windows</span>
-                  <span className="font-medium">
-                    {selections.additionalWindowsQty} × ${additionalWindowPrice.toFixed(2)} = ${(selections.additionalWindowsQty * additionalWindowPrice).toFixed(2)}
-                  </span>
+                  <span className="font-medium">{selections.additionalWindowsQty} unit{selections.additionalWindowsQty > 1 ? 's' : ''}</span>
                 </div>
               )}
               {selections.patioDoorsQty > 0 && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Patio Door Panel Track</span>
-                  <span className="font-medium">
-                    {selections.patioDoorsQty} × ${patioDoorPrice.toFixed(2)} = ${(selections.patioDoorsQty * patioDoorPrice).toFixed(2)}
-                  </span>
+                  <span className="font-medium">{selections.patioDoorsQty} unit{selections.patioDoorsQty > 1 ? 's' : ''}</span>
                 </div>
               )}
               {selections.automatedWindowsQty > 0 && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Somfy Automation</span>
-                  <span className="font-medium">
-                    {selections.automatedWindowsQty} × ${automatedMotorPrice.toFixed(2)} = ${(selections.automatedWindowsQty * automatedMotorPrice).toFixed(2)}
-                  </span>
+                  <span className="font-medium">{selections.automatedWindowsQty} motor{selections.automatedWindowsQty > 1 ? 's' : ''}</span>
                 </div>
               )}
-              {(() => {
-                const reviewSubtotal = (selections.additionalWindowsQty * additionalWindowPrice) + 
-                                       (selections.patioDoorsQty * patioDoorPrice) + 
-                                       (selections.automatedWindowsQty * automatedMotorPrice);
-                const reviewGst = reviewSubtotal * gstRate;
-                const reviewTotal = reviewSubtotal + reviewGst;
-                return (
-                  <>
-                    <div className="flex justify-between pt-2 border-t border-border mt-2">
-                      <span className="text-muted-foreground">Subtotal</span>
-                      <span className="font-medium">${reviewSubtotal.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">GST ({(gstRate * 100).toFixed(0)}%)</span>
-                      <span className="font-medium">${reviewGst.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between font-semibold">
-                      <span className="text-foreground">Total</span>
-                      <span className="text-primary">${reviewTotal.toFixed(2)}</span>
-                    </div>
-                  </>
-                );
-              })()}
               {selections.windowComments && (
                 <div className="pt-2 border-t border-border mt-2">
                   <span className="text-muted-foreground">Comments: </span>
@@ -1129,18 +1086,38 @@ export default function SelectionWizard() {
           </div>
         )}
 
-        {/* Pricing Summary */}
-        {(selections.areaUpgrades.length > 0 || selections.heatedFloorBathrooms > 0) && (
-          <div className="p-4 rounded-xl border border-primary/30 bg-primary/5">
-            <UpgradePricingSummary
-              unitTypeCode={unitInfo?.typeCode || null}
-              selectedFloor={selections.upgradeFloorSelection}
-              areaUpgrades={selections.areaUpgrades}
-              heatedFloorBathrooms={selections.heatedFloorBathrooms}
-              bathroomTileSelected={selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId))}
-            />
-          </div>
-        )}
+        {/* Comprehensive Upgrade Pricing Summary - ALL upgrades consolidated */}
+        {(() => {
+          const hasAnyUpgrade = 
+            selections.stairLvpUpgradeSelected ||
+            selections.backsplashGrout?.enabled ||
+            selections.additionalWindowsQty > 0 ||
+            selections.patioDoorsQty > 0 ||
+            selections.automatedWindowsQty > 0 ||
+            selections.areaUpgrades.length > 0 ||
+            selections.heatedFloorBathrooms > 0;
+
+          if (!hasAnyUpgrade) return null;
+
+          return (
+            <div className="p-4 rounded-xl border-2 border-primary/40 bg-primary/5">
+              <UpgradePricingSummary
+                unitTypeCode={unitInfo?.typeCode || null}
+                selectedFloor={selections.upgradeFloorSelection}
+                areaUpgrades={selections.areaUpgrades}
+                heatedFloorBathrooms={selections.heatedFloorBathrooms}
+                bathroomTileSelected={selections.areaUpgrades.some(s => ['guestBathroom', 'masterEnsuite'].includes(s.areaId))}
+                backsplashGrout={selections.backsplashGrout}
+                stairLvpUpgradeSelected={selections.stairLvpUpgradeSelected}
+                windowCoverings={{
+                  additionalWindowsQty: selections.additionalWindowsQty,
+                  patioDoorsQty: selections.patioDoorsQty,
+                  automatedWindowsQty: selections.automatedWindowsQty,
+                }}
+              />
+            </div>
+          );
+        })()}
 
         {/* Upgrade Interests */}
         {Object.values(selections.upgradeInterests).some(v => v) && (
@@ -1158,7 +1135,6 @@ export default function SelectionWizard() {
             </div>
           </div>
         )}
-
         {/* Download PDF Button */}
         <div className="p-4 rounded-xl border border-primary/30 bg-primary/5">
           <div className="flex items-center justify-between">
