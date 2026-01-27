@@ -117,6 +117,7 @@ export default function SelectionWizard() {
     getAutomatedMotorPrice,
     getHeatedFloorPrice,
     getStairLvpUpgradePrice,
+    getGroutColorChangePrice,
     isFlatRateEnabled,
   } = useDynamicPricing();
   
@@ -126,6 +127,7 @@ export default function SelectionWizard() {
   const automatedMotorPrice = useMemo(() => getAutomatedMotorPrice(), [getAutomatedMotorPrice]);
   const heatedFloorPrice = useMemo(() => getHeatedFloorPrice(), [getHeatedFloorPrice]);
   const stairLvpUpgradePrice = useMemo(() => getStairLvpUpgradePrice(), [getStairLvpUpgradePrice]);
+  const groutColorChangePrice = useMemo(() => getGroutColorChangePrice(), [getGroutColorChangePrice]);
   const isStairLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_lvp_upgrade_price'), [isFlatRateEnabled]);
 
   const [selections, setSelections] = useState<SelectionState>({
@@ -1014,7 +1016,7 @@ export default function SelectionWizard() {
               <>
                 <div className="flex justify-between pt-2 border-t border-border mt-2">
                   <span className="text-muted-foreground">Grout Color Change</span>
-                  <span className="font-medium text-primary">$300.00 + GST</span>
+                  <span className="font-medium text-primary">${groutColorChangePrice.toLocaleString()} + GST</span>
                 </div>
                 {selections.backsplashGrout.groutColor && (
                   <div className="flex justify-between">
@@ -1457,7 +1459,7 @@ export default function SelectionWizard() {
         
         const groutPrice = selections.backsplashGrout.enabled 
           ? calculateBacksplashGroutPrice() 
-          : { markedUpCost: 0, gst: 0, total: 0 };
+          : { baseCost: 0, markedUpCost: 0, gst: 0, total: 0 };
         
         return (
           <StepContainer
@@ -1520,7 +1522,7 @@ export default function SelectionWizard() {
                   Change Grout Color
                 </h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Your backsplash comes with standard white grout. Want a different color? Add a custom grout color for $300 + GST.
+                  Your backsplash comes with standard white grout. Want a different color? Add a custom grout color for ${groutColorChangePrice.toLocaleString()} + GST.
                 </p>
                 
                 <div className={`
@@ -1546,7 +1548,7 @@ export default function SelectionWizard() {
                       </div>
                       <div>
                         <h4 className="font-medium text-foreground text-sm">Change Backsplash Grout Color</h4>
-                        <p className="text-xs text-muted-foreground">$300.00 + GST ($315.00 total)</p>
+                        <p className="text-xs text-muted-foreground">${groutPrice.baseCost.toLocaleString()} + GST (${groutPrice.total.toFixed(2)} total)</p>
                       </div>
                     </div>
                     
