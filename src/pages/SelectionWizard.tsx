@@ -318,6 +318,11 @@ export default function SelectionWizard() {
   };
 
 
+  // Scroll to top when step changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentStep]);
+
   const nextStep = () => {
     if (currentStep < steps.length - 1) {
       const newStep = currentStep + 1;
