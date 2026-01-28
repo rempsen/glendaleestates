@@ -241,6 +241,7 @@ export function useDynamicPricing() {
         allLvp: Number(dbUnit.all_lvp),
         mainLiving: Number(dbUnit.main_living),
         secondBedroom: Number(dbUnit.second_bedroom),
+        masterBedroomLvp: Number((dbUnit as any).master_bedroom_lvp || 0),
         masterBedroom: Number(dbUnit.master_bedroom),
         secondBedroomCarpet: Number(dbUnit.second_bedroom_carpet),
         masterBedroomCarpet: 0, // Not in DB yet, use 0
