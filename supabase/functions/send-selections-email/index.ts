@@ -259,6 +259,7 @@ const AREA_NAMES: Record<string, string> = {
   laundry: 'Laundry Room',
   backsplash: 'Kitchen Backsplash',
   allLvp: 'All Standard LVP Areas',
+  stairs: 'Stairs',
 };
 
 // Material type display names
@@ -272,6 +273,71 @@ const MATERIAL_NAMES: Record<string, string> = {
   nonstandard_lvt: 'Non Standard LVT Color',
   nonstandard_tile: 'Non Standard Tile Color',
 };
+
+// Normalize unit type label to unit type code
+// e.g., "Corner Unit G" -> "G", "Unit Type A" -> "A"
+function normalizeUnitTypeCode(unitType: string | null | undefined): string {
+  if (!unitType) return '';
+  
+  const typeUpper = unitType.toUpperCase().trim();
+  
+  // Direct match for single letters
+  if (/^[A-J]$/.test(typeUpper)) return typeUpper;
+  
+  // Already floor-specific (G-1, G-2, H-1, H-2)
+  if (/^[GH]-[12]$/.test(typeUpper)) return typeUpper;
+  
+  // Extract letter from common patterns
+  // "Corner Unit G" -> "G"
+  // "Unit Type A" -> "A"
+  // "Type B" -> "B"
+  const patterns = [
+    /CORNER\s*UNIT\s*([A-J])/i,
+    /UNIT\s*TYPE\s*([A-J])/i,
+    /TYPE\s*([A-J])/i,
+    /UNIT\s*([A-J])/i,
+    /^([A-J])$/i,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = typeUpper.match(pattern);
+    if (match && match[1]) {
+      return match[1].toUpperCase();
+    }
+  }
+  
+  return typeUpper;
+}
+
+// Resolve G/H unit codes to floor-specific codes (G-1, G-2, etc.)
+function resolveFloorSpecificUnitCode(
+  unitTypeCode: string,
+  upgradeFloorSelection: string | null | undefined,
+  unitAreas: Record<string, Record<string, number>>
+): string {
+  const upper = unitTypeCode.toUpperCase().trim();
+  
+  // Already floor-specific
+  if (upper.includes('-')) return upper;
+  
+  // For G and H units, resolve to floor-specific
+  if (upper === 'G' || upper === 'H') {
+    if (upgradeFloorSelection) {
+      return `${upper}-${upgradeFloorSelection}`;
+    }
+    
+    // Try floor 1 first, then floor 2
+    const floor1Code = `${upper}-1`;
+    const floor2Code = `${upper}-2`;
+    
+    if (unitAreas[floor1Code]) return floor1Code;
+    if (unitAreas[floor2Code]) return floor2Code;
+    
+    return upper;
+  }
+  
+  return upper;
+}
 
 // Fetch dynamic pricing from database
 async function fetchDynamicPricing(): Promise<{
@@ -347,25 +413,41 @@ async function fetchDynamicPricing(): Promise<{
 function calculateAreaUpgradeCosts(
   unitTypeCode: string,
   areaUpgrades: AreaUpgrade[],
+  upgradeFloorSelection: string | null | undefined,
   pricing: {
     materials: Record<string, number>;
     unitAreas: Record<string, Record<string, number>>;
     markupPercentage: number;
     heatedFloorPrice: number;
+    stairCarpetUpgradePrice: number;
   }
-): { lineItems: Array<{ area: string; material: string; cost: number; heatedFloor?: boolean; heatedCost?: number }>; subtotal: number } {
-  const lineItems: Array<{ area: string; material: string; cost: number; heatedFloor?: boolean; heatedCost?: number }> = [];
+): { lineItems: Array<{ areaId: string; area: string; material: string; cost: number; heatedFloor?: boolean; heatedCost?: number }>; subtotal: number } {
+  const lineItems: Array<{ areaId: string; area: string; material: string; cost: number; heatedFloor?: boolean; heatedCost?: number }> = [];
   let subtotal = 0;
 
-  const unitData = pricing.unitAreas[unitTypeCode];
-  if (!unitData) {
-    return { lineItems, subtotal };
-  }
+  // Resolve floor-specific unit code for G/H units
+  const resolvedUnitCode = resolveFloorSpecificUnitCode(unitTypeCode, upgradeFloorSelection, pricing.unitAreas);
+  const unitData = pricing.unitAreas[resolvedUnitCode];
 
   for (const upgrade of areaUpgrades) {
-    const quantity = unitData[upgrade.areaId] || 0;
-    if (quantity === 0) continue;
+    // Handle stairs as flat-rate (not square-footage based)
+    if (upgrade.areaId === 'stairs') {
+      // Stairs premium carpet is a flat rate
+      const stairCost = pricing.stairCarpetUpgradePrice;
+      subtotal += stairCost;
+      lineItems.push({
+        areaId: upgrade.areaId,
+        area: AREA_NAMES[upgrade.areaId] || upgrade.areaId,
+        material: MATERIAL_NAMES[upgrade.materialType] || upgrade.materialType,
+        cost: stairCost,
+        heatedFloor: false,
+        heatedCost: 0,
+      });
+      continue;
+    }
 
+    // Get quantity from unit data
+    const quantity = unitData ? (unitData[upgrade.areaId] || 0) : 0;
     const costPerUnit = pricing.materials[upgrade.materialType] || 0;
     const baseCost = quantity * costPerUnit;
     const markedUpCost = baseCost * (1 + pricing.markupPercentage);
@@ -374,16 +456,16 @@ function calculateAreaUpgradeCosts(
     const hasHeatedFloor = upgrade.heatedFloor && ['guestBathroom', 'masterEnsuite'].includes(upgrade.areaId);
     const heatedCost = hasHeatedFloor ? pricing.heatedFloorPrice : 0;
 
-    if (markedUpCost > 0 || heatedCost > 0) {
-      subtotal += markedUpCost + heatedCost;
-      lineItems.push({
-        area: AREA_NAMES[upgrade.areaId] || upgrade.areaId,
-        material: MATERIAL_NAMES[upgrade.materialType] || upgrade.materialType,
-        cost: markedUpCost,
-        heatedFloor: hasHeatedFloor,
-        heatedCost: heatedCost,
-      });
-    }
+    // Include line item if there's any cost OR if user selected something (for display)
+    subtotal += markedUpCost + heatedCost;
+    lineItems.push({
+      areaId: upgrade.areaId,
+      area: AREA_NAMES[upgrade.areaId] || upgrade.areaId,
+      material: MATERIAL_NAMES[upgrade.materialType] || upgrade.materialType,
+      cost: markedUpCost,
+      heatedFloor: hasHeatedFloor,
+      heatedCost: heatedCost,
+    });
   }
 
   return { lineItems, subtotal };
@@ -589,15 +671,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const groutSubtotal = data.backsplashGroutEnabled ? groutColorPrice : 0;
     
     // Calculate area upgrade costs (flooring/tile)
-    const effectiveUnitCode = data.unitType || '';
+    // Normalize unit type label to code (e.g., "Corner Unit G" -> "G")
+    const effectiveUnitCode = normalizeUnitTypeCode(data.unitType);
     const areaUpgradeCosts = calculateAreaUpgradeCosts(
       effectiveUnitCode,
       data.areaUpgrades || [],
+      data.upgradeFloorSelection,
       {
         materials: pricing.materials,
         unitAreas: pricing.unitAreas,
         markupPercentage: pricing.markupPercentage,
         heatedFloorPrice: heatedFloorPrice,
+        stairCarpetUpgradePrice: stairCarpetUpgradePrice,
       }
     );
     
@@ -628,7 +713,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
               <th style="text-align: right; padding: 8px 0;">Cost</th>
             </tr>
             ${data.areaUpgrades.map(u => {
-              const lineItem = areaUpgradeCosts.lineItems.find(l => l.area === (AREA_NAMES[u.areaId] || u.areaId));
+              // Match by areaId for reliable lookup
+              const lineItem = areaUpgradeCosts.lineItems.find(l => l.areaId === u.areaId);
               const materialCost = lineItem?.cost || 0;
               const heatedCost = lineItem?.heatedCost || 0;
               return `
