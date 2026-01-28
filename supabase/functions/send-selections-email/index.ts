@@ -206,6 +206,15 @@ interface AreaUpgrade {
   heatedFloor?: boolean;
 }
 
+// Document upload interface
+interface DocumentUpload {
+  name: string;
+  path: string;
+  size: number;
+  type: string;
+  uploadedAt: string;
+}
+
 interface SelectionData {
   unitNumber: string;
   unitType?: string | null;
@@ -245,6 +254,8 @@ interface SelectionData {
   backsplashGroutComments?: string | null;
   // PDF for HubSpot
   pdfBase64?: string | null;
+  // Document uploads
+  documentUploads?: DocumentUpload[];
 }
 
 // Area name mapping for display
@@ -551,6 +562,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
       backsplashGroutEnabled: Boolean(rawData.backsplashGroutEnabled),
       backsplashGroutColor: rawData.backsplashGroutColor ? String(rawData.backsplashGroutColor).trim().slice(0, 100) : null,
       backsplashGroutComments: rawData.backsplashGroutComments ? String(rawData.backsplashGroutComments).trim().slice(0, 2000) : null,
+      // Document uploads
+      documentUploads: Array.isArray(rawData.documentUploads) ? rawData.documentUploads.map((doc: unknown) => {
+        const d = doc as Record<string, unknown>;
+        return {
+          name: String(d.name || '').slice(0, 255),
+          path: String(d.path || '').slice(0, 500),
+          size: Number(d.size) || 0,
+          type: String(d.type || '').slice(0, 100),
+          uploadedAt: String(d.uploadedAt || new Date().toISOString()),
+        };
+      }) : [],
     };
 
     const { data: savedSelection, error: dbError } = await supabaseInsert("buyer_selections", {
@@ -588,6 +610,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       backsplash_grout_enabled: data.backsplashGroutEnabled,
       backsplash_grout_color: data.backsplashGroutColor,
       backsplash_grout_comments: data.backsplashGroutComments,
+      document_uploads: data.documentUploads || [],
       status: "submitted",
     });
 
@@ -938,6 +961,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
           <div class="section" style="background: #e8f4fd; border-left: 4px solid #2196F3;">
             <h2 style="color: #1565C0; margin-top: 0;">Sales Comments</h2>
             <p class="value">${escapeHtml(data.salesComments)}</p>
+          </div>
+          ` : ''}
+
+          ${data.documentUploads && data.documentUploads.length > 0 ? `
+          <div class="section" style="background: #fff3e0; border-left: 4px solid #ff9800;">
+            <h2 style="color: #e65100; margin-top: 0;">Attached Documents (${data.documentUploads.length})</h2>
+            <p style="font-size: 13px; margin-bottom: 10px;">The buyer has uploaded the following documents. Access them in Supabase Storage under the <strong>buyer-documents</strong> bucket:</p>
+            <ul style="margin: 0; padding-left: 20px;">
+              ${data.documentUploads.map(doc => `<li style="margin: 5px 0;"><strong>${escapeHtml(doc.name)}</strong> (${(doc.size / 1024).toFixed(1)} KB) — Path: <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">${escapeHtml(doc.path)}</code></li>`).join('')}
+            </ul>
           </div>
           ` : ''}
 

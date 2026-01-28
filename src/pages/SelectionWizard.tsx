@@ -42,7 +42,7 @@ import { SubmissionProgress, SubmissionStep } from '@/components/SubmissionProgr
 import tileStackedImg from '@/assets/tile-stacked.jpg';
 import tileBrickedImg from '@/assets/tile-bricked.jpg';
 import tileHorizontalImg from '@/assets/tile-horizontal.jpg';
-import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Download, LogOut, Palette, Play, ExternalLink, Save, Clock } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Download, LogOut, Palette, Play, ExternalLink, Save, Clock, Paperclip } from 'lucide-react';
 import { toast } from 'sonner';
 import { User } from '@supabase/supabase-js';
 import panelTrackBlindsImg from '@/assets/panel-track-blinds.png';
@@ -50,6 +50,7 @@ import somfyMotorsImg from '@/assets/somfy-motors.png';
 import somfyControlsImg from '@/assets/somfy-controls.png';
 import bedroomCarpetPreviewImg from '@/assets/bedroom-carpet-preview.jpg';
 import bedroomLvpPreviewImg from '@/assets/bedroom-lvp-preview.jpg';
+import { DocumentUploader } from '@/components/DocumentUploader';
 
 // Dynamic step configuration based on unit
 const getSteps = (hasStairs: boolean) => {
@@ -59,6 +60,15 @@ const getSteps = (hasStairs: boolean) => {
   }
   return [...baseSteps, 'Windows', 'Upgrades', 'Comments', 'Review'];
 };
+
+// Document upload interface
+interface UploadedDocument {
+  name: string;
+  path: string;
+  size: number;
+  type: string;
+  uploadedAt: string;
+}
 
 interface SelectionState {
   unitNumber: string;
@@ -94,6 +104,8 @@ interface SelectionState {
   // Heated floors (kept separate)
   bathroomTileSelected: boolean;
   heatedFloorBathrooms: number;
+  // Document uploads
+  documentUploads: UploadedDocument[];
 }
 
 export default function SelectionWizard() {
@@ -165,6 +177,7 @@ export default function SelectionWizard() {
     upgradeComments: '',
     bathroomTileSelected: false,
     heatedFloorBathrooms: 0,
+    documentUploads: [],
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionStep, setSubmissionStep] = useState<SubmissionStep>('preparing');
@@ -425,6 +438,7 @@ export default function SelectionWizard() {
           backsplashGroutComments: selections.backsplashGrout.comments,
           stairLvpUpgradeSelected: selections.stairLvpUpgradeSelected,
           pdfBase64: pdfBase64,
+          documentUploads: selections.documentUploads,
         }),
       });
 
@@ -822,11 +836,12 @@ export default function SelectionWizard() {
   // Helper function for Comments step
   const renderCommentsStep = () => (
     <StepContainer
-      title="Sales Comments"
-      subtitle="For office use — add any notes or comments about this selection meeting"
-      badge="Internal"
+      title="Comments & Documents"
+      subtitle="Add notes and attach any relevant documents such as drawings or floor plans"
+      badge="Optional"
     >
-      <div className="space-y-6 max-w-2xl">
+      <div className="space-y-8 max-w-2xl">
+        {/* Meeting Notes Section */}
         <div className="p-5 rounded-xl bg-secondary/50 border border-border">
           <div className="flex items-center gap-3 mb-4">
             <Info className="w-5 h-5 text-primary" />
@@ -842,6 +857,25 @@ export default function SelectionWizard() {
             value={selections.salesComments}
             onChange={(e) => updateSelection('salesComments', e.target.value)}
             className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          />
+        </div>
+
+        {/* Document Upload Section */}
+        <div className="p-5 rounded-xl bg-secondary/50 border border-border">
+          <div className="flex items-center gap-3 mb-4">
+            <Paperclip className="w-5 h-5 text-primary" />
+            <span className="font-medium text-foreground">Attach Documents</span>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            Upload any drawings, floor plans, or other documents that may be helpful for your selections. 
+            These will be included with your submission and sent to the BMD team.
+          </p>
+          <DocumentUploader
+            unitNumber={selections.unitNumber}
+            uploads={selections.documentUploads}
+            onUploadsChange={(uploads) => updateSelection('documentUploads', uploads)}
+            maxFiles={5}
+            maxSizeMB={10}
           />
         </div>
       </div>
