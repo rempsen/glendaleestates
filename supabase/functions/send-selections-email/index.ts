@@ -1610,7 +1610,22 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
                               <div style="background: #e0f2fe; border-radius: 50%; width: 28px; height: 28px; line-height: 28px; text-align: center; color: #0369a1; font-weight: 600; font-size: 13px;">3</div>
                             </td>
                             <td style="padding-left: 12px;">
-                              <p style="margin: 0; color: #1a1a2e; font-size: 14px; font-weight: 500;">Installation coordination</p>
+                              <p style="margin: 0; color: #1a1a2e; font-size: 14px; font-weight: 500;">Payment of Upgrades</p>
+                              <p style="margin: 4px 0 0; color: #666; font-size: 13px;">A BMD associate will be in touch to collect payment for your upgrades prior to materials being ordered, which may be 3-5 months prior to your possession date.</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 12px 0; vertical-align: top;">
+                        <table role="presentation" style="border-collapse: collapse;">
+                          <tr>
+                            <td style="width: 32px; vertical-align: top;">
+                              <div style="background: #e0f2fe; border-radius: 50%; width: 28px; height: 28px; line-height: 28px; text-align: center; color: #0369a1; font-weight: 600; font-size: 13px;">4</div>
+                            </td>
+                            <td style="padding-left: 12px;">
+                              <p style="margin: 0; color: #1a1a2e; font-size: 14px; font-weight: 500;">Installation Coordination</p>
                               <p style="margin: 4px 0 0; color: #666; font-size: 13px;">Materials will be ordered and scheduled for your possession date</p>
                             </td>
                           </tr>
