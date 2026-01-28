@@ -430,9 +430,11 @@ function calculateAreaUpgradeCosts(
   const unitData = pricing.unitAreas[resolvedUnitCode];
 
   for (const upgrade of areaUpgrades) {
-    // Handle stairs as flat-rate (not square-footage based)
+    // Handle stairs specially - can be either premium LVP (included in stairLvpUpgradeSelected) 
+    // or premium carpet (flat rate). For area upgrades, stairs only appears for premium carpet.
     if (upgrade.areaId === 'stairs') {
-      // Stairs premium carpet is a flat rate
+      // Stairs in area upgrades is premium carpet (flat rate)
+      // LVP stairs are handled separately via stairLvpUpgradeSelected flag
       const stairCost = pricing.stairCarpetUpgradePrice;
       subtotal += stairCost;
       lineItems.push({
