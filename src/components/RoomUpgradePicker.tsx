@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sofa, BedDouble, Bed, Grid3x3, Bath, ShowerHead, 
@@ -19,14 +19,14 @@ import {
 import {
   AreaUpgradeSelection,
   UpgradeArea,
-  getAvailableAreasForUnit,
   UPGRADE_MATERIALS,
   AREA_DEFINITIONS,
-  UNIT_AREA_DATA,
   requiresFloorSelection,
   MaterialType,
+  AreaInfo,
 } from '@/lib/upgradeCostData';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
+import { useUnitAreaData } from '@/hooks/useUnitAreaData';
 
 interface RoomUpgradePickerProps {
   unitTypeCode: string | null;
@@ -61,6 +61,7 @@ export function RoomUpgradePicker({
   
   // Use dynamic pricing from database
   const { calculateAreaUpgradePrice, getHeatedFloorPrice, getStairLvpUpgradePrice, getStairCarpetUpgradePrice, gstRate } = useDynamicPricing();
+  const { getAreaForUnitType, unitAreaData } = useUnitAreaData();
   const heatedFloorPrice = getHeatedFloorPrice();
   const stairLvpPrice = getStairLvpUpgradePrice();
   const stairCarpetPrice = getStairCarpetUpgradePrice();
@@ -72,8 +73,43 @@ export function RoomUpgradePicker({
         : unitTypeCode)
     : null;
 
-  const availableAreas = effectiveUnitCode ? getAvailableAreasForUnit(effectiveUnitCode) : [];
-  const unitData = effectiveUnitCode ? UNIT_AREA_DATA[effectiveUnitCode] : null;
+  // Get unit area data from database
+  const unitData = effectiveUnitCode ? getAreaForUnitType(effectiveUnitCode) : null;
+
+  // Get available areas based on database values (areas with quantity > 0)
+  const availableAreas = useMemo((): AreaInfo[] => {
+    if (!effectiveUnitCode || !unitData) return [];
+    
+    // Map database field names to area IDs
+    const areaFieldMap: Record<UpgradeArea, keyof typeof unitData> = {
+      'allLvp': 'allLvp',
+      'mainLiving': 'mainLiving',
+      'secondBedroom': 'secondBedroom',
+      'masterBedroomLvp': 'masterBedroomLvp',
+      'masterBedroom': 'masterBedroom',
+      'secondBedroomCarpet': 'secondBedroomCarpet',
+      'masterBedroomCarpet': 'masterBedroom', // Uses same field as masterBedroom
+      'stairs': 'allLvp', // Stairs don't have dedicated field, check later
+      'guestBathroom': 'guestBathroom',
+      'masterEnsuite': 'masterEnsuite',
+      'laundry': 'laundry',
+      'backsplash': 'backsplash',
+    };
+
+    return AREA_DEFINITIONS.filter(area => {
+      // Special case for stairs - check if unit has stairs (G/H units have stairs field)
+      if (area.id === 'stairs') {
+        // Only show stairs for G-1 and H-1 (1st floor of townhouse units)
+        return effectiveUnitCode === 'G-1' || effectiveUnitCode === 'H-1';
+      }
+      
+      const fieldName = areaFieldMap[area.id];
+      if (!fieldName) return false;
+      
+      const quantity = unitData[fieldName];
+      return quantity > 0;
+    });
+  }, [effectiveUnitCode, unitData]);
 
   // Helper to get stair upgrade pricing (uses flat rates, not per-sqft)
   const getStairUpgradePrice = (materialType: MaterialType): { markedUpCost: number; quantity: number; unit: string } => {
@@ -221,7 +257,8 @@ export function RoomUpgradePicker({
           const isSelected = isAreaSelected(area.id);
           const selection = getSelectionForArea(area.id);
           const isExpanded = expandedArea === area.id;
-          const quantity = area.id === 'stairs' ? 1 : (unitData?.[area.id] || 0);
+          // Get quantity from unitData using the area ID directly (camelCase matches)
+          const quantity = area.id === 'stairs' ? 1 : (unitData?.[area.id as keyof typeof unitData] as number || 0);
           const pricing = isSelected && selection
             ? getAreaPricing(area.id, selection.materialType)
             : null;
