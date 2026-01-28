@@ -55,28 +55,30 @@ const COLORS = {
 };
 
 // Helper function to calculate upgrade cost with dynamic pricing
+// Returns line items for ALL selections, calculating cost per area
 function calculateUpgradeCost(
   unitTypeCode: string,
   selections: AreaUpgradeSelection[],
   pricing: PdfPricingConfig
-): { subtotal: number; gst: number; total: number; lineItems: Array<{ areaName: string; quantity: number; unit: string; markedUpCost: number; heatedFloor?: boolean; heatedFloorCost?: number }> } {
+): { subtotal: number; gst: number; total: number; lineItems: Array<{ areaId: string; areaName: string; quantity: number; unit: string; markedUpCost: number; heatedFloor?: boolean; heatedFloorCost?: number }> } {
   let subtotal = 0;
-  const lineItems: Array<{ areaName: string; quantity: number; unit: string; markedUpCost: number; heatedFloor?: boolean; heatedFloorCost?: number }> = [];
+  const lineItems: Array<{ areaId: string; areaName: string; quantity: number; unit: string; markedUpCost: number; heatedFloor?: boolean; heatedFloorCost?: number }> = [];
 
   // Use dynamic unit area data if provided, otherwise fall back to static data
   const unitData = pricing.getUnitAreaData 
     ? pricing.getUnitAreaData(unitTypeCode) 
     : UNIT_AREA_DATA[unitTypeCode];
-    
-  if (!unitData) {
-    return { subtotal: 0, gst: 0, total: 0, lineItems: [] };
-  }
 
   const heatedFloorPrice = pricing.getHeatedFloorPrice();
 
   for (const selection of selections) {
+    // Skip stair selections - they're handled separately as flat rates
+    if (selection.areaId === 'stairs') {
+      continue;
+    }
+
     // Map areaId to the correct field in unitData
-    const areaFieldMap: Record<string, keyof typeof unitData> = {
+    const areaFieldMap: Record<string, string> = {
       'allLvp': 'allLvp',
       'mainLiving': 'mainLiving',
       'secondBedroom': 'secondBedroom',
@@ -91,9 +93,9 @@ function calculateUpgradeCost(
     };
     
     const fieldName = areaFieldMap[selection.areaId] || selection.areaId;
-    const quantity = (unitData as any)[fieldName] || 0;
-    if (quantity === 0) continue;
-
+    const quantity = unitData ? (unitData as any)[fieldName] || 0 : 0;
+    
+    // Get material cost from dynamic pricing
     const costPerUnit = pricing.getMaterialCost(selection.materialType);
     const material = UPGRADE_MATERIALS.find(m => m.id === selection.materialType);
     const baseCost = quantity * costPerUnit;
@@ -103,18 +105,20 @@ function calculateUpgradeCost(
     const hasHeatedFloor = selection.heatedFloor && (selection.materialType === 'tile' || selection.materialType === 'nonstandard_tile');
     const heatedFloorCost = hasHeatedFloor ? heatedFloorPrice : 0;
     
-    if (markedUpCost > 0 || heatedFloorCost > 0) {
-      subtotal += markedUpCost + heatedFloorCost;
-      const areaInfo = AREA_DEFINITIONS.find(a => a.id === selection.areaId);
-      lineItems.push({
-        areaName: areaInfo?.name || selection.areaId,
-        quantity,
-        unit: material?.unit === 'sqyd' ? 'sq yd' : 'sq ft',
-        markedUpCost,
-        heatedFloor: hasHeatedFloor,
-        heatedFloorCost,
-      });
-    }
+    const areaInfo = AREA_DEFINITIONS.find(a => a.id === selection.areaId);
+    
+    // Always add to line items if selection exists, even if cost is 0
+    // This ensures items appear in PDF even when area data might be missing
+    subtotal += markedUpCost + heatedFloorCost;
+    lineItems.push({
+      areaId: selection.areaId,
+      areaName: areaInfo?.name || selection.areaId,
+      quantity,
+      unit: material?.unit === 'sqyd' ? 'sq yd' : 'sq ft',
+      markedUpCost,
+      heatedFloor: hasHeatedFloor,
+      heatedFloorCost,
+    });
   }
 
   const gst = subtotal * pricing.gstRate;
@@ -448,14 +452,20 @@ export async function generateBuyerPreviewPDF(
   const upgradeCalc = calculateUpgradeCost(effectiveUnitCode || '', selections.areaUpgrades, pricing);
   const groutPrice = selections.backsplashGrout?.enabled ? calculateGroutPrice(pricing) : null;
   
-  // Stair LVP upgrade cost
+  // Stair LVP upgrade cost (from the stairLvpUpgradeSelected flag)
   const stairLvpPrice = selections.stairLvpUpgradeSelected ? (pricing.getStairLvpUpgradePrice?.() || 2160) : 0;
   
-  // Stair Premium Carpet upgrade cost
+  // Stair Premium Carpet upgrade cost (from the stairPremiumCarpetSelected flag)
   const stairCarpetPrice = selections.stairPremiumCarpetSelected ? (pricing.getStairCarpetUpgradePrice?.() || 640) : 0;
   
+  // Check if there's a stair selection in areaUpgrades (premium carpet from upgrade picker)
+  const stairUpgradeFromPicker = selections.areaUpgrades.find(u => u.areaId === 'stairs');
+  const stairUpgradePickerPrice = stairUpgradeFromPicker ? (pricing.getStairCarpetUpgradePrice?.() || 640) : 0;
+  
   // Note: heated floor costs are now included in upgradeCalc.subtotal per area
-  const upgradesSubtotal = upgradeCalc.subtotal + (groutPrice?.markedUpCost || 0) + stairLvpPrice + stairCarpetPrice;
+  // Include stair upgrade picker price only if not already counted via stairCarpetPrice flag
+  const upgradesSubtotal = upgradeCalc.subtotal + (groutPrice?.markedUpCost || 0) + stairLvpPrice + 
+    (stairCarpetPrice > 0 ? stairCarpetPrice : stairUpgradePickerPrice);
 
   if (upgradesSubtotal > 0) {
     checkNewPage(80);
@@ -473,11 +483,16 @@ export async function generateBuyerPreviewPDF(
 
     const upgradeData: string[][] = [];
 
-    // Area upgrades - show material names, heated floor, and prices (no sq ft)
+    // Area upgrades - show material names, heated floor, and prices using line items
+    // The lineItems now include areaId for reliable matching
     selections.areaUpgrades.forEach(upgrade => {
+      // Skip stair selections - they're handled separately below
+      if (upgrade.areaId === 'stairs') return;
+      
       const areaDef = AREA_DEFINITIONS.find(a => a.id === upgrade.areaId);
       if (areaDef) {
-        const itemCalc = upgradeCalc.lineItems.find(i => i.areaName === areaDef.name);
+        // Find the matching line item by areaId (more reliable than areaName)
+        const itemCalc = upgradeCalc.lineItems.find(i => i.areaId === upgrade.areaId);
         const materialCost = itemCalc?.markedUpCost || 0;
         
         // Add the material upgrade line
@@ -495,20 +510,30 @@ export async function generateBuyerPreviewPDF(
         }
       }
     });
-
-    // Stair LVP upgrade
+    
+    // Handle stair selections from areaUpgrades (premium carpet selections)
+    const stairUpgrade = selections.areaUpgrades.find(u => u.areaId === 'stairs');
+    
+    // Stair LVP upgrade (from stairLvpUpgradeSelected flag)
     if (stairLvpPrice > 0) {
       upgradeData.push([
         'Stair LVP Upgrade with Custom Nosings',
         `$${stairLvpPrice.toFixed(2)}`
       ]);
     }
-    
-    // Stair Premium Carpet upgrade
-    if (stairCarpetPrice > 0) {
+    // Stair Premium Carpet upgrade (from stairPremiumCarpetSelected flag) - only if no areaUpgrades stair
+    else if (stairCarpetPrice > 0 && !stairUpgrade) {
       upgradeData.push([
         'Premium Carpet Stairs Upgrade',
         `$${stairCarpetPrice.toFixed(2)}`
+      ]);
+    }
+    // Stair selection from upgrade picker (premium carpet with product name)
+    else if (stairUpgrade) {
+      const stairCarpetUpgradePrice = pricing.getStairCarpetUpgradePrice?.() || 640;
+      upgradeData.push([
+        `Stairs — ${stairUpgrade.productName || UPGRADE_MATERIALS.find(m => m.id === stairUpgrade.materialType)?.name || 'Premium Carpet'}`,
+        `$${stairCarpetUpgradePrice.toFixed(2)}`
       ]);
     }
 
