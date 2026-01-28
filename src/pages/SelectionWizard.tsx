@@ -119,6 +119,7 @@ export default function SelectionWizard() {
     getStairLvpUpgradePrice,
     getGroutColorChangePrice,
     isFlatRateEnabled,
+    getUnitAreaData,
   } = useDynamicPricing();
   
   // Get dynamic pricing values - use useMemo to ensure they update when pricing loads
@@ -359,6 +360,7 @@ export default function SelectionWizard() {
           getAutomatedMotorPrice,
           getHeatedFloorPrice,
           getStairLvpUpgradePrice,
+          getUnitAreaData,
         };
         
         const pdfResult = await generateBuyerPreviewPDF(
@@ -1072,6 +1074,7 @@ export default function SelectionWizard() {
                 getAutomatedMotorPrice,
                 getHeatedFloorPrice,
                 getStairLvpUpgradePrice,
+                getUnitAreaData,
               };
               await generateBuyerPreviewPDF(selections, unitInfo?.typeCode || null, pricingConfig);
                   toast.success('PDF downloaded successfully!');
