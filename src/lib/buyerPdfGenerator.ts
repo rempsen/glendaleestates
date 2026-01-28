@@ -54,20 +54,65 @@ const COLORS = {
   light: [245, 243, 240] as [number, number, number],
 };
 
+// Helper function to resolve G/H unit codes to floor-specific codes
+function resolveFloorSpecificUnitCode(
+  unitTypeCode: string,
+  upgradeFloorSelection: '1' | '2' | null,
+  pricing: PdfPricingConfig
+): string {
+  const upper = unitTypeCode.toUpperCase().trim();
+  
+  // If already floor-specific (G-1, G-2, H-1, H-2), return as-is
+  if (upper.includes('-')) {
+    return upper;
+  }
+  
+  // For G and H units without floor specification, try to resolve
+  if (upper === 'G' || upper === 'H') {
+    // If user selected a floor, use that
+    if (upgradeFloorSelection) {
+      return `${upper}-${upgradeFloorSelection}`;
+    }
+    
+    // Try to find data by checking if G-1/G-2 or H-1/H-2 exists
+    // Combine both floors' data by trying each floor
+    const floor1Code = `${upper}-1`;
+    const floor2Code = `${upper}-2`;
+    
+    // Try floor 1 first, then floor 2
+    if (pricing.getUnitAreaData) {
+      const floor1Data = pricing.getUnitAreaData(floor1Code);
+      if (floor1Data) return floor1Code;
+      
+      const floor2Data = pricing.getUnitAreaData(floor2Code);
+      if (floor2Data) return floor2Code;
+    }
+    
+    // Fall back to the original code
+    return upper;
+  }
+  
+  return upper;
+}
+
 // Helper function to calculate upgrade cost with dynamic pricing
 // Returns line items for ALL selections, calculating cost per area
 function calculateUpgradeCost(
   unitTypeCode: string,
   selections: AreaUpgradeSelection[],
-  pricing: PdfPricingConfig
+  pricing: PdfPricingConfig,
+  upgradeFloorSelection?: '1' | '2' | null
 ): { subtotal: number; gst: number; total: number; lineItems: Array<{ areaId: string; areaName: string; quantity: number; unit: string; markedUpCost: number; heatedFloor?: boolean; heatedFloorCost?: number }> } {
   let subtotal = 0;
   const lineItems: Array<{ areaId: string; areaName: string; quantity: number; unit: string; markedUpCost: number; heatedFloor?: boolean; heatedFloorCost?: number }> = [];
 
+  // Resolve floor-specific unit code for G/H units
+  const resolvedUnitCode = resolveFloorSpecificUnitCode(unitTypeCode, upgradeFloorSelection || null, pricing);
+
   // Use dynamic unit area data if provided, otherwise fall back to static data
   const unitData = pricing.getUnitAreaData 
-    ? pricing.getUnitAreaData(unitTypeCode) 
-    : UNIT_AREA_DATA[unitTypeCode];
+    ? pricing.getUnitAreaData(resolvedUnitCode) 
+    : UNIT_AREA_DATA[resolvedUnitCode];
 
   const heatedFloorPrice = pricing.getHeatedFloorPrice();
 
@@ -449,7 +494,8 @@ export async function generateBuyerPreviewPDF(
   const effectiveUnitCode = normalizeUnitTypeCode(unitTypeCode);
   
   // Calculate upgrade costs using dynamic pricing (includes heated floors per area)
-  const upgradeCalc = calculateUpgradeCost(effectiveUnitCode || '', selections.areaUpgrades, pricing);
+  // Pass upgradeFloorSelection to resolve G/H unit codes to floor-specific versions
+  const upgradeCalc = calculateUpgradeCost(effectiveUnitCode || '', selections.areaUpgrades, pricing, selections.upgradeFloorSelection);
   const groutPrice = selections.backsplashGrout?.enabled ? calculateGroutPrice(pricing) : null;
   
   // Stair LVP upgrade cost (from the stairLvpUpgradeSelected flag)
