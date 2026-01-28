@@ -16,6 +16,20 @@ import {
   MaterialType,
 } from '@/lib/upgradeCostData';
 
+// Unit area data structure (camelCase for internal use)
+export interface UnitAreaDataForPdf {
+  allLvp: number;
+  mainLiving: number;
+  secondBedroom: number;
+  masterBedroomLvp: number;
+  masterBedroom: number;
+  secondBedroomCarpet: number;
+  guestBathroom: number;
+  masterEnsuite: number;
+  laundry: number;
+  backsplash: number;
+}
+
 // Pricing config interface for dynamic pricing
 export interface PdfPricingConfig {
   markupPercentage: number;
@@ -28,6 +42,7 @@ export interface PdfPricingConfig {
   getHeatedFloorPrice: () => number;
   getStairLvpUpgradePrice?: () => number;
   getStairCarpetUpgradePrice?: () => number;
+  getUnitAreaData?: (unitTypeCode: string) => UnitAreaDataForPdf | null;
 }
 
 // BMD brand colors
@@ -48,7 +63,11 @@ function calculateUpgradeCost(
   let subtotal = 0;
   const lineItems: Array<{ areaName: string; quantity: number; unit: string; markedUpCost: number; heatedFloor?: boolean; heatedFloorCost?: number }> = [];
 
-  const unitData = UNIT_AREA_DATA[unitTypeCode];
+  // Use dynamic unit area data if provided, otherwise fall back to static data
+  const unitData = pricing.getUnitAreaData 
+    ? pricing.getUnitAreaData(unitTypeCode) 
+    : UNIT_AREA_DATA[unitTypeCode];
+    
   if (!unitData) {
     return { subtotal: 0, gst: 0, total: 0, lineItems: [] };
   }
@@ -56,7 +75,23 @@ function calculateUpgradeCost(
   const heatedFloorPrice = pricing.getHeatedFloorPrice();
 
   for (const selection of selections) {
-    const quantity = unitData[selection.areaId] || 0;
+    // Map areaId to the correct field in unitData
+    const areaFieldMap: Record<string, keyof typeof unitData> = {
+      'allLvp': 'allLvp',
+      'mainLiving': 'mainLiving',
+      'secondBedroom': 'secondBedroom',
+      'masterBedroomLvp': 'masterBedroomLvp',
+      'masterBedroom': 'masterBedroom',
+      'secondBedroomCarpet': 'secondBedroomCarpet',
+      'masterBedroomCarpet': 'masterBedroom', // Uses same field
+      'guestBathroom': 'guestBathroom',
+      'masterEnsuite': 'masterEnsuite',
+      'laundry': 'laundry',
+      'backsplash': 'backsplash',
+    };
+    
+    const fieldName = areaFieldMap[selection.areaId] || selection.areaId;
+    const quantity = (unitData as any)[fieldName] || 0;
     if (quantity === 0) continue;
 
     const costPerUnit = pricing.getMaterialCost(selection.materialType);
@@ -65,7 +100,7 @@ function calculateUpgradeCost(
     const markedUpCost = baseCost * (1 + pricing.markupPercentage);
     
     // Check if this selection has heated floor (tile in bathroom areas)
-    const hasHeatedFloor = selection.heatedFloor && selection.materialType === 'tile';
+    const hasHeatedFloor = selection.heatedFloor && (selection.materialType === 'tile' || selection.materialType === 'nonstandard_tile');
     const heatedFloorCost = hasHeatedFloor ? heatedFloorPrice : 0;
     
     if (markedUpCost > 0 || heatedFloorCost > 0) {

@@ -351,6 +351,7 @@ export function useDynamicPricing() {
     calculateAreaUpgradePrice,
     calculateBacksplashGroutPrice,
     calculateTotalUpgradeCost,
+    getUnitAreaData,
     refreshPricing,
   };
 }
