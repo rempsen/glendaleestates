@@ -580,7 +580,7 @@ export default function SelectionWizard() {
             </ul>
 
             <div className="flex items-center gap-3 mb-6">
-              <div className="text-2xl font-bold text-primary">$495.00</div>
+              <div className="text-2xl font-bold text-primary">${automatedMotorPrice.toFixed(2)}</div>
               <div className="text-sm text-muted-foreground">per window<br />(plus GST, installed)</div>
             </div>
 
