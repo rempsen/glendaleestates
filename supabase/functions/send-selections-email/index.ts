@@ -251,13 +251,14 @@ interface SelectionData {
 const AREA_NAMES: Record<string, string> = {
   mainLiving: 'Main Living Area',
   secondBedroom: 'Second Bedroom',
-  masterBedroom: 'Master Bedroom',
+  masterBedroomLvp: 'Master Bedroom (LVP)',
+  masterBedroom: 'Master Bedroom (Carpet)',
   secondBedroomCarpet: 'Second Bedroom Carpet',
   guestBathroom: 'Guest Bathroom',
   masterEnsuite: 'Master Ensuite',
   laundry: 'Laundry Room',
   backsplash: 'Kitchen Backsplash',
-  allLvp: 'Entire Unit LVP',
+  allLvp: 'All Standard LVP Areas',
 };
 
 // Material type display names
@@ -328,6 +329,7 @@ async function fetchDynamicPricing(): Promise<{
         allLvp: Number(u.all_lvp),
         mainLiving: Number(u.main_living),
         secondBedroom: Number(u.second_bedroom),
+        masterBedroomLvp: Number(u.master_bedroom_lvp || 0),
         masterBedroom: Number(u.master_bedroom),
         secondBedroomCarpet: Number(u.second_bedroom_carpet),
         guestBathroom: Number(u.guest_bathroom),
