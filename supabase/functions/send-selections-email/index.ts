@@ -1334,8 +1334,8 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
           <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Your Comments</h2>
-          <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 16px 20px;">
-            <p style="margin: 0; color: #1e40af; font-size: 14px; line-height: 1.6;">${escapeHtml(data.salesComments)}</p>
+          <div style="background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 12px; padding: 16px 20px;">
+            <p style="margin: 0; color: #1a1a2e; font-size: 14px; line-height: 1.6;">${escapeHtml(data.salesComments)}</p>
           </div>
         </td>
       </tr>
@@ -1454,7 +1454,6 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
                     <td style="padding: 16px 0 0; color: #10b981; font-size: 24px; text-align: right; font-weight: 700;">$${grandTotal.toFixed(2)}</td>
                   </tr>
                 </table>
-                <p style="margin: 16px 0 0; color: rgba(255,255,255,0.5); font-size: 11px; text-align: center;">* A 10% material overage is allowed on all quoted amounts.</p>
               </td>
             </tr>
           </table>
