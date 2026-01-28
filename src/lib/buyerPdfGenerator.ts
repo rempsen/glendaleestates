@@ -456,12 +456,8 @@ export async function generateBuyerPreviewPDF(
       ]);
     }
 
-    const windowGst = windowSubtotal * pricing.gstRate;
-    const windowTotal = windowSubtotal + windowGst;
-
-    windowData.push(['', 'Subtotal:', `$${windowSubtotal.toFixed(2)}`]);
-    windowData.push(['', `GST (${(pricing.gstRate * 100).toFixed(0)}%):`, `$${windowGst.toFixed(2)}`]);
-    windowData.push(['', 'Total:', `$${windowTotal.toFixed(2)}`]);
+    // Show only subtotal for this section - GST will be calculated once in grand total
+    windowData.push(['', 'Section Subtotal:', `$${windowSubtotal.toFixed(2)}`]);
 
     autoTable(doc, {
       startY: yPos,
@@ -477,12 +473,9 @@ export async function generateBuyerPreviewPDF(
         2: { cellWidth: 40, halign: 'right', fontStyle: 'bold' },
       },
       didParseCell: (data: any) => {
-        if (data.row.index >= windowData.length - 3) {
-          data.cell.styles.fontStyle = 'bold';
-        }
+        // Highlight the last row (section subtotal)
         if (data.row.index === windowData.length - 1) {
-          data.cell.styles.textColor = COLORS.primary;
-          data.cell.styles.fontSize = 12;
+          data.cell.styles.fontStyle = 'bold';
         }
       },
     });
@@ -591,12 +584,8 @@ export async function generateBuyerPreviewPDF(
       ]);
     }
 
-    const upgradesGst = upgradesSubtotal * pricing.gstRate;
-    const upgradesTotalWithGst = upgradesSubtotal + upgradesGst;
-
-    upgradeData.push(['Subtotal:', `$${upgradesSubtotal.toFixed(2)}`]);
-    upgradeData.push([`GST (${(pricing.gstRate * 100).toFixed(0)}%):`, `$${upgradesGst.toFixed(2)}`]);
-    upgradeData.push(['Total:', `$${upgradesTotalWithGst.toFixed(2)}`]);
+    // Show only section subtotal - GST will be calculated once in grand total
+    upgradeData.push(['Section Subtotal:', `$${upgradesSubtotal.toFixed(2)}`]);
 
     autoTable(doc, {
       startY: yPos,
@@ -611,12 +600,9 @@ export async function generateBuyerPreviewPDF(
         1: { cellWidth: 40, halign: 'right', fontStyle: 'bold' },
       },
       didParseCell: (data: any) => {
-        if (data.row.index >= upgradeData.length - 3) {
-          data.cell.styles.fontStyle = 'bold';
-        }
+        // Highlight the last row (section subtotal)
         if (data.row.index === upgradeData.length - 1) {
-          data.cell.styles.textColor = COLORS.primary;
-          data.cell.styles.fontSize = 12;
+          data.cell.styles.fontStyle = 'bold';
         }
       },
     });
@@ -658,9 +644,14 @@ export async function generateBuyerPreviewPDF(
   }
 
   // Grand Total - Consolidated summary of all upgrades
+  // Use individual subtotals to calculate GST once (not per-section totals which already include GST)
   const grandSubtotal = windowSubtotal + upgradesSubtotal;
   const grandGst = grandSubtotal * pricing.gstRate;
   const grandTotal = grandSubtotal + grandGst;
+  
+  // Note: The section totals (Window Coverings and Premium Upgrades) each show their own GST.
+  // The Grand Total shows the combined subtotal with a single GST calculation.
+  // This is correct - we're applying GST once to the total, not re-applying to section totals.
   
   if (grandTotal > 0) {
     checkNewPage(60);
