@@ -1024,7 +1024,7 @@ interface BuyerEmailPricing {
   stairCarpetUpgradePrice: number;
   groutColorPrice: number;
   gstRate: number;
-  areaUpgradeCosts: { lineItems: Array<{ area: string; material: string; cost: number; heatedFloor?: boolean; heatedCost?: number }>; subtotal: number };
+  areaUpgradeCosts: { lineItems: Array<{ areaId: string; area: string; material: string; cost: number; heatedFloor?: boolean; heatedCost?: number }>; subtotal: number };
 }
 
 // Generate a beautiful confirmation email for buyers with full details and costs
@@ -1164,7 +1164,8 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     const upgradeRows = data.areaUpgrades.map(upgrade => {
       const areaName = AREA_NAMES[upgrade.areaId] || upgrade.areaId;
       const materialName = MATERIAL_NAMES[upgrade.materialType] || upgrade.materialType;
-      const lineItem = pricing.areaUpgradeCosts.lineItems.find(l => l.area === areaName);
+      // Match by areaId for reliable lookup (same as admin email)
+      const lineItem = pricing.areaUpgradeCosts.lineItems.find(l => l.areaId === upgrade.areaId);
       const materialCost = lineItem?.cost || 0;
       const heatedCost = lineItem?.heatedCost || 0;
       const totalCost = materialCost + heatedCost;
