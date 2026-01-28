@@ -33,7 +33,8 @@ export const UNIT_TYPE_LABELS: Record<string, string> = {
 export type UpgradeArea = 
   | 'mainLiving'
   | 'secondBedroom'
-  | 'masterBedroom'
+  | 'masterBedroomLvp' // sq ft - master bedroom LVP area
+  | 'masterBedroom' // sq yards - master bedroom carpet (G/H 2nd floor: all bedrooms and hallway)
   | 'secondBedroomCarpet' // sq yards
   | 'masterBedroomCarpet' // sq yards - for carpet bedroom upgrades
   | 'stairs' // sq yards - stair carpet
@@ -41,7 +42,7 @@ export type UpgradeArea =
   | 'masterEnsuite'
   | 'laundry'
   | 'backsplash'
-  | 'allLvp'; // entire unit LVP
+  | 'allLvp'; // entire unit standard LVP areas
 
 // Area categories for determining available upgrade types
 export type AreaCategory = 'living' | 'bedroom' | 'bedroom-carpet' | 'stairs' | 'bathroom' | 'laundry' | 'backsplash';
@@ -80,12 +81,21 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     icon: 'BedDouble',
   },
   {
-    id: 'masterBedroom',
-    name: 'Master Bedroom',
+    id: 'masterBedroomLvp',
+    name: 'Master Bedroom (LVP)',
     description: 'Primary bedroom flooring (LVP standard)',
     unit: 'sqft',
     upgradeTypes: ['lvp', 'hardwood', 'lvt', 'nonstandard_lvp', 'nonstandard_lvt'],
     category: 'bedroom',
+    icon: 'Bed',
+  },
+  {
+    id: 'masterBedroom',
+    name: 'Master Bedroom (Carpet)',
+    description: 'Primary bedroom carpet area - G/H 2nd floor: All bedrooms and hallway',
+    unit: 'sqyd',
+    upgradeTypes: ['carpet'],
+    category: 'bedroom-carpet',
     icon: 'Bed',
   },
   {
@@ -155,8 +165,8 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
   },
   {
     id: 'allLvp',
-    name: 'Entire Unit LVP',
-    description: 'All LVP flooring throughout the unit',
+    name: 'All Standard LVP Areas',
+    description: 'All standard LVP flooring throughout the unit (excludes LVT in bathrooms/laundry)',
     unit: 'sqft',
     upgradeTypes: ['lvp', 'hardwood', 'lvt', 'nonstandard_lvp', 'nonstandard_lvt'],
     category: 'living',
@@ -167,17 +177,18 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
 // Square footage/yardage by unit type and area
 // Values from the cost sheet
 export interface UnitAreaData {
-  allLvp: number;
-  mainLiving: number;
-  secondBedroom: number;
-  masterBedroom: number;
-  secondBedroomCarpet: number; // in sq yards
-  masterBedroomCarpet: number; // in sq yards
-  stairs: number; // in sq yards
-  guestBathroom: number;
-  masterEnsuite: number;
-  laundry: number;
-  backsplash: number;
+  allLvp: number; // sq ft - All Standard LVP Areas
+  mainLiving: number; // sq ft
+  secondBedroom: number; // sq ft
+  masterBedroomLvp: number; // sq ft - Master Bedroom LVP area
+  masterBedroom: number; // sq yd - Master Bedroom Carpet (G/H 2nd floor: All bedrooms and hallway)
+  secondBedroomCarpet: number; // sq yd
+  masterBedroomCarpet: number; // sq yd
+  stairs: number; // sq yd - stair carpet
+  guestBathroom: number; // sq ft - LVT
+  masterEnsuite: number; // sq ft - LVT
+  laundry: number; // sq ft - LVT
+  backsplash: number; // sq ft
 }
 
 export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
@@ -185,9 +196,10 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     allLvp: 1350,
     mainLiving: 250,
     secondBedroom: 200,
-    masterBedroom: 90,
-    secondBedroomCarpet: 20, // sq yards
-    masterBedroomCarpet: 10, // sq yards
+    masterBedroomLvp: 250, // sq ft
+    masterBedroom: 10, // sq yd - carpet
+    secondBedroomCarpet: 20, // sq yd
+    masterBedroomCarpet: 10, // sq yd
     stairs: 0,
     guestBathroom: 165,
     masterEnsuite: 80,
@@ -198,9 +210,10 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     allLvp: 1150,
     mainLiving: 250,
     secondBedroom: 180,
-    masterBedroom: 28,
-    secondBedroomCarpet: 20,
-    masterBedroomCarpet: 10,
+    masterBedroomLvp: 250, // sq ft
+    masterBedroom: 10, // sq yd - carpet
+    secondBedroomCarpet: 20, // sq yd
+    masterBedroomCarpet: 10, // sq yd
     stairs: 0,
     guestBathroom: 135,
     masterEnsuite: 75,
@@ -211,9 +224,10 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     allLvp: 1500,
     mainLiving: 360,
     secondBedroom: 200,
-    masterBedroom: 44,
-    secondBedroomCarpet: 24,
-    masterBedroomCarpet: 12,
+    masterBedroomLvp: 360, // sq ft
+    masterBedroom: 12, // sq yd - carpet
+    secondBedroomCarpet: 24, // sq yd
+    masterBedroomCarpet: 12, // sq yd
     stairs: 0,
     guestBathroom: 200,
     masterEnsuite: 80,
@@ -224,9 +238,10 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     allLvp: 1500,
     mainLiving: 360,
     secondBedroom: 200,
-    masterBedroom: 44,
-    secondBedroomCarpet: 24,
-    masterBedroomCarpet: 12,
+    masterBedroomLvp: 360, // sq ft
+    masterBedroom: 12, // sq yd - carpet
+    secondBedroomCarpet: 24, // sq yd
+    masterBedroomCarpet: 12, // sq yd
     stairs: 0,
     guestBathroom: 200,
     masterEnsuite: 80,
@@ -237,9 +252,10 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     allLvp: 1050,
     mainLiving: 200,
     secondBedroom: 180,
-    masterBedroom: 24,
-    secondBedroomCarpet: 22,
-    masterBedroomCarpet: 10,
+    masterBedroomLvp: 200, // sq ft
+    masterBedroom: 10, // sq yd - carpet
+    secondBedroomCarpet: 22, // sq yd
+    masterBedroomCarpet: 10, // sq yd
     stairs: 0,
     guestBathroom: 150,
     masterEnsuite: 60,
@@ -250,9 +266,10 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     allLvp: 1050,
     mainLiving: 200,
     secondBedroom: 180,
-    masterBedroom: 24,
-    secondBedroomCarpet: 22,
-    masterBedroomCarpet: 10,
+    masterBedroomLvp: 200, // sq ft
+    masterBedroom: 10, // sq yd - carpet
+    secondBedroomCarpet: 22, // sq yd
+    masterBedroomCarpet: 10, // sq yd
     stairs: 0,
     guestBathroom: 150,
     masterEnsuite: 60,
@@ -263,10 +280,11 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     allLvp: 700,
     mainLiving: 0, // 1st floor layout different
     secondBedroom: 0,
-    masterBedroom: 0,
+    masterBedroomLvp: 0, // no LVP on 2nd floor
+    masterBedroom: 0, // no carpet on 1st floor
     secondBedroomCarpet: 0,
     masterBedroomCarpet: 0,
-    stairs: 15, // sq yards for townhouse stairs
+    stairs: 15, // sq yd for townhouse stairs
     guestBathroom: 200,
     masterEnsuite: 50,
     laundry: 50,
@@ -276,9 +294,10 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     allLvp: 900,
     mainLiving: 0,
     secondBedroom: 0,
-    masterBedroom: 120, // carpet shown
+    masterBedroomLvp: 0, // no LVP on 2nd floor
+    masterBedroom: 14, // sq yd - All bedrooms and hallway carpet
     secondBedroomCarpet: 0,
-    masterBedroomCarpet: 14,
+    masterBedroomCarpet: 14, // sq yd
     stairs: 0,
     guestBathroom: 0,
     masterEnsuite: 50,
@@ -289,10 +308,11 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     allLvp: 600,
     mainLiving: 0,
     secondBedroom: 0,
-    masterBedroom: 0,
+    masterBedroomLvp: 0, // no LVP on 2nd floor
+    masterBedroom: 0, // no carpet on 1st floor
     secondBedroomCarpet: 0,
     masterBedroomCarpet: 0,
-    stairs: 12, // sq yards for townhouse stairs
+    stairs: 12, // sq yd for townhouse stairs
     guestBathroom: 190,
     masterEnsuite: 50,
     laundry: 40,
@@ -302,9 +322,10 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     allLvp: 675,
     mainLiving: 0,
     secondBedroom: 0,
-    masterBedroom: 90, // carpet shown
+    masterBedroomLvp: 0, // no LVP on 2nd floor
+    masterBedroom: 10, // sq yd - All bedrooms and hallway carpet
     secondBedroomCarpet: 0,
-    masterBedroomCarpet: 10,
+    masterBedroomCarpet: 10, // sq yd
     stairs: 0,
     guestBathroom: 0,
     masterEnsuite: 50,
@@ -315,9 +336,10 @@ export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {
     allLvp: 950,
     mainLiving: 200,
     secondBedroom: 200,
-    masterBedroom: 25,
-    secondBedroomCarpet: 22,
-    masterBedroomCarpet: 10,
+    masterBedroomLvp: 200, // sq ft
+    masterBedroom: 10, // sq yd - carpet
+    secondBedroomCarpet: 22, // sq yd
+    masterBedroomCarpet: 10, // sq yd
     stairs: 0,
     guestBathroom: 190,
     masterEnsuite: 70,

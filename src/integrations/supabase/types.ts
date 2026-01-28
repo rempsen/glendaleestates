@@ -399,6 +399,7 @@ export type Database = {
           laundry: number
           main_living: number
           master_bedroom: number
+          master_bedroom_lvp: number
           master_ensuite: number
           second_bedroom: number
           second_bedroom_carpet: number
@@ -416,6 +417,7 @@ export type Database = {
           laundry?: number
           main_living?: number
           master_bedroom?: number
+          master_bedroom_lvp?: number
           master_ensuite?: number
           second_bedroom?: number
           second_bedroom_carpet?: number
@@ -433,6 +435,7 @@ export type Database = {
           laundry?: number
           main_living?: number
           master_bedroom?: number
+          master_bedroom_lvp?: number
           master_ensuite?: number
           second_bedroom?: number
           second_bedroom_carpet?: number

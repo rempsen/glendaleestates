@@ -11,14 +11,15 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Plus, Trash2, Loader2, RefreshCw, Ruler, Save } from 'lucide-react';
 
 const AREA_FIELDS = [
-  { key: 'all_lvp', label: 'All LVP', unit: 'sq ft', description: 'Total LVP area' },
+  { key: 'all_lvp', label: 'All Standard LVP Areas', unit: 'sq ft', description: 'Total standard LVP area (excludes LVT in bathrooms/laundry)' },
   { key: 'main_living', label: 'Main Living (Hardwood)', unit: 'sq ft', description: 'Living area for hardwood upgrade' },
   { key: 'second_bedroom', label: '2nd Bedroom (LVP)', unit: 'sq ft', description: 'Second bedroom LVP area' },
-  { key: 'master_bedroom', label: 'Master Bedroom (Carpet)', unit: 'sq ft', description: 'Master bedroom carpet area' },
+  { key: 'master_bedroom_lvp', label: 'Master Bedroom (LVP)', unit: 'sq ft', description: 'Master bedroom LVP area' },
+  { key: 'master_bedroom', label: 'Master Bedroom (Carpet)', unit: 'sq yd', description: 'Master bedroom carpet area (G/H 2nd floor: All bedrooms and hallway)' },
   { key: 'second_bedroom_carpet', label: '2nd Bedroom (Carpet)', unit: 'sq yd', description: 'Second bedroom carpet upgrade' },
-  { key: 'guest_bathroom', label: 'Guest Bathroom (Tile)', unit: 'sq ft', description: 'Guest bathroom tile area' },
-  { key: 'master_ensuite', label: 'Master Ensuite (Tile)', unit: 'sq ft', description: 'Master ensuite tile area' },
-  { key: 'laundry', label: 'Laundry (Tile)', unit: 'sq ft', description: 'Laundry room tile area' },
+  { key: 'guest_bathroom', label: 'Guest Bathroom (LVT)', unit: 'sq ft', description: 'Guest bathroom LVT area' },
+  { key: 'master_ensuite', label: 'Master Ensuite (LVT)', unit: 'sq ft', description: 'Master ensuite LVT area' },
+  { key: 'laundry', label: 'Laundry (LVT)', unit: 'sq ft', description: 'Laundry room LVT area' },
   { key: 'backsplash', label: 'Backsplash', unit: 'sq ft', description: 'Kitchen backsplash area' },
 ] as const;
 
@@ -32,6 +33,7 @@ export function UnitAreaDataManager() {
     all_lvp: 0,
     main_living: 0,
     second_bedroom: 0,
+    master_bedroom_lvp: 0,
     master_bedroom: 0,
     second_bedroom_carpet: 0,
     guest_bathroom: 0,
@@ -76,6 +78,7 @@ export function UnitAreaDataManager() {
         all_lvp: 0,
         main_living: 0,
         second_bedroom: 0,
+        master_bedroom_lvp: 0,
         master_bedroom: 0,
         second_bedroom_carpet: 0,
         guest_bathroom: 0,

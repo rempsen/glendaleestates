@@ -9,6 +9,7 @@ export interface UnitAreaData {
   all_lvp: number;
   main_living: number;
   second_bedroom: number;
+  master_bedroom_lvp: number;
   master_bedroom: number;
   second_bedroom_carpet: number;
   guest_bathroom: number;
@@ -22,17 +23,17 @@ export interface UnitAreaData {
 
 // Default fallback data matching the original hardcoded values
 const DEFAULT_UNIT_AREA_DATA: Record<string, Omit<UnitAreaData, 'id' | 'unit_type_code' | 'unit_type_label' | 'display_order' | 'created_at' | 'updated_at'>> = {
-  'A': { all_lvp: 1350, main_living: 250, second_bedroom: 200, master_bedroom: 90, second_bedroom_carpet: 20, guest_bathroom: 165, master_ensuite: 80, laundry: 0, backsplash: 30 },
-  'B': { all_lvp: 1150, main_living: 250, second_bedroom: 180, master_bedroom: 28, second_bedroom_carpet: 20, guest_bathroom: 135, master_ensuite: 75, laundry: 0, backsplash: 25 },
-  'C': { all_lvp: 1500, main_living: 360, second_bedroom: 200, master_bedroom: 44, second_bedroom_carpet: 24, guest_bathroom: 200, master_ensuite: 80, laundry: 60, backsplash: 25 },
-  'D': { all_lvp: 1500, main_living: 360, second_bedroom: 200, master_bedroom: 44, second_bedroom_carpet: 24, guest_bathroom: 200, master_ensuite: 80, laundry: 60, backsplash: 25 },
-  'E': { all_lvp: 1050, main_living: 200, second_bedroom: 180, master_bedroom: 24, second_bedroom_carpet: 22, guest_bathroom: 150, master_ensuite: 60, laundry: 40, backsplash: 25 },
-  'F': { all_lvp: 1050, main_living: 200, second_bedroom: 180, master_bedroom: 24, second_bedroom_carpet: 22, guest_bathroom: 150, master_ensuite: 60, laundry: 40, backsplash: 25 },
-  'G-1': { all_lvp: 700, main_living: 0, second_bedroom: 0, master_bedroom: 0, second_bedroom_carpet: 0, guest_bathroom: 200, master_ensuite: 50, laundry: 50, backsplash: 25 },
-  'G-2': { all_lvp: 900, main_living: 0, second_bedroom: 0, master_bedroom: 120, second_bedroom_carpet: 0, guest_bathroom: 0, master_ensuite: 50, laundry: 0, backsplash: 0 },
-  'H-1': { all_lvp: 600, main_living: 0, second_bedroom: 0, master_bedroom: 0, second_bedroom_carpet: 0, guest_bathroom: 190, master_ensuite: 50, laundry: 40, backsplash: 25 },
-  'H-2': { all_lvp: 675, main_living: 0, second_bedroom: 0, master_bedroom: 90, second_bedroom_carpet: 0, guest_bathroom: 0, master_ensuite: 50, laundry: 0, backsplash: 0 },
-  'J': { all_lvp: 950, main_living: 200, second_bedroom: 200, master_bedroom: 25, second_bedroom_carpet: 22, guest_bathroom: 190, master_ensuite: 70, laundry: 60, backsplash: 25 },
+  'A': { all_lvp: 1350, main_living: 250, second_bedroom: 200, master_bedroom_lvp: 250, master_bedroom: 10, second_bedroom_carpet: 20, guest_bathroom: 165, master_ensuite: 80, laundry: 0, backsplash: 30 },
+  'B': { all_lvp: 1150, main_living: 250, second_bedroom: 180, master_bedroom_lvp: 250, master_bedroom: 10, second_bedroom_carpet: 20, guest_bathroom: 135, master_ensuite: 75, laundry: 0, backsplash: 25 },
+  'C': { all_lvp: 1500, main_living: 360, second_bedroom: 200, master_bedroom_lvp: 360, master_bedroom: 12, second_bedroom_carpet: 24, guest_bathroom: 200, master_ensuite: 80, laundry: 60, backsplash: 25 },
+  'D': { all_lvp: 1500, main_living: 360, second_bedroom: 200, master_bedroom_lvp: 360, master_bedroom: 12, second_bedroom_carpet: 24, guest_bathroom: 200, master_ensuite: 80, laundry: 60, backsplash: 25 },
+  'E': { all_lvp: 1050, main_living: 200, second_bedroom: 180, master_bedroom_lvp: 200, master_bedroom: 10, second_bedroom_carpet: 22, guest_bathroom: 150, master_ensuite: 60, laundry: 40, backsplash: 25 },
+  'F': { all_lvp: 1050, main_living: 200, second_bedroom: 180, master_bedroom_lvp: 200, master_bedroom: 10, second_bedroom_carpet: 22, guest_bathroom: 150, master_ensuite: 60, laundry: 40, backsplash: 25 },
+  'G-1': { all_lvp: 700, main_living: 0, second_bedroom: 0, master_bedroom_lvp: 0, master_bedroom: 0, second_bedroom_carpet: 0, guest_bathroom: 200, master_ensuite: 50, laundry: 50, backsplash: 25 },
+  'G-2': { all_lvp: 900, main_living: 0, second_bedroom: 0, master_bedroom_lvp: 0, master_bedroom: 14, second_bedroom_carpet: 0, guest_bathroom: 0, master_ensuite: 50, laundry: 0, backsplash: 0 },
+  'H-1': { all_lvp: 600, main_living: 0, second_bedroom: 0, master_bedroom_lvp: 0, master_bedroom: 0, second_bedroom_carpet: 0, guest_bathroom: 190, master_ensuite: 50, laundry: 40, backsplash: 25 },
+  'H-2': { all_lvp: 675, main_living: 0, second_bedroom: 0, master_bedroom_lvp: 0, master_bedroom: 10, second_bedroom_carpet: 0, guest_bathroom: 0, master_ensuite: 50, laundry: 0, backsplash: 0 },
+  'J': { all_lvp: 950, main_living: 200, second_bedroom: 200, master_bedroom_lvp: 200, master_bedroom: 10, second_bedroom_carpet: 22, guest_bathroom: 190, master_ensuite: 70, laundry: 60, backsplash: 25 },
 };
 
 export function useUnitAreaData() {
@@ -138,6 +139,7 @@ export function useUnitAreaData() {
         allLvp: Number(dbData.all_lvp),
         mainLiving: Number(dbData.main_living),
         secondBedroom: Number(dbData.second_bedroom),
+        masterBedroomLvp: Number((dbData as any).master_bedroom_lvp || 0),
         masterBedroom: Number(dbData.master_bedroom),
         secondBedroomCarpet: Number(dbData.second_bedroom_carpet),
         guestBathroom: Number(dbData.guest_bathroom),
@@ -151,6 +153,7 @@ export function useUnitAreaData() {
       allLvp: DEFAULT_UNIT_AREA_DATA[unitTypeCode].all_lvp,
       mainLiving: DEFAULT_UNIT_AREA_DATA[unitTypeCode].main_living,
       secondBedroom: DEFAULT_UNIT_AREA_DATA[unitTypeCode].second_bedroom,
+      masterBedroomLvp: DEFAULT_UNIT_AREA_DATA[unitTypeCode].master_bedroom_lvp,
       masterBedroom: DEFAULT_UNIT_AREA_DATA[unitTypeCode].master_bedroom,
       secondBedroomCarpet: DEFAULT_UNIT_AREA_DATA[unitTypeCode].second_bedroom_carpet,
       guestBathroom: DEFAULT_UNIT_AREA_DATA[unitTypeCode].guest_bathroom,
