@@ -84,7 +84,8 @@ interface SelectionState {
   spcTileComments: string;
   backsplashOrientation: string;
   stairCarpetColour: string;
-  stairLvpUpgradeSelected: boolean; // Stair LVP upgrade option
+  stairLvpUpgradeSelected: boolean; // Deprecated - use stairUpgradeType instead
+  stairUpgradeType: 'standard' | 'lvp' | 'premium_lvp'; // Stair upgrade option
   bedroomFlooringChoice: 'carpet' | 'lvp' | '';
   bedroomCarpetColour: string;
   bedroomLvpColour: string;
@@ -129,6 +130,7 @@ export default function SelectionWizard() {
     getAutomatedMotorPrice,
     getHeatedFloorPrice,
     getStairLvpUpgradePrice,
+    getStairPremiumLvpUpgradePrice,
     getGroutColorChangePrice,
     isFlatRateEnabled,
     getUnitAreaData,
@@ -140,8 +142,10 @@ export default function SelectionWizard() {
   const automatedMotorPrice = useMemo(() => getAutomatedMotorPrice(), [getAutomatedMotorPrice]);
   const heatedFloorPrice = useMemo(() => getHeatedFloorPrice(), [getHeatedFloorPrice]);
   const stairLvpUpgradePrice = useMemo(() => getStairLvpUpgradePrice(), [getStairLvpUpgradePrice]);
+  const stairPremiumLvpUpgradePrice = useMemo(() => getStairPremiumLvpUpgradePrice(), [getStairPremiumLvpUpgradePrice]);
   const groutColorChangePrice = useMemo(() => getGroutColorChangePrice(), [getGroutColorChangePrice]);
   const isStairLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_lvp_upgrade_price'), [isFlatRateEnabled]);
+  const isStairPremiumLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_premium_lvp_upgrade_price'), [isFlatRateEnabled]);
 
   const [selections, setSelections] = useState<SelectionState>({
     unitNumber: '',
@@ -158,6 +162,7 @@ export default function SelectionWizard() {
     backsplashOrientation: '',
     stairCarpetColour: '',
     stairLvpUpgradeSelected: false,
+    stairUpgradeType: 'standard',
     bedroomFlooringChoice: '',
     bedroomCarpetColour: '',
     bedroomLvpColour: '',
@@ -437,6 +442,7 @@ export default function SelectionWizard() {
           backsplashGroutColor: selections.backsplashGrout.groutColor,
           backsplashGroutComments: selections.backsplashGrout.comments,
           stairLvpUpgradeSelected: selections.stairLvpUpgradeSelected,
+          stairUpgradeType: selections.stairUpgradeType,
           pdfBase64: pdfBase64,
           documentUploads: selections.documentUploads,
         }),
@@ -942,10 +948,15 @@ export default function SelectionWizard() {
               </span>
             </div>
             {selections.hasStairs && (
-              selections.stairLvpUpgradeSelected ? (
+              selections.stairUpgradeType === 'premium_lvp' ? (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Stairs Flooring</span>
-                  <span className="font-medium text-primary">LVP Upgrade with Custom Nosings</span>
+                  <span className="font-medium text-primary">Premium LVP with Custom Nosings</span>
+                </div>
+              ) : selections.stairUpgradeType === 'lvp' ? (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Stairs Flooring</span>
+                  <span className="font-medium text-primary">LVP with Custom Nosings</span>
                 </div>
               ) : (
                 <div className="flex justify-between">
@@ -1788,48 +1799,109 @@ export default function SelectionWizard() {
 
       case 6: // Stair Carpet (only for units with stairs) OR Window Coverings (for units without stairs)
         if (selections.hasStairs) {
-          // Stair Flooring Step - Carpet or LVP Upgrade
+          // Stair Flooring Step - Standard Carpet, LVP Upgrade, or Premium LVP Upgrade
+          const handleStairSelection = (type: 'standard' | 'lvp' | 'premium_lvp') => {
+            updateSelection('stairUpgradeType', type);
+            updateSelection('stairLvpUpgradeSelected', type === 'lvp' || type === 'premium_lvp');
+            // If selecting an upgrade, clear carpet selection
+            if (type !== 'standard') {
+              updateSelection('stairCarpetColour', '');
+            }
+          };
+
           return (
             <StepContainer
               title="Stair Flooring"
-              subtitle="Choose standard carpet (included) or upgrade to matching LVP with custom nosings"
-              badge={selections.stairLvpUpgradeSelected ? "Upgrade" : "Included"}
+              subtitle="Choose standard carpet (included) or upgrade to LVP with custom nosings"
+              badge={selections.stairUpgradeType !== 'standard' ? "Upgrade" : "Included"}
             >
-              <div className="space-y-6">
-                {/* LVP Upgrade Option - Show first if enabled */}
-                {isStairLvpUpgradeEnabled && (
+              <div className="space-y-4">
+                {/* Premium LVP Upgrade Option */}
+                {isStairPremiumLvpUpgradeEnabled && (
                   <div className={`p-5 rounded-xl border-2 transition-all cursor-pointer ${
-                    selections.stairLvpUpgradeSelected 
+                    selections.stairUpgradeType === 'premium_lvp' 
                       ? 'border-primary bg-primary/5' 
                       : 'border-border bg-card hover:border-primary/50'
                   }`}
-                  onClick={() => {
-                    updateSelection('stairLvpUpgradeSelected', !selections.stairLvpUpgradeSelected);
-                    // If selecting LVP, clear carpet selection
-                    if (!selections.stairLvpUpgradeSelected) {
-                      updateSelection('stairCarpetColour', '');
-                    }
-                  }}
+                  onClick={() => handleStairSelection('premium_lvp')}
                   >
                     <div className="flex items-start gap-4">
                       <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                        selections.stairLvpUpgradeSelected 
+                        selections.stairUpgradeType === 'premium_lvp' 
                           ? 'border-primary bg-primary text-primary-foreground' 
                           : 'border-muted-foreground'
                       }`}>
-                        {selections.stairLvpUpgradeSelected && <Check className="w-4 h-4" />}
+                        {selections.stairUpgradeType === 'premium_lvp' && <Check className="w-4 h-4" />}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-2">
                           <h3 className="text-lg font-semibold text-foreground">
-                            Upgrade to LVP with Custom Stair Nosings
+                            Premium LVP with Custom Stair Nosings
+                          </h3>
+                          <span className="px-3 py-1 rounded-full text-sm font-medium bg-accent/20 text-accent-foreground">
+                            ${stairPremiumLvpUpgradePrice.toLocaleString()} + GST
+                          </span>
+                        </div>
+                        <p className="text-muted-foreground text-sm mb-3">
+                          Our highest quality LVP upgrade with premium materials and custom-made flush stair nosings.
+                        </p>
+                        <ul className="space-y-1 text-sm">
+                          <li className="flex items-center gap-2 text-muted-foreground">
+                            <Check className="w-4 h-4 text-success" />
+                            Premium grade LVP materials
+                          </li>
+                          <li className="flex items-center gap-2 text-muted-foreground">
+                            <Check className="w-4 h-4 text-success" />
+                            Custom-made flush stair nosings
+                          </li>
+                          <li className="flex items-center gap-2 text-muted-foreground">
+                            <Check className="w-4 h-4 text-success" />
+                            Enhanced durability and finish
+                          </li>
+                        </ul>
+                        {selections.stairUpgradeType === 'premium_lvp' && (
+                          <div className="mt-4 pt-3 border-t border-border">
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-foreground font-medium">Total with GST:</span>
+                              <span className="text-primary font-semibold text-lg">
+                                ${(stairPremiumLvpUpgradePrice * (1 + gstRate)).toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Standard LVP Upgrade Option */}
+                {isStairLvpUpgradeEnabled && (
+                  <div className={`p-5 rounded-xl border-2 transition-all cursor-pointer ${
+                    selections.stairUpgradeType === 'lvp' 
+                      ? 'border-primary bg-primary/5' 
+                      : 'border-border bg-card hover:border-primary/50'
+                  }`}
+                  onClick={() => handleStairSelection('lvp')}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                        selections.stairUpgradeType === 'lvp' 
+                          ? 'border-primary bg-primary text-primary-foreground' 
+                          : 'border-muted-foreground'
+                      }`}>
+                        {selections.stairUpgradeType === 'lvp' && <Check className="w-4 h-4" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-lg font-semibold text-foreground">
+                            LVP with Custom Stair Nosings
                           </h3>
                           <span className="px-3 py-1 rounded-full text-sm font-medium bg-accent/20 text-accent-foreground">
                             ${stairLvpUpgradePrice.toLocaleString()} + GST
                           </span>
                         </div>
                         <p className="text-muted-foreground text-sm mb-3">
-                          Match your stairs with the same LVP as your main floor, complete with custom-made flush stair nosings for a seamless, modern look.
+                          Match your stairs with the same LVP as your main floor, complete with custom-made flush stair nosings.
                         </p>
                         <ul className="space-y-1 text-sm">
                           <li className="flex items-center gap-2 text-muted-foreground">
@@ -1845,7 +1917,7 @@ export default function SelectionWizard() {
                             Modern, seamless appearance
                           </li>
                         </ul>
-                        {selections.stairLvpUpgradeSelected && (
+                        {selections.stairUpgradeType === 'lvp' && (
                           <div className="mt-4 pt-3 border-t border-border">
                             <div className="flex justify-between items-center text-sm">
                               <span className="text-foreground font-medium">Total with GST:</span>
@@ -1861,18 +1933,21 @@ export default function SelectionWizard() {
                 )}
 
                 {/* Standard Carpet Option */}
-                <div className={`p-4 rounded-xl border-2 transition-all ${
-                  !selections.stairLvpUpgradeSelected 
-                    ? 'border-primary bg-primary/5' 
-                    : 'border-border bg-card opacity-60'
-                }`}>
+                <div 
+                  className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                    selections.stairUpgradeType === 'standard' 
+                      ? 'border-primary bg-primary/5' 
+                      : 'border-border bg-card hover:border-primary/50'
+                  }`}
+                  onClick={() => handleStairSelection('standard')}
+                >
                   <div className="flex items-center gap-3 mb-4">
                     <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                      !selections.stairLvpUpgradeSelected 
+                      selections.stairUpgradeType === 'standard' 
                         ? 'border-primary bg-primary text-primary-foreground' 
                         : 'border-muted-foreground'
                     }`}>
-                      {!selections.stairLvpUpgradeSelected && <Check className="w-4 h-4" />}
+                      {selections.stairUpgradeType === 'standard' && <Check className="w-4 h-4" />}
                     </div>
                     <div>
                       <h3 className="font-semibold text-foreground">Standard Carpet (Included)</h3>
@@ -1882,7 +1957,7 @@ export default function SelectionWizard() {
                     </div>
                   </div>
                   
-                  {!selections.stairLvpUpgradeSelected && (
+                  {selections.stairUpgradeType === 'standard' && (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                       {carpetOptions.map(option => (
                         <SelectionCard

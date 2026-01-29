@@ -48,7 +48,7 @@ export type UpgradeArea =
 export type AreaCategory = 'living' | 'bedroom' | 'bedroom-carpet' | 'stairs' | 'bathroom' | 'laundry' | 'backsplash';
 
 // Upgrade material type definitions (moved here so AreaInfo can reference it)
-export type MaterialType = 'lvp' | 'hardwood' | 'lvt' | 'carpet' | 'tile' | 'nonstandard_lvp' | 'nonstandard_lvt' | 'nonstandard_tile';
+export type MaterialType = 'lvp' | 'hardwood' | 'lvt' | 'carpet' | 'tile' | 'nonstandard_lvp' | 'nonstandard_lvt' | 'nonstandard_tile' | 'premium_lvp';
 
 export interface AreaInfo {
   id: UpgradeArea;
@@ -121,7 +121,7 @@ export const AREA_DEFINITIONS: AreaInfo[] = [
     name: 'Stairs',
     description: 'Upgrade flooring on stairs (carpet standard)',
     unit: 'sqyd',
-    upgradeTypes: ['carpet', 'lvp'],
+    upgradeTypes: ['carpet', 'lvp', 'premium_lvp'],
     category: 'stairs',
     icon: 'Home',
   },

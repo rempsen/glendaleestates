@@ -168,6 +168,12 @@ export function useDynamicPricing() {
     return config.config_value;
   }, [state.config]);
 
+  const getStairPremiumLvpUpgradePrice = useCallback((): number => {
+    const config = state.config.find(c => c.config_key === 'stair_premium_lvp_upgrade_price');
+    if (!config || config.is_active === false) return 0;
+    return config.config_value;
+  }, [state.config]);
+
   const getStairCarpetUpgradePrice = useCallback((): number => {
     const config = state.config.find(c => c.config_key === 'premium_carpet_stairs_price');
     if (!config || config.is_active === false) return 0;
@@ -346,6 +352,7 @@ export function useDynamicPricing() {
     getHeatedFloorPrice,
     getGroutColorChangePrice,
     getStairLvpUpgradePrice,
+    getStairPremiumLvpUpgradePrice,
     getStairCarpetUpgradePrice,
     isFlatRateEnabled,
     calculateAreaUpgradePrice,
