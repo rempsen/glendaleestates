@@ -556,6 +556,50 @@ export default function AdminPricingControl() {
                   </div>
                 );
               })()}
+
+              {/* Stair Premium LVP Upgrade Price */}
+              {(() => {
+                const config = pricingConfig.find(c => c.config_key === 'stair_premium_lvp_upgrade_price');
+                if (!config) return null;
+                const withGst = config.config_value * (1 + getGstRate());
+                const isActive = (config as any).is_active !== false;
+                return (
+                  <div className={`space-y-3 p-4 border rounded-lg transition-opacity ${!isActive ? 'opacity-50 bg-muted/50' : ''}`}>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="stair_premium_lvp_upgrade" className="font-medium">
+                        Stair Premium LVP Upgrade
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={isActive}
+                          onCheckedChange={(checked) => updatePricingConfig(config.id, { is_active: checked })}
+                        />
+                        {isActive ? (
+                          <Eye className="h-4 w-4 text-primary" />
+                        ) : (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">$</span>
+                      <Input
+                        id="stair_premium_lvp_upgrade"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={config.config_value}
+                        onChange={(e) => updatePricingConfig(config.id, { config_value: parseFloat(e.target.value) || 0 })}
+                        className="w-32"
+                        disabled={!isActive}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Premium LVP with custom flush nosings • Client sees: <span className="font-medium text-primary">${withGst.toFixed(2)}</span> incl. GST
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
           </CardContent>
         </Card>

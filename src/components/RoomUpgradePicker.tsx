@@ -60,10 +60,11 @@ export function RoomUpgradePicker({
   const [editingSelection, setEditingSelection] = useState<AreaUpgradeSelection | null>(null);
   
   // Use dynamic pricing from database
-  const { calculateAreaUpgradePrice, getHeatedFloorPrice, getStairLvpUpgradePrice, getStairCarpetUpgradePrice, gstRate } = useDynamicPricing();
+  const { calculateAreaUpgradePrice, getHeatedFloorPrice, getStairLvpUpgradePrice, getStairPremiumLvpUpgradePrice, getStairCarpetUpgradePrice, gstRate } = useDynamicPricing();
   const { getAreaForUnitType, unitAreaData } = useUnitAreaData();
   const heatedFloorPrice = getHeatedFloorPrice();
   const stairLvpPrice = getStairLvpUpgradePrice();
+  const stairPremiumLvpPrice = getStairPremiumLvpUpgradePrice();
   const stairCarpetPrice = getStairCarpetUpgradePrice();
 
   // Determine the effective unit code (with floor suffix for G/H)
@@ -113,7 +114,9 @@ export function RoomUpgradePicker({
 
   // Helper to get stair upgrade pricing (uses flat rates, not per-sqft)
   const getStairUpgradePrice = (materialType: MaterialType): { markedUpCost: number; quantity: number; unit: string } => {
-    if (materialType === 'lvp') {
+    if (materialType === 'premium_lvp') {
+      return { markedUpCost: stairPremiumLvpPrice, quantity: 1, unit: 'flat' };
+    } else if (materialType === 'lvp') {
       return { markedUpCost: stairLvpPrice, quantity: 1, unit: 'flat' };
     } else if (materialType === 'carpet') {
       return { markedUpCost: stairCarpetPrice, quantity: 1, unit: 'flat' };
@@ -371,11 +374,16 @@ export function RoomUpgradePicker({
                               const material = UPGRADE_MATERIALS.find(m => m.id === type);
                               // Custom labels for stair options
                               const isStairs = area.id === 'stairs';
-                              const label = isStairs && type === 'lvp' 
-                                ? `LVP with Custom Nosings ($${stairLvpPrice.toLocaleString()})` 
-                                : isStairs && type === 'carpet'
-                                  ? `Premium Carpet ($${stairCarpetPrice.toLocaleString()})`
-                                  : material?.name;
+                              let label = material?.name;
+                              if (isStairs) {
+                                if (type === 'premium_lvp') {
+                                  label = `Premium LVP with Custom Nosings ($${stairPremiumLvpPrice.toLocaleString()})`;
+                                } else if (type === 'lvp') {
+                                  label = `LVP with Custom Nosings ($${stairLvpPrice.toLocaleString()})`;
+                                } else if (type === 'carpet') {
+                                  label = `Premium Carpet ($${stairCarpetPrice.toLocaleString()})`;
+                                }
+                              }
                               return (
                                 <SelectItem key={type} value={type}>
                                   {label}

@@ -232,6 +232,7 @@ interface SelectionData {
   stairCarpetColour?: string | null;
   stairLvpUpgradeSelected?: boolean;
   stairPremiumCarpetSelected?: boolean;
+  stairUpgradeType?: 'standard' | 'lvp' | 'premium_lvp' | null;
   bedroomFlooringChoice?: string | null;
   bedroomCarpetColour?: string | null;
   bedroomLvpColour?: string | null;
@@ -542,6 +543,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       stairCarpetColour: rawData.stairCarpetColour ? String(rawData.stairCarpetColour).trim().slice(0, 100) : null,
       stairLvpUpgradeSelected: Boolean(rawData.stairLvpUpgradeSelected),
       stairPremiumCarpetSelected: Boolean(rawData.stairPremiumCarpetSelected),
+      stairUpgradeType: rawData.stairUpgradeType ? String(rawData.stairUpgradeType).trim().slice(0, 20) as 'standard' | 'lvp' | 'premium_lvp' : null,
       bedroomFlooringChoice: rawData.bedroomFlooringChoice ? String(rawData.bedroomFlooringChoice).trim().slice(0, 100) : null,
       bedroomCarpetColour: rawData.bedroomCarpetColour ? String(rawData.bedroomCarpetColour).trim().slice(0, 100) : null,
       bedroomLvpColour: rawData.bedroomLvpColour ? String(rawData.bedroomLvpColour).trim().slice(0, 100) : null,
@@ -591,6 +593,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       backsplash_orientation: data.backsplashOrientation || null,
       stair_carpet_colour: data.stairCarpetColour || null,
       stair_lvp_upgrade_selected: data.stairLvpUpgradeSelected || false,
+      stair_upgrade_type: data.stairUpgradeType || null,
       bedroom_flooring_choice: data.bedroomFlooringChoice || null,
       bedroom_carpet_colour: data.bedroomCarpetColour || null,
       bedroom_lvp_colour: data.bedroomLvpColour || null,
@@ -683,6 +686,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const automatedMotorPrice = pricing.config['automated_motor_price'] || 495.00;
     const heatedFloorPrice = pricing.config['heated_floor_per_bathroom'] || 1650.00;
     const stairLvpPrice = pricing.config['stair_lvp_upgrade_price'] || 2160.00;
+    const stairPremiumLvpPrice = pricing.config['stair_premium_lvp_upgrade_price'] || 3145.00;
     const stairCarpetUpgradePrice = pricing.config['premium_carpet_stairs_price'] || 640.00;
     const groutColorPrice = pricing.config['grout_color_change_price'] || 300.00;
     const gstRate = pricing.gstRate;
@@ -691,7 +695,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const windowSubtotal = (data.additionalWindowsQty * additionalWindowPrice) + 
                            (data.patioDoorsQty * patioDoorPrice) + 
                            (data.automatedWindowsQty * automatedMotorPrice);
-    const stairLvpSubtotal = data.stairLvpUpgradeSelected ? stairLvpPrice : 0;
+    // Stair upgrade based on stairUpgradeType (new) or fallback to stairLvpUpgradeSelected (legacy)
+    let stairLvpSubtotal = 0;
+    if (data.stairUpgradeType === 'premium_lvp') {
+      stairLvpSubtotal = stairPremiumLvpPrice;
+    } else if (data.stairUpgradeType === 'lvp' || data.stairLvpUpgradeSelected) {
+      stairLvpSubtotal = stairLvpPrice;
+    }
     const stairCarpetSubtotal = data.stairPremiumCarpetSelected ? stairCarpetUpgradePrice : 0;
     const groutSubtotal = data.backsplashGroutEnabled ? groutColorPrice : 0;
     

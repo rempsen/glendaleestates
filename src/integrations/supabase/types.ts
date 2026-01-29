@@ -84,6 +84,7 @@ export type Database = {
           spc_tile_comments: string | null
           stair_carpet_colour: string | null
           stair_lvp_upgrade_selected: boolean | null
+          stair_upgrade_type: string | null
           status: string | null
           unit_number: string
           unit_type: string | null
@@ -129,6 +130,7 @@ export type Database = {
           spc_tile_comments?: string | null
           stair_carpet_colour?: string | null
           stair_lvp_upgrade_selected?: boolean | null
+          stair_upgrade_type?: string | null
           status?: string | null
           unit_number: string
           unit_type?: string | null
@@ -174,6 +176,7 @@ export type Database = {
           spc_tile_comments?: string | null
           stair_carpet_colour?: string | null
           stair_lvp_upgrade_selected?: boolean | null
+          stair_upgrade_type?: string | null
           status?: string | null
           unit_number?: string
           unit_type?: string | null
