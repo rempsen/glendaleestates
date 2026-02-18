@@ -999,7 +999,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Send to BMD team (internal email with CSV)
     const adminEmailResponse = await sendEmailWithAttachment({
       from: "BMD Materials Portal <selections@bmdmaterials.com>",
-      to: ["dan@bmdmaterials.com", "noni@bmdmaterials.com", "brian@bmdmaterials.com", "office@bmdmaterials.com"],
+      to: ["dan@bmdmaterials.com", "noni@bmdmaterials.com", "brian@bmdmaterials.com", "office@bmdmaterials.com", "gregor.mckenzie@nvc360.com"],
       subject: `New Selection Submission - Unit ${escapeHtml(data.unitNumber) || 'Unknown'}${data.unitType ? ` (${escapeHtml(data.unitType)})` : ''} - ${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}`,
       html: htmlContent,
       attachments: [
