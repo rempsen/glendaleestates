@@ -167,6 +167,8 @@ export default function SelectionWizard() {
     stairUpgradeType: 'standard',
     bedroomFlooringChoice: '',
     bedroomCarpetColour: '',
+    premiumUnderpadBedroom: false,
+    premiumUnderpadStairs: false,
     bedroomLvpColour: '',
     bedroomLvpSameAsMain: true,
     additionalWindowsQty: 0,
