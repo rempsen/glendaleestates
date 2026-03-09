@@ -976,6 +976,12 @@ export default function SelectionWizard() {
                 </div>
               )
             )}
+            {selections.hasStairs && selections.stairUpgradeType === 'standard' && selections.premiumUnderpadStairs && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Premium Underpad (Stairs)</span>
+                <span className="font-medium text-primary">Yes</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Bedroom Flooring</span>
               <span className="font-medium capitalize">
