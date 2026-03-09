@@ -134,6 +134,8 @@ export default function SelectionWizard() {
     getStairLvpUpgradePrice,
     getStairPremiumLvpUpgradePrice,
     getGroutColorChangePrice,
+    getUnderpadStairsPrice,
+    getUnderpadCostPerSqyd,
     isFlatRateEnabled,
     getUnitAreaData,
   } = useDynamicPricing();
