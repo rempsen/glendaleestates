@@ -247,6 +247,8 @@ interface SelectionData {
   hardwoodUpgradeSelected?: boolean;
   bathroomTileSelected?: boolean;
   heatedFloorBathrooms?: number;
+  premiumUnderpadBedroom?: boolean;
+  premiumUnderpadStairs?: boolean;
   // New upgrade fields
   areaUpgrades?: AreaUpgrade[];
   upgradeFloorSelection?: string | null;
