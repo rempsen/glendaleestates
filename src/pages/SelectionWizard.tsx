@@ -1714,7 +1714,7 @@ export default function SelectionWizard() {
 
               {/* Premium Underpad Upgrade - show if carpet selected */}
               {selections.bedroomFlooringChoice === 'carpet' && (() => {
-                const unitData = getUnitAreaData(unitInfo?.unitType || '');
+                const unitData = getUnitAreaData(unitInfo?.typeCode || '');
                 const carpetSqyd = unitData ? (unitData.secondBedroomCarpet + unitData.masterBedroom) : 0;
                 const underpadBaseCost = carpetSqyd * underpadCostPerSqyd;
                 const underpadMarkedUp = underpadBaseCost * (1 + markupPercentage);
