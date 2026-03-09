@@ -617,6 +617,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       backsplash_grout_enabled: data.backsplashGroutEnabled,
       backsplash_grout_color: data.backsplashGroutColor,
       backsplash_grout_comments: data.backsplashGroutComments,
+      premium_underpad_bedroom: data.premiumUnderpadBedroom || false,
+      premium_underpad_stairs: data.premiumUnderpadStairs || false,
       document_uploads: data.documentUploads || [],
       status: "submitted",
     });
