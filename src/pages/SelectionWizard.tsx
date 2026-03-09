@@ -990,6 +990,12 @@ export default function SelectionWizard() {
                 </span>
               </div>
             )}
+            {selections.bedroomFlooringChoice === 'carpet' && selections.premiumUnderpadBedroom && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Premium Underpad (Bedrooms)</span>
+                <span className="font-medium text-primary">Yes</span>
+              </div>
+            )}
             {selections.bedroomFlooringChoice === 'lvp' && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Bedroom LVP Colour</span>
