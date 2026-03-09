@@ -88,6 +88,8 @@ interface SelectionState {
   stairUpgradeType: 'standard' | 'lvp' | 'premium_lvp'; // Stair upgrade option
   bedroomFlooringChoice: 'carpet' | 'lvp' | '';
   bedroomCarpetColour: string;
+  premiumUnderpadBedroom: boolean;
+  premiumUnderpadStairs: boolean;
   bedroomLvpColour: string;
   bedroomLvpSameAsMain: boolean;
   additionalWindowsQty: number;
