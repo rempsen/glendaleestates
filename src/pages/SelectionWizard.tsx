@@ -88,6 +88,8 @@ interface SelectionState {
   stairUpgradeType: 'standard' | 'lvp' | 'premium_lvp'; // Stair upgrade option
   bedroomFlooringChoice: 'carpet' | 'lvp' | '';
   bedroomCarpetColour: string;
+  premiumUnderpadBedroom: boolean;
+  premiumUnderpadStairs: boolean;
   bedroomLvpColour: string;
   bedroomLvpSameAsMain: boolean;
   additionalWindowsQty: number;
@@ -132,6 +134,8 @@ export default function SelectionWizard() {
     getStairLvpUpgradePrice,
     getStairPremiumLvpUpgradePrice,
     getGroutColorChangePrice,
+    getUnderpadStairsPrice,
+    getUnderpadCostPerSqyd,
     isFlatRateEnabled,
     getUnitAreaData,
   } = useDynamicPricing();
@@ -144,8 +148,11 @@ export default function SelectionWizard() {
   const stairLvpUpgradePrice = useMemo(() => getStairLvpUpgradePrice(), [getStairLvpUpgradePrice]);
   const stairPremiumLvpUpgradePrice = useMemo(() => getStairPremiumLvpUpgradePrice(), [getStairPremiumLvpUpgradePrice]);
   const groutColorChangePrice = useMemo(() => getGroutColorChangePrice(), [getGroutColorChangePrice]);
+  const underpadStairsPrice = useMemo(() => getUnderpadStairsPrice(), [getUnderpadStairsPrice]);
+  const underpadCostPerSqyd = useMemo(() => getUnderpadCostPerSqyd(), [getUnderpadCostPerSqyd]);
   const isStairLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_lvp_upgrade_price'), [isFlatRateEnabled]);
   const isStairPremiumLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_premium_lvp_upgrade_price'), [isFlatRateEnabled]);
+  const isUnderpadStairsEnabled = useMemo(() => isFlatRateEnabled('premium_underpad_stairs_price'), [isFlatRateEnabled]);
 
   const [selections, setSelections] = useState<SelectionState>({
     unitNumber: '',
@@ -165,6 +172,8 @@ export default function SelectionWizard() {
     stairUpgradeType: 'standard',
     bedroomFlooringChoice: '',
     bedroomCarpetColour: '',
+    premiumUnderpadBedroom: false,
+    premiumUnderpadStairs: false,
     bedroomLvpColour: '',
     bedroomLvpSameAsMain: true,
     additionalWindowsQty: 0,
@@ -443,6 +452,8 @@ export default function SelectionWizard() {
           backsplashGroutComments: selections.backsplashGrout.comments,
           stairLvpUpgradeSelected: selections.stairLvpUpgradeSelected,
           stairUpgradeType: selections.stairUpgradeType,
+          premiumUnderpadBedroom: selections.premiumUnderpadBedroom,
+          premiumUnderpadStairs: selections.premiumUnderpadStairs,
           pdfBase64: pdfBase64,
           documentUploads: selections.documentUploads,
         }),
@@ -967,6 +978,12 @@ export default function SelectionWizard() {
                 </div>
               )
             )}
+            {selections.hasStairs && selections.stairUpgradeType === 'standard' && selections.premiumUnderpadStairs && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Premium Underpad (Stairs)</span>
+                <span className="font-medium text-primary">Yes</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Bedroom Flooring</span>
               <span className="font-medium capitalize">
@@ -979,6 +996,12 @@ export default function SelectionWizard() {
                 <span className="font-medium">
                   {carpetOptions.find(o => o.id === selections.bedroomCarpetColour)?.name}
                 </span>
+              </div>
+            )}
+            {selections.bedroomFlooringChoice === 'carpet' && selections.premiumUnderpadBedroom && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Premium Underpad (Bedrooms)</span>
+                <span className="font-medium text-primary">Yes</span>
               </div>
             )}
             {selections.bedroomFlooringChoice === 'lvp' && (
@@ -1689,6 +1712,75 @@ export default function SelectionWizard() {
                 </div>
               )}
 
+              {/* Premium Underpad Upgrade - show if carpet selected */}
+              {selections.bedroomFlooringChoice === 'carpet' && (() => {
+                const unitData = getUnitAreaData(unitInfo?.unitType || '');
+                const carpetSqyd = unitData ? (unitData.secondBedroomCarpet + unitData.masterBedroom) : 0;
+                const underpadBaseCost = carpetSqyd * underpadCostPerSqyd;
+                const underpadMarkedUp = underpadBaseCost * (1 + markupPercentage);
+                const underpadWithGst = underpadMarkedUp * (1 + gstRate);
+                return carpetSqyd > 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className={`p-5 rounded-xl border-2 transition-all cursor-pointer ${
+                      selections.premiumUnderpadBedroom
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border bg-card hover:border-primary/50'
+                    }`}
+                    onClick={() => updateSelection('premiumUnderpadBedroom', !selections.premiumUnderpadBedroom)}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                        selections.premiumUnderpadBedroom
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-muted-foreground'
+                      }`}>
+                        {selections.premiumUnderpadBedroom && <Check className="w-4 h-4" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-lg font-semibold text-foreground">
+                            Upgrade to Premium Underpad
+                          </h3>
+                          <span className="px-3 py-1 rounded-full text-sm font-medium bg-accent/20 text-accent-foreground">
+                            ${underpadMarkedUp.toFixed(2)} + GST
+                          </span>
+                        </div>
+                        <p className="text-muted-foreground text-sm mb-3">
+                          Premium carpet underpad with a waterproof barrier on top to allow spills to be cleaned much more easily, constructed of dense memory foam for increased comfort underfoot.
+                        </p>
+                        <ul className="space-y-1 text-sm">
+                          <li className="flex items-center gap-2 text-muted-foreground">
+                            <Check className="w-4 h-4 text-success" />
+                            Waterproof barrier for easy spill cleanup
+                          </li>
+                          <li className="flex items-center gap-2 text-muted-foreground">
+                            <Check className="w-4 h-4 text-success" />
+                            Dense memory foam for superior comfort
+                          </li>
+                          <li className="flex items-center gap-2 text-muted-foreground">
+                            <Check className="w-4 h-4 text-success" />
+                            {carpetSqyd} sq yd × ${underpadCostPerSqyd.toFixed(2)}/sq yd
+                          </li>
+                        </ul>
+                        {selections.premiumUnderpadBedroom && (
+                          <div className="mt-4 pt-3 border-t border-border">
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-foreground font-medium">Total with GST:</span>
+                              <span className="text-primary font-semibold text-lg">
+                                ${underpadWithGst.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                ) : null;
+              })()}
+
               {/* Bedroom LVP Color - show if LVP selected */}
               {selections.bedroomFlooringChoice === 'lvp' && (
                 <motion.div
@@ -1973,6 +2065,54 @@ export default function SelectionWizard() {
                     </div>
                   )}
                 </div>
+
+                {/* Premium Underpad for Stairs - show when carpet is selected (standard or premium) */}
+                {(selections.stairUpgradeType === 'standard') && isUnderpadStairsEnabled && underpadStairsPrice > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className={`p-5 rounded-xl border-2 transition-all cursor-pointer ${
+                      selections.premiumUnderpadStairs
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border bg-card hover:border-primary/50'
+                    }`}
+                    onClick={() => updateSelection('premiumUnderpadStairs', !selections.premiumUnderpadStairs)}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                        selections.premiumUnderpadStairs
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-muted-foreground'
+                      }`}>
+                        {selections.premiumUnderpadStairs && <Check className="w-4 h-4" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-lg font-semibold text-foreground">
+                            Upgrade Stair Underpad
+                          </h3>
+                          <span className="px-3 py-1 rounded-full text-sm font-medium bg-accent/20 text-accent-foreground">
+                            ${underpadStairsPrice.toFixed(2)} + GST
+                          </span>
+                        </div>
+                        <p className="text-muted-foreground text-sm mb-3">
+                          Premium underpad for your stairs with waterproof barrier and dense memory foam for extra comfort and durability.
+                        </p>
+                        {selections.premiumUnderpadStairs && (
+                          <div className="mt-2 pt-3 border-t border-border">
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-foreground font-medium">Total with GST:</span>
+                              <span className="text-primary font-semibold text-lg">
+                                ${(underpadStairsPrice * (1 + gstRate)).toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
               </div>
             </StepContainer>
           );

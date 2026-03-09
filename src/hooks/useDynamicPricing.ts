@@ -174,6 +174,18 @@ export function useDynamicPricing() {
     return config.config_value;
   }, [state.config]);
 
+  const getUnderpadStairsPrice = useCallback((): number => {
+    const config = state.config.find(c => c.config_key === 'premium_underpad_stairs_price');
+    if (!config || config.is_active === false) return 0;
+    return config.config_value;
+  }, [state.config]);
+
+  // Get underpad cost per sqyd from materials table
+  const getUnderpadCostPerSqyd = useCallback((): number => {
+    const dbMaterial = state.materials.find(m => m.material_key === 'premium_carpet_underpad');
+    return dbMaterial ? dbMaterial.cost_per_unit : 6; // Default $6/sqyd
+  }, [state.materials]);
+
   const getStairCarpetUpgradePrice = useCallback((): number => {
     const config = state.config.find(c => c.config_key === 'premium_carpet_stairs_price');
     if (!config || config.is_active === false) return 0;
@@ -354,6 +366,8 @@ export function useDynamicPricing() {
     getStairLvpUpgradePrice,
     getStairPremiumLvpUpgradePrice,
     getStairCarpetUpgradePrice,
+    getUnderpadStairsPrice,
+    getUnderpadCostPerSqyd,
     isFlatRateEnabled,
     calculateAreaUpgradePrice,
     calculateBacksplashGroutPrice,
