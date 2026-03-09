@@ -2051,6 +2051,54 @@ export default function SelectionWizard() {
                     </div>
                   )}
                 </div>
+
+                {/* Premium Underpad for Stairs - show when carpet is selected (standard or premium) */}
+                {(selections.stairUpgradeType === 'standard') && isUnderpadStairsEnabled && underpadStairsPrice > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className={`p-5 rounded-xl border-2 transition-all cursor-pointer ${
+                      selections.premiumUnderpadStairs
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border bg-card hover:border-primary/50'
+                    }`}
+                    onClick={() => updateSelection('premiumUnderpadStairs', !selections.premiumUnderpadStairs)}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                        selections.premiumUnderpadStairs
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-muted-foreground'
+                      }`}>
+                        {selections.premiumUnderpadStairs && <Check className="w-4 h-4" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-lg font-semibold text-foreground">
+                            Upgrade Stair Underpad
+                          </h3>
+                          <span className="px-3 py-1 rounded-full text-sm font-medium bg-accent/20 text-accent-foreground">
+                            ${underpadStairsPrice.toFixed(2)} + GST
+                          </span>
+                        </div>
+                        <p className="text-muted-foreground text-sm mb-3">
+                          Premium underpad for your stairs with waterproof barrier and dense memory foam for extra comfort and durability.
+                        </p>
+                        {selections.premiumUnderpadStairs && (
+                          <div className="mt-2 pt-3 border-t border-border">
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-foreground font-medium">Total with GST:</span>
+                              <span className="text-primary font-semibold text-lg">
+                                ${(underpadStairsPrice * (1 + gstRate)).toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
               </div>
             </StepContainer>
           );
