@@ -695,6 +695,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const stairPremiumLvpPrice = pricing.config['stair_premium_lvp_upgrade_price'] || 3145.00;
     const stairCarpetUpgradePrice = pricing.config['premium_carpet_stairs_price'] || 640.00;
     const groutColorPrice = pricing.config['grout_color_change_price'] || 300.00;
+    const underpadStairsPrice = pricing.config['premium_underpad_stairs_price'] || 125.00;
+    const underpadCostPerSqyd = pricing.materials['premium_carpet_underpad'] || 6;
     const gstRate = pricing.gstRate;
     
     // Calculate all upgrade costs
@@ -710,6 +712,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     const stairCarpetSubtotal = data.stairPremiumCarpetSelected ? stairCarpetUpgradePrice : 0;
     const groutSubtotal = data.backsplashGroutEnabled ? groutColorPrice : 0;
+
+    // Calculate underpad costs
+    let underpadBedroomSubtotal = 0;
+    if (data.premiumUnderpadBedroom && data.bedroomFlooringChoice === 'carpet') {
+      const effectiveUnitCodeForUnderpad = normalizeUnitTypeCode(data.unitType);
+      const resolvedCodeForUnderpad = resolveFloorSpecificUnitCode(effectiveUnitCodeForUnderpad, data.upgradeFloorSelection, pricing.unitAreas);
+      const unitAreaData = pricing.unitAreas[resolvedCodeForUnderpad];
+      if (unitAreaData) {
+        const carpetSqyd = (unitAreaData.secondBedroomCarpet || 0) + (unitAreaData.masterBedroom || 0);
+        underpadBedroomSubtotal = carpetSqyd * underpadCostPerSqyd * (1 + pricing.markupPercentage);
+      }
+    }
+    const underpadStairsSubtotal = data.premiumUnderpadStairs && (data.stairUpgradeType === 'standard' || !data.stairUpgradeType) ? underpadStairsPrice : 0;
     
     // Calculate area upgrade costs (flooring/tile)
     // Normalize unit type label to code (e.g., "Corner Unit G" -> "G")
