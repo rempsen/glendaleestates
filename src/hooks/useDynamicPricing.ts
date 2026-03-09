@@ -366,6 +366,8 @@ export function useDynamicPricing() {
     getStairLvpUpgradePrice,
     getStairPremiumLvpUpgradePrice,
     getStairCarpetUpgradePrice,
+    getUnderpadStairsPrice,
+    getUnderpadCostPerSqyd,
     isFlatRateEnabled,
     calculateAreaUpgradePrice,
     calculateBacksplashGroutPrice,
