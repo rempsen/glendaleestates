@@ -1760,10 +1760,6 @@ export default function SelectionWizard() {
                             <Check className="w-4 h-4 text-success" />
                             Dense memory foam for superior comfort
                           </li>
-                          <li className="flex items-center gap-2 text-muted-foreground">
-                            <Check className="w-4 h-4 text-success" />
-                            {carpetSqyd} sq yd × ${underpadCostPerSqyd.toFixed(2)}/sq yd
-                          </li>
                         </ul>
                         {selections.premiumUnderpadBedroom && (
                           <div className="mt-4 pt-3 border-t border-border">
