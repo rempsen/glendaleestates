@@ -47,7 +47,9 @@ export function UpgradePricingSummary({
   const { 
     calculateTotalUpgradeCost, 
     calculateBacksplashGroutPrice, 
-    gstRate, 
+    gstRate,
+    markupPercentage,
+    getMaterialCost,
     getHeatedFloorPrice,
     getStairLvpUpgradePrice,
     getAdditionalWindowPrice,
