@@ -102,6 +102,7 @@ function generateCSV(data: SelectionData, savedId: string | undefined): string {
   rows.push(['Premium Carpet (Bedrooms)', data.premiumCarpetBedroom ? 'Yes' : 'No']);
   rows.push(['Premium Underpad (Bedrooms)', data.premiumUnderpadBedroom ? 'Yes' : 'No']);
   rows.push(['Premium Underpad (Stairs)', data.premiumUnderpadStairs ? 'Yes' : 'No']);
+  rows.push(['Custom Tiled Shower', data.customTiledShower ? 'Yes' : 'No']);
   
   // Upgrade Interests
   rows.push(['--- UPGRADE INTERESTS ---', '']);
