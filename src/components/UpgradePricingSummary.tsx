@@ -23,6 +23,9 @@ interface UpgradePricingSummaryProps {
   onUpgradeCommentsChange?: (comments: string) => void;
   showTitle?: boolean;
   compact?: boolean;
+  bathroomTileSelected?: boolean;
+  heatedFloorBathrooms?: number;
+  customTiledShower?: boolean;
 }
 
 export function UpgradePricingSummary({
