@@ -257,6 +257,14 @@ export function UpgradePricingSummary({
           <div>
             <h5 className="text-sm font-medium text-foreground mb-2">Bathroom Upgrades</h5>
             <div className="space-y-2 text-sm">
+              {bathroomTileSelected && bathroomTileSubtotal > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    Porcelain Tile Floor Upgrade
+                  </span>
+                  <span className="font-medium">${bathroomTileSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              )}
               {section4HeatedFloorSubtotal > 0 && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">
