@@ -1547,13 +1547,19 @@ export default function SelectionWizard() {
                         {(() => {
                           const tileCost = getMaterialCost('tile' as MaterialType);
                           const code = unitInfo?.typeCode?.toUpperCase() || '';
-                          const effectiveCode = ['G', 'H'].includes(code) && selections.upgradeFloorSelection
-                            ? `${code}-${selections.upgradeFloorSelection}` : code;
-                          const areaData = getUnitAreaData(effectiveCode);
-                          const guestBathArea = areaData?.guestBathroom || 0;
-                          const ensuiteArea = areaData?.masterEnsuite || 0;
+                          let guestBathArea = 0;
+                          let ensuiteArea = 0;
+                          if (['G', 'H'].includes(code)) {
+                            const data1 = getUnitAreaData(`${code}-1`);
+                            const data2 = getUnitAreaData(`${code}-2`);
+                            guestBathArea = Math.max(data1?.guestBathroom || 0, data2?.guestBathroom || 0);
+                            ensuiteArea = Math.max(data1?.masterEnsuite || 0, data2?.masterEnsuite || 0);
+                          } else {
+                            const areaData = getUnitAreaData(code);
+                            guestBathArea = areaData?.guestBathroom || 0;
+                            ensuiteArea = areaData?.masterEnsuite || 0;
+                          }
                           const bathroomCount = (guestBathArea > 0 ? 1 : 0) + (ensuiteArea > 0 ? 1 : 0);
-                          // Per-bathroom tile cost (split evenly)
                           const totalArea = guestBathArea + ensuiteArea;
                           const tilePerBathroom = bathroomCount > 0 ? (totalArea * tileCost * (1 + markupPercentage)) / bathroomCount : 0;
                           const heatPerBathroom = heatedFloorPrice;
@@ -1571,11 +1577,18 @@ export default function SelectionWizard() {
 
                     {selections.heatedFloorBathrooms > 0 && (() => {
                       const code = unitInfo?.typeCode?.toUpperCase() || '';
-                      const effectiveCode = ['G', 'H'].includes(code) && selections.upgradeFloorSelection
-                        ? `${code}-${selections.upgradeFloorSelection}` : code;
-                      const areaData = getUnitAreaData(effectiveCode);
-                      const guestBathArea = areaData?.guestBathroom || 0;
-                      const ensuiteArea = areaData?.masterEnsuite || 0;
+                      let guestBathArea = 0;
+                      let ensuiteArea = 0;
+                      if (['G', 'H'].includes(code)) {
+                        const data1 = getUnitAreaData(`${code}-1`);
+                        const data2 = getUnitAreaData(`${code}-2`);
+                        guestBathArea = Math.max(data1?.guestBathroom || 0, data2?.guestBathroom || 0);
+                        ensuiteArea = Math.max(data1?.masterEnsuite || 0, data2?.masterEnsuite || 0);
+                      } else {
+                        const areaData = getUnitAreaData(code);
+                        guestBathArea = areaData?.guestBathroom || 0;
+                        ensuiteArea = areaData?.masterEnsuite || 0;
+                      }
                       const bathroomCount = (guestBathArea > 0 ? 1 : 0) + (ensuiteArea > 0 ? 1 : 0);
                       
                       return bathroomCount > 1 ? (
