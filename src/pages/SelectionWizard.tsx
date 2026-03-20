@@ -463,6 +463,7 @@ export default function SelectionWizard() {
           backsplashGroutComments: selections.backsplashGrout.comments,
           stairLvpUpgradeSelected: selections.stairLvpUpgradeSelected,
           stairUpgradeType: selections.stairUpgradeType,
+          premiumCarpetBedroom: selections.premiumCarpetBedroom,
           premiumUnderpadBedroom: selections.premiumUnderpadBedroom,
           premiumUnderpadStairs: selections.premiumUnderpadStairs,
           pdfBase64: pdfBase64,
