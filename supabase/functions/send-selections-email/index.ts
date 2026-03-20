@@ -569,6 +569,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       hardwoodUpgradeSelected: Boolean(rawData.hardwoodUpgradeSelected),
       bathroomTileSelected: Boolean(rawData.bathroomTileSelected),
       heatedFloorBathrooms: Math.max(0, Math.min(10, Number(rawData.heatedFloorBathrooms) || 0)),
+      customTiledShower: Boolean(rawData.customTiledShower),
       // New upgrade fields
       areaUpgrades: areaUpgrades,
       upgradeFloorSelection: rawData.upgradeFloorSelection ? String(rawData.upgradeFloorSelection).trim().slice(0, 10) : null,
