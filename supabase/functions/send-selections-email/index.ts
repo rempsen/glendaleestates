@@ -102,6 +102,7 @@ function generateCSV(data: SelectionData, savedId: string | undefined): string {
   rows.push(['Premium Carpet (Bedrooms)', data.premiumCarpetBedroom ? 'Yes' : 'No']);
   rows.push(['Premium Underpad (Bedrooms)', data.premiumUnderpadBedroom ? 'Yes' : 'No']);
   rows.push(['Premium Underpad (Stairs)', data.premiumUnderpadStairs ? 'Yes' : 'No']);
+  rows.push(['Custom Tiled Shower', data.customTiledShower ? 'Yes' : 'No']);
   
   // Upgrade Interests
   rows.push(['--- UPGRADE INTERESTS ---', '']);
@@ -253,6 +254,7 @@ interface SelectionData {
   premiumCarpetBedroom?: boolean;
   premiumUnderpadBedroom?: boolean;
   premiumUnderpadStairs?: boolean;
+  customTiledShower?: boolean;
   // New upgrade fields
   areaUpgrades?: AreaUpgrade[];
   upgradeFloorSelection?: string | null;
@@ -567,6 +569,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       hardwoodUpgradeSelected: Boolean(rawData.hardwoodUpgradeSelected),
       bathroomTileSelected: Boolean(rawData.bathroomTileSelected),
       heatedFloorBathrooms: Math.max(0, Math.min(10, Number(rawData.heatedFloorBathrooms) || 0)),
+      customTiledShower: Boolean(rawData.customTiledShower),
       // New upgrade fields
       areaUpgrades: areaUpgrades,
       upgradeFloorSelection: rawData.upgradeFloorSelection ? String(rawData.upgradeFloorSelection).trim().slice(0, 10) : null,
@@ -625,6 +628,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       premium_carpet_bedroom: data.premiumCarpetBedroom || false,
       premium_underpad_bedroom: data.premiumUnderpadBedroom || false,
       premium_underpad_stairs: data.premiumUnderpadStairs || false,
+      custom_tiled_shower: data.customTiledShower || false,
       document_uploads: data.documentUploads || [],
       status: "submitted",
     });
@@ -671,6 +675,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
           bathroom_tile_selected: data.bathroomTileSelected,
           heated_floor_bathrooms: data.heatedFloorBathrooms,
+          custom_tiled_shower: data.customTiledShower,
           backsplash_grout_enabled: data.backsplashGroutEnabled,
           backsplash_grout_color: data.backsplashGroutColor,
           backsplash_grout_comments: data.backsplashGroutComments,

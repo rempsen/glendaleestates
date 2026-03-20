@@ -109,6 +109,7 @@ interface SelectionState {
   // Heated floors (kept separate)
   bathroomTileSelected: boolean;
   heatedFloorBathrooms: number;
+  customTiledShower: boolean;
   // Document uploads
   documentUploads: UploadedDocument[];
 }
@@ -203,6 +204,7 @@ export default function SelectionWizard() {
     upgradeComments: '',
     bathroomTileSelected: false,
     heatedFloorBathrooms: 0,
+    customTiledShower: false,
     documentUploads: [],
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -467,6 +469,7 @@ export default function SelectionWizard() {
           premiumCarpetBedroom: selections.premiumCarpetBedroom,
           premiumUnderpadBedroom: selections.premiumUnderpadBedroom,
           premiumUnderpadStairs: selections.premiumUnderpadStairs,
+          customTiledShower: selections.customTiledShower,
           pdfBase64: pdfBase64,
           documentUploads: selections.documentUploads,
         }),
@@ -832,6 +835,9 @@ export default function SelectionWizard() {
           backsplashGrout={selections.backsplashGrout}
           upgradeComments={selections.upgradeComments}
           onUpgradeCommentsChange={(comments) => updateSelection('upgradeComments', comments)}
+          bathroomTileSelected={selections.bathroomTileSelected}
+          heatedFloorBathrooms={selections.heatedFloorBathrooms}
+          customTiledShower={selections.customTiledShower}
         />
 
         {/* Other Upgrade Interests */}
@@ -971,6 +977,24 @@ export default function SelectionWizard() {
                 {spcTileOptions.find(o => o.id === selections.spcTileColour)?.name || 'Not selected'}
               </span>
             </div>
+            {selections.bathroomTileSelected && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Porcelain Tile Upgrade</span>
+                <span className="font-medium text-primary">Yes</span>
+              </div>
+            )}
+            {selections.heatedFloorBathrooms > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Heated Tile Floor</span>
+                <span className="font-medium text-primary">{selections.heatedFloorBathrooms} bathroom{selections.heatedFloorBathrooms > 1 ? 's' : ''}</span>
+              </div>
+            )}
+            {selections.customTiledShower && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Custom Tiled Shower</span>
+                <span className="font-medium text-primary">Yes</span>
+              </div>
+            )}
             {selections.hasStairs && (
               selections.stairUpgradeType === 'premium_lvp' ? (
                 <div className="flex justify-between">
@@ -1102,7 +1126,9 @@ export default function SelectionWizard() {
             selections.patioDoorsQty > 0 ||
             selections.automatedWindowsQty > 0 ||
             selections.areaUpgrades.length > 0 ||
-            selections.heatedFloorBathrooms > 0;
+            selections.heatedFloorBathrooms > 0 ||
+            selections.customTiledShower ||
+            selections.bathroomTileSelected;
 
           if (!hasAnyUpgrade) return null;
 
@@ -1119,6 +1145,9 @@ export default function SelectionWizard() {
                   patioDoorsQty: selections.patioDoorsQty,
                   automatedWindowsQty: selections.automatedWindowsQty,
                 }}
+                bathroomTileSelected={selections.bathroomTileSelected}
+                heatedFloorBathrooms={selections.heatedFloorBathrooms}
+                customTiledShower={selections.customTiledShower}
               />
             </div>
           );
@@ -1545,6 +1574,38 @@ export default function SelectionWizard() {
                     })()}
                   </div>
                 )}
+              </div>
+
+              {/* Custom Tiled Shower Option */}
+              <div className="pt-4 border-t border-border space-y-4">
+                <div className="flex items-start gap-3">
+                  <Switch
+                    id="customTiledShower"
+                    checked={selections.customTiledShower}
+                    onCheckedChange={(checked) => {
+                      updateSelection('customTiledShower', checked);
+                    }}
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="customTiledShower" className="text-foreground font-medium cursor-pointer">
+                      Custom Tiled Shower
+                    </Label>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Custom waterproofed and tiled shower with three walls and the shower floor included
+                    </p>
+                    {(() => {
+                      const showerCost = getMaterialCost('tiled_shower' as MaterialType);
+                      if (!showerCost) return null;
+                      const markedUp = showerCost * (1 + markupPercentage);
+                      const total = markedUp * (1 + gstRate);
+                      return (
+                        <p className="text-sm font-medium text-primary mt-1">
+                          ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (incl. GST)
+                        </p>
+                      );
+                    })()}
+                  </div>
+                </div>
               </div>
 
               {/* Comments Section */}
