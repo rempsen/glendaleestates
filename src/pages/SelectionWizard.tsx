@@ -88,6 +88,7 @@ interface SelectionState {
   stairUpgradeType: 'standard' | 'lvp' | 'premium_lvp'; // Stair upgrade option
   bedroomFlooringChoice: 'carpet' | 'lvp' | '';
   bedroomCarpetColour: string;
+  premiumCarpetBedroom: boolean;
   premiumUnderpadBedroom: boolean;
   premiumUnderpadStairs: boolean;
   bedroomLvpColour: string;
@@ -181,6 +182,7 @@ export default function SelectionWizard() {
     stairUpgradeType: 'standard',
     bedroomFlooringChoice: '',
     bedroomCarpetColour: '',
+    premiumCarpetBedroom: false,
     premiumUnderpadBedroom: false,
     premiumUnderpadStairs: false,
     bedroomLvpColour: '',
@@ -461,6 +463,7 @@ export default function SelectionWizard() {
           backsplashGroutComments: selections.backsplashGrout.comments,
           stairLvpUpgradeSelected: selections.stairLvpUpgradeSelected,
           stairUpgradeType: selections.stairUpgradeType,
+          premiumCarpetBedroom: selections.premiumCarpetBedroom,
           premiumUnderpadBedroom: selections.premiumUnderpadBedroom,
           premiumUnderpadStairs: selections.premiumUnderpadStairs,
           pdfBase64: pdfBase64,
@@ -1005,6 +1008,12 @@ export default function SelectionWizard() {
                 <span className="font-medium">
                   {carpetOptions.find(o => o.id === selections.bedroomCarpetColour)?.name}
                 </span>
+              </div>
+            )}
+            {selections.bedroomFlooringChoice === 'carpet' && selections.premiumCarpetBedroom && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Premium Carpet (Bedrooms)</span>
+                <span className="font-medium text-primary">Yes</span>
               </div>
             )}
             {selections.bedroomFlooringChoice === 'carpet' && selections.premiumUnderpadBedroom && (
@@ -1720,6 +1729,72 @@ export default function SelectionWizard() {
                   </div>
                 </div>
               )}
+
+              {/* Premium Carpet Upgrade - show if carpet selected */}
+              {selections.bedroomFlooringChoice === 'carpet' && (() => {
+                const unitData = getUnitAreaData(bedroomUnderpadUnitTypeCode);
+                const carpetSqyd = unitData ? (unitData.secondBedroomCarpet + unitData.masterBedroom) : 0;
+                const premiumCarpetCostPerSqyd = getMaterialCost('carpet' as any);
+                const premiumCarpetBaseCost = carpetSqyd * premiumCarpetCostPerSqyd;
+                const premiumCarpetMarkedUp = premiumCarpetBaseCost * (1 + markupPercentage);
+                const premiumCarpetWithGst = premiumCarpetMarkedUp * (1 + gstRate);
+                return carpetSqyd > 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className={`p-5 rounded-xl border-2 transition-all cursor-pointer ${
+                      selections.premiumCarpetBedroom
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border bg-card hover:border-primary/50'
+                    }`}
+                    onClick={() => updateSelection('premiumCarpetBedroom', !selections.premiumCarpetBedroom)}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                        selections.premiumCarpetBedroom
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-muted-foreground'
+                      }`}>
+                        {selections.premiumCarpetBedroom && <Check className="w-4 h-4" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-lg font-semibold text-foreground">
+                            Upgrade to Premium Carpet
+                          </h3>
+                          <span className="px-3 py-1 rounded-full text-sm font-medium bg-accent/20 text-accent-foreground">
+                            ${premiumCarpetMarkedUp.toFixed(2)} + GST
+                          </span>
+                        </div>
+                        <p className="text-muted-foreground text-sm mb-3">
+                          Upgrade your bedroom carpet to a higher quality premium carpet for enhanced softness, durability, and luxury feel.
+                        </p>
+                        <ul className="space-y-1 text-sm">
+                          <li className="flex items-center gap-2 text-muted-foreground">
+                            <Check className="w-4 h-4 text-success" />
+                            Superior softness and comfort
+                          </li>
+                          <li className="flex items-center gap-2 text-muted-foreground">
+                            <Check className="w-4 h-4 text-success" />
+                            Enhanced durability and longer lifespan
+                          </li>
+                        </ul>
+                        {selections.premiumCarpetBedroom && (
+                          <div className="mt-4 pt-3 border-t border-border">
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-foreground font-medium">Total with GST:</span>
+                              <span className="text-primary font-semibold text-lg">
+                                ${premiumCarpetWithGst.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                ) : null;
+              })()}
 
               {/* Premium Underpad Upgrade - show if carpet selected */}
               {selections.bedroomFlooringChoice === 'carpet' && (() => {

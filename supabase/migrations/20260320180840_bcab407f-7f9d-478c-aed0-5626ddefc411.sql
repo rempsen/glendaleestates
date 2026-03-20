@@ -1,0 +1,1 @@
+ALTER TABLE public.buyer_selections ADD COLUMN premium_carpet_bedroom boolean DEFAULT false;

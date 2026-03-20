@@ -99,6 +99,7 @@ function generateCSV(data: SelectionData, savedId: string | undefined): string {
   rows.push(['Hardwood Upgrade Selected', data.hardwoodUpgradeSelected ? 'Yes' : 'No']);
   rows.push(['Bathroom Tile Selected', data.bathroomTileSelected ? 'Yes' : 'No']);
   rows.push(['Heated Floor Bathrooms', String(data.heatedFloorBathrooms)]);
+  rows.push(['Premium Carpet (Bedrooms)', data.premiumCarpetBedroom ? 'Yes' : 'No']);
   rows.push(['Premium Underpad (Bedrooms)', data.premiumUnderpadBedroom ? 'Yes' : 'No']);
   rows.push(['Premium Underpad (Stairs)', data.premiumUnderpadStairs ? 'Yes' : 'No']);
   
@@ -249,6 +250,7 @@ interface SelectionData {
   hardwoodUpgradeSelected?: boolean;
   bathroomTileSelected?: boolean;
   heatedFloorBathrooms?: number;
+  premiumCarpetBedroom?: boolean;
   premiumUnderpadBedroom?: boolean;
   premiumUnderpadStairs?: boolean;
   // New upgrade fields
@@ -548,6 +550,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       stairLvpUpgradeSelected: Boolean(rawData.stairLvpUpgradeSelected),
       stairPremiumCarpetSelected: Boolean(rawData.stairPremiumCarpetSelected),
       stairUpgradeType: rawData.stairUpgradeType ? String(rawData.stairUpgradeType).trim().slice(0, 20) as 'standard' | 'lvp' | 'premium_lvp' : null,
+      premiumCarpetBedroom: Boolean(rawData.premiumCarpetBedroom),
       premiumUnderpadBedroom: Boolean(rawData.premiumUnderpadBedroom),
       premiumUnderpadStairs: Boolean(rawData.premiumUnderpadStairs),
       bedroomFlooringChoice: rawData.bedroomFlooringChoice ? String(rawData.bedroomFlooringChoice).trim().slice(0, 100) : null,
@@ -619,6 +622,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       backsplash_grout_enabled: data.backsplashGroutEnabled,
       backsplash_grout_color: data.backsplashGroutColor,
       backsplash_grout_comments: data.backsplashGroutComments,
+      premium_carpet_bedroom: data.premiumCarpetBedroom || false,
       premium_underpad_bedroom: data.premiumUnderpadBedroom || false,
       premium_underpad_stairs: data.premiumUnderpadStairs || false,
       document_uploads: data.documentUploads || [],
@@ -699,6 +703,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const groutColorPrice = pricing.config['grout_color_change_price'] || 300.00;
     const underpadStairsPrice = pricing.config['premium_underpad_stairs_price'] || 125.00;
     const underpadCostPerSqyd = pricing.materials['premium_carpet_underpad'] || 6;
+    const premiumCarpetCostPerSqyd = pricing.materials['carpet'] || 25;
     const gstRate = pricing.gstRate;
     
     // Calculate all upgrade costs
@@ -726,6 +731,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
         underpadBedroomSubtotal = carpetSqyd * underpadCostPerSqyd * (1 + pricing.markupPercentage);
       }
     }
+
+    // Calculate premium carpet bedroom costs
+    let premiumCarpetBedroomSubtotal = 0;
+    if (data.premiumCarpetBedroom && data.bedroomFlooringChoice === 'carpet') {
+      const effectiveUnitCodeForCarpet = normalizeUnitTypeCode(data.unitType);
+      const resolvedCodeForCarpet = resolveFloorSpecificUnitCode(effectiveUnitCodeForCarpet, data.upgradeFloorSelection, pricing.unitAreas);
+      const unitAreaDataCarpet = pricing.unitAreas[resolvedCodeForCarpet];
+      if (unitAreaDataCarpet) {
+        const carpetSqyd = (unitAreaDataCarpet.secondBedroomCarpet || 0) + (unitAreaDataCarpet.masterBedroom || 0);
+        premiumCarpetBedroomSubtotal = carpetSqyd * premiumCarpetCostPerSqyd * (1 + pricing.markupPercentage);
+      }
+    }
+
     const underpadStairsSubtotal = data.premiumUnderpadStairs && (data.stairUpgradeType === 'standard' || !data.stairUpgradeType) ? underpadStairsPrice : 0;
     
     // Calculate area upgrade costs (flooring/tile)
@@ -745,7 +763,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
     
     // Calculate grand totals
-    const grandSubtotal = windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal + underpadBedroomSubtotal + underpadStairsSubtotal + areaUpgradeCosts.subtotal;
+    const grandSubtotal = windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal + premiumCarpetBedroomSubtotal + underpadBedroomSubtotal + underpadStairsSubtotal + areaUpgradeCosts.subtotal;
     const grandGst = grandSubtotal * gstRate;
     const grandTotal = grandSubtotal + grandGst;
     
@@ -859,6 +877,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
       if (data.automatedWindowsQty > 0) {
         summaryItems.push(`<tr><td style="padding: 8px 0;">Somfy Automation (${data.automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)})</td><td style="text-align: right; font-weight: bold;">$${(data.automatedWindowsQty * automatedMotorPrice).toFixed(2)}</td></tr>`);
+      }
+      if (premiumCarpetBedroomSubtotal > 0) {
+        summaryItems.push(`<tr><td style="padding: 8px 0;">Premium Carpet (Bedrooms)</td><td style="text-align: right; font-weight: bold;">$${premiumCarpetBedroomSubtotal.toFixed(2)}</td></tr>`);
       }
       if (underpadBedroomSubtotal > 0) {
         summaryItems.push(`<tr><td style="padding: 8px 0;">Premium Underpad (Bedrooms)</td><td style="text-align: right; font-weight: bold;">$${underpadBedroomSubtotal.toFixed(2)}</td></tr>`);

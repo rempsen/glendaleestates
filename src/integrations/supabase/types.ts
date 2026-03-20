@@ -77,6 +77,7 @@ export type Database = {
           lvp_comments: string | null
           patio_doors_qty: number | null
           phone_number: string | null
+          premium_carpet_bedroom: boolean | null
           premium_underpad_bedroom: boolean | null
           premium_underpad_stairs: boolean | null
           quoted_at: string | null
@@ -125,6 +126,7 @@ export type Database = {
           lvp_comments?: string | null
           patio_doors_qty?: number | null
           phone_number?: string | null
+          premium_carpet_bedroom?: boolean | null
           premium_underpad_bedroom?: boolean | null
           premium_underpad_stairs?: boolean | null
           quoted_at?: string | null
@@ -173,6 +175,7 @@ export type Database = {
           lvp_comments?: string | null
           patio_doors_qty?: number | null
           phone_number?: string | null
+          premium_carpet_bedroom?: boolean | null
           premium_underpad_bedroom?: boolean | null
           premium_underpad_stairs?: boolean | null
           quoted_at?: string | null
