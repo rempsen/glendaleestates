@@ -253,6 +253,7 @@ interface SelectionData {
   premiumCarpetBedroom?: boolean;
   premiumUnderpadBedroom?: boolean;
   premiumUnderpadStairs?: boolean;
+  customTiledShower?: boolean;
   // New upgrade fields
   areaUpgrades?: AreaUpgrade[];
   upgradeFloorSelection?: string | null;
