@@ -1545,30 +1545,10 @@ export default function SelectionWizard() {
                           Radiant in-floor heating for your tiled bathroom — includes porcelain tile plus in-floor heat
                         </p>
                         {(() => {
-                          const tileCost = getMaterialCost('tile' as MaterialType);
-                          const code = unitInfo?.typeCode?.toUpperCase() || '';
-                          let guestBathArea = 0;
-                          let ensuiteArea = 0;
-                          if (['G', 'H'].includes(code)) {
-                            const data1 = getUnitAreaData(`${code}-1`);
-                            const data2 = getUnitAreaData(`${code}-2`);
-                            guestBathArea = Math.max(data1?.guestBathroom || 0, data2?.guestBathroom || 0);
-                            ensuiteArea = Math.max(data1?.masterEnsuite || 0, data2?.masterEnsuite || 0);
-                          } else {
-                            const areaData = getUnitAreaData(code);
-                            guestBathArea = areaData?.guestBathroom || 0;
-                            ensuiteArea = areaData?.masterEnsuite || 0;
-                          }
-                          const bathroomCount = (guestBathArea > 0 ? 1 : 0) + (ensuiteArea > 0 ? 1 : 0);
-                          const totalArea = guestBathArea + ensuiteArea;
-                          const tilePerBathroom = bathroomCount > 0 ? (totalArea * tileCost * (1 + markupPercentage)) / bathroomCount : 0;
-                          const heatPerBathroom = heatedFloorPrice;
-                          const combinedPerBathroom = tilePerBathroom + heatPerBathroom;
-                          const combinedWithGst = combinedPerBathroom * (1 + gstRate);
-
-                          return combinedWithGst > 0 ? (
+                          const heatWithGst = heatedFloorPrice * (1 + gstRate);
+                          return heatWithGst > 0 ? (
                             <p className="text-sm font-medium text-primary mt-1">
-                              ${combinedWithGst.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} per bathroom (incl. GST)
+                              ${heatWithGst.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} per bathroom (incl. GST)
                             </p>
                           ) : null;
                         })()}
