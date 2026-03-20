@@ -63,6 +63,7 @@ export type Database = {
           bedroom_lvp_same_as_main: boolean | null
           completed_at: string | null
           created_at: string
+          custom_tiled_shower: boolean | null
           document_uploads: Json | null
           email: string
           estimated_possession_date: string | null
@@ -112,6 +113,7 @@ export type Database = {
           bedroom_lvp_same_as_main?: boolean | null
           completed_at?: string | null
           created_at?: string
+          custom_tiled_shower?: boolean | null
           document_uploads?: Json | null
           email: string
           estimated_possession_date?: string | null
@@ -161,6 +163,7 @@ export type Database = {
           bedroom_lvp_same_as_main?: boolean | null
           completed_at?: string | null
           created_at?: string
+          custom_tiled_shower?: boolean | null
           document_uploads?: Json | null
           email?: string
           estimated_possession_date?: string | null

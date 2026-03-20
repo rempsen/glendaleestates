@@ -1,0 +1,1 @@
+ALTER TABLE public.buyer_selections ADD COLUMN custom_tiled_shower boolean DEFAULT false;
