@@ -1145,6 +1145,9 @@ export default function SelectionWizard() {
                   patioDoorsQty: selections.patioDoorsQty,
                   automatedWindowsQty: selections.automatedWindowsQty,
                 }}
+                bathroomTileSelected={selections.bathroomTileSelected}
+                heatedFloorBathrooms={selections.heatedFloorBathrooms}
+                customTiledShower={selections.customTiledShower}
               />
             </div>
           );
