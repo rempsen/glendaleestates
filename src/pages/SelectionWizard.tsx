@@ -153,6 +153,15 @@ export default function SelectionWizard() {
   const isStairLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_lvp_upgrade_price'), [isFlatRateEnabled]);
   const isStairPremiumLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_premium_lvp_upgrade_price'), [isFlatRateEnabled]);
   const isUnderpadStairsEnabled = useMemo(() => isFlatRateEnabled('premium_underpad_stairs_price'), [isFlatRateEnabled]);
+  const bedroomUnderpadUnitTypeCode = useMemo(() => {
+    const code = unitInfo?.typeCode?.toUpperCase() || '';
+
+    if (code === 'G' || code === 'H') {
+      return `${code}-2`;
+    }
+
+    return code;
+  }, [unitInfo?.typeCode]);
 
   const [selections, setSelections] = useState<SelectionState>({
     unitNumber: '',
@@ -1714,7 +1723,7 @@ export default function SelectionWizard() {
 
               {/* Premium Underpad Upgrade - show if carpet selected */}
               {selections.bedroomFlooringChoice === 'carpet' && (() => {
-                const unitData = getUnitAreaData(unitInfo?.typeCode || '');
+                const unitData = getUnitAreaData(bedroomUnderpadUnitTypeCode);
                 const carpetSqyd = unitData ? (unitData.secondBedroomCarpet + unitData.masterBedroom) : 0;
                 const underpadBaseCost = carpetSqyd * underpadCostPerSqyd;
                 const underpadMarkedUp = underpadBaseCost * (1 + markupPercentage);
