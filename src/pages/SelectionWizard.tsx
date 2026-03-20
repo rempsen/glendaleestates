@@ -1123,7 +1123,9 @@ export default function SelectionWizard() {
             selections.patioDoorsQty > 0 ||
             selections.automatedWindowsQty > 0 ||
             selections.areaUpgrades.length > 0 ||
-            selections.heatedFloorBathrooms > 0;
+            selections.heatedFloorBathrooms > 0 ||
+            selections.customTiledShower ||
+            selections.bathroomTileSelected;
 
           if (!hasAnyUpgrade) return null;
 
