@@ -1498,19 +1498,20 @@ export default function SelectionWizard() {
                     </p>
                     {(() => {
                       const tileCost = getMaterialCost('tile' as MaterialType);
-                      const unitCode = unitInfo?.typeCode?.toUpperCase() || '';
-                      const areaData = getUnitAreaData(unitCode);
+                      const code = unitInfo?.typeCode?.toUpperCase() || '';
+                      const effectiveCode = ['G', 'H'].includes(code) && selections.upgradeFloorSelection
+                        ? `${code}-${selections.upgradeFloorSelection}` : code;
+                      const areaData = getUnitAreaData(effectiveCode);
                       const guestBathArea = areaData?.guestBathroom || 0;
                       const ensuiteArea = areaData?.masterEnsuite || 0;
                       const totalArea = guestBathArea + ensuiteArea;
                       const baseCost = totalArea * tileCost;
                       const markedUp = baseCost * (1 + markupPercentage);
-                      const gst = markedUp * gstRate;
-                      const total = markedUp + gst;
+                      const tileTotal = markedUp * (1 + gstRate);
                       
                       return totalArea > 0 ? (
                         <p className="text-sm font-medium text-primary mt-1">
-                          ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (incl. GST) — {totalArea} sq ft × ${tileCost}/sq ft
+                          ${tileTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (incl. GST)
                         </p>
                       ) : null;
                     })()}
@@ -1533,19 +1534,38 @@ export default function SelectionWizard() {
                           Add Heated Tile Floor
                         </Label>
                         <p className="text-sm text-muted-foreground mt-0.5">
-                          Radiant in-floor heating for your tiled bathroom
+                          Radiant in-floor heating for your tiled bathroom — includes porcelain tile plus in-floor heat
                         </p>
-                        {heatedFloorPrice > 0 && (
-                          <p className="text-sm font-medium text-primary mt-1">
-                            ${(heatedFloorPrice * (1 + gstRate)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} per bathroom (incl. GST)
-                          </p>
-                        )}
+                        {(() => {
+                          const tileCost = getMaterialCost('tile' as MaterialType);
+                          const code = unitInfo?.typeCode?.toUpperCase() || '';
+                          const effectiveCode = ['G', 'H'].includes(code) && selections.upgradeFloorSelection
+                            ? `${code}-${selections.upgradeFloorSelection}` : code;
+                          const areaData = getUnitAreaData(effectiveCode);
+                          const guestBathArea = areaData?.guestBathroom || 0;
+                          const ensuiteArea = areaData?.masterEnsuite || 0;
+                          const bathroomCount = (guestBathArea > 0 ? 1 : 0) + (ensuiteArea > 0 ? 1 : 0);
+                          // Per-bathroom tile cost (split evenly)
+                          const totalArea = guestBathArea + ensuiteArea;
+                          const tilePerBathroom = bathroomCount > 0 ? (totalArea * tileCost * (1 + markupPercentage)) / bathroomCount : 0;
+                          const heatPerBathroom = heatedFloorPrice;
+                          const combinedPerBathroom = tilePerBathroom + heatPerBathroom;
+                          const combinedWithGst = combinedPerBathroom * (1 + gstRate);
+
+                          return combinedWithGst > 0 ? (
+                            <p className="text-sm font-medium text-primary mt-1">
+                              ${combinedWithGst.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} per bathroom (incl. GST)
+                            </p>
+                          ) : null;
+                        })()}
                       </div>
                     </div>
 
                     {selections.heatedFloorBathrooms > 0 && (() => {
-                      const unitCode = unitInfo?.typeCode?.toUpperCase() || '';
-                      const areaData = getUnitAreaData(unitCode);
+                      const code = unitInfo?.typeCode?.toUpperCase() || '';
+                      const effectiveCode = ['G', 'H'].includes(code) && selections.upgradeFloorSelection
+                        ? `${code}-${selections.upgradeFloorSelection}` : code;
+                      const areaData = getUnitAreaData(effectiveCode);
                       const guestBathArea = areaData?.guestBathroom || 0;
                       const ensuiteArea = areaData?.masterEnsuite || 0;
                       const bathroomCount = (guestBathArea > 0 ? 1 : 0) + (ensuiteArea > 0 ? 1 : 0);
