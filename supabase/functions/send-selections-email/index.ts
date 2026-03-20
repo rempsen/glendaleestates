@@ -878,6 +878,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (data.automatedWindowsQty > 0) {
         summaryItems.push(`<tr><td style="padding: 8px 0;">Somfy Automation (${data.automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)})</td><td style="text-align: right; font-weight: bold;">$${(data.automatedWindowsQty * automatedMotorPrice).toFixed(2)}</td></tr>`);
       }
+      if (premiumCarpetBedroomSubtotal > 0) {
+        summaryItems.push(`<tr><td style="padding: 8px 0;">Premium Carpet (Bedrooms)</td><td style="text-align: right; font-weight: bold;">$${premiumCarpetBedroomSubtotal.toFixed(2)}</td></tr>`);
+      }
       if (underpadBedroomSubtotal > 0) {
         summaryItems.push(`<tr><td style="padding: 8px 0;">Premium Underpad (Bedrooms)</td><td style="text-align: right; font-weight: bold;">$${underpadBedroomSubtotal.toFixed(2)}</td></tr>`);
       }
