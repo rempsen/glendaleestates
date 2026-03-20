@@ -55,6 +55,7 @@ export function UpgradePricingSummary({
     getAdditionalWindowPrice,
     getPatioDoorPrice,
     getAutomatedMotorPrice,
+    getUnitAreaData,
   } = useDynamicPricing();
   
   // Get dynamic prices
@@ -82,27 +83,29 @@ export function UpgradePricingSummary({
   );
   const heatedFloorSubtotal = heatedFloorAreas.length * heatedFloorPerBathroom;
 
-  // Calculate backsplash grout color change costs
-  const groutPrice = backsplashGrout?.enabled ? calculateBacksplashGroutPrice() : null;
-  const groutSubtotal = groutPrice?.markedUpCost || 0;
-
-  // Calculate stair LVP upgrade cost
-  const stairLvpSubtotal = stairLvpUpgradeSelected ? stairLvpPrice : 0;
-
-  // Calculate window coverings costs
-  const windowAdditionalSubtotal = (windowCoverings?.additionalWindowsQty || 0) * additionalWindowPrice;
-  const windowPatioSubtotal = (windowCoverings?.patioDoorsQty || 0) * patioDoorPrice;
-  const windowAutomationSubtotal = (windowCoverings?.automatedWindowsQty || 0) * automatedMotorPrice;
-  const windowCoveringsSubtotal = windowAdditionalSubtotal + windowPatioSubtotal + windowAutomationSubtotal;
-
-  // Calculate bathroom upgrade costs (porcelain tile + custom shower)
-  const bathroomTileCostPerSqft = bathroomTileSelected ? getMaterialCost('tile' as any) : 0;
+  // Calculate porcelain tile upgrade cost for bathrooms
   const bathroomTileSubtotal = (() => {
-    if (!bathroomTileSelected || !effectiveUnitCode) return 0;
-    // Need unit area data - use the pricing hook's getUnitAreaData if available
-    // For now calculate from the tile cost * area - but we need area data
-    // The tile cost is per sqft, applied to guest bathroom + master ensuite
-    return 0; // Will be calculated below with area data
+    if (!bathroomTileSelected || !unitTypeCode) return 0;
+    const tileCostPerSqft = getMaterialCost('tile' as any);
+    if (tileCostPerSqft <= 0) return 0;
+    
+    const code = unitTypeCode.toUpperCase();
+    let guestBathArea = 0;
+    let ensuiteArea = 0;
+    
+    if (['G', 'H'].includes(code)) {
+      const data1 = getUnitAreaData(`${code}-1`);
+      const data2 = getUnitAreaData(`${code}-2`);
+      guestBathArea = Math.max(data1?.guestBathroom || 0, data2?.guestBathroom || 0);
+      ensuiteArea = Math.max(data1?.masterEnsuite || 0, data2?.masterEnsuite || 0);
+    } else {
+      const areaData = getUnitAreaData(code);
+      guestBathArea = areaData?.guestBathroom || 0;
+      ensuiteArea = areaData?.masterEnsuite || 0;
+    }
+    
+    const totalArea = guestBathArea + ensuiteArea;
+    return totalArea * tileCostPerSqft * (1 + markupPercentage);
   })();
   
   const customShowerCost = getMaterialCost('tiled_shower' as any);
