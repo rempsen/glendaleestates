@@ -236,7 +236,32 @@ export function UpgradePricingSummary({
           </div>
         )}
 
-        {/* Heated Floors Section */}
+        {/* Bathroom Upgrades Section */}
+        {hasBathroomUpgrades && (
+          <div>
+            <h5 className="text-sm font-medium text-foreground mb-2">Bathroom Upgrades</h5>
+            <div className="space-y-2 text-sm">
+              {section4HeatedFloorSubtotal > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    Heated Tile Floor ({heatedFloorBathrooms} bathroom{heatedFloorBathrooms > 1 ? 's' : ''} × ${heatedFloorPerBathroom.toLocaleString()})
+                  </span>
+                  <span className="font-medium">${section4HeatedFloorSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {customTiledShower && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    Custom Tiled Shower
+                  </span>
+                  <span className="font-medium">${customShowerSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Heated Floors Section (from area upgrades) */}
         {hasHeatedFloors && (
           <div>
             <h5 className="text-sm font-medium text-foreground mb-2">Heated Floors</h5>
