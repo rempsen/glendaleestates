@@ -627,6 +627,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       premium_carpet_bedroom: data.premiumCarpetBedroom || false,
       premium_underpad_bedroom: data.premiumUnderpadBedroom || false,
       premium_underpad_stairs: data.premiumUnderpadStairs || false,
+      custom_tiled_shower: data.customTiledShower || false,
       document_uploads: data.documentUploads || [],
       status: "submitted",
     });
