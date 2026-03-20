@@ -204,6 +204,7 @@ export default function SelectionWizard() {
     upgradeComments: '',
     bathroomTileSelected: false,
     heatedFloorBathrooms: 0,
+    customTiledShower: false,
     documentUploads: [],
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
