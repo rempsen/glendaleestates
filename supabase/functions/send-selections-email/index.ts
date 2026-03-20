@@ -675,6 +675,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
           bathroom_tile_selected: data.bathroomTileSelected,
           heated_floor_bathrooms: data.heatedFloorBathrooms,
+          custom_tiled_shower: data.customTiledShower,
           backsplash_grout_enabled: data.backsplashGroutEnabled,
           backsplash_grout_color: data.backsplashGroutColor,
           backsplash_grout_comments: data.backsplashGroutComments,
