@@ -731,6 +731,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
         underpadBedroomSubtotal = carpetSqyd * underpadCostPerSqyd * (1 + pricing.markupPercentage);
       }
     }
+
+    // Calculate premium carpet bedroom costs
+    let premiumCarpetBedroomSubtotal = 0;
+    if (data.premiumCarpetBedroom && data.bedroomFlooringChoice === 'carpet') {
+      const effectiveUnitCodeForCarpet = normalizeUnitTypeCode(data.unitType);
+      const resolvedCodeForCarpet = resolveFloorSpecificUnitCode(effectiveUnitCodeForCarpet, data.upgradeFloorSelection, pricing.unitAreas);
+      const unitAreaDataCarpet = pricing.unitAreas[resolvedCodeForCarpet];
+      if (unitAreaDataCarpet) {
+        const carpetSqyd = (unitAreaDataCarpet.secondBedroomCarpet || 0) + (unitAreaDataCarpet.masterBedroom || 0);
+        premiumCarpetBedroomSubtotal = carpetSqyd * premiumCarpetCostPerSqyd * (1 + pricing.markupPercentage);
+      }
+    }
+
     const underpadStairsSubtotal = data.premiumUnderpadStairs && (data.stairUpgradeType === 'standard' || !data.stairUpgradeType) ? underpadStairsPrice : 0;
     
     // Calculate area upgrade costs (flooring/tile)
@@ -750,7 +763,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
     
     // Calculate grand totals
-    const grandSubtotal = windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal + underpadBedroomSubtotal + underpadStairsSubtotal + areaUpgradeCosts.subtotal;
+    const grandSubtotal = windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal + premiumCarpetBedroomSubtotal + underpadBedroomSubtotal + underpadStairsSubtotal + areaUpgradeCosts.subtotal;
     const grandGst = grandSubtotal * gstRate;
     const grandTotal = grandSubtotal + grandGst;
     
