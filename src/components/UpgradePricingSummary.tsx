@@ -138,7 +138,7 @@ export function UpgradePricingSummary({
   const hasGroutChange = backsplashGrout?.enabled;
   const hasStairUpgrade = stairLvpUpgradeSelected;
   const hasWindowUpgrades = windowCoveringsSubtotal > 0;
-  const hasBathroomUpgrades = customTiledShower || section4HeatedFloorSubtotal > 0;
+  const hasBathroomUpgrades = bathroomTileSelected || customTiledShower || section4HeatedFloorSubtotal > 0;
 
   const hasAnyUpgrades = hasFlooringUpgrades || hasHeatedFloors || hasGroutChange || hasStairUpgrade || hasWindowUpgrades || hasBathroomUpgrades;
 
