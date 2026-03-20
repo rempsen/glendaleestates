@@ -107,7 +107,20 @@ export function UpgradePricingSummary({
     const totalArea = guestBathArea + ensuiteArea;
     return totalArea * tileCostPerSqft * (1 + markupPercentage);
   })();
-  
+
+  // Calculate backsplash grout color change costs
+  const groutPrice = backsplashGrout?.enabled ? calculateBacksplashGroutPrice() : null;
+  const groutSubtotal = groutPrice?.markedUpCost || 0;
+
+  // Calculate stair LVP upgrade cost
+  const stairLvpSubtotal = stairLvpUpgradeSelected ? stairLvpPrice : 0;
+
+  // Calculate window coverings costs
+  const windowAdditionalSubtotal = (windowCoverings?.additionalWindowsQty || 0) * additionalWindowPrice;
+  const windowPatioSubtotal = (windowCoverings?.patioDoorsQty || 0) * patioDoorPrice;
+  const windowAutomationSubtotal = (windowCoverings?.automatedWindowsQty || 0) * automatedMotorPrice;
+  const windowCoveringsSubtotal = windowAdditionalSubtotal + windowPatioSubtotal + windowAutomationSubtotal;
+
   const customShowerCost = getMaterialCost('tiled_shower' as any);
   const customShowerSubtotal = customTiledShower ? (customShowerCost * (1 + markupPercentage)) : 0;
   
@@ -115,7 +128,7 @@ export function UpgradePricingSummary({
   const section4HeatedFloorSubtotal = heatedFloorBathrooms > 0 ? heatedFloorBathrooms * heatedFloorPerBathroom : 0;
 
   // Grand totals (all upgrades combined)
-  const grandSubtotal = upgradeCalc.subtotal + heatedFloorSubtotal + groutSubtotal + stairLvpSubtotal + windowCoveringsSubtotal + customShowerSubtotal + section4HeatedFloorSubtotal;
+  const grandSubtotal = upgradeCalc.subtotal + heatedFloorSubtotal + groutSubtotal + stairLvpSubtotal + windowCoveringsSubtotal + bathroomTileSubtotal + customShowerSubtotal + section4HeatedFloorSubtotal;
   const grandGst = grandSubtotal * gstRate;
   const grandTotal = grandSubtotal + grandGst;
 
