@@ -153,6 +153,15 @@ export default function SelectionWizard() {
   const isStairLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_lvp_upgrade_price'), [isFlatRateEnabled]);
   const isStairPremiumLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_premium_lvp_upgrade_price'), [isFlatRateEnabled]);
   const isUnderpadStairsEnabled = useMemo(() => isFlatRateEnabled('premium_underpad_stairs_price'), [isFlatRateEnabled]);
+  const bedroomUnderpadUnitTypeCode = useMemo(() => {
+    const code = unitInfo?.typeCode?.toUpperCase() || '';
+
+    if (code === 'G' || code === 'H') {
+      return `${code}-2`;
+    }
+
+    return code;
+  }, [unitInfo?.typeCode]);
 
   const [selections, setSelections] = useState<SelectionState>({
     unitNumber: '',
