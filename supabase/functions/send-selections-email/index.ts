@@ -549,6 +549,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       stairLvpUpgradeSelected: Boolean(rawData.stairLvpUpgradeSelected),
       stairPremiumCarpetSelected: Boolean(rawData.stairPremiumCarpetSelected),
       stairUpgradeType: rawData.stairUpgradeType ? String(rawData.stairUpgradeType).trim().slice(0, 20) as 'standard' | 'lvp' | 'premium_lvp' : null,
+      premiumCarpetBedroom: Boolean(rawData.premiumCarpetBedroom),
       premiumUnderpadBedroom: Boolean(rawData.premiumUnderpadBedroom),
       premiumUnderpadStairs: Boolean(rawData.premiumUnderpadStairs),
       bedroomFlooringChoice: rawData.bedroomFlooringChoice ? String(rawData.bedroomFlooringChoice).trim().slice(0, 100) : null,
