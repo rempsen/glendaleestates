@@ -1545,7 +1545,39 @@ export default function SelectionWizard() {
                         </div>
                       ) : null;
                     })()}
+              </div>
+
+              {/* Custom Tiled Shower Option */}
+              <div className="pt-4 border-t border-border space-y-4">
+                <div className="flex items-start gap-3">
+                  <Switch
+                    id="customTiledShower"
+                    checked={selections.customTiledShower}
+                    onCheckedChange={(checked) => {
+                      updateSelection('customTiledShower', checked);
+                    }}
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="customTiledShower" className="text-foreground font-medium cursor-pointer">
+                      Custom Tiled Shower
+                    </Label>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Custom waterproofed and tiled shower with three walls and the shower floor included
+                    </p>
+                    {(() => {
+                      const showerCost = getMaterialCost('tiled_shower' as MaterialType);
+                      if (!showerCost) return null;
+                      const markedUp = showerCost * (1 + markupPercentage);
+                      const total = markedUp * (1 + gstRate);
+                      return (
+                        <p className="text-sm font-medium text-primary mt-1">
+                          ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (incl. GST)
+                        </p>
+                      );
+                    })()}
                   </div>
+                </div>
+              </div>
                 )}
               </div>
 
