@@ -859,14 +859,21 @@ export const unitData: Record<number, UnitInfo> = {
 
 // Helper function to get unit info by unit number
 export function getUnitInfo(unitNumber: number | string): UnitInfo | null {
-  const num = typeof unitNumber === 'string' ? parseInt(unitNumber, 10) : unitNumber;
+  const num = typeof unitNumber === 'string'
+    ? Number(unitNumber.match(/\d+/)?.[0])
+    : unitNumber;
+
+  if (!Number.isFinite(num)) return null;
   return unitData[num] || null;
 }
 
 // Helper function to check if unit exists
 export function isValidUnit(unitNumber: number | string): boolean {
-  const num = typeof unitNumber === 'string' ? parseInt(unitNumber, 10) : unitNumber;
-  return !!unitData[num];
+  const num = typeof unitNumber === 'string'
+    ? Number(unitNumber.match(/\d+/)?.[0])
+    : unitNumber;
+
+  return Number.isFinite(num) && !!unitData[num];
 }
 
 // Get all valid unit numbers
