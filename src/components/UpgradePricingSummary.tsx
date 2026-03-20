@@ -55,6 +55,7 @@ export function UpgradePricingSummary({
     getAdditionalWindowPrice,
     getPatioDoorPrice,
     getAutomatedMotorPrice,
+    getUnitAreaData,
   } = useDynamicPricing();
   
   // Get dynamic prices
@@ -82,6 +83,31 @@ export function UpgradePricingSummary({
   );
   const heatedFloorSubtotal = heatedFloorAreas.length * heatedFloorPerBathroom;
 
+  // Calculate porcelain tile upgrade cost for bathrooms
+  const bathroomTileSubtotal = (() => {
+    if (!bathroomTileSelected || !unitTypeCode) return 0;
+    const tileCostPerSqft = getMaterialCost('tile' as any);
+    if (tileCostPerSqft <= 0) return 0;
+    
+    const code = unitTypeCode.toUpperCase();
+    let guestBathArea = 0;
+    let ensuiteArea = 0;
+    
+    if (['G', 'H'].includes(code)) {
+      const data1 = getUnitAreaData(`${code}-1`);
+      const data2 = getUnitAreaData(`${code}-2`);
+      guestBathArea = Math.max(data1?.guestBathroom || 0, data2?.guestBathroom || 0);
+      ensuiteArea = Math.max(data1?.masterEnsuite || 0, data2?.masterEnsuite || 0);
+    } else {
+      const areaData = getUnitAreaData(code);
+      guestBathArea = areaData?.guestBathroom || 0;
+      ensuiteArea = areaData?.masterEnsuite || 0;
+    }
+    
+    const totalArea = guestBathArea + ensuiteArea;
+    return totalArea * tileCostPerSqft * (1 + markupPercentage);
+  })();
+
   // Calculate backsplash grout color change costs
   const groutPrice = backsplashGrout?.enabled ? calculateBacksplashGroutPrice() : null;
   const groutSubtotal = groutPrice?.markedUpCost || 0;
@@ -95,16 +121,6 @@ export function UpgradePricingSummary({
   const windowAutomationSubtotal = (windowCoverings?.automatedWindowsQty || 0) * automatedMotorPrice;
   const windowCoveringsSubtotal = windowAdditionalSubtotal + windowPatioSubtotal + windowAutomationSubtotal;
 
-  // Calculate bathroom upgrade costs (porcelain tile + custom shower)
-  const bathroomTileCostPerSqft = bathroomTileSelected ? getMaterialCost('tile' as any) : 0;
-  const bathroomTileSubtotal = (() => {
-    if (!bathroomTileSelected || !effectiveUnitCode) return 0;
-    // Need unit area data - use the pricing hook's getUnitAreaData if available
-    // For now calculate from the tile cost * area - but we need area data
-    // The tile cost is per sqft, applied to guest bathroom + master ensuite
-    return 0; // Will be calculated below with area data
-  })();
-  
   const customShowerCost = getMaterialCost('tiled_shower' as any);
   const customShowerSubtotal = customTiledShower ? (customShowerCost * (1 + markupPercentage)) : 0;
   
@@ -112,7 +128,7 @@ export function UpgradePricingSummary({
   const section4HeatedFloorSubtotal = heatedFloorBathrooms > 0 ? heatedFloorBathrooms * heatedFloorPerBathroom : 0;
 
   // Grand totals (all upgrades combined)
-  const grandSubtotal = upgradeCalc.subtotal + heatedFloorSubtotal + groutSubtotal + stairLvpSubtotal + windowCoveringsSubtotal + customShowerSubtotal + section4HeatedFloorSubtotal;
+  const grandSubtotal = upgradeCalc.subtotal + heatedFloorSubtotal + groutSubtotal + stairLvpSubtotal + windowCoveringsSubtotal + bathroomTileSubtotal + customShowerSubtotal + section4HeatedFloorSubtotal;
   const grandGst = grandSubtotal * gstRate;
   const grandTotal = grandSubtotal + grandGst;
 
@@ -122,7 +138,7 @@ export function UpgradePricingSummary({
   const hasGroutChange = backsplashGrout?.enabled;
   const hasStairUpgrade = stairLvpUpgradeSelected;
   const hasWindowUpgrades = windowCoveringsSubtotal > 0;
-  const hasBathroomUpgrades = customTiledShower || section4HeatedFloorSubtotal > 0;
+  const hasBathroomUpgrades = bathroomTileSelected || customTiledShower || section4HeatedFloorSubtotal > 0;
 
   const hasAnyUpgrades = hasFlooringUpgrades || hasHeatedFloors || hasGroutChange || hasStairUpgrade || hasWindowUpgrades || hasBathroomUpgrades;
 
@@ -241,6 +257,14 @@ export function UpgradePricingSummary({
           <div>
             <h5 className="text-sm font-medium text-foreground mb-2">Bathroom Upgrades</h5>
             <div className="space-y-2 text-sm">
+              {bathroomTileSelected && bathroomTileSubtotal > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    Porcelain Tile Floor Upgrade
+                  </span>
+                  <span className="font-medium">${bathroomTileSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              )}
               {section4HeatedFloorSubtotal > 0 && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">
