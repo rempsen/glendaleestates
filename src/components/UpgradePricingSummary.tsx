@@ -39,6 +39,9 @@ export function UpgradePricingSummary({
   onUpgradeCommentsChange,
   showTitle = true,
   compact = false,
+  bathroomTileSelected = false,
+  heatedFloorBathrooms = 0,
+  customTiledShower = false,
 }: UpgradePricingSummaryProps) {
   // Use dynamic pricing from database
   const { 
