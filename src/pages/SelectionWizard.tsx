@@ -974,6 +974,24 @@ export default function SelectionWizard() {
                 {spcTileOptions.find(o => o.id === selections.spcTileColour)?.name || 'Not selected'}
               </span>
             </div>
+            {selections.bathroomTileSelected && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Porcelain Tile Upgrade</span>
+                <span className="font-medium text-primary">Yes</span>
+              </div>
+            )}
+            {selections.heatedFloorBathrooms > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Heated Tile Floor</span>
+                <span className="font-medium text-primary">{selections.heatedFloorBathrooms} bathroom{selections.heatedFloorBathrooms > 1 ? 's' : ''}</span>
+              </div>
+            )}
+            {selections.customTiledShower && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Custom Tiled Shower</span>
+                <span className="font-medium text-primary">Yes</span>
+              </div>
+            )}
             {selections.hasStairs && (
               selections.stairUpgradeType === 'premium_lvp' ? (
                 <div className="flex justify-between">
