@@ -835,6 +835,9 @@ export default function SelectionWizard() {
           backsplashGrout={selections.backsplashGrout}
           upgradeComments={selections.upgradeComments}
           onUpgradeCommentsChange={(comments) => updateSelection('upgradeComments', comments)}
+          bathroomTileSelected={selections.bathroomTileSelected}
+          heatedFloorBathrooms={selections.heatedFloorBathrooms}
+          customTiledShower={selections.customTiledShower}
         />
 
         {/* Other Upgrade Interests */}
