@@ -35,6 +35,7 @@ import {
   requiresFloorSelection,
   AREA_DEFINITIONS,
   UPGRADE_MATERIALS,
+  MaterialType,
 } from '@/lib/upgradeCostData';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { generateBuyerPreviewPDF } from '@/lib/buyerPdfGenerator';
