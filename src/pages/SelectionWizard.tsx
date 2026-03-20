@@ -1728,7 +1728,7 @@ export default function SelectionWizard() {
               {selections.bedroomFlooringChoice === 'carpet' && (() => {
                 const unitData = getUnitAreaData(bedroomUnderpadUnitTypeCode);
                 const carpetSqyd = unitData ? (unitData.secondBedroomCarpet + unitData.masterBedroom) : 0;
-                const premiumCarpetCostPerSqyd = getMaterialCost('carpet' as MaterialType);
+                const premiumCarpetCostPerSqyd = getMaterialCost('carpet' as any);
                 const premiumCarpetBaseCost = carpetSqyd * premiumCarpetCostPerSqyd;
                 const premiumCarpetMarkedUp = premiumCarpetBaseCost * (1 + markupPercentage);
                 const premiumCarpetWithGst = premiumCarpetMarkedUp * (1 + gstRate);
