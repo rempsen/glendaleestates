@@ -109,6 +109,7 @@ interface SelectionState {
   // Heated floors (kept separate)
   bathroomTileSelected: boolean;
   heatedFloorBathrooms: number;
+  customTiledShower: boolean;
   // Document uploads
   documentUploads: UploadedDocument[];
 }
