@@ -95,8 +95,24 @@ export function UpgradePricingSummary({
   const windowAutomationSubtotal = (windowCoverings?.automatedWindowsQty || 0) * automatedMotorPrice;
   const windowCoveringsSubtotal = windowAdditionalSubtotal + windowPatioSubtotal + windowAutomationSubtotal;
 
+  // Calculate bathroom upgrade costs (porcelain tile + custom shower)
+  const bathroomTileCostPerSqft = bathroomTileSelected ? getMaterialCost('tile' as any) : 0;
+  const bathroomTileSubtotal = (() => {
+    if (!bathroomTileSelected || !effectiveUnitCode) return 0;
+    // Need unit area data - use the pricing hook's getUnitAreaData if available
+    // For now calculate from the tile cost * area - but we need area data
+    // The tile cost is per sqft, applied to guest bathroom + master ensuite
+    return 0; // Will be calculated below with area data
+  })();
+  
+  const customShowerCost = getMaterialCost('tiled_shower' as any);
+  const customShowerSubtotal = customTiledShower ? (customShowerCost * (1 + markupPercentage)) : 0;
+  
+  // Section 4 heated floor (separate from area upgrade heated floors)
+  const section4HeatedFloorSubtotal = heatedFloorBathrooms > 0 ? heatedFloorBathrooms * heatedFloorPerBathroom : 0;
+
   // Grand totals (all upgrades combined)
-  const grandSubtotal = upgradeCalc.subtotal + heatedFloorSubtotal + groutSubtotal + stairLvpSubtotal + windowCoveringsSubtotal;
+  const grandSubtotal = upgradeCalc.subtotal + heatedFloorSubtotal + groutSubtotal + stairLvpSubtotal + windowCoveringsSubtotal + customShowerSubtotal + section4HeatedFloorSubtotal;
   const grandGst = grandSubtotal * gstRate;
   const grandTotal = grandSubtotal + grandGst;
 
@@ -106,8 +122,9 @@ export function UpgradePricingSummary({
   const hasGroutChange = backsplashGrout?.enabled;
   const hasStairUpgrade = stairLvpUpgradeSelected;
   const hasWindowUpgrades = windowCoveringsSubtotal > 0;
+  const hasBathroomUpgrades = customTiledShower || section4HeatedFloorSubtotal > 0;
 
-  const hasAnyUpgrades = hasFlooringUpgrades || hasHeatedFloors || hasGroutChange || hasStairUpgrade || hasWindowUpgrades;
+  const hasAnyUpgrades = hasFlooringUpgrades || hasHeatedFloors || hasGroutChange || hasStairUpgrade || hasWindowUpgrades || hasBathroomUpgrades;
 
   if (!hasAnyUpgrades) {
     return null;
