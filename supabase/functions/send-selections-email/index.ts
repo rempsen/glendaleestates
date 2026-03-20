@@ -703,6 +703,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const groutColorPrice = pricing.config['grout_color_change_price'] || 300.00;
     const underpadStairsPrice = pricing.config['premium_underpad_stairs_price'] || 125.00;
     const underpadCostPerSqyd = pricing.materials['premium_carpet_underpad'] || 6;
+    const premiumCarpetCostPerSqyd = pricing.materials['carpet'] || 25;
     const gstRate = pricing.gstRate;
     
     // Calculate all upgrade costs
