@@ -1545,6 +1545,8 @@ export default function SelectionWizard() {
                         </div>
                       ) : null;
                     })()}
+                  </div>
+                )}
               </div>
 
               {/* Custom Tiled Shower Option */}
@@ -1577,8 +1579,6 @@ export default function SelectionWizard() {
                     })()}
                   </div>
                 </div>
-              </div>
-                )}
               </div>
 
               {/* Comments Section */}
