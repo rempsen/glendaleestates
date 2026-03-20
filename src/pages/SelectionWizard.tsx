@@ -469,6 +469,7 @@ export default function SelectionWizard() {
           premiumCarpetBedroom: selections.premiumCarpetBedroom,
           premiumUnderpadBedroom: selections.premiumUnderpadBedroom,
           premiumUnderpadStairs: selections.premiumUnderpadStairs,
+          customTiledShower: selections.customTiledShower,
           pdfBase64: pdfBase64,
           documentUploads: selections.documentUploads,
         }),
