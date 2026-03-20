@@ -1446,6 +1446,106 @@ export default function SelectionWizard() {
                 ))}
               </div>
 
+              {/* Porcelain Tile Upgrade Option */}
+              <div className="pt-4 border-t border-border space-y-4">
+                <div className="flex items-start gap-3">
+                  <Switch
+                    id="bathroomTileUpgrade"
+                    checked={selections.bathroomTileSelected}
+                    onCheckedChange={(checked) => {
+                      updateSelection('bathroomTileSelected', checked);
+                      if (!checked) {
+                        updateSelection('heatedFloorBathrooms', 0);
+                      }
+                    }}
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="bathroomTileUpgrade" className="text-foreground font-medium cursor-pointer">
+                      Upgrade to Porcelain Tile
+                    </Label>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Replace the standard LVT with premium porcelain tile in your bathrooms
+                    </p>
+                    {(() => {
+                      const tileCost = getMaterialCost('tile' as MaterialType);
+                      const unitCode = unitInfo?.typeCode?.toUpperCase() || '';
+                      const areaData = getUnitAreaData(unitCode);
+                      const guestBathArea = areaData?.guestBathroom || 0;
+                      const ensuiteArea = areaData?.masterEnsuite || 0;
+                      const totalArea = guestBathArea + ensuiteArea;
+                      const baseCost = totalArea * tileCost;
+                      const markedUp = baseCost * (1 + markupPercentage);
+                      const gst = markedUp * gstRate;
+                      const total = markedUp + gst;
+                      
+                      return totalArea > 0 ? (
+                        <p className="text-sm font-medium text-primary mt-1">
+                          ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (incl. GST) — {totalArea} sq ft × ${tileCost}/sq ft
+                        </p>
+                      ) : null;
+                    })()}
+                  </div>
+                </div>
+
+                {/* Heated Floor Option - only when tile is selected */}
+                {selections.bathroomTileSelected && (
+                  <div className="ml-8 p-4 rounded-lg bg-muted/50 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <Switch
+                        id="heatedFloor"
+                        checked={selections.heatedFloorBathrooms > 0}
+                        onCheckedChange={(checked) => {
+                          updateSelection('heatedFloorBathrooms', checked ? 1 : 0);
+                        }}
+                      />
+                      <div className="flex-1">
+                        <Label htmlFor="heatedFloor" className="text-foreground font-medium cursor-pointer">
+                          Add Heated Tile Floor
+                        </Label>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          Radiant in-floor heating for your tiled bathroom
+                        </p>
+                        {heatedFloorPrice > 0 && (
+                          <p className="text-sm font-medium text-primary mt-1">
+                            ${(heatedFloorPrice * (1 + gstRate)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} per bathroom (incl. GST)
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {selections.heatedFloorBathrooms > 0 && (() => {
+                      const unitCode = unitInfo?.typeCode?.toUpperCase() || '';
+                      const areaData = getUnitAreaData(unitCode);
+                      const guestBathArea = areaData?.guestBathroom || 0;
+                      const ensuiteArea = areaData?.masterEnsuite || 0;
+                      const bathroomCount = (guestBathArea > 0 ? 1 : 0) + (ensuiteArea > 0 ? 1 : 0);
+                      
+                      return bathroomCount > 1 ? (
+                        <div className="ml-8 space-y-2">
+                          <Label className="text-sm text-foreground">Number of bathrooms to heat</Label>
+                          <div className="flex gap-3">
+                            {[1, 2].filter(n => n <= bathroomCount).map(n => (
+                              <button
+                                key={n}
+                                type="button"
+                                onClick={() => updateSelection('heatedFloorBathrooms', n)}
+                                className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                                  selections.heatedFloorBathrooms === n
+                                    ? 'border-primary bg-primary/10 text-primary'
+                                    : 'border-border bg-background text-muted-foreground hover:border-primary/50'
+                                }`}
+                              >
+                                {n} bathroom{n > 1 ? 's' : ''}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null;
+                    })()}
+                  </div>
+                )}
+              </div>
+
               {/* Comments Section */}
               <div className="pt-4 border-t border-border">
                 <Label htmlFor="spcTileComments" className="text-foreground">Notes or Comments</Label>
