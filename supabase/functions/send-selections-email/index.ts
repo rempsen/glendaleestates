@@ -99,6 +99,7 @@ function generateCSV(data: SelectionData, savedId: string | undefined): string {
   rows.push(['Hardwood Upgrade Selected', data.hardwoodUpgradeSelected ? 'Yes' : 'No']);
   rows.push(['Bathroom Tile Selected', data.bathroomTileSelected ? 'Yes' : 'No']);
   rows.push(['Heated Floor Bathrooms', String(data.heatedFloorBathrooms)]);
+  rows.push(['Premium Carpet (Bedrooms)', data.premiumCarpetBedroom ? 'Yes' : 'No']);
   rows.push(['Premium Underpad (Bedrooms)', data.premiumUnderpadBedroom ? 'Yes' : 'No']);
   rows.push(['Premium Underpad (Stairs)', data.premiumUnderpadStairs ? 'Yes' : 'No']);
   
