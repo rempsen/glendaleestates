@@ -534,9 +534,55 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // ---- Preview / Test-send endpoints (no DB write, no admin email) ----
+  // GET  ?action=preview&type=buyer|admin            -> returns rendered HTML
+  // POST ?action=test    body: { type, to, ...data } -> sends a single test email
+  const url = new URL(req.url);
+  const action = url.searchParams.get('action');
+  if (action === 'preview' || action === 'test') {
+    try {
+      const isPost = req.method === 'POST';
+      const body: Record<string, unknown> = isPost ? await req.json().catch(() => ({})) : {};
+      const type = String(url.searchParams.get('type') || body.type || 'buyer');
+      const sample = buildPreviewSampleData(body);
+      const html = type === 'admin'
+        ? renderPreviewAdminHtml(sample)
+        : renderPreviewBuyerHtml(sample);
+
+      if (action === 'preview') {
+        return new Response(html, {
+          status: 200,
+          headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders },
+        });
+      }
+
+      // action === 'test'
+      const to = String(body.to || '').trim();
+      if (!to || !to.includes('@')) {
+        return new Response(JSON.stringify({ error: 'Provide a valid "to" email address' }), {
+          status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
+      const result = await sendEmailWithAttachment({
+        from: 'BMD Materials <selections@bmdmaterials.com>',
+        to: [to],
+        subject: `[TEST] ${type === 'admin' ? 'Admin' : 'Buyer'} Email Preview — Legibility Check`,
+        html,
+      });
+      return new Response(JSON.stringify({ ok: true, type, to, result }), {
+        status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    } catch (err) {
+      console.error('Preview/test error:', err);
+      return new Response(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }), {
+        status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+  }
+
   try {
     const rawData = await req.json();
-    
+
     // Validate input data
     const validation = validateInput(rawData);
     
