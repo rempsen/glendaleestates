@@ -237,6 +237,59 @@ async function uploadPdfToHubSpot(pdfBase64: string, fileName: string, hubspotAp
   }
 }
 
+// Cache of valid HubSpot contact property names per cold start to avoid
+// re-fetching the schema on every invocation.
+let validContactPropertyCache: Set<string> | null = null;
+
+async function fetchValidContactProperties(apiKey: string): Promise<Set<string> | null> {
+  if (validContactPropertyCache) return validContactPropertyCache;
+  try {
+    const res = await fetch('https://api.hubapi.com/crm/v3/properties/contacts', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!res.ok) {
+      console.warn('Could not fetch HubSpot contact property schema, status:', res.status);
+      return null;
+    }
+    const json = await res.json();
+    const names = new Set<string>(
+      (json.results || []).map((p: { name: string }) => p.name).filter(Boolean)
+    );
+    validContactPropertyCache = names;
+    console.log(`Loaded ${names.size} valid HubSpot contact properties`);
+    return names;
+  } catch (err) {
+    console.warn('Error fetching HubSpot property schema:', err);
+    return null;
+  }
+}
+
+function filterToKnownProperties(
+  props: Record<string, string>,
+  valid: Set<string> | null,
+): Record<string, string> {
+  if (!valid) return props; // schema unavailable — fall back to sending all
+  const filtered: Record<string, string> = {};
+  const skipped: string[] = [];
+  for (const [key, value] of Object.entries(props)) {
+    if (valid.has(key)) {
+      filtered[key] = value;
+    } else {
+      skipped.push(key);
+    }
+  }
+  if (skipped.length > 0) {
+    console.warn(
+      `Skipping ${skipped.length} HubSpot properties that do not exist on the contact object: ${skipped.join(', ')}`
+    );
+  }
+  return filtered;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
