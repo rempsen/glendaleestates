@@ -234,6 +234,37 @@ export default function SelectionWizard() {
     navigate('/draft-saved');
   };
 
+  // Section 3 (LVP) and Section 4 (SPC Tile) comment-coverage warnings.
+  // Detect when the buyer typed an area-upgrade comment that semantically belongs
+  // to one of these sections but left the section's own Notes field blank — the
+  // pattern that historically caused notes to be perceived as "missing".
+  const LVP_RELATED_AREA_IDS = useMemo(
+    () => new Set(['allLvp', 'mainLiving', 'secondBedroom', 'masterBedroom']),
+    [],
+  );
+  const TILE_RELATED_AREA_IDS = useMemo(
+    () => new Set(['guestBathroom', 'masterEnsuite', 'laundry']),
+    [],
+  );
+  const lvpRelatedAreaComments = useMemo(
+    () =>
+      (selections.areaUpgrades || []).filter(
+        (u) => u && u.comments && u.comments.trim() && LVP_RELATED_AREA_IDS.has(u.areaId),
+      ),
+    [selections.areaUpgrades, LVP_RELATED_AREA_IDS],
+  );
+  const tileRelatedAreaComments = useMemo(
+    () =>
+      (selections.areaUpgrades || []).filter(
+        (u) => u && u.comments && u.comments.trim() && TILE_RELATED_AREA_IDS.has(u.areaId),
+      ),
+    [selections.areaUpgrades, TILE_RELATED_AREA_IDS],
+  );
+  const showLvpCommentWarning =
+    !selections.lvpComments.trim() && lvpRelatedAreaComments.length > 0;
+  const showTileCommentWarning =
+    !selections.spcTileComments.trim() && tileRelatedAreaComments.length > 0;
+
   // Check authentication on mount
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
