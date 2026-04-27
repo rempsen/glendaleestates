@@ -1010,24 +1010,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
       
       upgradeSummaryHtml = `
-        <div class="section" style="background: #1a1a2e; color: white;">
-          <h2 style="color: white; margin-top: 0;">Complete Upgrade Summary</h2>
-          <table style="color: white; width: 100%;">
-            ${summaryItems.join('')}
-            <tr style="border-top: 2px solid rgba(255,255,255,0.3);">
-              <td style="padding: 12px 0 8px;">Subtotal (pre-GST)</td>
-              <td style="text-align: right; padding: 12px 0 8px;">$${grandSubtotal.toFixed(2)}</td>
+        <div class="section" style="background: #ffffff; border: 1px solid #d1d5db;">
+          <h2 style="color: #000000; margin-top: 0;">Complete Upgrade Summary</h2>
+          <table style="color: #000000; width: 100%; border-collapse: collapse;">
+            ${summaryItems.join('').replace(/text-align: right; font-weight: bold;">/g, 'text-align: right; font-weight: bold; color: #000000;">').replace(/<td style="padding: 8px 0;">/g, '<td style="padding: 10px 8px; color: #000000; border-bottom: 1px solid #e5e7eb;">')}
+            <tr style="border-top: 2px solid #d1d5db;">
+              <td style="padding: 12px 8px 8px; color: #000000;">Subtotal (pre-GST)</td>
+              <td style="text-align: right; padding: 12px 8px 8px; color: #000000;">$${grandSubtotal.toFixed(2)}</td>
             </tr>
             <tr>
-              <td style="padding: 8px 0;">GST (${(gstRate * 100).toFixed(0)}%)</td>
-              <td style="text-align: right; padding: 8px 0;">$${grandGst.toFixed(2)}</td>
+              <td style="padding: 8px; color: #000000;">GST (${(gstRate * 100).toFixed(0)}%)</td>
+              <td style="text-align: right; padding: 8px; color: #000000;">$${grandGst.toFixed(2)}</td>
             </tr>
-            <tr style="border-top: 2px solid rgba(255,255,255,0.5);">
-              <td style="padding: 12px 0; font-size: 18px; font-weight: bold;">GRAND TOTAL (incl. GST)</td>
-              <td style="text-align: right; padding: 12px 0; font-size: 20px; font-weight: bold; color: #10b981;">$${grandTotal.toFixed(2)}</td>
+            <tr style="border-top: 2px solid #1a1a2e;">
+              <td style="padding: 14px 8px; color: #000000; font-size: 18px; font-weight: bold;">GRAND TOTAL (incl. GST)</td>
+              <td style="text-align: right; padding: 14px 8px; font-size: 22px; font-weight: bold; color: #047857;">$${grandTotal.toFixed(2)}</td>
             </tr>
           </table>
-          <p style="margin-top: 12px; font-size: 11px; color: rgba(255,255,255,0.6);">* A 10% material overage is allowed on all quoted amounts.</p>
+          <p style="margin-top: 12px; font-size: 11px; color: #374151;">* A 10% material overage is allowed on all quoted amounts.</p>
         </div>
       `;
     }
