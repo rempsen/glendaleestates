@@ -907,6 +907,18 @@ export default function AdminSubmissions() {
                             have comments that were never captured — confirm with the
                             buyer if needed.
                           </p>
+                          <div className="pt-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={resyncCommentsFromDb}
+                              disabled={resyncingComments}
+                              className="gap-2"
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 ${resyncingComments ? 'animate-spin' : ''}`} />
+                              {resyncingComments ? 'Re-syncing…' : 'Re-sync comments from database'}
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
