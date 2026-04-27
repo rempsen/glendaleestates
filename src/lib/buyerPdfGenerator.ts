@@ -29,6 +29,7 @@ export interface UnitAreaDataForPdf {
   masterEnsuite: number;
   laundry: number;
   backsplash: number;
+  [key: string]: number | undefined;
 }
 
 // Pricing config interface for dynamic pricing
