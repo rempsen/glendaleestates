@@ -114,6 +114,8 @@ function generateCSV(data: SelectionData, savedId: string | undefined): string {
   // Comments
   rows.push(['--- COMMENTS ---', '']);
   rows.push(['Sales Comments', data.salesComments || '']);
+  rows.push(['Upgrade Pricing Summary Comments', data.upgradeComments || '']);
+  rows.push(['Upgrade Interests Notes', data.upgradeInterestsNotes || '']);
   
   // Convert to CSV string with proper escaping
   return rows.map(row => 
