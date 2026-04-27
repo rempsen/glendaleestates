@@ -1264,6 +1264,10 @@ interface BuyerEmailPricing {
   customTiledShowerSubtotal: number;
   showerBaseCost: number;
   markupPercentage: number;
+  // Single source of truth for the Complete Upgrade Summary block.
+  // When present, the buyer email renders rows + totals from this directly,
+  // ensuring parity with the admin email, the CSV, and the buyer PDF.
+  totals?: ServerTotalsResult;
 }
 
 // Generate a beautiful confirmation email for buyers with full details and costs
