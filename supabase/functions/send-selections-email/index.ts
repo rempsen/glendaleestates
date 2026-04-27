@@ -1,4 +1,5 @@
 import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
+import { computeUpgradeTotalsServer, ServerTotalsResult } from "../_shared/upgradeTotalsServer.ts";
 
 // Dynamic CORS headers will be used for responses
 
@@ -813,91 +814,77 @@ Deno.serve(async (req: Request): Promise<Response> => {
     
     // Fetch dynamic pricing for accurate cost calculations
     const pricing = await fetchDynamicPricing();
-    const additionalWindowPrice = pricing.config['additional_window_price'] || 673.50;
-    const patioDoorPrice = pricing.config['patio_door_price'] || 2347.80;
-    const automatedMotorPrice = pricing.config['automated_motor_price'] || 495.00;
-    const heatedFloorPrice = pricing.config['heated_floor_per_bathroom'] || 1650.00;
+
+    // === SINGLE SOURCE OF TRUTH ===
+    // computeUpgradeTotalsServer() is the byte-for-byte mirror of the UI's
+    // src/lib/upgradeTotals.ts. The admin HTML, buyer HTML, and CSV attachment
+    // all derive their pricing rows and grand total from this one result so
+    // they can never diverge. Informational-only flags (Premium Carpet/Underpad
+    // Bedrooms/Stairs) are intentionally NOT charged here — they remain on
+    // the SelectionData object as Yes/No flags for non-pricing display.
+    const totals = computeUpgradeTotalsServer({
+      unitTypeCode: data.unitType || null,
+      upgradeFloorSelection: data.upgradeFloorSelection,
+      areaUpgrades: data.areaUpgrades || [],
+      backsplashGroutEnabled: data.backsplashGroutEnabled,
+      backsplashGroutColor: data.backsplashGroutColor,
+      stairLvpUpgradeSelected: data.stairLvpUpgradeSelected,
+      stairPremiumCarpetSelected: data.stairPremiumCarpetSelected,
+      stairUpgradeType: data.stairUpgradeType,
+      additionalWindowsQty: data.additionalWindowsQty,
+      patioDoorsQty: data.patioDoorsQty,
+      automatedWindowsQty: data.automatedWindowsQty,
+      bathroomTileSelected: data.bathroomTileSelected,
+      heatedFloorBathrooms: data.heatedFloorBathrooms,
+      customTiledShower: data.customTiledShower,
+    }, pricing);
+
+    // Pull the price scalars (still used by per-section HTML blocks for
+    // line-by-line "qty × unit" display in the admin email).
+    const additionalWindowPrice = totals.context.additionalWindowPrice;
+    const patioDoorPrice = totals.context.patioDoorPrice;
+    const automatedMotorPrice = totals.context.automatedMotorPrice;
+    const heatedFloorPrice = totals.context.heatedFloorPerBathroom;
     const stairLvpPrice = pricing.config['stair_lvp_upgrade_price'] || 2160.00;
     const stairPremiumLvpPrice = pricing.config['stair_premium_lvp_upgrade_price'] || 3145.00;
     const stairCarpetUpgradePrice = pricing.config['premium_carpet_stairs_price'] || 640.00;
-    const groutColorPrice = pricing.config['grout_color_change_price'] || 300.00;
-    const underpadStairsPrice = pricing.config['premium_underpad_stairs_price'] || 125.00;
-    const underpadCostPerSqyd = pricing.materials['premium_carpet_underpad'] || 6;
-    const premiumCarpetCostPerSqyd = pricing.materials['carpet'] || 25;
-    const gstRate = pricing.gstRate;
-    
-    // Calculate all upgrade costs
-    const windowSubtotal = (data.additionalWindowsQty * additionalWindowPrice) + 
-                           (data.patioDoorsQty * patioDoorPrice) + 
-                           (data.automatedWindowsQty * automatedMotorPrice);
-    // Stair upgrade based on stairUpgradeType (new) or fallback to stairLvpUpgradeSelected (legacy)
-    let stairLvpSubtotal = 0;
-    if (data.stairUpgradeType === 'premium_lvp') {
-      stairLvpSubtotal = stairPremiumLvpPrice;
-    } else if (data.stairUpgradeType === 'lvp' || data.stairLvpUpgradeSelected) {
-      stairLvpSubtotal = stairLvpPrice;
-    }
-    const stairCarpetSubtotal = data.stairPremiumCarpetSelected ? stairCarpetUpgradePrice : 0;
-    const groutSubtotal = data.backsplashGroutEnabled ? groutColorPrice : 0;
+    const groutColorPrice = totals.context.groutColorPrice;
+    const gstRate = totals.gstRate;
 
-    // Premium Carpet (Bedrooms), Premium Underpad (Bedrooms), and Premium Underpad (Stairs)
-    // are STANDARD inclusions, NOT billable upgrades. They are tracked as Yes/No preferences
-    // only. Keeping these subtotals at 0 ensures the email/CSV totals match the on-screen
-    // UpgradePricingSummary and the buyer PDF (computeUpgradeTotals), which intentionally
-    // omit these line items. Do not re-introduce charges here without updating the shared
-    // calculator in src/lib/upgradeTotals.ts first.
-    const underpadBedroomSubtotal = 0;
-    const premiumCarpetBedroomSubtotal = 0;
-    const underpadStairsSubtotal = 0;
-    
-    // Calculate area upgrade costs (flooring/tile)
-    // Normalize unit type label to code (e.g., "Corner Unit G" -> "G")
-    const effectiveUnitCode = normalizeUnitTypeCode(data.unitType);
-    const areaUpgradeCosts = calculateAreaUpgradeCosts(
-      effectiveUnitCode,
-      data.areaUpgrades || [],
-      data.upgradeFloorSelection,
-      {
-        materials: pricing.materials,
-        unitAreas: pricing.unitAreas,
-        markupPercentage: pricing.markupPercentage,
-        heatedFloorPrice: heatedFloorPrice,
-        stairCarpetUpgradePrice: stairCarpetUpgradePrice,
-      }
-    );
-
-    // ---- Section 4 bathroom upgrades (Porcelain Tile, Heated Floor, Custom Tiled Shower) ----
-    // These match the on-screen UpgradePricingSummary and the buyer PDF (computeUpgradeTotals).
-    const resolvedUnitCodeForBath = resolveFloorSpecificUnitCode(effectiveUnitCode, data.upgradeFloorSelection, pricing.unitAreas);
-    let bathroomGuestSqft = 0;
-    let bathroomEnsuiteSqft = 0;
-    if (effectiveUnitCode === 'G' || effectiveUnitCode === 'H') {
-      const d1 = pricing.unitAreas[`${effectiveUnitCode}-1`];
-      const d2 = pricing.unitAreas[`${effectiveUnitCode}-2`];
-      bathroomGuestSqft = Math.max(d1?.guestBathroom || 0, d2?.guestBathroom || 0);
-      bathroomEnsuiteSqft = Math.max(d1?.masterEnsuite || 0, d2?.masterEnsuite || 0);
-    } else {
-      const d = pricing.unitAreas[resolvedUnitCodeForBath];
-      bathroomGuestSqft = d?.guestBathroom || 0;
-      bathroomEnsuiteSqft = d?.masterEnsuite || 0;
-    }
-    const tileCostPerSqft = pricing.materials['tile'] || 0;
-    const showerBaseCost = pricing.materials['tiled_shower'] || 0;
-    const bathroomTileSubtotal = data.bathroomTileSelected && tileCostPerSqft > 0
-      ? (bathroomGuestSqft + bathroomEnsuiteSqft) * tileCostPerSqft * (1 + pricing.markupPercentage)
-      : 0;
+    // Subtotals re-exported for legacy section builders. All math comes
+    // from `totals` — these are simple aliases, never independent calculations.
+    const windowSubtotal = totals.windowSubtotal;
+    const stairLvpSubtotal = totals.pieces.stairLvp;
+    const stairCarpetSubtotal = totals.pieces.stairCarpet;
+    const groutSubtotal = totals.pieces.grout;
+    const bathroomTileSubtotal = totals.pieces.bathroomTile;
+    const section4HeatedFloorSubtotal = totals.pieces.section4HeatedFloor;
+    const customTiledShowerSubtotal = totals.pieces.customShower;
     const heatedFloorBathroomCount = Number(data.heatedFloorBathrooms) || 0;
-    const section4HeatedFloorSubtotal = heatedFloorBathroomCount > 0
-      ? heatedFloorBathroomCount * heatedFloorPrice
-      : 0;
-    const customTiledShowerSubtotal = data.customTiledShower && showerBaseCost > 0
-      ? showerBaseCost * (1 + pricing.markupPercentage)
-      : 0;
+    const bathroomGuestSqft = totals.context.bathroomGuestSqft;
+    const bathroomEnsuiteSqft = totals.context.bathroomEnsuiteSqft;
+    const tileCostPerSqft = totals.context.tileCostPerSqft;
+    const showerBaseCost = totals.context.showerBaseCost;
+    const effectiveUnitCode = normalizeUnitTypeCode(data.unitType);
 
-    // Calculate grand totals
-    const grandSubtotal = windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal + premiumCarpetBedroomSubtotal + underpadBedroomSubtotal + underpadStairsSubtotal + areaUpgradeCosts.subtotal + bathroomTileSubtotal + section4HeatedFloorSubtotal + customTiledShowerSubtotal;
-    const grandGst = grandSubtotal * gstRate;
-    const grandTotal = grandSubtotal + grandGst;
+    // Adapter so the existing per-row area-upgrade HTML lookups
+    // (.find(l => l.areaId === ...)) keep working without change.
+    const areaUpgradeCosts = {
+      subtotal: totals.pieces.flooringUpgrades.reduce(
+        (s, f) => s + f.amount + f.heatedFloorAmount, 0),
+      lineItems: totals.pieces.flooringUpgrades.map(f => ({
+        areaId: f.areaId,
+        area: f.areaName,
+        material: f.materialName,
+        cost: f.amount,
+        heatedFloor: f.heatedFloorAmount > 0,
+        heatedCost: f.heatedFloorAmount,
+      })),
+    };
+
+    const grandSubtotal = totals.grandSubtotal;
+    const grandGst = totals.gst;
+    const grandTotal = totals.grandTotal;
     
     const upgradesList = Object.entries(data.upgradeInterests)
       .filter(([_, v]) => v)
@@ -986,75 +973,38 @@ Deno.serve(async (req: Request): Promise<Response> => {
       `;
     }
     
-    // Build comprehensive upgrade summary section for admin
+    // Build comprehensive upgrade summary section for admin.
+    // Rendered directly from `totals.lineItems` so the rows + grand total
+    // here are guaranteed identical to the on-screen UpgradePricingSummary,
+    // the buyer PDF, the buyer email, and the CSV attachment.
     let upgradeSummaryHtml = '';
-    if (grandSubtotal > 0) {
-      const summaryItems: string[] = [];
-      
-      if (stairLvpSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Stair LVP Upgrade with Custom Nosings</td><td style="text-align: right; font-weight: bold;">$${stairLvpSubtotal.toFixed(2)}</td></tr>`);
-      }
-      if (stairCarpetSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Premium Carpet Stairs Upgrade</td><td style="text-align: right; font-weight: bold;">$${stairCarpetSubtotal.toFixed(2)}</td></tr>`);
-      }
-      if (groutSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Custom Grout Color${data.backsplashGroutColor ? ` (${escapeHtml(data.backsplashGroutColor)})` : ''}</td><td style="text-align: right; font-weight: bold;">$${groutSubtotal.toFixed(2)}</td></tr>`);
-      }
-      if (data.additionalWindowsQty > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Additional Windows (${data.additionalWindowsQty} × $${additionalWindowPrice.toFixed(2)})</td><td style="text-align: right; font-weight: bold;">$${(data.additionalWindowsQty * additionalWindowPrice).toFixed(2)}</td></tr>`);
-      }
-      if (data.patioDoorsQty > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Patio Door Panel Track (${data.patioDoorsQty} × $${patioDoorPrice.toFixed(2)})</td><td style="text-align: right; font-weight: bold;">$${(data.patioDoorsQty * patioDoorPrice).toFixed(2)}</td></tr>`);
-      }
-      if (data.automatedWindowsQty > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Somfy Automation (${data.automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)})</td><td style="text-align: right; font-weight: bold;">$${(data.automatedWindowsQty * automatedMotorPrice).toFixed(2)}</td></tr>`);
-      }
-      if (premiumCarpetBedroomSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Premium Carpet (Bedrooms)</td><td style="text-align: right; font-weight: bold;">$${premiumCarpetBedroomSubtotal.toFixed(2)}</td></tr>`);
-      }
-      if (underpadBedroomSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Premium Underpad (Bedrooms)</td><td style="text-align: right; font-weight: bold;">$${underpadBedroomSubtotal.toFixed(2)}</td></tr>`);
-      }
-      if (underpadStairsSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Premium Underpad (Stairs)</td><td style="text-align: right; font-weight: bold;">$${underpadStairsSubtotal.toFixed(2)}</td></tr>`);
-      }
-      
-      // Add area upgrade line items
-      for (const item of areaUpgradeCosts.lineItems) {
-        let label = `${item.area} - ${item.material}`;
-        if (item.heatedFloor && item.heatedCost) {
-          label += ` (incl. Heated Floor)`;
-        }
-        summaryItems.push(`<tr><td style="padding: 8px 0;">${escapeHtml(label)}</td><td style="text-align: right; font-weight: bold;">$${(item.cost + (item.heatedCost || 0)).toFixed(2)}</td></tr>`);
-      }
+    if (totals.grandSubtotal > 0) {
+      const summaryItems = totals.lineItems.map(item => {
+        const detail = item.detail
+          ? `<div style="color:#374151; font-size:12px; margin-top:2px;">${escapeHtml(item.detail)}</div>`
+          : '';
+        return `<tr>
+          <td style="padding:10px 8px; color:#000000; border-bottom:1px solid #e5e7eb;">${escapeHtml(item.label)}${detail}</td>
+          <td style="padding:10px 8px; color:#000000; text-align:right; font-weight:bold; border-bottom:1px solid #e5e7eb;">$${item.amount.toFixed(2)}</td>
+        </tr>`;
+      }).join('');
 
-      // Section 4 bathroom upgrades (Porcelain Tile, Heated Floor, Custom Tiled Shower)
-      if (bathroomTileSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Porcelain Tile Floor Upgrade (Guest ${bathroomGuestSqft} sq ft + Ensuite ${bathroomEnsuiteSqft} sq ft × $${tileCostPerSqft.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)</td><td style="text-align: right; font-weight: bold;">$${bathroomTileSubtotal.toFixed(2)}</td></tr>`);
-      }
-      if (section4HeatedFloorSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Heated Tile Floor (${heatedFloorBathroomCount} bathroom${heatedFloorBathroomCount > 1 ? 's' : ''} × $${heatedFloorPrice.toFixed(2)})</td><td style="text-align: right; font-weight: bold;">$${section4HeatedFloorSubtotal.toFixed(2)}</td></tr>`);
-      }
-      if (customTiledShowerSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Custom Tiled Shower (Base $${showerBaseCost.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)</td><td style="text-align: right; font-weight: bold;">$${customTiledShowerSubtotal.toFixed(2)}</td></tr>`);
-      }
-      
       upgradeSummaryHtml = `
         <div class="section" style="background: #ffffff; border: 1px solid #d1d5db;">
           <h2 style="color: #000000; margin-top: 0;">Complete Upgrade Summary</h2>
           <table style="color: #000000; width: 100%; border-collapse: collapse;">
-            ${summaryItems.join('').replace(/text-align: right; font-weight: bold;">/g, 'text-align: right; font-weight: bold; color: #000000;">').replace(/<td style="padding: 8px 0;">/g, '<td style="padding: 10px 8px; color: #000000; border-bottom: 1px solid #e5e7eb;">')}
+            ${summaryItems}
             <tr style="border-top: 2px solid #d1d5db;">
               <td style="padding: 12px 8px 8px; color: #000000;">Subtotal (pre-GST)</td>
-              <td style="text-align: right; padding: 12px 8px 8px; color: #000000;">$${grandSubtotal.toFixed(2)}</td>
+              <td style="text-align: right; padding: 12px 8px 8px; color: #000000;">$${totals.grandSubtotal.toFixed(2)}</td>
             </tr>
             <tr>
-              <td style="padding: 8px; color: #000000;">GST (${(gstRate * 100).toFixed(0)}%)</td>
-              <td style="text-align: right; padding: 8px; color: #000000;">$${grandGst.toFixed(2)}</td>
+              <td style="padding: 8px; color: #000000;">GST (${(totals.gstRate * 100).toFixed(0)}%)</td>
+              <td style="text-align: right; padding: 8px; color: #000000;">$${totals.gst.toFixed(2)}</td>
             </tr>
             <tr style="border-top: 2px solid #1a1a2e;">
               <td style="padding: 14px 8px; color: #000000; font-size: 18px; font-weight: bold;">GRAND TOTAL (incl. GST)</td>
-              <td style="text-align: right; padding: 14px 8px; font-size: 22px; font-weight: bold; color: #047857;">$${grandTotal.toFixed(2)}</td>
+              <td style="text-align: right; padding: 14px 8px; font-size: 22px; font-weight: bold; color: #047857;">$${totals.grandTotal.toFixed(2)}</td>
             </tr>
           </table>
           <p style="margin-top: 12px; font-size: 11px; color: #374151;">* A 10% material overage is allowed on all quoted amounts.</p>
@@ -1192,41 +1142,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    // Build CSV pricing breakdown that mirrors the Complete Upgrade Summary in the email/PDF
-    const csvLineItems: Array<{ label: string; cost: number }> = [];
-    if (stairLvpSubtotal > 0) csvLineItems.push({ label: 'Stair LVP Upgrade with Custom Nosings', cost: stairLvpSubtotal });
-    if (stairCarpetSubtotal > 0) csvLineItems.push({ label: 'Premium Carpet Stairs Upgrade', cost: stairCarpetSubtotal });
-    if (groutSubtotal > 0) csvLineItems.push({ label: `Custom Grout Color${data.backsplashGroutColor ? ` (${data.backsplashGroutColor})` : ''}`, cost: groutSubtotal });
-    if (data.additionalWindowsQty > 0) csvLineItems.push({ label: `Additional Windows (${data.additionalWindowsQty} × $${additionalWindowPrice.toFixed(2)})`, cost: data.additionalWindowsQty * additionalWindowPrice });
-    if (data.patioDoorsQty > 0) csvLineItems.push({ label: `Patio Door Panel Track (${data.patioDoorsQty} × $${patioDoorPrice.toFixed(2)})`, cost: data.patioDoorsQty * patioDoorPrice });
-    if (data.automatedWindowsQty > 0) csvLineItems.push({ label: `Somfy Automation (${data.automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)})`, cost: data.automatedWindowsQty * automatedMotorPrice });
-    if (premiumCarpetBedroomSubtotal > 0) csvLineItems.push({ label: 'Premium Carpet (Bedrooms)', cost: premiumCarpetBedroomSubtotal });
-    if (underpadBedroomSubtotal > 0) csvLineItems.push({ label: 'Premium Underpad (Bedrooms)', cost: underpadBedroomSubtotal });
-    if (underpadStairsSubtotal > 0) csvLineItems.push({ label: 'Premium Underpad (Stairs)', cost: underpadStairsSubtotal });
-    for (const item of areaUpgradeCosts.lineItems) {
-      let label = `${item.area} - ${item.material}`;
-      if (item.heatedFloor && item.heatedCost) label += ` (incl. Heated Floor +$${item.heatedCost.toFixed(0)})`;
-      csvLineItems.push({ label, cost: item.cost + (item.heatedCost || 0) });
-    }
-    if (bathroomTileSubtotal > 0) csvLineItems.push({
-      label: `Porcelain Tile Floor Upgrade (Guest ${bathroomGuestSqft} sq ft + Ensuite ${bathroomEnsuiteSqft} sq ft × $${tileCostPerSqft.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)`,
-      cost: bathroomTileSubtotal,
-    });
-    if (section4HeatedFloorSubtotal > 0) csvLineItems.push({
-      label: `Heated Tile Floor (${heatedFloorBathroomCount} bathroom${heatedFloorBathroomCount > 1 ? 's' : ''} × $${heatedFloorPrice.toFixed(2)})`,
-      cost: section4HeatedFloorSubtotal,
-    });
-    if (customTiledShowerSubtotal > 0) csvLineItems.push({
-      label: `Custom Tiled Shower (Base $${showerBaseCost.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)`,
-      cost: customTiledShowerSubtotal,
-    });
+    // CSV pricing breakdown — same line items, subtotal, GST, and grand total
+    // as the admin HTML, the buyer email, and the buyer/admin PDFs.
+    // Informational-only flags (Premium Carpet/Underpad Bedrooms/Stairs) are
+    // intentionally omitted from these pricing rows; they remain in the CSV
+    // above as Yes/No selection rows.
+    const csvLineItems = totals.lineItems.map(item => ({
+      label: item.detail ? `${item.label} — ${item.detail}` : item.label,
+      cost: item.amount,
+    }));
 
     const csvContent = generateCSV(data, savedSelection?.id as string | undefined, {
       lineItems: csvLineItems,
-      subtotal: grandSubtotal,
-      gst: grandGst,
-      grandTotal,
-      gstRate,
+      subtotal: totals.grandSubtotal,
+      gst: totals.gst,
+      grandTotal: totals.grandTotal,
+      gstRate: totals.gstRate,
     });
     const csvFilename = `selection_${data.unitNumber.replace(/[^a-zA-Z0-9]/g, '_')}_${data.lastName}_${new Date().toISOString().split('T')[0]}.csv`;
 
@@ -1262,9 +1193,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       groutColorPrice,
       gstRate,
       areaUpgradeCosts,
-      premiumCarpetBedroomSubtotal,
-      underpadBedroomSubtotal,
-      underpadStairsSubtotal,
+      premiumCarpetBedroomSubtotal: 0,
+      underpadBedroomSubtotal: 0,
+      underpadStairsSubtotal: 0,
       bathroomTileSubtotal,
       bathroomGuestSqft,
       bathroomEnsuiteSqft,
@@ -1274,6 +1205,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       customTiledShowerSubtotal,
       showerBaseCost,
       markupPercentage: pricing.markupPercentage,
+      totals,
     });
     
     try {
@@ -1332,6 +1264,10 @@ interface BuyerEmailPricing {
   customTiledShowerSubtotal: number;
   showerBaseCost: number;
   markupPercentage: number;
+  // Single source of truth for the Complete Upgrade Summary block.
+  // When present, the buyer email renders rows + totals from this directly,
+  // ensuring parity with the admin email, the CSV, and the buyer PDF.
+  totals?: ServerTotalsResult;
 }
 
 // Generate a beautiful confirmation email for buyers with full details and costs
@@ -1616,139 +1552,24 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     `;
   }
 
-  // Complete Upgrade Summary Section - consolidate ALL upgrade costs using dynamic pricing
+  // Complete Upgrade Summary — rendered from the shared `totals` object so
+  // the line items, subtotal, GST, and grand total here are guaranteed
+  // identical to the on-screen summary, the buyer PDF, the admin email,
+  // and the CSV attachment. Informational-only flags (Premium Carpet/
+  // Underpad Bedrooms/Stairs) are intentionally omitted from pricing rows.
   let estimatedTotalHtml = '';
-  
-  // Window costs using dynamic pricing
-  const additionalWindowsQty = data.additionalWindowsQty || 0;
-  const patioDoorsQty = data.patioDoorsQty || 0;
-  const automatedWindowsQty = data.automatedWindowsQty || 0;
-  const windowSubtotal = (additionalWindowsQty * pricing.additionalWindowPrice) + 
-                         (patioDoorsQty * pricing.patioDoorPrice) + 
-                         (automatedWindowsQty * pricing.automatedMotorPrice);
-  
-  // Stair LVP upgrade
-  const stairLvpSubtotal = data.stairLvpUpgradeSelected ? pricing.stairLvpPrice : 0;
-  
-  // Stair Premium Carpet upgrade
-  const stairCarpetSubtotal = data.stairPremiumCarpetSelected ? pricing.stairCarpetUpgradePrice : 0;
-  
-  // Grout color change
-  const groutSubtotal = data.backsplashGroutEnabled ? pricing.groutColorPrice : 0;
-  
-  // Area upgrade subtotal (already includes heated floors)
-  const areaUpgradeSubtotal = pricing.areaUpgradeCosts.subtotal;
+  const t = pricing.totals;
+  if (t && t.grandSubtotal > 0) {
+    const lineItemsHtml = t.lineItems.map(item => {
+      const detail = item.detail
+        ? `<div style="color:#374151; font-size:12px; margin-top:2px;">${escapeHtml(item.detail)}</div>`
+        : '';
+      return `<tr>
+        <td style="padding: 10px 0; color: #1a1a2e; font-size: 14px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(item.label)}${detail}</td>
+        <td style="padding: 10px 0; color: #1a1a2e; font-size: 14px; text-align: right; font-weight: 500; border-bottom: 1px solid #e5e7eb;">$${item.amount.toFixed(2)}</td>
+      </tr>`;
+    }).join('');
 
-  // Section 4 bathroom + premium carpet/underpad subtotals (computed by caller)
-  const bathroomTileSub = pricing.bathroomTileSubtotal || 0;
-  const section4HeatedFloorSub = pricing.section4HeatedFloorSubtotal || 0;
-  const customTiledShowerSub = pricing.customTiledShowerSubtotal || 0;
-  const premiumCarpetBedroomSub = pricing.premiumCarpetBedroomSubtotal || 0;
-  const underpadBedroomSub = pricing.underpadBedroomSubtotal || 0;
-  const underpadStairsSub = pricing.underpadStairsSubtotal || 0;
-
-  // Grand totals (including ALL upgrades — matches PDF / on-screen summary exactly)
-  const grandSubtotal =
-    windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal +
-    areaUpgradeSubtotal + bathroomTileSub + section4HeatedFloorSub +
-    customTiledShowerSub + premiumCarpetBedroomSub + underpadBedroomSub + underpadStairsSub;
-  const grandGst = grandSubtotal * pricing.gstRate;
-  const grandTotal = grandSubtotal + grandGst;
-  
-  const hasAnyUpgrades = grandSubtotal > 0;
-  
-  if (hasAnyUpgrades) {
-    const upgradeLineItems: { label: string; cost: number }[] = [];
-    
-    // Stair LVP
-    if (stairLvpSubtotal > 0) {
-      upgradeLineItems.push({ label: 'Stair LVP Upgrade with Custom Nosings', cost: stairLvpSubtotal });
-    }
-    
-    // Stair Premium Carpet
-    if (stairCarpetSubtotal > 0) {
-      upgradeLineItems.push({ label: 'Premium Carpet Stairs Upgrade', cost: stairCarpetSubtotal });
-    }
-    
-    // Grout color change
-    if (groutSubtotal > 0) {
-      upgradeLineItems.push({ 
-        label: `Custom Backsplash Grout${data.backsplashGroutColor ? ` (${data.backsplashGroutColor})` : ''}`, 
-        cost: groutSubtotal
-      });
-    }
-    
-    // Window coverings breakdown
-    if (additionalWindowsQty > 0) {
-      upgradeLineItems.push({ 
-        label: `Additional Windows (${additionalWindowsQty} × $${pricing.additionalWindowPrice.toFixed(2)})`, 
-        cost: additionalWindowsQty * pricing.additionalWindowPrice 
-      });
-    }
-    if (patioDoorsQty > 0) {
-      upgradeLineItems.push({ 
-        label: `Patio Door Panel Track (${patioDoorsQty} × $${pricing.patioDoorPrice.toFixed(2)})`, 
-        cost: patioDoorsQty * pricing.patioDoorPrice 
-      });
-    }
-    if (automatedWindowsQty > 0) {
-      upgradeLineItems.push({ 
-        label: `Somfy Automation (${automatedWindowsQty} × $${pricing.automatedMotorPrice.toFixed(2)})`, 
-        cost: automatedWindowsQty * pricing.automatedMotorPrice 
-      });
-    }
-
-    // Premium Carpet / Underpad (Bedrooms / Stairs)
-    if (premiumCarpetBedroomSub > 0) {
-      upgradeLineItems.push({ label: 'Premium Carpet (Bedrooms)', cost: premiumCarpetBedroomSub });
-    }
-    if (underpadBedroomSub > 0) {
-      upgradeLineItems.push({ label: 'Premium Underpad (Bedrooms)', cost: underpadBedroomSub });
-    }
-    if (underpadStairsSub > 0) {
-      upgradeLineItems.push({ label: 'Premium Underpad (Stairs)', cost: underpadStairsSub });
-    }
-    
-    // Area upgrade line items with heated floor costs
-    for (const item of pricing.areaUpgradeCosts.lineItems) {
-      let label = `${item.area} - ${item.material}`;
-      if (item.heatedFloor && item.heatedCost) {
-        label += ` (incl. Heated Floor +$${item.heatedCost.toFixed(0)})`;
-      }
-      upgradeLineItems.push({ 
-        label, 
-        cost: item.cost + (item.heatedCost || 0) 
-      });
-    }
-
-    // Section 4 bathroom upgrades (Porcelain Tile, Heated Floor count, Custom Tiled Shower)
-    if (bathroomTileSub > 0) {
-      upgradeLineItems.push({
-        label: `Porcelain Tile Floor Upgrade (Guest ${pricing.bathroomGuestSqft} sq ft + Ensuite ${pricing.bathroomEnsuiteSqft} sq ft × $${pricing.tileCostPerSqft.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)`,
-        cost: bathroomTileSub,
-      });
-    }
-    if (section4HeatedFloorSub > 0) {
-      upgradeLineItems.push({
-        label: `Heated Tile Floor (${pricing.heatedFloorBathroomCount} bathroom${pricing.heatedFloorBathroomCount > 1 ? 's' : ''} × $${pricing.heatedFloorPrice.toFixed(2)})`,
-        cost: section4HeatedFloorSub,
-      });
-    }
-    if (customTiledShowerSub > 0) {
-      upgradeLineItems.push({
-        label: `Custom Tiled Shower (Base $${pricing.showerBaseCost.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)`,
-        cost: customTiledShowerSub,
-      });
-    }
-
-    
-    const lineItemsHtml = upgradeLineItems.map(item => `
-      <tr>
-        <td style="padding: 10px 0; color: #1a1a2e; font-size: 14px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(item.label)}</td>
-        <td style="padding: 10px 0; color: #1a1a2e; font-size: 14px; text-align: right; font-weight: 500; border-bottom: 1px solid #e5e7eb;">$${item.cost.toFixed(2)}</td>
-      </tr>
-    `).join('');
-    
     estimatedTotalHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
@@ -1760,15 +1581,15 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
                   ${lineItemsHtml}
                   <tr>
                     <td style="padding: 14px 0 8px; color: #1a1a2e; font-size: 14px;">Subtotal (pre-GST)</td>
-                    <td style="padding: 14px 0 8px; color: #1a1a2e; font-size: 14px; text-align: right;">$${grandSubtotal.toFixed(2)}</td>
+                    <td style="padding: 14px 0 8px; color: #1a1a2e; font-size: 14px; text-align: right;">$${t.grandSubtotal.toFixed(2)}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 8px 0; color: #1a1a2e; font-size: 14px;">GST (${(pricing.gstRate * 100).toFixed(0)}%)</td>
-                    <td style="padding: 8px 0; color: #1a1a2e; font-size: 14px; text-align: right;">$${grandGst.toFixed(2)}</td>
+                    <td style="padding: 8px 0; color: #1a1a2e; font-size: 14px;">GST (${(t.gstRate * 100).toFixed(0)}%)</td>
+                    <td style="padding: 8px 0; color: #1a1a2e; font-size: 14px; text-align: right;">$${t.gst.toFixed(2)}</td>
                   </tr>
                   <tr style="border-top: 2px solid #1a1a2e;">
                     <td style="padding: 16px 0 0; color: #1a1a2e; font-size: 16px; font-weight: 600;">Grand Total (incl. GST)</td>
-                    <td style="padding: 16px 0 0; color: #047857; font-size: 24px; text-align: right; font-weight: 700;">$${grandTotal.toFixed(2)}</td>
+                    <td style="padding: 16px 0 0; color: #047857; font-size: 24px; text-align: right; font-weight: 700;">$${t.grandTotal.toFixed(2)}</td>
                   </tr>
                 </table>
               </td>
