@@ -1038,20 +1038,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
       <html>
       <head>
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 700px; margin: 0 auto; padding: 20px; }
-          h1 { color: #1a1a2e; border-bottom: 2px solid #e94560; padding-bottom: 10px; }
-          h2 { color: #16213e; margin-top: 25px; }
-          .section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
-          .label { font-weight: bold; color: #374151; }
-          .value { color: #1a1a2e; }
-          .highlight { background: #e94560; color: white; padding: 10px 15px; border-radius: 5px; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #000000; background: #ffffff; }
+          .container { max-width: 700px; margin: 0 auto; padding: 20px; background: #ffffff; }
+          h1 { color: #000000; border-bottom: 2px solid #1a1a2e; padding-bottom: 10px; }
+          h2 { color: #000000; margin-top: 25px; }
+          .section { background: #ffffff; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #e5e7eb; color: #000000; }
+          .label { font-weight: bold; color: #000000; }
+          .value { color: #000000; }
+          .highlight { background: #ffffff; color: #000000; padding: 10px 15px; border-radius: 5px; border: 1px solid #e5e7eb; border-left: 4px solid #1a1a2e; }
           table { width: 100%; border-collapse: collapse; }
-          td { padding: 8px 0; border-bottom: 1px solid #eee; }
-          th { text-align: left; padding: 8px 0; }
-          .comments { background: #fff3cd; padding: 10px; border-radius: 5px; margin-top: 10px; }
-          .db-id { background: #d4edda; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
-          .csv-note { background: #e3f2fd; padding: 10px; border-radius: 5px; margin-top: 20px; font-size: 13px; }
+          td { padding: 8px 0; border-bottom: 1px solid #e5e7eb; color: #000000; }
+          th { text-align: left; padding: 8px 0; color: #000000; }
+          .comments { background: #fffbeb; padding: 10px; border-radius: 5px; margin-top: 10px; color: #000000; border: 1px solid #f59e0b; }
+          .db-id { background: #f0fdf4; padding: 10px; border-radius: 5px; margin-bottom: 20px; color: #000000; border: 1px solid #86efac; }
+          .csv-note { background: #eff6ff; padding: 10px; border-radius: 5px; margin-top: 20px; font-size: 13px; color: #000000; border: 1px solid #93c5fd; }
         </style>
       </head>
       <body>
