@@ -14,6 +14,7 @@ import {
 import { InteractiveStatCard } from './widgets/InteractiveStatCard';
 import { RecentSubmissionsWidget } from './widgets/RecentSubmissionsWidget';
 import { QuickStatsWidget } from './widgets/QuickStatsWidget';
+import { UnknownAreaCommentsWidget } from './widgets/UnknownAreaCommentsWidget';
 import { DollarSign, TrendingUp, Home, FileCheck } from 'lucide-react';
 
 interface WidgetGridProps {
