@@ -415,6 +415,11 @@ Deno.serve(async (req) => {
       contactProperties.bmd_pdf_url = pdfUrl;
     }
 
+    // Pre-validate against HubSpot's contact schema and drop unknown properties
+    // so a missing custom property never aborts the whole sync.
+    const validProps = await fetchValidContactProperties(hubspotApiKey);
+    const safeContactProperties = filterToKnownProperties(contactProperties, validProps);
+
     let hubspotResponse;
     let contactId: string | null = existingContactId;
 
