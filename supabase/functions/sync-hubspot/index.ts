@@ -434,7 +434,7 @@ Deno.serve(async (req) => {
             'Authorization': `Bearer ${hubspotApiKey}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ properties: contactProperties }),
+          body: JSON.stringify({ properties: safeContactProperties }),
         }
       );
     } else {
@@ -448,7 +448,7 @@ Deno.serve(async (req) => {
             'Authorization': `Bearer ${hubspotApiKey}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ properties: contactProperties }),
+          body: JSON.stringify({ properties: safeContactProperties }),
         }
       );
     }
@@ -472,7 +472,7 @@ Deno.serve(async (req) => {
                 'Authorization': `Bearer ${hubspotApiKey}`,
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ properties: contactProperties }),
+              body: JSON.stringify({ properties: safeContactProperties }),
             }
           );
           
