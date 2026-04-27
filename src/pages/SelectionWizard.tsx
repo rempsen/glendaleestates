@@ -1706,6 +1706,33 @@ export default function SelectionWizard() {
                   onChange={(e) => updateSelection('spcTileComments', e.target.value)}
                   className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 />
+                {showTileCommentWarning && (
+                  <div
+                    role="status"
+                    className="mt-3 flex gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+                  >
+                    <AlertCircle className="h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
+                    <div className="space-y-1">
+                      <p className="font-medium">A note for our records?</p>
+                      <p>
+                        You added bathroom or laundry tile upgrade notes later in the wizard
+                        but haven't left any general comments here. If those notes also
+                        describe what you'd like for your <strong>bathroom or laundry tile</strong>,
+                        please summarize them in this field so our team doesn't miss anything.
+                      </p>
+                      <ul className="list-disc pl-5 text-amber-800">
+                        {tileRelatedAreaComments.map((u, i) => (
+                          <li key={i} className="truncate">
+                            <span className="font-medium">
+                              {AREA_DEFINITIONS.find((a) => a.id === u.areaId)?.name || u.areaId}:
+                            </span>{' '}
+                            {u.comments}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </StepContainer>
