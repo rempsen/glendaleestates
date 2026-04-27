@@ -44,6 +44,8 @@ interface BuyerSelection {
   upgrade_floor_selection: string | null;
   upgrade_interests: Record<string, boolean> | null;
   sales_comments: string | null;
+  upgrade_comments?: string | null;
+  upgrade_interests_notes?: string | null;
   stair_lvp_upgrade_selected?: boolean;
   status: string;
   created_at: string;
@@ -331,6 +333,8 @@ Deno.serve(async (req) => {
       bmd_upgrade_floor_selection: submission.upgrade_floor_selection || '',
       bmd_upgrade_interests: formatUpgradeInterests(submission.upgrade_interests),
       bmd_sales_comments: submission.sales_comments || '',
+      bmd_upgrade_comments: submission.upgrade_comments || '',
+      bmd_upgrade_interests_notes: submission.upgrade_interests_notes || '',
       bmd_submission_status: submission.status,
       // Upgrade pricing breakdown
       bmd_window_coverings_cost: String(pricing.windowCoveringsCost),
