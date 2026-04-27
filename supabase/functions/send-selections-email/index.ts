@@ -813,91 +813,77 @@ Deno.serve(async (req: Request): Promise<Response> => {
     
     // Fetch dynamic pricing for accurate cost calculations
     const pricing = await fetchDynamicPricing();
-    const additionalWindowPrice = pricing.config['additional_window_price'] || 673.50;
-    const patioDoorPrice = pricing.config['patio_door_price'] || 2347.80;
-    const automatedMotorPrice = pricing.config['automated_motor_price'] || 495.00;
-    const heatedFloorPrice = pricing.config['heated_floor_per_bathroom'] || 1650.00;
+
+    // === SINGLE SOURCE OF TRUTH ===
+    // computeUpgradeTotalsServer() is the byte-for-byte mirror of the UI's
+    // src/lib/upgradeTotals.ts. The admin HTML, buyer HTML, and CSV attachment
+    // all derive their pricing rows and grand total from this one result so
+    // they can never diverge. Informational-only flags (Premium Carpet/Underpad
+    // Bedrooms/Stairs) are intentionally NOT charged here — they remain on
+    // the SelectionData object as Yes/No flags for non-pricing display.
+    const totals = computeUpgradeTotalsServer({
+      unitTypeCode: data.unitType || null,
+      upgradeFloorSelection: data.upgradeFloorSelection,
+      areaUpgrades: data.areaUpgrades || [],
+      backsplashGroutEnabled: data.backsplashGroutEnabled,
+      backsplashGroutColor: data.backsplashGroutColor,
+      stairLvpUpgradeSelected: data.stairLvpUpgradeSelected,
+      stairPremiumCarpetSelected: data.stairPremiumCarpetSelected,
+      stairUpgradeType: data.stairUpgradeType,
+      additionalWindowsQty: data.additionalWindowsQty,
+      patioDoorsQty: data.patioDoorsQty,
+      automatedWindowsQty: data.automatedWindowsQty,
+      bathroomTileSelected: data.bathroomTileSelected,
+      heatedFloorBathrooms: data.heatedFloorBathrooms,
+      customTiledShower: data.customTiledShower,
+    }, pricing);
+
+    // Pull the price scalars (still used by per-section HTML blocks for
+    // line-by-line "qty × unit" display in the admin email).
+    const additionalWindowPrice = totals.context.additionalWindowPrice;
+    const patioDoorPrice = totals.context.patioDoorPrice;
+    const automatedMotorPrice = totals.context.automatedMotorPrice;
+    const heatedFloorPrice = totals.context.heatedFloorPerBathroom;
     const stairLvpPrice = pricing.config['stair_lvp_upgrade_price'] || 2160.00;
     const stairPremiumLvpPrice = pricing.config['stair_premium_lvp_upgrade_price'] || 3145.00;
     const stairCarpetUpgradePrice = pricing.config['premium_carpet_stairs_price'] || 640.00;
-    const groutColorPrice = pricing.config['grout_color_change_price'] || 300.00;
-    const underpadStairsPrice = pricing.config['premium_underpad_stairs_price'] || 125.00;
-    const underpadCostPerSqyd = pricing.materials['premium_carpet_underpad'] || 6;
-    const premiumCarpetCostPerSqyd = pricing.materials['carpet'] || 25;
-    const gstRate = pricing.gstRate;
-    
-    // Calculate all upgrade costs
-    const windowSubtotal = (data.additionalWindowsQty * additionalWindowPrice) + 
-                           (data.patioDoorsQty * patioDoorPrice) + 
-                           (data.automatedWindowsQty * automatedMotorPrice);
-    // Stair upgrade based on stairUpgradeType (new) or fallback to stairLvpUpgradeSelected (legacy)
-    let stairLvpSubtotal = 0;
-    if (data.stairUpgradeType === 'premium_lvp') {
-      stairLvpSubtotal = stairPremiumLvpPrice;
-    } else if (data.stairUpgradeType === 'lvp' || data.stairLvpUpgradeSelected) {
-      stairLvpSubtotal = stairLvpPrice;
-    }
-    const stairCarpetSubtotal = data.stairPremiumCarpetSelected ? stairCarpetUpgradePrice : 0;
-    const groutSubtotal = data.backsplashGroutEnabled ? groutColorPrice : 0;
+    const groutColorPrice = totals.context.groutColorPrice;
+    const gstRate = totals.gstRate;
 
-    // Premium Carpet (Bedrooms), Premium Underpad (Bedrooms), and Premium Underpad (Stairs)
-    // are STANDARD inclusions, NOT billable upgrades. They are tracked as Yes/No preferences
-    // only. Keeping these subtotals at 0 ensures the email/CSV totals match the on-screen
-    // UpgradePricingSummary and the buyer PDF (computeUpgradeTotals), which intentionally
-    // omit these line items. Do not re-introduce charges here without updating the shared
-    // calculator in src/lib/upgradeTotals.ts first.
-    const underpadBedroomSubtotal = 0;
-    const premiumCarpetBedroomSubtotal = 0;
-    const underpadStairsSubtotal = 0;
-    
-    // Calculate area upgrade costs (flooring/tile)
-    // Normalize unit type label to code (e.g., "Corner Unit G" -> "G")
-    const effectiveUnitCode = normalizeUnitTypeCode(data.unitType);
-    const areaUpgradeCosts = calculateAreaUpgradeCosts(
-      effectiveUnitCode,
-      data.areaUpgrades || [],
-      data.upgradeFloorSelection,
-      {
-        materials: pricing.materials,
-        unitAreas: pricing.unitAreas,
-        markupPercentage: pricing.markupPercentage,
-        heatedFloorPrice: heatedFloorPrice,
-        stairCarpetUpgradePrice: stairCarpetUpgradePrice,
-      }
-    );
-
-    // ---- Section 4 bathroom upgrades (Porcelain Tile, Heated Floor, Custom Tiled Shower) ----
-    // These match the on-screen UpgradePricingSummary and the buyer PDF (computeUpgradeTotals).
-    const resolvedUnitCodeForBath = resolveFloorSpecificUnitCode(effectiveUnitCode, data.upgradeFloorSelection, pricing.unitAreas);
-    let bathroomGuestSqft = 0;
-    let bathroomEnsuiteSqft = 0;
-    if (effectiveUnitCode === 'G' || effectiveUnitCode === 'H') {
-      const d1 = pricing.unitAreas[`${effectiveUnitCode}-1`];
-      const d2 = pricing.unitAreas[`${effectiveUnitCode}-2`];
-      bathroomGuestSqft = Math.max(d1?.guestBathroom || 0, d2?.guestBathroom || 0);
-      bathroomEnsuiteSqft = Math.max(d1?.masterEnsuite || 0, d2?.masterEnsuite || 0);
-    } else {
-      const d = pricing.unitAreas[resolvedUnitCodeForBath];
-      bathroomGuestSqft = d?.guestBathroom || 0;
-      bathroomEnsuiteSqft = d?.masterEnsuite || 0;
-    }
-    const tileCostPerSqft = pricing.materials['tile'] || 0;
-    const showerBaseCost = pricing.materials['tiled_shower'] || 0;
-    const bathroomTileSubtotal = data.bathroomTileSelected && tileCostPerSqft > 0
-      ? (bathroomGuestSqft + bathroomEnsuiteSqft) * tileCostPerSqft * (1 + pricing.markupPercentage)
-      : 0;
+    // Subtotals re-exported for legacy section builders. All math comes
+    // from `totals` — these are simple aliases, never independent calculations.
+    const windowSubtotal = totals.windowSubtotal;
+    const stairLvpSubtotal = totals.pieces.stairLvp;
+    const stairCarpetSubtotal = totals.pieces.stairCarpet;
+    const groutSubtotal = totals.pieces.grout;
+    const bathroomTileSubtotal = totals.pieces.bathroomTile;
+    const section4HeatedFloorSubtotal = totals.pieces.section4HeatedFloor;
+    const customTiledShowerSubtotal = totals.pieces.customShower;
     const heatedFloorBathroomCount = Number(data.heatedFloorBathrooms) || 0;
-    const section4HeatedFloorSubtotal = heatedFloorBathroomCount > 0
-      ? heatedFloorBathroomCount * heatedFloorPrice
-      : 0;
-    const customTiledShowerSubtotal = data.customTiledShower && showerBaseCost > 0
-      ? showerBaseCost * (1 + pricing.markupPercentage)
-      : 0;
+    const bathroomGuestSqft = totals.context.bathroomGuestSqft;
+    const bathroomEnsuiteSqft = totals.context.bathroomEnsuiteSqft;
+    const tileCostPerSqft = totals.context.tileCostPerSqft;
+    const showerBaseCost = totals.context.showerBaseCost;
+    const effectiveUnitCode = normalizeUnitTypeCode(data.unitType);
 
-    // Calculate grand totals
-    const grandSubtotal = windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal + premiumCarpetBedroomSubtotal + underpadBedroomSubtotal + underpadStairsSubtotal + areaUpgradeCosts.subtotal + bathroomTileSubtotal + section4HeatedFloorSubtotal + customTiledShowerSubtotal;
-    const grandGst = grandSubtotal * gstRate;
-    const grandTotal = grandSubtotal + grandGst;
+    // Adapter so the existing per-row area-upgrade HTML lookups
+    // (.find(l => l.areaId === ...)) keep working without change.
+    const areaUpgradeCosts = {
+      subtotal: totals.pieces.flooringUpgrades.reduce(
+        (s, f) => s + f.amount + f.heatedFloorAmount, 0),
+      lineItems: totals.pieces.flooringUpgrades.map(f => ({
+        areaId: f.areaId,
+        area: f.areaName,
+        material: f.materialName,
+        cost: f.amount,
+        heatedFloor: f.heatedFloorAmount > 0,
+        heatedCost: f.heatedFloorAmount,
+      })),
+    };
+
+    const grandSubtotal = totals.grandSubtotal;
+    const grandGst = totals.gst;
+    const grandTotal = totals.grandTotal;
     
     const upgradesList = Object.entries(data.upgradeInterests)
       .filter(([_, v]) => v)
