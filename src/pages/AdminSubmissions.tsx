@@ -363,6 +363,49 @@ export default function AdminSubmissions() {
     setDetailsOpen(true);
   };
 
+  // Re-fetch upgrade_comments and upgrade_interests_notes from the database
+  // and refresh the open detail view. Useful after a backfill/repair job.
+  const [resyncingComments, setResyncingComments] = useState(false);
+  const resyncCommentsFromDb = async () => {
+    if (!selectedSubmission) return;
+    setResyncingComments(true);
+    try {
+      const { data, error } = await supabase
+        .from('buyer_selections')
+        .select('upgrade_comments, upgrade_interests_notes')
+        .eq('id', selectedSubmission.id)
+        .single();
+
+      if (error) throw error;
+
+      const patch = {
+        upgrade_comments: (data as any)?.upgrade_comments ?? null,
+        upgrade_interests_notes: (data as any)?.upgrade_interests_notes ?? null,
+      };
+
+      setSelectedSubmission((prev) => (prev ? ({ ...prev, ...patch } as any) : prev));
+      setOriginalSubmission((prev) => (prev ? ({ ...prev, ...patch } as any) : prev));
+      setSubmissions((prev) =>
+        prev.map((s) => (s.id === selectedSubmission.id ? ({ ...s, ...patch } as any) : s)),
+      );
+
+      const found = [
+        patch.upgrade_comments ? 'Upgrade Pricing Summary comments' : null,
+        patch.upgrade_interests_notes ? 'Upgrade Interests notes' : null,
+      ].filter(Boolean);
+
+      if (found.length === 0) {
+        toast.info('No comments found in the database for this submission.');
+      } else {
+        toast.success(`Re-synced: ${found.join(' + ')}`);
+      }
+    } catch (error: any) {
+      toast.error('Failed to re-sync comments', { description: error.message });
+    } finally {
+      setResyncingComments(false);
+    }
+  };
+
   // Open email preview
   const openEmailPreview = () => {
     if (!selectedSubmission) return;
