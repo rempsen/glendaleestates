@@ -523,6 +523,9 @@ export default function AdminSubmissions() {
         },
         bathroomTileSelected: !!sub.bathroom_tile_selected,
         heatedFloorBathrooms: sub.heated_floor_bathrooms || 0,
+        customTiledShower: !!(sub as any).custom_tiled_shower,
+        stairLvpUpgradeSelected: !!(sub as any).stair_lvp_upgrade_selected,
+        automatedWindowsQty: (sub as any).automated_windows_qty || 0,
         upgradeInterests: sub.upgrade_interests || {},
       };
 
