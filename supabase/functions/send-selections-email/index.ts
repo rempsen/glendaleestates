@@ -523,22 +523,49 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
     
-    // Parse area upgrades
+    // Parse area upgrades — preserve partial entries so buyer comments are never dropped.
+    // An entry is kept if ANY meaningful field is present (areaId, materialType, productName,
+    // productColor, comments, or heatedFloor). Missing identifiers are backfilled with a
+    // stable placeholder so downstream rendering and HubSpot sync can still surface the note.
     let areaUpgrades: AreaUpgrade[] = [];
     if (Array.isArray(rawData.areaUpgrades)) {
-      areaUpgrades = rawData.areaUpgrades.map((u: unknown) => {
-        const upgrade = u as Record<string, unknown>;
-        return {
-          areaId: String(upgrade.areaId || ''),
-          materialType: String(upgrade.materialType || ''),
-          productName: String(upgrade.productName || '').slice(0, 200),
-          productColor: String(upgrade.productColor || '').slice(0, 100),
-          comments: String(upgrade.comments || '').slice(0, 2000),
-          heatedFloor: Boolean(upgrade.heatedFloor),
-        };
-      });
+      areaUpgrades = rawData.areaUpgrades
+        .map((u: unknown, idx: number) => {
+          const upgrade = (u && typeof u === 'object') ? u as Record<string, unknown> : {};
+          const areaId = String(upgrade.areaId || '').trim();
+          const materialType = String(upgrade.materialType || '').trim();
+          const productName = String(upgrade.productName || '').trim().slice(0, 200);
+          const productColor = String(upgrade.productColor || '').trim().slice(0, 100);
+          const comments = String(upgrade.comments || '').trim().slice(0, 2000);
+          const heatedFloor = Boolean(upgrade.heatedFloor);
+
+          const hasAnyMeaningfulData =
+            areaId !== '' ||
+            materialType !== '' ||
+            productName !== '' ||
+            productColor !== '' ||
+            comments !== '' ||
+            heatedFloor === true;
+
+          if (!hasAnyMeaningfulData) return null;
+
+          return {
+            areaId: areaId || `unspecified_area_${idx + 1}`,
+            materialType: materialType || 'unspecified',
+            productName,
+            productColor,
+            comments,
+            heatedFloor,
+          } as AreaUpgrade;
+        })
+        .filter((u): u is AreaUpgrade => u !== null);
+
+      const droppedEmpty = (rawData.areaUpgrades as unknown[]).length - areaUpgrades.length;
+      if (droppedEmpty > 0) {
+        console.log(`[areaUpgrades] Dropped ${droppedEmpty} empty entries; kept ${areaUpgrades.length} (including any with comment-only data).`);
+      }
     }
-    
+
     const data: SelectionData = {
       unitNumber: String(rawData.unitNumber || '').trim().slice(0, 50),
       unitType: rawData.unitType ? String(rawData.unitType).trim().slice(0, 100) : null,
