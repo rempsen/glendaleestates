@@ -153,9 +153,20 @@ async function sendEmailWithAttachment(options: {
 
   // Add attachments if provided (Resend expects base64 encoded content)
   if (options.attachments && options.attachments.length > 0) {
+    // UTF-8 safe base64 encoding — btoa() only accepts Latin1 chars,
+    // so buyer comments with smart quotes / em dashes / emoji would crash.
+    const utf8ToBase64 = (str: string) => {
+      const bytes = new TextEncoder().encode(str);
+      let binary = '';
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+      }
+      return btoa(binary);
+    };
     body.attachments = options.attachments.map(att => ({
       filename: att.filename,
-      content: btoa(att.content), // Base64 encode the CSV content
+      content: utf8ToBase64(att.content),
     }));
   }
 
