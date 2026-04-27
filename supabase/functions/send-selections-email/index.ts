@@ -840,31 +840,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const stairCarpetSubtotal = data.stairPremiumCarpetSelected ? stairCarpetUpgradePrice : 0;
     const groutSubtotal = data.backsplashGroutEnabled ? groutColorPrice : 0;
 
-    // Calculate underpad costs
-    let underpadBedroomSubtotal = 0;
-    if (data.premiumUnderpadBedroom && data.bedroomFlooringChoice === 'carpet') {
-      const effectiveUnitCodeForUnderpad = normalizeUnitTypeCode(data.unitType);
-      const resolvedCodeForUnderpad = resolveFloorSpecificUnitCode(effectiveUnitCodeForUnderpad, data.upgradeFloorSelection, pricing.unitAreas);
-      const unitAreaData = pricing.unitAreas[resolvedCodeForUnderpad];
-      if (unitAreaData) {
-        const carpetSqyd = (unitAreaData.secondBedroomCarpet || 0) + (unitAreaData.masterBedroom || 0);
-        underpadBedroomSubtotal = carpetSqyd * underpadCostPerSqyd * (1 + pricing.markupPercentage);
-      }
-    }
-
-    // Calculate premium carpet bedroom costs
-    let premiumCarpetBedroomSubtotal = 0;
-    if (data.premiumCarpetBedroom && data.bedroomFlooringChoice === 'carpet') {
-      const effectiveUnitCodeForCarpet = normalizeUnitTypeCode(data.unitType);
-      const resolvedCodeForCarpet = resolveFloorSpecificUnitCode(effectiveUnitCodeForCarpet, data.upgradeFloorSelection, pricing.unitAreas);
-      const unitAreaDataCarpet = pricing.unitAreas[resolvedCodeForCarpet];
-      if (unitAreaDataCarpet) {
-        const carpetSqyd = (unitAreaDataCarpet.secondBedroomCarpet || 0) + (unitAreaDataCarpet.masterBedroom || 0);
-        premiumCarpetBedroomSubtotal = carpetSqyd * premiumCarpetCostPerSqyd * (1 + pricing.markupPercentage);
-      }
-    }
-
-    const underpadStairsSubtotal = data.premiumUnderpadStairs && (data.stairUpgradeType === 'standard' || !data.stairUpgradeType) ? underpadStairsPrice : 0;
+    // Premium Carpet (Bedrooms), Premium Underpad (Bedrooms), and Premium Underpad (Stairs)
+    // are STANDARD inclusions, NOT billable upgrades. They are tracked as Yes/No preferences
+    // only. Keeping these subtotals at 0 ensures the email/CSV totals match the on-screen
+    // UpgradePricingSummary and the buyer PDF (computeUpgradeTotals), which intentionally
+    // omit these line items. Do not re-introduce charges here without updating the shared
+    // calculator in src/lib/upgradeTotals.ts first.
+    const underpadBedroomSubtotal = 0;
+    const premiumCarpetBedroomSubtotal = 0;
+    const underpadStairsSubtotal = 0;
     
     // Calculate area upgrade costs (flooring/tile)
     // Normalize unit type label to code (e.g., "Corner Unit G" -> "G")
