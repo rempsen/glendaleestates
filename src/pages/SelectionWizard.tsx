@@ -467,6 +467,7 @@ export default function SelectionWizard() {
             backsplashGrout: selections.backsplashGrout,
             bathroomTileSelected: selections.bathroomTileSelected,
             heatedFloorBathrooms: selections.heatedFloorBathrooms,
+            customTiledShower: selections.customTiledShower,
             upgradeInterests: selections.upgradeInterests,
           },
           unitInfo?.unitType || null,
