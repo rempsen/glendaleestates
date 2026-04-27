@@ -1715,31 +1715,31 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     
     const lineItemsHtml = upgradeLineItems.map(item => `
       <tr>
-        <td style="padding: 10px 0; color: rgba(255,255,255,0.9); font-size: 14px;">${escapeHtml(item.label)}</td>
-        <td style="padding: 10px 0; color: white; font-size: 14px; text-align: right; font-weight: 500;">$${item.cost.toFixed(2)}</td>
+        <td style="padding: 10px 0; color: #1a1a2e; font-size: 14px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(item.label)}</td>
+        <td style="padding: 10px 0; color: #1a1a2e; font-size: 14px; text-align: right; font-weight: 500; border-bottom: 1px solid #e5e7eb;">$${item.cost.toFixed(2)}</td>
       </tr>
     `).join('');
     
     estimatedTotalHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 12px; overflow: hidden;">
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
             <tr>
               <td style="padding: 24px;">
-                <h2 style="margin: 0 0 16px; color: white; font-size: 18px; font-weight: 600; text-align: center;">Complete Upgrade Summary</h2>
+                <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600; text-align: center;">Complete Upgrade Summary</h2>
                 <table role="presentation" style="width: 100%; border-collapse: collapse;">
                   ${lineItemsHtml}
-                  <tr style="border-top: 1px solid rgba(255,255,255,0.2);">
-                    <td style="padding: 14px 0 8px; color: rgba(255,255,255,0.8); font-size: 14px;">Subtotal (pre-GST)</td>
-                    <td style="padding: 14px 0 8px; color: white; font-size: 14px; text-align: right;">$${grandSubtotal.toFixed(2)}</td>
+                  <tr>
+                    <td style="padding: 14px 0 8px; color: #1a1a2e; font-size: 14px;">Subtotal (pre-GST)</td>
+                    <td style="padding: 14px 0 8px; color: #1a1a2e; font-size: 14px; text-align: right;">$${grandSubtotal.toFixed(2)}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 8px 0; color: rgba(255,255,255,0.8); font-size: 14px;">GST (${(pricing.gstRate * 100).toFixed(0)}%)</td>
-                    <td style="padding: 8px 0; color: white; font-size: 14px; text-align: right;">$${grandGst.toFixed(2)}</td>
+                    <td style="padding: 8px 0; color: #1a1a2e; font-size: 14px;">GST (${(pricing.gstRate * 100).toFixed(0)}%)</td>
+                    <td style="padding: 8px 0; color: #1a1a2e; font-size: 14px; text-align: right;">$${grandGst.toFixed(2)}</td>
                   </tr>
-                  <tr>
-                    <td style="padding: 16px 0 0; color: white; font-size: 16px; font-weight: 600;">Grand Total (incl. GST)</td>
-                    <td style="padding: 16px 0 0; color: #10b981; font-size: 24px; text-align: right; font-weight: 700;">$${grandTotal.toFixed(2)}</td>
+                  <tr style="border-top: 2px solid #1a1a2e;">
+                    <td style="padding: 16px 0 0; color: #1a1a2e; font-size: 16px; font-weight: 600;">Grand Total (incl. GST)</td>
+                    <td style="padding: 16px 0 0; color: #047857; font-size: 24px; text-align: right; font-weight: 700;">$${grandTotal.toFixed(2)}</td>
                   </tr>
                 </table>
               </td>
