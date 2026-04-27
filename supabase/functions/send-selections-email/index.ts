@@ -33,8 +33,17 @@ function validateInput(data: Record<string, unknown>): { valid: boolean; errors:
   return { valid: errors.length === 0, errors };
 }
 
+// Pricing breakdown for CSV — kept loose to avoid forward-decl issues
+interface CsvPricingBreakdown {
+  lineItems: Array<{ label: string; cost: number }>;
+  subtotal: number;
+  gst: number;
+  grandTotal: number;
+  gstRate: number;
+}
+
 // Generate CSV content from selection data
-function generateCSV(data: SelectionData, savedId: string | undefined): string {
+function generateCSV(data: SelectionData, savedId: string | undefined, pricingBreakdown?: CsvPricingBreakdown): string {
   const rows: string[][] = [];
   
   // Header row
@@ -116,7 +125,18 @@ function generateCSV(data: SelectionData, savedId: string | undefined): string {
   rows.push(['Sales Comments', data.salesComments || '']);
   rows.push(['Upgrade Pricing Summary Comments', data.upgradeComments || '']);
   rows.push(['Upgrade Interests Notes', data.upgradeInterestsNotes || '']);
-  
+
+  // Pricing Breakdown (matches PDF / on-screen / email summaries)
+  if (pricingBreakdown) {
+    rows.push(['--- PRICING BREAKDOWN ---', '']);
+    for (const item of pricingBreakdown.lineItems) {
+      rows.push([item.label, `$${item.cost.toFixed(2)}`]);
+    }
+    rows.push(['Subtotal (pre-GST)', `$${pricingBreakdown.subtotal.toFixed(2)}`]);
+    rows.push([`GST (${(pricingBreakdown.gstRate * 100).toFixed(0)}%)`, `$${pricingBreakdown.gst.toFixed(2)}`]);
+    rows.push(['GRAND TOTAL (incl. GST)', `$${pricingBreakdown.grandTotal.toFixed(2)}`]);
+  }
+
   // Convert to CSV string with proper escaping
   return rows.map(row => 
     row.map(cell => {
@@ -815,9 +835,37 @@ Deno.serve(async (req: Request): Promise<Response> => {
         stairCarpetUpgradePrice: stairCarpetUpgradePrice,
       }
     );
-    
+
+    // ---- Section 4 bathroom upgrades (Porcelain Tile, Heated Floor, Custom Tiled Shower) ----
+    // These match the on-screen UpgradePricingSummary and the buyer PDF (computeUpgradeTotals).
+    const resolvedUnitCodeForBath = resolveFloorSpecificUnitCode(effectiveUnitCode, data.upgradeFloorSelection, pricing.unitAreas);
+    let bathroomGuestSqft = 0;
+    let bathroomEnsuiteSqft = 0;
+    if (effectiveUnitCode === 'G' || effectiveUnitCode === 'H') {
+      const d1 = pricing.unitAreas[`${effectiveUnitCode}-1`];
+      const d2 = pricing.unitAreas[`${effectiveUnitCode}-2`];
+      bathroomGuestSqft = Math.max(d1?.guestBathroom || 0, d2?.guestBathroom || 0);
+      bathroomEnsuiteSqft = Math.max(d1?.masterEnsuite || 0, d2?.masterEnsuite || 0);
+    } else {
+      const d = pricing.unitAreas[resolvedUnitCodeForBath];
+      bathroomGuestSqft = d?.guestBathroom || 0;
+      bathroomEnsuiteSqft = d?.masterEnsuite || 0;
+    }
+    const tileCostPerSqft = pricing.materials['tile'] || 0;
+    const showerBaseCost = pricing.materials['tiled_shower'] || 0;
+    const bathroomTileSubtotal = data.bathroomTileSelected && tileCostPerSqft > 0
+      ? (bathroomGuestSqft + bathroomEnsuiteSqft) * tileCostPerSqft * (1 + pricing.markupPercentage)
+      : 0;
+    const heatedFloorBathroomCount = Number(data.heatedFloorBathrooms) || 0;
+    const section4HeatedFloorSubtotal = heatedFloorBathroomCount > 0
+      ? heatedFloorBathroomCount * heatedFloorPrice
+      : 0;
+    const customTiledShowerSubtotal = data.customTiledShower && showerBaseCost > 0
+      ? showerBaseCost * (1 + pricing.markupPercentage)
+      : 0;
+
     // Calculate grand totals
-    const grandSubtotal = windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal + premiumCarpetBedroomSubtotal + underpadBedroomSubtotal + underpadStairsSubtotal + areaUpgradeCosts.subtotal;
+    const grandSubtotal = windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal + premiumCarpetBedroomSubtotal + underpadBedroomSubtotal + underpadStairsSubtotal + areaUpgradeCosts.subtotal + bathroomTileSubtotal + section4HeatedFloorSubtotal + customTiledShowerSubtotal;
     const grandGst = grandSubtotal * gstRate;
     const grandTotal = grandSubtotal + grandGst;
     
@@ -949,6 +997,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
           label += ` (incl. Heated Floor)`;
         }
         summaryItems.push(`<tr><td style="padding: 8px 0;">${escapeHtml(label)}</td><td style="text-align: right; font-weight: bold;">$${(item.cost + (item.heatedCost || 0)).toFixed(2)}</td></tr>`);
+      }
+
+      // Section 4 bathroom upgrades (Porcelain Tile, Heated Floor, Custom Tiled Shower)
+      if (bathroomTileSubtotal > 0) {
+        summaryItems.push(`<tr><td style="padding: 8px 0;">Porcelain Tile Floor Upgrade (Guest ${bathroomGuestSqft} sq ft + Ensuite ${bathroomEnsuiteSqft} sq ft × $${tileCostPerSqft.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)</td><td style="text-align: right; font-weight: bold;">$${bathroomTileSubtotal.toFixed(2)}</td></tr>`);
+      }
+      if (section4HeatedFloorSubtotal > 0) {
+        summaryItems.push(`<tr><td style="padding: 8px 0;">Heated Tile Floor (${heatedFloorBathroomCount} bathroom${heatedFloorBathroomCount > 1 ? 's' : ''} × $${heatedFloorPrice.toFixed(2)})</td><td style="text-align: right; font-weight: bold;">$${section4HeatedFloorSubtotal.toFixed(2)}</td></tr>`);
+      }
+      if (customTiledShowerSubtotal > 0) {
+        summaryItems.push(`<tr><td style="padding: 8px 0;">Custom Tiled Shower (Base $${showerBaseCost.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)</td><td style="text-align: right; font-weight: bold;">$${customTiledShowerSubtotal.toFixed(2)}</td></tr>`);
       }
       
       upgradeSummaryHtml = `
@@ -1104,8 +1163,42 @@ Deno.serve(async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    // Generate CSV content
-    const csvContent = generateCSV(data, savedSelection?.id as string | undefined);
+    // Build CSV pricing breakdown that mirrors the Complete Upgrade Summary in the email/PDF
+    const csvLineItems: Array<{ label: string; cost: number }> = [];
+    if (stairLvpSubtotal > 0) csvLineItems.push({ label: 'Stair LVP Upgrade with Custom Nosings', cost: stairLvpSubtotal });
+    if (stairCarpetSubtotal > 0) csvLineItems.push({ label: 'Premium Carpet Stairs Upgrade', cost: stairCarpetSubtotal });
+    if (groutSubtotal > 0) csvLineItems.push({ label: `Custom Grout Color${data.backsplashGroutColor ? ` (${data.backsplashGroutColor})` : ''}`, cost: groutSubtotal });
+    if (data.additionalWindowsQty > 0) csvLineItems.push({ label: `Additional Windows (${data.additionalWindowsQty} × $${additionalWindowPrice.toFixed(2)})`, cost: data.additionalWindowsQty * additionalWindowPrice });
+    if (data.patioDoorsQty > 0) csvLineItems.push({ label: `Patio Door Panel Track (${data.patioDoorsQty} × $${patioDoorPrice.toFixed(2)})`, cost: data.patioDoorsQty * patioDoorPrice });
+    if (data.automatedWindowsQty > 0) csvLineItems.push({ label: `Somfy Automation (${data.automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)})`, cost: data.automatedWindowsQty * automatedMotorPrice });
+    if (premiumCarpetBedroomSubtotal > 0) csvLineItems.push({ label: 'Premium Carpet (Bedrooms)', cost: premiumCarpetBedroomSubtotal });
+    if (underpadBedroomSubtotal > 0) csvLineItems.push({ label: 'Premium Underpad (Bedrooms)', cost: underpadBedroomSubtotal });
+    if (underpadStairsSubtotal > 0) csvLineItems.push({ label: 'Premium Underpad (Stairs)', cost: underpadStairsSubtotal });
+    for (const item of areaUpgradeCosts.lineItems) {
+      let label = `${item.area} - ${item.material}`;
+      if (item.heatedFloor && item.heatedCost) label += ` (incl. Heated Floor +$${item.heatedCost.toFixed(0)})`;
+      csvLineItems.push({ label, cost: item.cost + (item.heatedCost || 0) });
+    }
+    if (bathroomTileSubtotal > 0) csvLineItems.push({
+      label: `Porcelain Tile Floor Upgrade (Guest ${bathroomGuestSqft} sq ft + Ensuite ${bathroomEnsuiteSqft} sq ft × $${tileCostPerSqft.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)`,
+      cost: bathroomTileSubtotal,
+    });
+    if (section4HeatedFloorSubtotal > 0) csvLineItems.push({
+      label: `Heated Tile Floor (${heatedFloorBathroomCount} bathroom${heatedFloorBathroomCount > 1 ? 's' : ''} × $${heatedFloorPrice.toFixed(2)})`,
+      cost: section4HeatedFloorSubtotal,
+    });
+    if (customTiledShowerSubtotal > 0) csvLineItems.push({
+      label: `Custom Tiled Shower (Base $${showerBaseCost.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)`,
+      cost: customTiledShowerSubtotal,
+    });
+
+    const csvContent = generateCSV(data, savedSelection?.id as string | undefined, {
+      lineItems: csvLineItems,
+      subtotal: grandSubtotal,
+      gst: grandGst,
+      grandTotal,
+      gstRate,
+    });
     const csvFilename = `selection_${data.unitNumber.replace(/[^a-zA-Z0-9]/g, '_')}_${data.lastName}_${new Date().toISOString().split('T')[0]}.csv`;
 
     // Send to BMD team (internal email with CSV) — isolated so DB save survives email failures
@@ -1140,6 +1233,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
       groutColorPrice,
       gstRate,
       areaUpgradeCosts,
+      premiumCarpetBedroomSubtotal,
+      underpadBedroomSubtotal,
+      underpadStairsSubtotal,
+      bathroomTileSubtotal,
+      bathroomGuestSqft,
+      bathroomEnsuiteSqft,
+      tileCostPerSqft,
+      section4HeatedFloorSubtotal,
+      heatedFloorBathroomCount,
+      customTiledShowerSubtotal,
+      showerBaseCost,
+      markupPercentage: pricing.markupPercentage,
     });
     
     try {
@@ -1186,6 +1291,18 @@ interface BuyerEmailPricing {
   groutColorPrice: number;
   gstRate: number;
   areaUpgradeCosts: { lineItems: Array<{ areaId: string; area: string; material: string; cost: number; heatedFloor?: boolean; heatedCost?: number }>; subtotal: number };
+  premiumCarpetBedroomSubtotal: number;
+  underpadBedroomSubtotal: number;
+  underpadStairsSubtotal: number;
+  bathroomTileSubtotal: number;
+  bathroomGuestSqft: number;
+  bathroomEnsuiteSqft: number;
+  tileCostPerSqft: number;
+  section4HeatedFloorSubtotal: number;
+  heatedFloorBathroomCount: number;
+  customTiledShowerSubtotal: number;
+  showerBaseCost: number;
+  markupPercentage: number;
 }
 
 // Generate a beautiful confirmation email for buyers with full details and costs
@@ -1492,9 +1609,20 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
   
   // Area upgrade subtotal (already includes heated floors)
   const areaUpgradeSubtotal = pricing.areaUpgradeCosts.subtotal;
-  
-  // Grand totals (including area upgrades)
-  const grandSubtotal = windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal + areaUpgradeSubtotal;
+
+  // Section 4 bathroom + premium carpet/underpad subtotals (computed by caller)
+  const bathroomTileSub = pricing.bathroomTileSubtotal || 0;
+  const section4HeatedFloorSub = pricing.section4HeatedFloorSubtotal || 0;
+  const customTiledShowerSub = pricing.customTiledShowerSubtotal || 0;
+  const premiumCarpetBedroomSub = pricing.premiumCarpetBedroomSubtotal || 0;
+  const underpadBedroomSub = pricing.underpadBedroomSubtotal || 0;
+  const underpadStairsSub = pricing.underpadStairsSubtotal || 0;
+
+  // Grand totals (including ALL upgrades — matches PDF / on-screen summary exactly)
+  const grandSubtotal =
+    windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal +
+    areaUpgradeSubtotal + bathroomTileSub + section4HeatedFloorSub +
+    customTiledShowerSub + premiumCarpetBedroomSub + underpadBedroomSub + underpadStairsSub;
   const grandGst = grandSubtotal * pricing.gstRate;
   const grandTotal = grandSubtotal + grandGst;
   
@@ -1540,6 +1668,17 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
         cost: automatedWindowsQty * pricing.automatedMotorPrice 
       });
     }
+
+    // Premium Carpet / Underpad (Bedrooms / Stairs)
+    if (premiumCarpetBedroomSub > 0) {
+      upgradeLineItems.push({ label: 'Premium Carpet (Bedrooms)', cost: premiumCarpetBedroomSub });
+    }
+    if (underpadBedroomSub > 0) {
+      upgradeLineItems.push({ label: 'Premium Underpad (Bedrooms)', cost: underpadBedroomSub });
+    }
+    if (underpadStairsSub > 0) {
+      upgradeLineItems.push({ label: 'Premium Underpad (Stairs)', cost: underpadStairsSub });
+    }
     
     // Area upgrade line items with heated floor costs
     for (const item of pricing.areaUpgradeCosts.lineItems) {
@@ -1552,6 +1691,27 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
         cost: item.cost + (item.heatedCost || 0) 
       });
     }
+
+    // Section 4 bathroom upgrades (Porcelain Tile, Heated Floor count, Custom Tiled Shower)
+    if (bathroomTileSub > 0) {
+      upgradeLineItems.push({
+        label: `Porcelain Tile Floor Upgrade (Guest ${pricing.bathroomGuestSqft} sq ft + Ensuite ${pricing.bathroomEnsuiteSqft} sq ft × $${pricing.tileCostPerSqft.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)`,
+        cost: bathroomTileSub,
+      });
+    }
+    if (section4HeatedFloorSub > 0) {
+      upgradeLineItems.push({
+        label: `Heated Tile Floor (${pricing.heatedFloorBathroomCount} bathroom${pricing.heatedFloorBathroomCount > 1 ? 's' : ''} × $${pricing.heatedFloorPrice.toFixed(2)})`,
+        cost: section4HeatedFloorSub,
+      });
+    }
+    if (customTiledShowerSub > 0) {
+      upgradeLineItems.push({
+        label: `Custom Tiled Shower (Base $${pricing.showerBaseCost.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)`,
+        cost: customTiledShowerSub,
+      });
+    }
+
     
     const lineItemsHtml = upgradeLineItems.map(item => `
       <tr>
