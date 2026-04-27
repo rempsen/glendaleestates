@@ -1237,6 +1237,18 @@ interface BuyerEmailPricing {
   groutColorPrice: number;
   gstRate: number;
   areaUpgradeCosts: { lineItems: Array<{ areaId: string; area: string; material: string; cost: number; heatedFloor?: boolean; heatedCost?: number }>; subtotal: number };
+  premiumCarpetBedroomSubtotal: number;
+  underpadBedroomSubtotal: number;
+  underpadStairsSubtotal: number;
+  bathroomTileSubtotal: number;
+  bathroomGuestSqft: number;
+  bathroomEnsuiteSqft: number;
+  tileCostPerSqft: number;
+  section4HeatedFloorSubtotal: number;
+  heatedFloorBathroomCount: number;
+  customTiledShowerSubtotal: number;
+  showerBaseCost: number;
+  markupPercentage: number;
 }
 
 // Generate a beautiful confirmation email for buyers with full details and costs
