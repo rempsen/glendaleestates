@@ -816,7 +816,7 @@ export default function AdminSubmissions() {
               <div className="space-y-6">
                 {/* Missing-comments warning banner */}
                 {(() => {
-                  const sub = selectedSubmission;
+                  const sub = selectedSubmission as any;
                   const hasUpgradeActivity =
                     (sub.area_upgrades && sub.area_upgrades.length > 0) ||
                     !!sub.bathroom_tile_selected ||
