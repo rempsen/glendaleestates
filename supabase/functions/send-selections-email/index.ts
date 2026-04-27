@@ -1108,15 +1108,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
           ${stairUpgradeHtml}
 
           ${windowSubtotal > 0 ? `
-          <div class="section highlight">
-            <h2 style="color: white; margin-top: 0;">Window Covering Upgrades</h2>
-            <table style="color: white;">
-              ${data.additionalWindowsQty > 0 ? `<tr><td>Additional Windows (${data.additionalWindowsQty} × $${additionalWindowPrice.toFixed(2)}):</td><td style="text-align: right; font-weight: bold;">$${(data.additionalWindowsQty * additionalWindowPrice).toFixed(2)}</td></tr>` : ''}
-              ${data.patioDoorsQty > 0 ? `<tr><td>Patio Door Panel Track (${data.patioDoorsQty} × $${patioDoorPrice.toFixed(2)}):</td><td style="text-align: right; font-weight: bold;">$${(data.patioDoorsQty * patioDoorPrice).toFixed(2)}</td></tr>` : ''}
-              ${data.automatedWindowsQty > 0 ? `<tr><td>Somfy Automation (${data.automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)}):</td><td style="text-align: right; font-weight: bold;">$${(data.automatedWindowsQty * automatedMotorPrice).toFixed(2)}</td></tr>` : ''}
-              <tr style="border-top: 1px solid rgba(255,255,255,0.3);"><td style="padding-top: 8px;"><strong>Window Coverings Subtotal:</strong></td><td style="text-align: right; padding-top: 8px; font-weight: bold;">$${windowSubtotal.toFixed(2)}</td></tr>
+          <div class="section" style="background: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #1a1a2e;">
+            <h2 style="color: #000000; margin-top: 0;">Window Covering Upgrades</h2>
+            <table style="color: #000000; width: 100%; border-collapse: collapse;">
+              ${data.additionalWindowsQty > 0 ? `<tr><td style="padding: 8px; color: #000000; border-bottom: 1px solid #e5e7eb;">Additional Windows (${data.additionalWindowsQty} × $${additionalWindowPrice.toFixed(2)}):</td><td style="padding: 8px; color: #000000; text-align: right; font-weight: bold; border-bottom: 1px solid #e5e7eb;">$${(data.additionalWindowsQty * additionalWindowPrice).toFixed(2)}</td></tr>` : ''}
+              ${data.patioDoorsQty > 0 ? `<tr><td style="padding: 8px; color: #000000; border-bottom: 1px solid #e5e7eb;">Patio Door Panel Track (${data.patioDoorsQty} × $${patioDoorPrice.toFixed(2)}):</td><td style="padding: 8px; color: #000000; text-align: right; font-weight: bold; border-bottom: 1px solid #e5e7eb;">$${(data.patioDoorsQty * patioDoorPrice).toFixed(2)}</td></tr>` : ''}
+              ${data.automatedWindowsQty > 0 ? `<tr><td style="padding: 8px; color: #000000; border-bottom: 1px solid #e5e7eb;">Somfy Automation (${data.automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)}):</td><td style="padding: 8px; color: #000000; text-align: right; font-weight: bold; border-bottom: 1px solid #e5e7eb;">$${(data.automatedWindowsQty * automatedMotorPrice).toFixed(2)}</td></tr>` : ''}
+              <tr style="border-top: 2px solid #d1d5db;"><td style="padding: 12px 8px; color: #000000;"><strong>Window Coverings Subtotal:</strong></td><td style="padding: 12px 8px; color: #047857; text-align: right; font-weight: bold;">$${windowSubtotal.toFixed(2)}</td></tr>
             </table>
-            ${data.windowComments ? `<p style="margin-top: 10px; font-size: 14px;"><em>Notes: ${escapeHtml(data.windowComments)}</em></p>` : ''}
+            ${data.windowComments ? `<p style="margin-top: 10px; color: #374151; font-size: 14px;"><em>Notes: ${escapeHtml(data.windowComments)}</em></p>` : ''}
           </div>
           ` : ''}
 
