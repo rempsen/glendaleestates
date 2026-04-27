@@ -24,7 +24,7 @@ interface FlaggedSubmission {
   entries: FlaggedEntry[];
 }
 
-const KNOWN_AREA_IDS = new Set(AREA_DEFINITIONS.map((a) => a.id));
+const KNOWN_AREA_IDS = new Set<string>(AREA_DEFINITIONS.map((a) => a.id as string));
 
 function classifyArea(areaId: unknown): FlaggedEntry['reason'] | null {
   if (typeof areaId !== 'string' || areaId.trim() === '') return 'missing_area';
