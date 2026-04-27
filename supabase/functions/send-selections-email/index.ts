@@ -1108,21 +1108,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const csvContent = generateCSV(data, savedSelection?.id as string | undefined);
     const csvFilename = `selection_${data.unitNumber.replace(/[^a-zA-Z0-9]/g, '_')}_${data.lastName}_${new Date().toISOString().split('T')[0]}.csv`;
 
-    // Send to BMD team (internal email with CSV)
-    const adminEmailResponse = await sendEmailWithAttachment({
-      from: "BMD Materials Portal <selections@bmdmaterials.com>",
-      to: ["dan@bmdmaterials.com", "noni@bmdmaterials.com", "brian@bmdmaterials.com", "office@bmdmaterials.com", "gregor.mckenzie@nvc360.com"],
-      subject: `New Selection Submission - Unit ${escapeHtml(data.unitNumber) || 'Unknown'}${data.unitType ? ` (${escapeHtml(data.unitType)})` : ''} - ${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}`,
-      html: htmlContent,
-      attachments: [
-        {
-          filename: csvFilename,
-          content: csvContent,
-        }
-      ],
-    });
-
-    console.log("Admin email sent successfully:", adminEmailResponse);
+    // Send to BMD team (internal email with CSV) — isolated so DB save survives email failures
+    let adminEmailResponse: { id?: string; error?: string } = {};
+    try {
+      adminEmailResponse = await sendEmailWithAttachment({
+        from: "BMD Materials Portal <selections@bmdmaterials.com>",
+        to: ["dan@bmdmaterials.com", "noni@bmdmaterials.com", "brian@bmdmaterials.com", "office@bmdmaterials.com", "gregor.mckenzie@nvc360.com"],
+        subject: `New Selection Submission - Unit ${escapeHtml(data.unitNumber) || 'Unknown'}${data.unitType ? ` (${escapeHtml(data.unitType)})` : ''} - ${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}`,
+        html: htmlContent,
+        attachments: [
+          {
+            filename: csvFilename,
+            content: csvContent,
+          }
+        ],
+      });
+      console.log("Admin email sent successfully:", adminEmailResponse);
+    } catch (adminEmailError) {
+      console.error("Admin email failed (submission still saved):", adminEmailError);
+      adminEmailResponse = { error: adminEmailError instanceof Error ? adminEmailError.message : String(adminEmailError) };
+    }
 
     // Send styled confirmation email to buyer with pricing data
     const buyerConfirmationHtml = generateBuyerConfirmationEmail(data, savedSelection?.id as string | undefined, {
@@ -1152,7 +1157,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     return new Response(JSON.stringify({ 
       ...adminEmailResponse, 
-      selectionId: savedSelection?.id 
+      selectionId: savedSelection?.id,
+      saved: Boolean(savedSelection?.id),
     }), {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
