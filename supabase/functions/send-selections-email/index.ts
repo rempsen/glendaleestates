@@ -1028,9 +1028,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
           
           ${upgradeSummaryHtml}
 
+          ${data.upgradeComments ? `
+          <div class="section" style="background: #fffbeb; border-left: 4px solid #f59e0b;">
+            <h2 style="color: #92400e; margin-top: 0;">Upgrade Pricing Summary — Buyer Comments</h2>
+            <p class="value">${escapeHtml(data.upgradeComments)}</p>
+          </div>
+          ` : ''}
+
           <div class="section">
             <h2>Upgrade Interests</h2>
             <p class="value">${upgradesList}</p>
+            ${data.upgradeInterestsNotes ? `<div class="comments" style="margin-top: 10px;"><strong>Buyer Notes:</strong> ${escapeHtml(data.upgradeInterestsNotes)}</div>` : ''}
           </div>
 
           ${data.salesComments ? `
