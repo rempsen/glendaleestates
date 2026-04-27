@@ -1193,9 +1193,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       groutColorPrice,
       gstRate,
       areaUpgradeCosts,
-      premiumCarpetBedroomSubtotal,
-      underpadBedroomSubtotal,
-      underpadStairsSubtotal,
+      premiumCarpetBedroomSubtotal: 0,
+      underpadBedroomSubtotal: 0,
+      underpadStairsSubtotal: 0,
       bathroomTileSubtotal,
       bathroomGuestSqft,
       bathroomEnsuiteSqft,
@@ -1205,6 +1205,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       customTiledShowerSubtotal,
       showerBaseCost,
       markupPercentage: pricing.markupPercentage,
+      totals,
     });
     
     try {
