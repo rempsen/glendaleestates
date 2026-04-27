@@ -15,6 +15,7 @@ import {
   UPGRADE_MATERIALS,
   MaterialType,
 } from '@/lib/upgradeCostData';
+import { computeUpgradeTotals } from '@/lib/upgradeTotals';
 
 // Unit area data structure (camelCase for internal use)
 export interface UnitAreaDataForPdf {
