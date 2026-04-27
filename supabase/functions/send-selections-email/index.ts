@@ -1179,6 +1179,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
       groutColorPrice,
       gstRate,
       areaUpgradeCosts,
+      premiumCarpetBedroomSubtotal,
+      underpadBedroomSubtotal,
+      underpadStairsSubtotal,
+      bathroomTileSubtotal,
+      bathroomGuestSqft,
+      bathroomEnsuiteSqft,
+      tileCostPerSqft,
+      section4HeatedFloorSubtotal,
+      heatedFloorBathroomCount,
+      customTiledShowerSubtotal,
+      showerBaseCost,
+      markupPercentage: pricing.markupPercentage,
     });
     
     try {
