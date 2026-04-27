@@ -16,7 +16,8 @@ import {
   Inbox,
   LogOut,
   DollarSign,
-  Users
+  Users,
+  Download
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -32,6 +33,7 @@ const navItems = [
   { icon: Home, label: 'All Homes', path: '/admin/homes' },
   { icon: BarChart3, label: 'Sales Analytics', path: '/admin/sales-analytics' },
   { icon: FileText, label: 'Reports', path: '/admin/reports' },
+  { icon: Download, label: 'Export', path: '/admin/export' },
   { icon: DollarSign, label: 'Pricing Control', path: '/admin/pricing' },
   { icon: Users, label: 'User Management', path: '/admin/users' },
 ];
