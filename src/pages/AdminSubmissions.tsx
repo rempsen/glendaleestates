@@ -950,6 +950,34 @@ export default function AdminSubmissions() {
                       )}
                       {generatingPdf ? 'Generating...' : 'Download PDF'}
                     </Button>
+                    {(() => {
+                      const s = selectedSubmission;
+                      const hasCaptured =
+                        !!s.lvp_comments ||
+                        !!s.spc_tile_comments ||
+                        !!s.window_comments ||
+                        !!s.backsplash_grout_comments ||
+                        !!(s as any).upgrade_comments ||
+                        !!(s as any).upgrade_interests_notes ||
+                        (s.area_upgrades || []).some(u => u.comments);
+                      if (!hasCaptured || !s.email) return null;
+                      return (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={resendingPdf}
+                          onClick={resendCorrectedPdf}
+                          title="Regenerate the buyer PDF (now including all captured comments) and email it to the buyer"
+                        >
+                          {resendingPdf ? (
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Send className="w-4 h-4 mr-2" />
+                          )}
+                          {resendingPdf ? 'Sending...' : 'Resend Updated PDF'}
+                        </Button>
+                      );
+                    })()}
                     <Select 
                       value={selectedSubmission.status} 
                       onValueChange={(value) => updateStatus(selectedSubmission.id, value)}
