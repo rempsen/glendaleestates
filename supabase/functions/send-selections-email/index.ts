@@ -1940,10 +1940,10 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
               
               <!-- Footer -->
               <tr>
-                <td style="background: #1a1a2e; padding: 30px 40px; border-radius: 0 0 16px 16px; text-align: center;">
-                  <p style="margin: 0 0 8px; color: rgba(255,255,255,0.9); font-size: 14px; font-weight: 500;">BMD Materials</p>
-                  <p style="margin: 0 0 16px; color: rgba(255,255,255,0.6); font-size: 13px;">Glendale Estates Selection Portal</p>
-                  <p style="margin: 0; color: rgba(255,255,255,0.4); font-size: 12px;">Submitted on ${submissionDate}</p>
+                <td style="background: #f9fafb; padding: 30px 40px; border-radius: 0 0 16px 16px; text-align: center; border-top: 1px solid #e5e7eb;">
+                  <p style="margin: 0 0 8px; color: #000000; font-size: 14px; font-weight: 500;">BMD Materials</p>
+                  <p style="margin: 0 0 16px; color: #1a1a2e; font-size: 13px;">Glendale Estates Selection Portal</p>
+                  <p style="margin: 0; color: #4b5563; font-size: 12px;">Submitted on ${submissionDate}</p>
                 </td>
               </tr>
               
