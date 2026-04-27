@@ -973,75 +973,38 @@ Deno.serve(async (req: Request): Promise<Response> => {
       `;
     }
     
-    // Build comprehensive upgrade summary section for admin
+    // Build comprehensive upgrade summary section for admin.
+    // Rendered directly from `totals.lineItems` so the rows + grand total
+    // here are guaranteed identical to the on-screen UpgradePricingSummary,
+    // the buyer PDF, the buyer email, and the CSV attachment.
     let upgradeSummaryHtml = '';
-    if (grandSubtotal > 0) {
-      const summaryItems: string[] = [];
-      
-      if (stairLvpSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Stair LVP Upgrade with Custom Nosings</td><td style="text-align: right; font-weight: bold;">$${stairLvpSubtotal.toFixed(2)}</td></tr>`);
-      }
-      if (stairCarpetSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Premium Carpet Stairs Upgrade</td><td style="text-align: right; font-weight: bold;">$${stairCarpetSubtotal.toFixed(2)}</td></tr>`);
-      }
-      if (groutSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Custom Grout Color${data.backsplashGroutColor ? ` (${escapeHtml(data.backsplashGroutColor)})` : ''}</td><td style="text-align: right; font-weight: bold;">$${groutSubtotal.toFixed(2)}</td></tr>`);
-      }
-      if (data.additionalWindowsQty > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Additional Windows (${data.additionalWindowsQty} × $${additionalWindowPrice.toFixed(2)})</td><td style="text-align: right; font-weight: bold;">$${(data.additionalWindowsQty * additionalWindowPrice).toFixed(2)}</td></tr>`);
-      }
-      if (data.patioDoorsQty > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Patio Door Panel Track (${data.patioDoorsQty} × $${patioDoorPrice.toFixed(2)})</td><td style="text-align: right; font-weight: bold;">$${(data.patioDoorsQty * patioDoorPrice).toFixed(2)}</td></tr>`);
-      }
-      if (data.automatedWindowsQty > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Somfy Automation (${data.automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)})</td><td style="text-align: right; font-weight: bold;">$${(data.automatedWindowsQty * automatedMotorPrice).toFixed(2)}</td></tr>`);
-      }
-      if (premiumCarpetBedroomSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Premium Carpet (Bedrooms)</td><td style="text-align: right; font-weight: bold;">$${premiumCarpetBedroomSubtotal.toFixed(2)}</td></tr>`);
-      }
-      if (underpadBedroomSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Premium Underpad (Bedrooms)</td><td style="text-align: right; font-weight: bold;">$${underpadBedroomSubtotal.toFixed(2)}</td></tr>`);
-      }
-      if (underpadStairsSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Premium Underpad (Stairs)</td><td style="text-align: right; font-weight: bold;">$${underpadStairsSubtotal.toFixed(2)}</td></tr>`);
-      }
-      
-      // Add area upgrade line items
-      for (const item of areaUpgradeCosts.lineItems) {
-        let label = `${item.area} - ${item.material}`;
-        if (item.heatedFloor && item.heatedCost) {
-          label += ` (incl. Heated Floor)`;
-        }
-        summaryItems.push(`<tr><td style="padding: 8px 0;">${escapeHtml(label)}</td><td style="text-align: right; font-weight: bold;">$${(item.cost + (item.heatedCost || 0)).toFixed(2)}</td></tr>`);
-      }
+    if (totals.grandSubtotal > 0) {
+      const summaryItems = totals.lineItems.map(item => {
+        const detail = item.detail
+          ? `<div style="color:#374151; font-size:12px; margin-top:2px;">${escapeHtml(item.detail)}</div>`
+          : '';
+        return `<tr>
+          <td style="padding:10px 8px; color:#000000; border-bottom:1px solid #e5e7eb;">${escapeHtml(item.label)}${detail}</td>
+          <td style="padding:10px 8px; color:#000000; text-align:right; font-weight:bold; border-bottom:1px solid #e5e7eb;">$${item.amount.toFixed(2)}</td>
+        </tr>`;
+      }).join('');
 
-      // Section 4 bathroom upgrades (Porcelain Tile, Heated Floor, Custom Tiled Shower)
-      if (bathroomTileSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Porcelain Tile Floor Upgrade (Guest ${bathroomGuestSqft} sq ft + Ensuite ${bathroomEnsuiteSqft} sq ft × $${tileCostPerSqft.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)</td><td style="text-align: right; font-weight: bold;">$${bathroomTileSubtotal.toFixed(2)}</td></tr>`);
-      }
-      if (section4HeatedFloorSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Heated Tile Floor (${heatedFloorBathroomCount} bathroom${heatedFloorBathroomCount > 1 ? 's' : ''} × $${heatedFloorPrice.toFixed(2)})</td><td style="text-align: right; font-weight: bold;">$${section4HeatedFloorSubtotal.toFixed(2)}</td></tr>`);
-      }
-      if (customTiledShowerSubtotal > 0) {
-        summaryItems.push(`<tr><td style="padding: 8px 0;">Custom Tiled Shower (Base $${showerBaseCost.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)</td><td style="text-align: right; font-weight: bold;">$${customTiledShowerSubtotal.toFixed(2)}</td></tr>`);
-      }
-      
       upgradeSummaryHtml = `
         <div class="section" style="background: #ffffff; border: 1px solid #d1d5db;">
           <h2 style="color: #000000; margin-top: 0;">Complete Upgrade Summary</h2>
           <table style="color: #000000; width: 100%; border-collapse: collapse;">
-            ${summaryItems.join('').replace(/text-align: right; font-weight: bold;">/g, 'text-align: right; font-weight: bold; color: #000000;">').replace(/<td style="padding: 8px 0;">/g, '<td style="padding: 10px 8px; color: #000000; border-bottom: 1px solid #e5e7eb;">')}
+            ${summaryItems}
             <tr style="border-top: 2px solid #d1d5db;">
               <td style="padding: 12px 8px 8px; color: #000000;">Subtotal (pre-GST)</td>
-              <td style="text-align: right; padding: 12px 8px 8px; color: #000000;">$${grandSubtotal.toFixed(2)}</td>
+              <td style="text-align: right; padding: 12px 8px 8px; color: #000000;">$${totals.grandSubtotal.toFixed(2)}</td>
             </tr>
             <tr>
-              <td style="padding: 8px; color: #000000;">GST (${(gstRate * 100).toFixed(0)}%)</td>
-              <td style="text-align: right; padding: 8px; color: #000000;">$${grandGst.toFixed(2)}</td>
+              <td style="padding: 8px; color: #000000;">GST (${(totals.gstRate * 100).toFixed(0)}%)</td>
+              <td style="text-align: right; padding: 8px; color: #000000;">$${totals.gst.toFixed(2)}</td>
             </tr>
             <tr style="border-top: 2px solid #1a1a2e;">
               <td style="padding: 14px 8px; color: #000000; font-size: 18px; font-weight: bold;">GRAND TOTAL (incl. GST)</td>
-              <td style="text-align: right; padding: 14px 8px; font-size: 22px; font-weight: bold; color: #047857;">$${grandTotal.toFixed(2)}</td>
+              <td style="text-align: right; padding: 14px 8px; font-size: 22px; font-weight: bold; color: #047857;">$${totals.grandTotal.toFixed(2)}</td>
             </tr>
           </table>
           <p style="margin-top: 12px; font-size: 11px; color: #374151;">* A 10% material overage is allowed on all quoted amounts.</p>
