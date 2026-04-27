@@ -1,4 +1,5 @@
 import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
+import { computeUpgradeTotalsServer, ServerTotalsResult } from "../_shared/upgradeTotalsServer.ts";
 
 // Dynamic CORS headers will be used for responses
 
