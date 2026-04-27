@@ -53,6 +53,7 @@ import {
   UpgradeArea
 } from '@/lib/upgradeCostData';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
+import { useUnitAreaData } from '@/hooks/useUnitAreaData';
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
 import { SubmissionComparisonView } from '@/components/admin/SubmissionComparisonView';
 import { SubmissionAuditLog } from '@/components/admin/SubmissionAuditLog';
@@ -272,6 +273,7 @@ export default function AdminSubmissions() {
     markupPercentage,
     gstRate,
   } = useDynamicPricing();
+  const { unitAreaData } = useUnitAreaData();
 
   // Build pricing values object for calculations
   const pricingValues: PricingValues = {
