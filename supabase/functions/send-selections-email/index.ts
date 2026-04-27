@@ -1843,12 +1843,12 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
               <!-- Reference Number -->
               <tr>
                 <td style="background: #ffffff; padding: 0 40px 30px;">
-                  <table role="presentation" style="width: 100%; border-collapse: collapse; background: #fff8e6; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                  <table role="presentation" style="width: 100%; border-collapse: collapse; background: #fffbeb; border-radius: 8px; border: 1px solid #f59e0b; border-left: 4px solid #f59e0b;">
                     <tr>
                       <td style="padding: 16px 20px;">
-                        <p style="margin: 0 0 4px; color: #92400e; font-size: 12px; text-transform: uppercase; font-weight: 600;">Your Reference Number</p>
-                        <p style="margin: 0; color: #78350f; font-size: 16px; font-family: monospace; font-weight: 600;">${escapeHtml(selectionId || 'Pending')}</p>
-                        <p style="margin: 8px 0 0; color: #a16207; font-size: 13px;">Please save this for your records</p>
+                        <p style="margin: 0 0 4px; color: #000000; font-size: 12px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Your Reference Number</p>
+                        <p style="margin: 0; color: #000000; font-size: 16px; font-family: monospace; font-weight: 600;">${escapeHtml(selectionId || 'Pending')}</p>
+                        <p style="margin: 8px 0 0; color: #374151; font-size: 13px;">Please save this for your records</p>
                       </td>
                     </tr>
                   </table>
