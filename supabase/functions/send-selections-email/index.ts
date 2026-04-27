@@ -1450,19 +1450,19 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
       
       return `
         <tr>
-          <td style="padding: 14px 16px; border-bottom: 1px solid rgba(147,51,234,0.1);">
-            <div style="color: #581c87; font-size: 14px; font-weight: 600;">${escapeHtml(areaName)}</div>
-            <div style="color: #7e22ce; font-size: 12px; margin-top: 2px;">${escapeHtml(materialName)}</div>
+          <td style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb;">
+            <div style="color: #000000; font-size: 14px; font-weight: 600;">${escapeHtml(areaName)}</div>
+            <div style="color: #374151; font-size: 12px; margin-top: 2px;">${escapeHtml(materialName)}</div>
           </td>
-          <td style="padding: 14px 16px; border-bottom: 1px solid rgba(147,51,234,0.1);">
-            <div style="color: #581c87; font-size: 14px;">${escapeHtml(upgrade.productName) || 'Standard'}</div>
-            ${upgrade.productColor ? `<div style="color: #9333ea; font-size: 12px; margin-top: 2px;">Color: ${escapeHtml(upgrade.productColor)}</div>` : ''}
+          <td style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb;">
+            <div style="color: #000000; font-size: 14px;">${escapeHtml(upgrade.productName) || 'Standard'}</div>
+            ${upgrade.productColor ? `<div style="color: #374151; font-size: 12px; margin-top: 2px;">Color: ${escapeHtml(upgrade.productColor)}</div>` : ''}
           </td>
-          <td style="padding: 14px 16px; border-bottom: 1px solid rgba(147,51,234,0.1); text-align: center;">
-            ${upgrade.heatedFloor ? `<span style="background: #fbbf24; color: #78350f; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">+$${pricing.heatedFloorPrice.toFixed(0)}</span>` : '<span style="color: #a1a1aa; font-size: 12px;">—</span>'}
+          <td style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb; text-align: center;">
+            ${upgrade.heatedFloor ? `<span style="background: #fef3c7; color: #000000; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; border: 1px solid #f59e0b;">+$${pricing.heatedFloorPrice.toFixed(0)}</span>` : '<span style="color: #6b7280; font-size: 12px;">—</span>'}
           </td>
-          <td style="padding: 14px 16px; border-bottom: 1px solid rgba(147,51,234,0.1); text-align: right;">
-            <div style="color: #581c87; font-size: 14px; font-weight: 700;">$${totalCost.toFixed(2)}</div>
+          <td style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb; text-align: right;">
+            <div style="color: #000000; font-size: 14px; font-weight: 700;">$${totalCost.toFixed(2)}</div>
           </td>
         </tr>
       `;
@@ -1471,19 +1471,19 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     areaUpgradesHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Premium Area Upgrades</h2>
-          ${data.upgradeFloorSelection ? `<p style="margin: 0 0 12px; color: #7e22ce; font-size: 14px; background: #faf5ff; padding: 10px 14px; border-radius: 6px;"><strong>Floor Selection:</strong> Floor ${escapeHtml(data.upgradeFloorSelection)}</p>` : ''}
-          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-radius: 12px; overflow: hidden;">
-            <tr style="background: linear-gradient(135deg, #9333ea 0%, #7e22ce 100%);">
-              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: left; font-weight: 600;">Area</th>
-              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: left; font-weight: 600;">Product</th>
-              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: center; font-weight: 600;">Heated</th>
-              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: right; font-weight: 600;">Cost</th>
+          <h2 style="margin: 0 0 16px; color: #000000; font-size: 18px; font-weight: 600;">Premium Area Upgrades</h2>
+          ${data.upgradeFloorSelection ? `<p style="margin: 0 0 12px; color: #000000; font-size: 14px; background: #f9fafb; padding: 10px 14px; border-radius: 6px; border: 1px solid #e5e7eb;"><strong>Floor Selection:</strong> Floor ${escapeHtml(data.upgradeFloorSelection)}</p>` : ''}
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+            <tr style="background: #f9fafb;">
+              <th style="padding: 12px 16px; color: #000000; font-size: 13px; text-align: left; font-weight: 700; border-bottom: 2px solid #d1d5db;">Area</th>
+              <th style="padding: 12px 16px; color: #000000; font-size: 13px; text-align: left; font-weight: 700; border-bottom: 2px solid #d1d5db;">Product</th>
+              <th style="padding: 12px 16px; color: #000000; font-size: 13px; text-align: center; font-weight: 700; border-bottom: 2px solid #d1d5db;">Heated</th>
+              <th style="padding: 12px 16px; color: #000000; font-size: 13px; text-align: right; font-weight: 700; border-bottom: 2px solid #d1d5db;">Cost</th>
             </tr>
             ${upgradeRows}
-            <tr style="background: linear-gradient(135deg, #7e22ce 0%, #581c87 100%);">
-              <td colspan="3" style="padding: 14px 16px; color: white; font-size: 14px; font-weight: 600;">Area Upgrades Subtotal</td>
-              <td style="padding: 14px 16px; color: #fbbf24; font-size: 16px; text-align: right; font-weight: 700;">$${pricing.areaUpgradeCosts.subtotal.toFixed(2)}</td>
+            <tr style="background: #f9fafb;">
+              <td colspan="3" style="padding: 14px 16px; color: #000000; font-size: 14px; font-weight: 700; border-top: 2px solid #d1d5db;">Area Upgrades Subtotal</td>
+              <td style="padding: 14px 16px; color: #047857; font-size: 16px; text-align: right; font-weight: 700; border-top: 2px solid #d1d5db;">$${pricing.areaUpgradeCosts.subtotal.toFixed(2)}</td>
             </tr>
           </table>
         </td>
