@@ -1374,18 +1374,18 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
   const standardSelectionsHtml = standardSelections.length > 0 ? `
     <tr>
       <td style="background: #ffffff; padding: 0 40px 30px;">
-        <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Your Standard Selections</h2>
-        <table role="presentation" style="width: 100%; border-collapse: collapse; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+        <h2 style="margin: 0 0 16px; color: #000000; font-size: 18px; font-weight: 600;">Your Standard Selections</h2>
+        <table role="presentation" style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
           ${standardSelections.map(item => `
             <tr>
-              <td style="padding: 14px 16px; border-bottom: 1px solid #f0f0f0; color: #666; font-size: 14px; width: 40%;">${escapeHtml(item.label)}</td>
-              <td style="padding: 14px 16px; border-bottom: 1px solid #f0f0f0; color: #1a1a2e; font-size: 14px; font-weight: 500;">
+              <td style="padding: 14px 16px; border-bottom: 1px solid #f0f0f0; color: #000000; font-size: 14px; font-weight: 600; width: 40%; background: #f9fafb;">${escapeHtml(item.label)}</td>
+              <td style="padding: 14px 16px; border-bottom: 1px solid #f0f0f0; color: #000000; font-size: 14px; font-weight: 500;">
                 ${escapeHtml(item.value)}
               </td>
             </tr>
           `).join('')}
         </table>
-        <p style="margin: 12px 0 0; color: #666; font-size: 13px; text-align: center;">Standard selections included with your home</p>
+        <p style="margin: 12px 0 0; color: #374151; font-size: 13px; text-align: center;">Standard selections included with your home</p>
       </td>
     </tr>
   ` : '';
