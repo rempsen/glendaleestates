@@ -165,6 +165,9 @@ export function WidgetGrid({
         ];
         return <RevenueChartWidget data={conversionData} />;
 
+      case 'unknown-area-comments':
+        return <UnknownAreaCommentsWidget />;
+
       default:
         return <div className="text-muted-foreground">Unknown widget type</div>;
     }
