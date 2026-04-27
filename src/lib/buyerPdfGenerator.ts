@@ -619,6 +619,27 @@ export async function generateBuyerPreviewPDF(
       ]);
     }
 
+    // Bathroom upgrades (Section 4)
+    if (bathroomTileSubtotal > 0) {
+      upgradeData.push([
+        'Porcelain Tile Floor Upgrade',
+        `$${bathroomTileSubtotal.toFixed(2)}`,
+      ]);
+    }
+    if (section4HeatedFloorSubtotal > 0) {
+      const n = selections.heatedFloorBathrooms;
+      upgradeData.push([
+        `Heated Tile Floor (${n} bathroom${n > 1 ? 's' : ''} × $${heatedFloorPerBathroom.toLocaleString()})`,
+        `$${section4HeatedFloorSubtotal.toFixed(2)}`,
+      ]);
+    }
+    if (customShowerSubtotal > 0) {
+      upgradeData.push([
+        'Custom Tiled Shower',
+        `$${customShowerSubtotal.toFixed(2)}`,
+      ]);
+    }
+
     // Grout color change
     if (groutPrice) {
       upgradeData.push([
