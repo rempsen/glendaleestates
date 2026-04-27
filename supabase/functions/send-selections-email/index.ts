@@ -33,8 +33,17 @@ function validateInput(data: Record<string, unknown>): { valid: boolean; errors:
   return { valid: errors.length === 0, errors };
 }
 
+// Pricing breakdown for CSV — kept loose to avoid forward-decl issues
+interface CsvPricingBreakdown {
+  lineItems: Array<{ label: string; cost: number }>;
+  subtotal: number;
+  gst: number;
+  grandTotal: number;
+  gstRate: number;
+}
+
 // Generate CSV content from selection data
-function generateCSV(data: SelectionData, savedId: string | undefined): string {
+function generateCSV(data: SelectionData, savedId: string | undefined, pricingBreakdown?: CsvPricingBreakdown): string {
   const rows: string[][] = [];
   
   // Header row
