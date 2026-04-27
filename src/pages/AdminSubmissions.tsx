@@ -365,7 +365,6 @@ export default function AdminSubmissions() {
 
   // Re-fetch upgrade_comments and upgrade_interests_notes from the database
   // and refresh the open detail view. Useful after a backfill/repair job.
-  const [resyncingComments, setResyncingComments] = useState(false);
   const resyncCommentsFromDb = async () => {
     if (!selectedSubmission) return;
     setResyncingComments(true);
