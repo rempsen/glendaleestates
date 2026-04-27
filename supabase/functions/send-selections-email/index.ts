@@ -1142,41 +1142,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    // Build CSV pricing breakdown that mirrors the Complete Upgrade Summary in the email/PDF
-    const csvLineItems: Array<{ label: string; cost: number }> = [];
-    if (stairLvpSubtotal > 0) csvLineItems.push({ label: 'Stair LVP Upgrade with Custom Nosings', cost: stairLvpSubtotal });
-    if (stairCarpetSubtotal > 0) csvLineItems.push({ label: 'Premium Carpet Stairs Upgrade', cost: stairCarpetSubtotal });
-    if (groutSubtotal > 0) csvLineItems.push({ label: `Custom Grout Color${data.backsplashGroutColor ? ` (${data.backsplashGroutColor})` : ''}`, cost: groutSubtotal });
-    if (data.additionalWindowsQty > 0) csvLineItems.push({ label: `Additional Windows (${data.additionalWindowsQty} × $${additionalWindowPrice.toFixed(2)})`, cost: data.additionalWindowsQty * additionalWindowPrice });
-    if (data.patioDoorsQty > 0) csvLineItems.push({ label: `Patio Door Panel Track (${data.patioDoorsQty} × $${patioDoorPrice.toFixed(2)})`, cost: data.patioDoorsQty * patioDoorPrice });
-    if (data.automatedWindowsQty > 0) csvLineItems.push({ label: `Somfy Automation (${data.automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)})`, cost: data.automatedWindowsQty * automatedMotorPrice });
-    if (premiumCarpetBedroomSubtotal > 0) csvLineItems.push({ label: 'Premium Carpet (Bedrooms)', cost: premiumCarpetBedroomSubtotal });
-    if (underpadBedroomSubtotal > 0) csvLineItems.push({ label: 'Premium Underpad (Bedrooms)', cost: underpadBedroomSubtotal });
-    if (underpadStairsSubtotal > 0) csvLineItems.push({ label: 'Premium Underpad (Stairs)', cost: underpadStairsSubtotal });
-    for (const item of areaUpgradeCosts.lineItems) {
-      let label = `${item.area} - ${item.material}`;
-      if (item.heatedFloor && item.heatedCost) label += ` (incl. Heated Floor +$${item.heatedCost.toFixed(0)})`;
-      csvLineItems.push({ label, cost: item.cost + (item.heatedCost || 0) });
-    }
-    if (bathroomTileSubtotal > 0) csvLineItems.push({
-      label: `Porcelain Tile Floor Upgrade (Guest ${bathroomGuestSqft} sq ft + Ensuite ${bathroomEnsuiteSqft} sq ft × $${tileCostPerSqft.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)`,
-      cost: bathroomTileSubtotal,
-    });
-    if (section4HeatedFloorSubtotal > 0) csvLineItems.push({
-      label: `Heated Tile Floor (${heatedFloorBathroomCount} bathroom${heatedFloorBathroomCount > 1 ? 's' : ''} × $${heatedFloorPrice.toFixed(2)})`,
-      cost: section4HeatedFloorSubtotal,
-    });
-    if (customTiledShowerSubtotal > 0) csvLineItems.push({
-      label: `Custom Tiled Shower (Base $${showerBaseCost.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)`,
-      cost: customTiledShowerSubtotal,
-    });
+    // CSV pricing breakdown — same line items, subtotal, GST, and grand total
+    // as the admin HTML, the buyer email, and the buyer/admin PDFs.
+    // Informational-only flags (Premium Carpet/Underpad Bedrooms/Stairs) are
+    // intentionally omitted from these pricing rows; they remain in the CSV
+    // above as Yes/No selection rows.
+    const csvLineItems = totals.lineItems.map(item => ({
+      label: item.detail ? `${item.label} — ${item.detail}` : item.label,
+      cost: item.amount,
+    }));
 
     const csvContent = generateCSV(data, savedSelection?.id as string | undefined, {
       lineItems: csvLineItems,
-      subtotal: grandSubtotal,
-      gst: grandGst,
-      grandTotal,
-      gstRate,
+      subtotal: totals.grandSubtotal,
+      gst: totals.gst,
+      grandTotal: totals.grandTotal,
+      gstRate: totals.gstRate,
     });
     const csvFilename = `selection_${data.unitNumber.replace(/[^a-zA-Z0-9]/g, '_')}_${data.lastName}_${new Date().toISOString().split('T')[0]}.csv`;
 
