@@ -224,6 +224,11 @@ interface BuyerSelections {
   patioDoorsQty: number;
   automatedWindowsQty: number;
   windowComments: string;
+  lvpComments?: string;
+  spcTileComments?: string;
+  salesComments?: string;
+  upgradeComments?: string;
+  upgradeInterestsNotes?: string;
   areaUpgrades: AreaUpgradeSelection[];
   upgradeFloorSelection: '1' | '2' | null;
   backsplashGrout: BacksplashGroutSelection;
