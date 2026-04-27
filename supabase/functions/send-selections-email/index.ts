@@ -1766,10 +1766,10 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
               
               <!-- Header -->
               <tr>
-                <td align="center" style="padding: 30px 40px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px 16px 0 0;">
+                <td align="center" style="padding: 30px 40px; background: #ffffff; border-radius: 16px 16px 0 0; border-bottom: 1px solid #e5e7eb;">
                   <img src="https://glendaleestates.lovable.app/images/bmd-logo.png" alt="Glendale Estates" style="height: 45px; margin-bottom: 20px;">
-                  <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">Your Selections Are Confirmed!</h1>
-                  <p style="margin: 10px 0 0; color: rgba(255,255,255,0.8); font-size: 15px;">Thank you for completing your home selections, ${escapeHtml(data.firstName)}!</p>
+                  <h1 style="margin: 0; color: #000000; font-size: 24px; font-weight: 600;">Your Selections Are Confirmed!</h1>
+                  <p style="margin: 10px 0 0; color: #000000; font-size: 15px;">Thank you for completing your home selections, ${escapeHtml(data.firstName)}!</p>
                 </td>
               </tr>
               
