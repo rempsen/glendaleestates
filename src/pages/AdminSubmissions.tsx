@@ -216,6 +216,8 @@ interface BuyerSelection {
   upgrade_interests: Record<string, boolean>;
   status: string;
   sales_comments: string | null;
+  upgrade_comments?: string | null;
+  upgrade_interests_notes?: string | null;
   // New upgrade fields
   area_upgrades?: AreaUpgrade[];
   upgrade_floor_selection?: string | null;
@@ -1011,6 +1013,30 @@ export default function AdminSubmissions() {
                             {key.replace('-', ' ')}
                           </Badge>
                         ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Buyer Comments captured throughout the wizard */}
+                {(selectedSubmission.spc_tile_comments || selectedSubmission.upgrade_interests_notes || selectedSubmission.upgrade_comments) && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-foreground">Buyer Comments</h4>
+                    <div className="space-y-2">
+                      {selectedSubmission.spc_tile_comments && (
+                        <div className="p-3 rounded-lg bg-muted/50 text-sm">
+                          <span className="text-muted-foreground">Bathroom Tile:</span> {selectedSubmission.spc_tile_comments}
+                        </div>
+                      )}
+                      {selectedSubmission.upgrade_interests_notes && (
+                        <div className="p-3 rounded-lg bg-muted/50 text-sm">
+                          <span className="text-muted-foreground">Upgrade Interests Notes:</span> {selectedSubmission.upgrade_interests_notes}
+                        </div>
+                      )}
+                      {selectedSubmission.upgrade_comments && (
+                        <div className="p-3 rounded-lg bg-muted/50 text-sm">
+                          <span className="text-muted-foreground">Upgrade Pricing Summary Comments:</span> {selectedSubmission.upgrade_comments}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
