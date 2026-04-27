@@ -10,7 +10,8 @@ export type WidgetType =
   | 'conversion-metrics'
   | 'alerts'
   | 'possession-calendar'
-  | 'material-popularity';
+  | 'material-popularity'
+  | 'unknown-area-comments';
 
 export interface WidgetConfig {
   id: string;
@@ -58,6 +59,7 @@ export const WIDGET_CATALOG: { type: WidgetType; title: string; defaultSize: { w
   { type: 'alerts', title: 'Action Alerts', defaultSize: { w: 4, h: 4 }, minSize: { w: 3, h: 3 } },
   { type: 'possession-calendar', title: 'Possession Calendar', defaultSize: { w: 6, h: 5 }, minSize: { w: 4, h: 4 } },
   { type: 'material-popularity', title: 'Material Popularity', defaultSize: { w: 6, h: 4 }, minSize: { w: 4, h: 3 } },
+  { type: 'unknown-area-comments', title: 'Unknown Area Comments', defaultSize: { w: 6, h: 4 }, minSize: { w: 4, h: 3 } },
 ];
 
 export const DEFAULT_LAYOUT: WidgetConfig[] = [
@@ -69,4 +71,5 @@ export const DEFAULT_LAYOUT: WidgetConfig[] = [
   { id: 'revenue-1', type: 'revenue-chart', title: 'Revenue Breakdown', x: 6, y: 2, w: 6, h: 4, minW: 4, minH: 3 },
   { id: 'upgrade-1', type: 'upgrade-popularity', title: 'Upgrade Popularity', x: 0, y: 6, w: 6, h: 3, minW: 4, minH: 2 },
   { id: 'recent-1', type: 'recent-submissions', title: 'Recent Submissions', x: 6, y: 6, w: 6, h: 4, minW: 4, minH: 3 },
+  { id: 'unknown-areas-1', type: 'unknown-area-comments', title: 'Unknown Area Comments', x: 0, y: 10, w: 6, h: 4, minW: 4, minH: 3 },
 ];

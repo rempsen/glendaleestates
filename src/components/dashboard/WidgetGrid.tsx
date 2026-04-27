@@ -14,6 +14,7 @@ import {
 import { InteractiveStatCard } from './widgets/InteractiveStatCard';
 import { RecentSubmissionsWidget } from './widgets/RecentSubmissionsWidget';
 import { QuickStatsWidget } from './widgets/QuickStatsWidget';
+import { UnknownAreaCommentsWidget } from './widgets/UnknownAreaCommentsWidget';
 import { DollarSign, TrendingUp, Home, FileCheck } from 'lucide-react';
 
 interface WidgetGridProps {
@@ -163,6 +164,9 @@ export function WidgetGrid({
           { name: 'Quoted → Signed', value: stats.pipelineStats.signed },
         ];
         return <RevenueChartWidget data={conversionData} />;
+
+      case 'unknown-area-comments':
+        return <UnknownAreaCommentsWidget />;
 
       default:
         return <div className="text-muted-foreground">Unknown widget type</div>;
