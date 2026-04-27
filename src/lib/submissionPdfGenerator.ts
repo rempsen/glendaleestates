@@ -373,11 +373,30 @@ export async function generateSubmissionPDF(submission: BuyerSubmission): Promis
     doc.line(margin, yPos, margin + 40, yPos);
     yPos += 10;
 
+    // Helpers — render placeholders clearly when structured identifiers are missing.
+    // The edge function backfills incomplete entries (e.g. comment-only rows) with
+    // `unspecified_area_N` / `unspecified` so the buyer's note is never lost.
+    const formatAreaLabel = (areaId: string): string => {
+      if (!areaId) return 'Unspecified Area';
+      if (AREA_NAMES[areaId]) return AREA_NAMES[areaId];
+      if (areaId.startsWith('unspecified_area')) {
+        const n = areaId.replace(/^unspecified_area_?/, '');
+        return n ? `Unspecified Area #${n} (needs review)` : 'Unspecified Area (needs review)';
+      }
+      return areaId;
+    };
+    const formatMaterialLabel = (materialType: string): string => {
+      if (!materialType) return 'Not specified';
+      if (MATERIAL_NAMES[materialType]) return MATERIAL_NAMES[materialType];
+      if (materialType === 'unspecified') return 'Not specified (needs review)';
+      return materialType;
+    };
+
     const upgradeData: string[][] = submission.area_upgrades.map(u => [
-      AREA_NAMES[u.areaId] || u.areaId,
-      MATERIAL_NAMES[u.materialType] || u.materialType,
-      u.productName || 'N/A',
-      u.productColor || 'N/A',
+      formatAreaLabel(u.areaId),
+      formatMaterialLabel(u.materialType),
+      u.productName || (u.comments ? '— (see comment)' : 'N/A'),
+      u.productColor || (u.comments ? '— (see comment)' : 'N/A'),
     ]);
 
     autoTable(doc, {
@@ -402,14 +421,21 @@ export async function generateSubmissionPDF(submission: BuyerSubmission): Promis
 
     yPos = (doc as any).lastAutoTable.finalY + 10;
 
-    // Add upgrade comments if any
+    // Add upgrade comments — render every non-empty comment, even when the area
+    // is a placeholder, so admins can recover and re-classify the note.
     const upgradesWithComments = submission.area_upgrades.filter(u => u.comments);
     if (upgradesWithComments.length > 0) {
       doc.setFontSize(9);
       doc.setTextColor(...COLORS.muted);
       upgradesWithComments.forEach(u => {
-        doc.text(`${AREA_NAMES[u.areaId]}: ${u.comments}`, margin, yPos);
-        yPos += 6;
+        const label = formatAreaLabel(u.areaId);
+        const lines = doc.splitTextToSize(`${label}: ${u.comments}`, pageWidth - margin * 2);
+        if (yPos + lines.length * 5 > pageHeight - 25) {
+          doc.addPage();
+          yPos = margin;
+        }
+        doc.text(lines, margin, yPos);
+        yPos += lines.length * 5 + 2;
       });
     }
   }
