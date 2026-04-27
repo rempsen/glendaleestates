@@ -43,7 +43,7 @@ import { SubmissionProgress, SubmissionStep } from '@/components/SubmissionProgr
 import tileStackedImg from '@/assets/tile-stacked.jpg';
 import tileBrickedImg from '@/assets/tile-bricked.jpg';
 import tileHorizontalImg from '@/assets/tile-horizontal.jpg';
-import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Download, LogOut, Palette, Play, ExternalLink, Save, Clock, Paperclip } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Download, LogOut, Palette, Play, ExternalLink, Save, Clock, Paperclip, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { User } from '@supabase/supabase-js';
 import panelTrackBlindsImg from '@/assets/panel-track-blinds.png';
