@@ -534,9 +534,55 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // ---- Preview / Test-send endpoints (no DB write, no admin email) ----
+  // GET  ?action=preview&type=buyer|admin            -> returns rendered HTML
+  // POST ?action=test    body: { type, to, ...data } -> sends a single test email
+  const url = new URL(req.url);
+  const action = url.searchParams.get('action');
+  if (action === 'preview' || action === 'test') {
+    try {
+      const isPost = req.method === 'POST';
+      const body: Record<string, unknown> = isPost ? await req.json().catch(() => ({})) : {};
+      const type = String(url.searchParams.get('type') || body.type || 'buyer');
+      const sample = buildPreviewSampleData(body);
+      const html = type === 'admin'
+        ? renderPreviewAdminHtml(sample)
+        : renderPreviewBuyerHtml(sample);
+
+      if (action === 'preview') {
+        return new Response(html, {
+          status: 200,
+          headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders },
+        });
+      }
+
+      // action === 'test'
+      const to = String(body.to || '').trim();
+      if (!to || !to.includes('@')) {
+        return new Response(JSON.stringify({ error: 'Provide a valid "to" email address' }), {
+          status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
+      const result = await sendEmailWithAttachment({
+        from: 'BMD Materials <selections@bmdmaterials.com>',
+        to: [to],
+        subject: `[TEST] ${type === 'admin' ? 'Admin' : 'Buyer'} Email Preview — Legibility Check`,
+        html,
+      });
+      return new Response(JSON.stringify({ ok: true, type, to, result }), {
+        status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    } catch (err) {
+      console.error('Preview/test error:', err);
+      return new Response(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }), {
+        status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+  }
+
   try {
     const rawData = await req.json();
-    
+
     // Validate input data
     const validation = validateInput(rawData);
     
@@ -878,37 +924,36 @@ Deno.serve(async (req: Request): Promise<Response> => {
     let areaUpgradesHtml = '';
     if (data.areaUpgrades && data.areaUpgrades.length > 0) {
       areaUpgradesHtml = `
-        <div class="section highlight" style="background: #9b59b6;">
-          <h2 style="color: white; margin-top: 0;">Area Upgrades Selected</h2>
-          ${data.upgradeFloorSelection ? `<p style="color: white; margin-bottom: 15px;"><strong>Floor Selection (G/H units):</strong> Floor ${escapeHtml(data.upgradeFloorSelection)}</p>` : ''}
-          <table style="color: white; width: 100%;">
-            <tr style="border-bottom: 1px solid rgba(255,255,255,0.3);">
-              <th style="text-align: left; padding: 8px 0;">Area</th>
-              <th style="text-align: left; padding: 8px 0;">Material</th>
-              <th style="text-align: left; padding: 8px 0;">Product</th>
-              <th style="text-align: left; padding: 8px 0;">Color</th>
-              <th style="text-align: left; padding: 8px 0;">Heated</th>
-              <th style="text-align: right; padding: 8px 0;">Cost</th>
+        <div class="section" style="background: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #1a1a2e;">
+          <h2 style="color: #000000; margin-top: 0;">Area Upgrades Selected</h2>
+          ${data.upgradeFloorSelection ? `<p style="color: #000000; margin-bottom: 15px;"><strong>Floor Selection (G/H units):</strong> Floor ${escapeHtml(data.upgradeFloorSelection)}</p>` : ''}
+          <table style="color: #000000; width: 100%; border-collapse: collapse;">
+            <tr style="border-bottom: 2px solid #d1d5db; background: #f9fafb;">
+              <th style="text-align: left; padding: 10px 8px; color: #000000;">Area</th>
+              <th style="text-align: left; padding: 10px 8px; color: #000000;">Material</th>
+              <th style="text-align: left; padding: 10px 8px; color: #000000;">Product</th>
+              <th style="text-align: left; padding: 10px 8px; color: #000000;">Color</th>
+              <th style="text-align: left; padding: 10px 8px; color: #000000;">Heated</th>
+              <th style="text-align: right; padding: 10px 8px; color: #000000;">Cost</th>
             </tr>
             ${data.areaUpgrades.map(u => {
-              // Match by areaId for reliable lookup
               const lineItem = areaUpgradeCosts.lineItems.find(l => l.areaId === u.areaId);
               const materialCost = lineItem?.cost || 0;
               const heatedCost = lineItem?.heatedCost || 0;
               return `
-              <tr style="border-bottom: 1px solid rgba(255,255,255,0.2);">
-                <td style="padding: 8px 0;">${escapeHtml(AREA_NAMES[u.areaId] || u.areaId)}</td>
-                <td style="padding: 8px 0;">${escapeHtml(MATERIAL_NAMES[u.materialType] || u.materialType)}</td>
-                <td style="padding: 8px 0;">${escapeHtml(u.productName) || 'N/A'}</td>
-                <td style="padding: 8px 0;">${escapeHtml(u.productColor) || 'N/A'}</td>
-                <td style="padding: 8px 0;">${u.heatedFloor ? '<strong style="color: #ffd700;">Yes (+$' + heatedFloorPrice.toFixed(0) + ')</strong>' : 'No'}</td>
-                <td style="padding: 8px 0; text-align: right; font-weight: bold;">$${(materialCost + heatedCost).toFixed(2)}</td>
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 10px 8px; color: #000000;">${escapeHtml(AREA_NAMES[u.areaId] || u.areaId)}</td>
+                <td style="padding: 10px 8px; color: #000000;">${escapeHtml(MATERIAL_NAMES[u.materialType] || u.materialType)}</td>
+                <td style="padding: 10px 8px; color: #000000;">${escapeHtml(u.productName) || 'N/A'}</td>
+                <td style="padding: 10px 8px; color: #000000;">${escapeHtml(u.productColor) || 'N/A'}</td>
+                <td style="padding: 10px 8px; color: #000000;">${u.heatedFloor ? '<strong style="color: #000000;">Yes (+$' + heatedFloorPrice.toFixed(0) + ')</strong>' : 'No'}</td>
+                <td style="padding: 10px 8px; color: #000000; text-align: right; font-weight: bold;">$${(materialCost + heatedCost).toFixed(2)}</td>
               </tr>
-              ${u.comments ? `<tr><td colspan="6" style="padding: 4px 0 12px; font-size: 12px; font-style: italic;">Comments: ${escapeHtml(u.comments)}</td></tr>` : ''}
+              ${u.comments ? `<tr><td colspan="6" style="padding: 4px 8px 12px; color: #374151; font-size: 12px; font-style: italic;">Comments: ${escapeHtml(u.comments)}</td></tr>` : ''}
             `}).join('')}
-            <tr style="border-top: 2px solid rgba(255,255,255,0.5);">
-              <td colspan="5" style="padding: 12px 0 0; font-weight: bold;">Area Upgrades Subtotal:</td>
-              <td style="padding: 12px 0 0; text-align: right; font-weight: bold; font-size: 16px;">$${areaUpgradeCosts.subtotal.toFixed(2)}</td>
+            <tr style="border-top: 2px solid #1a1a2e; background: #f9fafb;">
+              <td colspan="5" style="padding: 12px 8px 0; color: #000000; font-weight: bold;">Area Upgrades Subtotal:</td>
+              <td style="padding: 12px 8px 0; color: #047857; text-align: right; font-weight: bold; font-size: 16px;">$${areaUpgradeCosts.subtotal.toFixed(2)}</td>
             </tr>
           </table>
         </div>
@@ -920,13 +965,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (data.backsplashGroutEnabled) {
       const groutWithGst = groutColorPrice * (1 + gstRate);
       groutHtml = `
-        <div class="section" style="background: #f39c12; color: white;">
-          <h2 style="color: white; margin-top: 0;">Custom Backsplash Grout Color</h2>
-          <table style="color: white;">
-            <tr><td><strong>Grout Color:</strong></td><td>${escapeHtml(data.backsplashGroutColor) || 'Not specified'}</td></tr>
-            <tr><td><strong>Cost:</strong></td><td>$${groutColorPrice.toFixed(2)} + GST ($${groutWithGst.toFixed(2)} total)</td></tr>
+        <div class="section" style="background: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #f59e0b;">
+          <h2 style="color: #000000; margin-top: 0;">Custom Backsplash Grout Color</h2>
+          <table style="color: #000000;">
+            <tr><td style="color: #000000;"><strong>Grout Color:</strong></td><td style="color: #000000;">${escapeHtml(data.backsplashGroutColor) || 'Not specified'}</td></tr>
+            <tr><td style="color: #000000;"><strong>Cost:</strong></td><td style="color: #000000;">$${groutColorPrice.toFixed(2)} + GST ($${groutWithGst.toFixed(2)} total)</td></tr>
           </table>
-          ${data.backsplashGroutComments ? `<p style="margin-top: 10px; font-size: 14px;"><em>Comments: ${escapeHtml(data.backsplashGroutComments)}</em></p>` : ''}
+          ${data.backsplashGroutComments ? `<p style="margin-top: 10px; color: #374151; font-size: 14px;"><em>Comments: ${escapeHtml(data.backsplashGroutComments)}</em></p>` : ''}
         </div>
       `;
     }
@@ -936,22 +981,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (data.stairLvpUpgradeSelected) {
       const stairLvpWithGst = stairLvpPrice * (1 + gstRate);
       stairUpgradeHtml = `
-        <div class="section" style="background: #27ae60; color: white;">
-          <h2 style="color: white; margin-top: 0;">Stair Flooring Upgrade</h2>
-          <table style="color: white;">
-            <tr><td><strong>Selection:</strong></td><td>LVP with Custom Stair Nosings</td></tr>
-            <tr><td><strong>Cost:</strong></td><td>$${stairLvpPrice.toFixed(2)} + GST ($${stairLvpWithGst.toFixed(2)} total)</td></tr>
+        <div class="section" style="background: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #047857;">
+          <h2 style="color: #000000; margin-top: 0;">Stair Flooring Upgrade</h2>
+          <table style="color: #000000;">
+            <tr><td style="color: #000000;"><strong>Selection:</strong></td><td style="color: #000000;">LVP with Custom Stair Nosings</td></tr>
+            <tr><td style="color: #000000;"><strong>Cost:</strong></td><td style="color: #000000;">$${stairLvpPrice.toFixed(2)} + GST ($${stairLvpWithGst.toFixed(2)} total)</td></tr>
           </table>
         </div>
       `;
     } else if (data.stairPremiumCarpetSelected) {
       const stairCarpetWithGst = stairCarpetUpgradePrice * (1 + gstRate);
       stairUpgradeHtml = `
-        <div class="section" style="background: #8e44ad; color: white;">
-          <h2 style="color: white; margin-top: 0;">Stair Flooring Upgrade</h2>
-          <table style="color: white;">
-            <tr><td><strong>Selection:</strong></td><td>Premium Carpet Upgrade</td></tr>
-            <tr><td><strong>Cost:</strong></td><td>$${stairCarpetUpgradePrice.toFixed(2)} + GST ($${stairCarpetWithGst.toFixed(2)} total)</td></tr>
+        <div class="section" style="background: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #1a1a2e;">
+          <h2 style="color: #000000; margin-top: 0;">Stair Flooring Upgrade</h2>
+          <table style="color: #000000;">
+            <tr><td style="color: #000000;"><strong>Selection:</strong></td><td style="color: #000000;">Premium Carpet Upgrade</td></tr>
+            <tr><td style="color: #000000;"><strong>Cost:</strong></td><td style="color: #000000;">$${stairCarpetUpgradePrice.toFixed(2)} + GST ($${stairCarpetWithGst.toFixed(2)} total)</td></tr>
           </table>
         </div>
       `;
@@ -1011,24 +1056,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
       
       upgradeSummaryHtml = `
-        <div class="section" style="background: #1a1a2e; color: white;">
-          <h2 style="color: white; margin-top: 0;">Complete Upgrade Summary</h2>
-          <table style="color: white; width: 100%;">
-            ${summaryItems.join('')}
-            <tr style="border-top: 2px solid rgba(255,255,255,0.3);">
-              <td style="padding: 12px 0 8px;">Subtotal (pre-GST)</td>
-              <td style="text-align: right; padding: 12px 0 8px;">$${grandSubtotal.toFixed(2)}</td>
+        <div class="section" style="background: #ffffff; border: 1px solid #d1d5db;">
+          <h2 style="color: #000000; margin-top: 0;">Complete Upgrade Summary</h2>
+          <table style="color: #000000; width: 100%; border-collapse: collapse;">
+            ${summaryItems.join('').replace(/text-align: right; font-weight: bold;">/g, 'text-align: right; font-weight: bold; color: #000000;">').replace(/<td style="padding: 8px 0;">/g, '<td style="padding: 10px 8px; color: #000000; border-bottom: 1px solid #e5e7eb;">')}
+            <tr style="border-top: 2px solid #d1d5db;">
+              <td style="padding: 12px 8px 8px; color: #000000;">Subtotal (pre-GST)</td>
+              <td style="text-align: right; padding: 12px 8px 8px; color: #000000;">$${grandSubtotal.toFixed(2)}</td>
             </tr>
             <tr>
-              <td style="padding: 8px 0;">GST (${(gstRate * 100).toFixed(0)}%)</td>
-              <td style="text-align: right; padding: 8px 0;">$${grandGst.toFixed(2)}</td>
+              <td style="padding: 8px; color: #000000;">GST (${(gstRate * 100).toFixed(0)}%)</td>
+              <td style="text-align: right; padding: 8px; color: #000000;">$${grandGst.toFixed(2)}</td>
             </tr>
-            <tr style="border-top: 2px solid rgba(255,255,255,0.5);">
-              <td style="padding: 12px 0; font-size: 18px; font-weight: bold;">GRAND TOTAL (incl. GST)</td>
-              <td style="text-align: right; padding: 12px 0; font-size: 20px; font-weight: bold; color: #10b981;">$${grandTotal.toFixed(2)}</td>
+            <tr style="border-top: 2px solid #1a1a2e;">
+              <td style="padding: 14px 8px; color: #000000; font-size: 18px; font-weight: bold;">GRAND TOTAL (incl. GST)</td>
+              <td style="text-align: right; padding: 14px 8px; font-size: 22px; font-weight: bold; color: #047857;">$${grandTotal.toFixed(2)}</td>
             </tr>
           </table>
-          <p style="margin-top: 12px; font-size: 11px; color: rgba(255,255,255,0.6);">* A 10% material overage is allowed on all quoted amounts.</p>
+          <p style="margin-top: 12px; font-size: 11px; color: #374151;">* A 10% material overage is allowed on all quoted amounts.</p>
         </div>
       `;
     }
@@ -1039,20 +1084,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
       <html>
       <head>
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 700px; margin: 0 auto; padding: 20px; }
-          h1 { color: #1a1a2e; border-bottom: 2px solid #e94560; padding-bottom: 10px; }
-          h2 { color: #16213e; margin-top: 25px; }
-          .section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
-          .label { font-weight: bold; color: #666; }
-          .value { color: #1a1a2e; }
-          .highlight { background: #e94560; color: white; padding: 10px 15px; border-radius: 5px; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #000000; background: #ffffff; }
+          .container { max-width: 700px; margin: 0 auto; padding: 20px; background: #ffffff; }
+          h1 { color: #000000; border-bottom: 2px solid #1a1a2e; padding-bottom: 10px; }
+          h2 { color: #000000; margin-top: 25px; }
+          .section { background: #ffffff; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #e5e7eb; color: #000000; }
+          .label { font-weight: bold; color: #000000; }
+          .value { color: #000000; }
+          .highlight { background: #ffffff; color: #000000; padding: 10px 15px; border-radius: 5px; border: 1px solid #e5e7eb; border-left: 4px solid #1a1a2e; }
           table { width: 100%; border-collapse: collapse; }
-          td { padding: 8px 0; border-bottom: 1px solid #eee; }
-          th { text-align: left; padding: 8px 0; }
-          .comments { background: #fff3cd; padding: 10px; border-radius: 5px; margin-top: 10px; }
-          .db-id { background: #d4edda; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
-          .csv-note { background: #e3f2fd; padding: 10px; border-radius: 5px; margin-top: 20px; font-size: 13px; }
+          td { padding: 8px 0; border-bottom: 1px solid #e5e7eb; color: #000000; }
+          th { text-align: left; padding: 8px 0; color: #000000; }
+          .comments { background: #fffbeb; padding: 10px; border-radius: 5px; margin-top: 10px; color: #000000; border: 1px solid #f59e0b; }
+          .db-id { background: #f0fdf4; padding: 10px; border-radius: 5px; margin-bottom: 20px; color: #000000; border: 1px solid #86efac; }
+          .csv-note { background: #eff6ff; padding: 10px; border-radius: 5px; margin-top: 20px; font-size: 13px; color: #000000; border: 1px solid #93c5fd; }
         </style>
       </head>
       <body>
@@ -1109,15 +1154,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
           ${stairUpgradeHtml}
 
           ${windowSubtotal > 0 ? `
-          <div class="section highlight">
-            <h2 style="color: white; margin-top: 0;">Window Covering Upgrades</h2>
-            <table style="color: white;">
-              ${data.additionalWindowsQty > 0 ? `<tr><td>Additional Windows (${data.additionalWindowsQty} × $${additionalWindowPrice.toFixed(2)}):</td><td style="text-align: right; font-weight: bold;">$${(data.additionalWindowsQty * additionalWindowPrice).toFixed(2)}</td></tr>` : ''}
-              ${data.patioDoorsQty > 0 ? `<tr><td>Patio Door Panel Track (${data.patioDoorsQty} × $${patioDoorPrice.toFixed(2)}):</td><td style="text-align: right; font-weight: bold;">$${(data.patioDoorsQty * patioDoorPrice).toFixed(2)}</td></tr>` : ''}
-              ${data.automatedWindowsQty > 0 ? `<tr><td>Somfy Automation (${data.automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)}):</td><td style="text-align: right; font-weight: bold;">$${(data.automatedWindowsQty * automatedMotorPrice).toFixed(2)}</td></tr>` : ''}
-              <tr style="border-top: 1px solid rgba(255,255,255,0.3);"><td style="padding-top: 8px;"><strong>Window Coverings Subtotal:</strong></td><td style="text-align: right; padding-top: 8px; font-weight: bold;">$${windowSubtotal.toFixed(2)}</td></tr>
+          <div class="section" style="background: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #1a1a2e;">
+            <h2 style="color: #000000; margin-top: 0;">Window Covering Upgrades</h2>
+            <table style="color: #000000; width: 100%; border-collapse: collapse;">
+              ${data.additionalWindowsQty > 0 ? `<tr><td style="padding: 8px; color: #000000; border-bottom: 1px solid #e5e7eb;">Additional Windows (${data.additionalWindowsQty} × $${additionalWindowPrice.toFixed(2)}):</td><td style="padding: 8px; color: #000000; text-align: right; font-weight: bold; border-bottom: 1px solid #e5e7eb;">$${(data.additionalWindowsQty * additionalWindowPrice).toFixed(2)}</td></tr>` : ''}
+              ${data.patioDoorsQty > 0 ? `<tr><td style="padding: 8px; color: #000000; border-bottom: 1px solid #e5e7eb;">Patio Door Panel Track (${data.patioDoorsQty} × $${patioDoorPrice.toFixed(2)}):</td><td style="padding: 8px; color: #000000; text-align: right; font-weight: bold; border-bottom: 1px solid #e5e7eb;">$${(data.patioDoorsQty * patioDoorPrice).toFixed(2)}</td></tr>` : ''}
+              ${data.automatedWindowsQty > 0 ? `<tr><td style="padding: 8px; color: #000000; border-bottom: 1px solid #e5e7eb;">Somfy Automation (${data.automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)}):</td><td style="padding: 8px; color: #000000; text-align: right; font-weight: bold; border-bottom: 1px solid #e5e7eb;">$${(data.automatedWindowsQty * automatedMotorPrice).toFixed(2)}</td></tr>` : ''}
+              <tr style="border-top: 2px solid #d1d5db;"><td style="padding: 12px 8px; color: #000000;"><strong>Window Coverings Subtotal:</strong></td><td style="padding: 12px 8px; color: #047857; text-align: right; font-weight: bold;">$${windowSubtotal.toFixed(2)}</td></tr>
             </table>
-            ${data.windowComments ? `<p style="margin-top: 10px; font-size: 14px;"><em>Notes: ${escapeHtml(data.windowComments)}</em></p>` : ''}
+            ${data.windowComments ? `<p style="margin-top: 10px; color: #374151; font-size: 14px;"><em>Notes: ${escapeHtml(data.windowComments)}</em></p>` : ''}
           </div>
           ` : ''}
 
@@ -1155,7 +1200,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           </div>
           ` : ''}
 
-          <p style="margin-top: 30px; color: #666; font-size: 12px;">
+          <p style="margin-top: 30px; color: #374151; font-size: 12px;">
             This email was automatically generated by the BMD Materials Selection Portal.
           </p>
         </div>
@@ -1374,18 +1419,18 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
   const standardSelectionsHtml = standardSelections.length > 0 ? `
     <tr>
       <td style="background: #ffffff; padding: 0 40px 30px;">
-        <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Your Standard Selections</h2>
-        <table role="presentation" style="width: 100%; border-collapse: collapse; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+        <h2 style="margin: 0 0 16px; color: #000000; font-size: 18px; font-weight: 600;">Your Standard Selections</h2>
+        <table role="presentation" style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
           ${standardSelections.map(item => `
             <tr>
-              <td style="padding: 14px 16px; border-bottom: 1px solid #f0f0f0; color: #666; font-size: 14px; width: 40%;">${escapeHtml(item.label)}</td>
-              <td style="padding: 14px 16px; border-bottom: 1px solid #f0f0f0; color: #1a1a2e; font-size: 14px; font-weight: 500;">
+              <td style="padding: 14px 16px; border-bottom: 1px solid #f0f0f0; color: #000000; font-size: 14px; font-weight: 600; width: 40%; background: #f9fafb;">${escapeHtml(item.label)}</td>
+              <td style="padding: 14px 16px; border-bottom: 1px solid #f0f0f0; color: #000000; font-size: 14px; font-weight: 500;">
                 ${escapeHtml(item.value)}
               </td>
             </tr>
           `).join('')}
         </table>
-        <p style="margin: 12px 0 0; color: #666; font-size: 13px; text-align: center;">Standard selections included with your home</p>
+        <p style="margin: 12px 0 0; color: #374151; font-size: 13px; text-align: center;">Standard selections included with your home</p>
       </td>
     </tr>
   ` : '';
@@ -1414,21 +1459,21 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     windowCoveringsHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Window Covering Upgrades</h2>
-          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-radius: 12px; overflow: hidden;">
-            <tr style="background: #0369a1;">
-              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: left; font-weight: 600;">Item</th>
-              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: center; font-weight: 600;">Qty</th>
+          <h2 style="margin: 0 0 16px; color: #000000; font-size: 18px; font-weight: 600;">Window Covering Upgrades</h2>
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+            <tr style="background: #f9fafb;">
+              <th style="padding: 12px 16px; color: #000000; font-size: 13px; text-align: left; font-weight: 700; border-bottom: 2px solid #d1d5db;">Item</th>
+              <th style="padding: 12px 16px; color: #000000; font-size: 13px; text-align: center; font-weight: 700; border-bottom: 2px solid #d1d5db;">Qty</th>
             </tr>
             ${windowItems.map(item => `
               <tr>
-                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(3,105,161,0.1); color: #0c4a6e; font-size: 14px;">${escapeHtml(item.item)}</td>
-                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(3,105,161,0.1); color: #0c4a6e; font-size: 14px; text-align: center; font-weight: 600;">${item.qty}</td>
+                <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #000000; font-size: 14px;">${escapeHtml(item.item)}</td>
+                <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #000000; font-size: 14px; text-align: center; font-weight: 600;">${item.qty}</td>
               </tr>
             `).join('')}
-            <tr style="background: #0369a1;">
-              <td style="padding: 14px 16px; color: white; font-size: 15px; font-weight: 600;">Total (incl. GST)</td>
-              <td style="padding: 14px 16px; color: #fbbf24; font-size: 18px; text-align: center; font-weight: 700;">$${data.windowTotal.toFixed(2)}</td>
+            <tr style="background: #f9fafb;">
+              <td style="padding: 14px 16px; color: #000000; font-size: 15px; font-weight: 600;">Total (incl. GST)</td>
+              <td style="padding: 14px 16px; color: #047857; font-size: 18px; text-align: center; font-weight: 700;">$${data.windowTotal.toFixed(2)}</td>
             </tr>
           </table>
         </td>
@@ -1450,19 +1495,19 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
       
       return `
         <tr>
-          <td style="padding: 14px 16px; border-bottom: 1px solid rgba(147,51,234,0.1);">
-            <div style="color: #581c87; font-size: 14px; font-weight: 600;">${escapeHtml(areaName)}</div>
-            <div style="color: #7e22ce; font-size: 12px; margin-top: 2px;">${escapeHtml(materialName)}</div>
+          <td style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb;">
+            <div style="color: #000000; font-size: 14px; font-weight: 600;">${escapeHtml(areaName)}</div>
+            <div style="color: #374151; font-size: 12px; margin-top: 2px;">${escapeHtml(materialName)}</div>
           </td>
-          <td style="padding: 14px 16px; border-bottom: 1px solid rgba(147,51,234,0.1);">
-            <div style="color: #581c87; font-size: 14px;">${escapeHtml(upgrade.productName) || 'Standard'}</div>
-            ${upgrade.productColor ? `<div style="color: #9333ea; font-size: 12px; margin-top: 2px;">Color: ${escapeHtml(upgrade.productColor)}</div>` : ''}
+          <td style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb;">
+            <div style="color: #000000; font-size: 14px;">${escapeHtml(upgrade.productName) || 'Standard'}</div>
+            ${upgrade.productColor ? `<div style="color: #374151; font-size: 12px; margin-top: 2px;">Color: ${escapeHtml(upgrade.productColor)}</div>` : ''}
           </td>
-          <td style="padding: 14px 16px; border-bottom: 1px solid rgba(147,51,234,0.1); text-align: center;">
-            ${upgrade.heatedFloor ? `<span style="background: #fbbf24; color: #78350f; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">+$${pricing.heatedFloorPrice.toFixed(0)}</span>` : '<span style="color: #a1a1aa; font-size: 12px;">—</span>'}
+          <td style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb; text-align: center;">
+            ${upgrade.heatedFloor ? `<span style="background: #fef3c7; color: #000000; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; border: 1px solid #f59e0b;">+$${pricing.heatedFloorPrice.toFixed(0)}</span>` : '<span style="color: #6b7280; font-size: 12px;">—</span>'}
           </td>
-          <td style="padding: 14px 16px; border-bottom: 1px solid rgba(147,51,234,0.1); text-align: right;">
-            <div style="color: #581c87; font-size: 14px; font-weight: 700;">$${totalCost.toFixed(2)}</div>
+          <td style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb; text-align: right;">
+            <div style="color: #000000; font-size: 14px; font-weight: 700;">$${totalCost.toFixed(2)}</div>
           </td>
         </tr>
       `;
@@ -1471,19 +1516,19 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     areaUpgradesHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Premium Area Upgrades</h2>
-          ${data.upgradeFloorSelection ? `<p style="margin: 0 0 12px; color: #7e22ce; font-size: 14px; background: #faf5ff; padding: 10px 14px; border-radius: 6px;"><strong>Floor Selection:</strong> Floor ${escapeHtml(data.upgradeFloorSelection)}</p>` : ''}
-          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-radius: 12px; overflow: hidden;">
-            <tr style="background: linear-gradient(135deg, #9333ea 0%, #7e22ce 100%);">
-              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: left; font-weight: 600;">Area</th>
-              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: left; font-weight: 600;">Product</th>
-              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: center; font-weight: 600;">Heated</th>
-              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: right; font-weight: 600;">Cost</th>
+          <h2 style="margin: 0 0 16px; color: #000000; font-size: 18px; font-weight: 600;">Premium Area Upgrades</h2>
+          ${data.upgradeFloorSelection ? `<p style="margin: 0 0 12px; color: #000000; font-size: 14px; background: #f9fafb; padding: 10px 14px; border-radius: 6px; border: 1px solid #e5e7eb;"><strong>Floor Selection:</strong> Floor ${escapeHtml(data.upgradeFloorSelection)}</p>` : ''}
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+            <tr style="background: #f9fafb;">
+              <th style="padding: 12px 16px; color: #000000; font-size: 13px; text-align: left; font-weight: 700; border-bottom: 2px solid #d1d5db;">Area</th>
+              <th style="padding: 12px 16px; color: #000000; font-size: 13px; text-align: left; font-weight: 700; border-bottom: 2px solid #d1d5db;">Product</th>
+              <th style="padding: 12px 16px; color: #000000; font-size: 13px; text-align: center; font-weight: 700; border-bottom: 2px solid #d1d5db;">Heated</th>
+              <th style="padding: 12px 16px; color: #000000; font-size: 13px; text-align: right; font-weight: 700; border-bottom: 2px solid #d1d5db;">Cost</th>
             </tr>
             ${upgradeRows}
-            <tr style="background: linear-gradient(135deg, #7e22ce 0%, #581c87 100%);">
-              <td colspan="3" style="padding: 14px 16px; color: white; font-size: 14px; font-weight: 600;">Area Upgrades Subtotal</td>
-              <td style="padding: 14px 16px; color: #fbbf24; font-size: 16px; text-align: right; font-weight: 700;">$${pricing.areaUpgradeCosts.subtotal.toFixed(2)}</td>
+            <tr style="background: #f9fafb;">
+              <td colspan="3" style="padding: 14px 16px; color: #000000; font-size: 14px; font-weight: 700; border-top: 2px solid #d1d5db;">Area Upgrades Subtotal</td>
+              <td style="padding: 14px 16px; color: #047857; font-size: 16px; text-align: right; font-weight: 700; border-top: 2px solid #d1d5db;">$${pricing.areaUpgradeCosts.subtotal.toFixed(2)}</td>
             </tr>
           </table>
         </td>
@@ -1498,18 +1543,18 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     groutHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Custom Backsplash Grout</h2>
-          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 12px; overflow: hidden;">
+          <h2 style="margin: 0 0 16px; color: #000000; font-size: 18px; font-weight: 600;">Custom Backsplash Grout</h2>
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background: #fffbeb; border: 1px solid #f59e0b; border-radius: 12px; overflow: hidden;">
             <tr>
               <td style="padding: 16px 20px;">
                 <table role="presentation" style="width: 100%; border-collapse: collapse;">
                   <tr>
-                    <td style="color: #92400e; font-size: 14px; padding: 8px 0;"><strong>Grout Color:</strong></td>
-                    <td style="color: #78350f; font-size: 14px; font-weight: 600; padding: 8px 0;">${escapeHtml(data.backsplashGroutColor) || 'To be confirmed'}</td>
+                    <td style="color: #000000; font-size: 14px; padding: 8px 0;"><strong>Grout Color:</strong></td>
+                    <td style="color: #000000; font-size: 14px; font-weight: 600; padding: 8px 0;">${escapeHtml(data.backsplashGroutColor) || 'To be confirmed'}</td>
                   </tr>
                   <tr>
-                    <td style="color: #92400e; font-size: 14px; padding: 8px 0;"><strong>Cost:</strong></td>
-                    <td style="color: #78350f; font-size: 16px; font-weight: 700; padding: 8px 0;">$${groutWithGst.toFixed(2)} <span style="font-size: 12px; font-weight: 400;">(incl. GST)</span></td>
+                    <td style="color: #000000; font-size: 14px; padding: 8px 0;"><strong>Cost:</strong></td>
+                    <td style="color: #000000; font-size: 16px; font-weight: 700; padding: 8px 0;">$${groutWithGst.toFixed(2)} <span style="font-size: 12px; font-weight: 400; color: #374151;">(incl. GST)</span></td>
                   </tr>
                 </table>
               </td>
@@ -1531,14 +1576,14 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     heatedFloorsHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Heated Tile Floors</h2>
-          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%); border-radius: 12px;">
+          <h2 style="margin: 0 0 16px; color: #000000; font-size: 18px; font-weight: 600;">Heated Tile Floors</h2>
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background: #fef2f2; border: 1px solid #fca5a5; border-radius: 12px;">
             <tr>
               <td style="padding: 20px;">
                 <table role="presentation" style="width: 100%; border-collapse: collapse;">
                   <tr>
-                    <td style="color: #991b1b; font-size: 14px;"><strong>Bathrooms with Heated Floors:</strong></td>
-                    <td style="color: #7f1d1d; font-size: 20px; font-weight: 700; text-align: right;">${data.heatedFloorBathrooms} bathroom${data.heatedFloorBathrooms > 1 ? 's' : ''}</td>
+                    <td style="color: #000000; font-size: 14px;"><strong>Bathrooms with Heated Floors:</strong></td>
+                    <td style="color: #000000; font-size: 20px; font-weight: 700; text-align: right;">${data.heatedFloorBathrooms} bathroom${data.heatedFloorBathrooms > 1 ? 's' : ''}</td>
                   </tr>
                 </table>
               </td>
@@ -1559,13 +1604,13 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     upgradeInterestsHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Additional Interests</h2>
-          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 16px 20px;">
-            <p style="margin: 0; color: #166534; font-size: 14px;">You've expressed interest in learning more about:</p>
-            <div style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
-              ${interests.map(interest => `<span style="display: inline-block; background: #dcfce7; color: #15803d; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 500;">${escapeHtml(interest)}</span>`).join(' ')}
+          <h2 style="margin: 0 0 16px; color: #000000; font-size: 18px; font-weight: 600;">Additional Interests</h2>
+          <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 12px; padding: 16px 20px;">
+            <p style="margin: 0; color: #000000; font-size: 14px;">You've expressed interest in learning more about:</p>
+            <div style="margin-top: 12px;">
+              ${interests.map(interest => `<span style="display: inline-block; background: #ffffff; color: #000000; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 500; border: 1px solid #86efac; margin: 0 6px 6px 0;">${escapeHtml(interest)}</span>`).join(' ')}
             </div>
-            <p style="margin: 12px 0 0; color: #16a34a; font-size: 12px;">Our team will reach out to discuss these options with you.</p>
+            <p style="margin: 12px 0 0; color: #000000; font-size: 12px;">Our team will reach out to discuss these options with you.</p>
           </div>
         </td>
       </tr>
@@ -1797,15 +1842,15 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
                         <table role="presentation" style="width: 100%; border-collapse: collapse;">
                           <tr>
                             <td style="width: 33%;">
-                              <p style="margin: 0 0 4px; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Unit Number</p>
+                              <p style="margin: 0 0 4px; color: #374151; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Unit Number</p>
                               <p style="margin: 0; color: #1a1a2e; font-size: 20px; font-weight: 700;">${escapeHtml(data.unitNumber)}</p>
                             </td>
                             <td style="width: 33%;">
-                              <p style="margin: 0 0 4px; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Unit Type</p>
+                              <p style="margin: 0 0 4px; color: #374151; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Unit Type</p>
                               <p style="margin: 0; color: #1a1a2e; font-size: 20px; font-weight: 700;">${escapeHtml(data.unitType || 'N/A')}</p>
                             </td>
                             <td style="width: 33%;">
-                              <p style="margin: 0 0 4px; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Has Stairs</p>
+                              <p style="margin: 0 0 4px; color: #374151; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Has Stairs</p>
                               <p style="margin: 0; color: #1a1a2e; font-size: 20px; font-weight: 700;">${data.hasStairs ? 'Yes' : 'No'}</p>
                             </td>
                           </tr>
@@ -1843,12 +1888,12 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
               <!-- Reference Number -->
               <tr>
                 <td style="background: #ffffff; padding: 0 40px 30px;">
-                  <table role="presentation" style="width: 100%; border-collapse: collapse; background: #fff8e6; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                  <table role="presentation" style="width: 100%; border-collapse: collapse; background: #fffbeb; border-radius: 8px; border: 1px solid #f59e0b; border-left: 4px solid #f59e0b;">
                     <tr>
                       <td style="padding: 16px 20px;">
-                        <p style="margin: 0 0 4px; color: #92400e; font-size: 12px; text-transform: uppercase; font-weight: 600;">Your Reference Number</p>
-                        <p style="margin: 0; color: #78350f; font-size: 16px; font-family: monospace; font-weight: 600;">${escapeHtml(selectionId || 'Pending')}</p>
-                        <p style="margin: 8px 0 0; color: #a16207; font-size: 13px;">Please save this for your records</p>
+                        <p style="margin: 0 0 4px; color: #000000; font-size: 12px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Your Reference Number</p>
+                        <p style="margin: 0; color: #000000; font-size: 16px; font-family: monospace; font-weight: 600;">${escapeHtml(selectionId || 'Pending')}</p>
+                        <p style="margin: 8px 0 0; color: #374151; font-size: 13px;">Please save this for your records</p>
                       </td>
                     </tr>
                   </table>
@@ -1869,7 +1914,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
                             </td>
                             <td style="padding-left: 12px;">
                               <p style="margin: 0; color: #1a1a2e; font-size: 14px; font-weight: 500;">Review by our team</p>
-                              <p style="margin: 4px 0 0; color: #666; font-size: 13px;">We'll verify your selections and prepare any upgrade quotes</p>
+                              <p style="margin: 4px 0 0; color: #374151; font-size: 13px;">We'll verify your selections and prepare any upgrade quotes</p>
                             </td>
                           </tr>
                         </table>
@@ -1884,7 +1929,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
                             </td>
                             <td style="padding-left: 12px;">
                               <p style="margin: 0; color: #1a1a2e; font-size: 14px; font-weight: 500;">We'll be in touch</p>
-                              <p style="margin: 4px 0 0; color: #666; font-size: 13px;">If any clarification is needed or to discuss upgrade options</p>
+                              <p style="margin: 4px 0 0; color: #374151; font-size: 13px;">If any clarification is needed or to discuss upgrade options</p>
                             </td>
                           </tr>
                         </table>
@@ -1899,7 +1944,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
                             </td>
                             <td style="padding-left: 12px;">
                               <p style="margin: 0; color: #1a1a2e; font-size: 14px; font-weight: 500;">Payment of Upgrades</p>
-                              <p style="margin: 4px 0 0; color: #666; font-size: 13px;">A BMD associate will be in touch to collect payment for your upgrades prior to materials being ordered, which may be 3-5 months prior to your possession date.</p>
+                              <p style="margin: 4px 0 0; color: #374151; font-size: 13px;">A BMD associate will be in touch to collect payment for your upgrades prior to materials being ordered, which may be 3-5 months prior to your possession date.</p>
                             </td>
                           </tr>
                         </table>
@@ -1914,7 +1959,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
                             </td>
                             <td style="padding-left: 12px;">
                               <p style="margin: 0; color: #1a1a2e; font-size: 14px; font-weight: 500;">Installation Coordination</p>
-                              <p style="margin: 4px 0 0; color: #666; font-size: 13px;">Materials will be ordered and scheduled for your possession date</p>
+                              <p style="margin: 4px 0 0; color: #374151; font-size: 13px;">Materials will be ordered and scheduled for your possession date</p>
                             </td>
                           </tr>
                         </table>
@@ -1931,7 +1976,7 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
                     <tr>
                       <td style="padding: 24px; text-align: center;">
                         <p style="margin: 0 0 8px; color: #1a1a2e; font-size: 15px; font-weight: 500;">Questions about your selections?</p>
-                        <p style="margin: 0; color: #666; font-size: 14px;">Contact us at <a href="mailto:office@bmdmaterials.com" style="color: #e94560; text-decoration: none; font-weight: 500;">office@bmdmaterials.com</a></p>
+                        <p style="margin: 0; color: #374151; font-size: 14px;">Contact us at <a href="mailto:office@bmdmaterials.com" style="color: #e94560; text-decoration: none; font-weight: 500;">office@bmdmaterials.com</a></p>
                       </td>
                     </tr>
                   </table>
@@ -1954,4 +1999,126 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     </body>
     </html>
   `;
+}
+// =====================================================================
+// Preview / Test helpers — render buyer/admin emails with sample data
+// so we can render in a browser or send a one-off test email to verify
+// legibility in Gmail/Outlook before any real submissions go out.
+// =====================================================================
+
+function buildPreviewSampleData(overrides: Record<string, unknown>): SelectionData {
+  const base: SelectionData = {
+    unitNumber: '00',
+    unitType: 'Type C (Preview)',
+    firstName: 'Sample',
+    lastName: 'Buyer',
+    phoneNumber: '555-0100',
+    email: 'preview@example.com',
+    estimatedPossessionDate: new Date().toISOString(),
+    hasStairs: true,
+    lvpColour: 'Cortland',
+    lvpComments: '',
+    spcTileColour: 'Frost White',
+    spcTileComments: '',
+    backsplashOrientation: 'Stacked',
+    stairCarpetColour: 'Standard',
+    stairLvpUpgradeSelected: false,
+    stairPremiumCarpetSelected: true,
+    stairUpgradeType: 'standard',
+    premiumCarpetBedroom: true,
+    premiumUnderpadBedroom: true,
+    premiumUnderpadStairs: true,
+    bedroomFlooringChoice: 'lvp',
+    bedroomCarpetColour: null,
+    bedroomLvpColour: 'Cortland',
+    bedroomLvpSameAsMain: true,
+    additionalWindowsQty: 2,
+    patioDoorsQty: 1,
+    automatedWindowsQty: 2,
+    windowComments: '',
+    salesComments: 'Preview submission — used to verify email legibility.',
+    upgradeInterests: { 'heated-tile-floor': true, 'custom-shower': true },
+    windowTotal: 4960.5,
+    hardwoodUpgradeSelected: false,
+    bathroomTileSelected: true,
+    heatedFloorBathrooms: 2,
+    customTiledShower: true,
+    areaUpgrades: [],
+    upgradeFloorSelection: null,
+    backsplashGroutEnabled: true,
+    backsplashGroutColor: 'Charcoal',
+    backsplashGroutComments: '',
+    upgradeComments: '',
+    upgradeInterestsNotes: '',
+    documentUploads: [],
+  };
+  return { ...base, ...(overrides as Partial<SelectionData>) };
+}
+
+function buildPreviewPricing(): BuyerEmailPricing {
+  return {
+    additionalWindowPrice: 673.5,
+    patioDoorPrice: 2680.5,
+    automatedMotorPrice: 645,
+    heatedFloorPrice: 1500,
+    stairLvpPrice: 2500,
+    stairCarpetUpgradePrice: 1200,
+    groutColorPrice: 300,
+    gstRate: 0.05,
+    areaUpgradeCosts: { lineItems: [], subtotal: 0 },
+    premiumCarpetBedroomSubtotal: 2000,
+    underpadBedroomSubtotal: 480,
+    underpadStairsSubtotal: 165,
+    bathroomTileSubtotal: 3200,
+    bathroomGuestSqft: 40,
+    bathroomEnsuiteSqft: 60,
+    tileCostPerSqft: 20,
+    section4HeatedFloorSubtotal: 3000,
+    heatedFloorBathroomCount: 2,
+    customTiledShowerSubtotal: 4500,
+    showerBaseCost: 2812.5,
+    markupPercentage: 0.6,
+  };
+}
+
+function renderPreviewBuyerHtml(data: SelectionData): string {
+  return generateBuyerConfirmationEmail(data, 'PREVIEW-0000', buildPreviewPricing());
+}
+
+function renderPreviewAdminHtml(data: SelectionData): string {
+  // Minimal admin shell using shared theme — mirrors the real admin email's
+  // light/black palette so QA can verify legibility without a real submission.
+  const p = buildPreviewPricing();
+  const lines: Array<[string, number]> = [
+    ['Premium Carpet (Bedrooms)', p.premiumCarpetBedroomSubtotal],
+    ['Premium Underpad (Bedrooms)', p.underpadBedroomSubtotal],
+    ['Premium Underpad (Stairs)', p.underpadStairsSubtotal],
+    [`Additional Windows (${data.additionalWindowsQty} × $${p.additionalWindowPrice.toFixed(2)})`, data.additionalWindowsQty * p.additionalWindowPrice],
+    [`Patio Door Panel Track (${data.patioDoorsQty} × $${p.patioDoorPrice.toFixed(2)})`, data.patioDoorsQty * p.patioDoorPrice],
+    [`Somfy Automation (${data.automatedWindowsQty} × $${p.automatedMotorPrice.toFixed(2)})`, data.automatedWindowsQty * p.automatedMotorPrice],
+    ['Custom Backsplash Grout (Charcoal)', p.groutColorPrice],
+    ['Porcelain Tile Floor Upgrade', p.bathroomTileSubtotal],
+    [`Heated Tile Floor (${p.heatedFloorBathroomCount} bathrooms)`, p.section4HeatedFloorSubtotal],
+    ['Custom Tiled Shower', p.customTiledShowerSubtotal],
+  ];
+  const subtotal = lines.reduce((s, [, v]) => s + v, 0);
+  const gst = subtotal * p.gstRate;
+  const total = subtotal + gst;
+  const rows = lines.map(([l, v]) =>
+    `<tr><td style="padding:10px 8px; color:#000000; border-bottom:1px solid #e5e7eb;">${escapeHtml(l)}</td><td style="padding:10px 8px; color:#000000; text-align:right; font-weight:600; border-bottom:1px solid #e5e7eb;">$${v.toFixed(2)}</td></tr>`
+  ).join('');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Admin Email Preview</title></head>
+<body style="margin:0; padding:24px; background:#f9fafb; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif; color:#000000;">
+  <div style="max-width:700px; margin:0 auto; background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; padding:32px;">
+    <h1 style="margin:0 0 8px; color:#000000; font-size:22px;">New Selection Submission (Preview)</h1>
+    <p style="margin:0 0 20px; color:#374151; font-size:13px;">Unit ${escapeHtml(data.unitNumber)} — ${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}</p>
+    <h2 style="color:#000000; font-size:16px; margin:0 0 12px;">Complete Upgrade Summary</h2>
+    <table style="width:100%; border-collapse:collapse; color:#000000;">
+      ${rows}
+      <tr><td style="padding:12px 8px; color:#000000; border-top:2px solid #d1d5db;">Subtotal (pre-GST)</td><td style="padding:12px 8px; color:#000000; text-align:right; border-top:2px solid #d1d5db;">$${subtotal.toFixed(2)}</td></tr>
+      <tr><td style="padding:8px; color:#000000;">GST (5%)</td><td style="padding:8px; color:#000000; text-align:right;">$${gst.toFixed(2)}</td></tr>
+      <tr><td style="padding:14px 8px; color:#000000; font-size:18px; font-weight:700; border-top:2px solid #1a1a2e;">GRAND TOTAL (incl. GST)</td><td style="padding:14px 8px; color:#047857; font-size:22px; font-weight:700; text-align:right; border-top:2px solid #1a1a2e;">$${total.toFixed(2)}</td></tr>
+    </table>
+  </div>
+</body></html>`;
 }

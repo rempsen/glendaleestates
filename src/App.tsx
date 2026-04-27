@@ -17,6 +17,7 @@ import AdminReports from "./pages/AdminReports";
 import AdminExport from "./pages/AdminExport";
 import AdminPricingControl from "./pages/AdminPricingControl";
 import AdminUsers from "./pages/AdminUsers";
+import AdminEmailPreview from "./pages/AdminEmailPreview";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
