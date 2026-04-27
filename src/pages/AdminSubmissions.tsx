@@ -41,7 +41,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X, DollarSign, Trash2, Mail, GitCompare, History, Send } from 'lucide-react';
+import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X, DollarSign, Trash2, Mail, GitCompare, History, Send, AlertTriangle } from 'lucide-react';
 import { generateSubmissionPDF } from '@/lib/submissionPdfGenerator';
 import { generateBuyerPreviewPDF } from '@/lib/buyerPdfGenerator';
 import { format } from 'date-fns';
