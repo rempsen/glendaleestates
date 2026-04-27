@@ -59,6 +59,7 @@ export const WIDGET_CATALOG: { type: WidgetType; title: string; defaultSize: { w
   { type: 'alerts', title: 'Action Alerts', defaultSize: { w: 4, h: 4 }, minSize: { w: 3, h: 3 } },
   { type: 'possession-calendar', title: 'Possession Calendar', defaultSize: { w: 6, h: 5 }, minSize: { w: 4, h: 4 } },
   { type: 'material-popularity', title: 'Material Popularity', defaultSize: { w: 6, h: 4 }, minSize: { w: 4, h: 3 } },
+  { type: 'unknown-area-comments', title: 'Unknown Area Comments', defaultSize: { w: 6, h: 4 }, minSize: { w: 4, h: 3 } },
 ];
 
 export const DEFAULT_LAYOUT: WidgetConfig[] = [
