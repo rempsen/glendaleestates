@@ -1498,18 +1498,18 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     groutHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Custom Backsplash Grout</h2>
-          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 12px; overflow: hidden;">
+          <h2 style="margin: 0 0 16px; color: #000000; font-size: 18px; font-weight: 600;">Custom Backsplash Grout</h2>
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background: #fffbeb; border: 1px solid #f59e0b; border-radius: 12px; overflow: hidden;">
             <tr>
               <td style="padding: 16px 20px;">
                 <table role="presentation" style="width: 100%; border-collapse: collapse;">
                   <tr>
-                    <td style="color: #92400e; font-size: 14px; padding: 8px 0;"><strong>Grout Color:</strong></td>
-                    <td style="color: #78350f; font-size: 14px; font-weight: 600; padding: 8px 0;">${escapeHtml(data.backsplashGroutColor) || 'To be confirmed'}</td>
+                    <td style="color: #000000; font-size: 14px; padding: 8px 0;"><strong>Grout Color:</strong></td>
+                    <td style="color: #000000; font-size: 14px; font-weight: 600; padding: 8px 0;">${escapeHtml(data.backsplashGroutColor) || 'To be confirmed'}</td>
                   </tr>
                   <tr>
-                    <td style="color: #92400e; font-size: 14px; padding: 8px 0;"><strong>Cost:</strong></td>
-                    <td style="color: #78350f; font-size: 16px; font-weight: 700; padding: 8px 0;">$${groutWithGst.toFixed(2)} <span style="font-size: 12px; font-weight: 400;">(incl. GST)</span></td>
+                    <td style="color: #000000; font-size: 14px; padding: 8px 0;"><strong>Cost:</strong></td>
+                    <td style="color: #000000; font-size: 16px; font-weight: 700; padding: 8px 0;">$${groutWithGst.toFixed(2)} <span style="font-size: 12px; font-weight: 400; color: #374151;">(incl. GST)</span></td>
                   </tr>
                 </table>
               </td>
