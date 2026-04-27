@@ -43,7 +43,7 @@ import { SubmissionProgress, SubmissionStep } from '@/components/SubmissionProgr
 import tileStackedImg from '@/assets/tile-stacked.jpg';
 import tileBrickedImg from '@/assets/tile-bricked.jpg';
 import tileHorizontalImg from '@/assets/tile-horizontal.jpg';
-import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Download, LogOut, Palette, Play, ExternalLink, Save, Clock, Paperclip } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Home, Send, Info, Building2, MapPin, Download, LogOut, Palette, Play, ExternalLink, Save, Clock, Paperclip, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { User } from '@supabase/supabase-js';
 import panelTrackBlindsImg from '@/assets/panel-track-blinds.png';
@@ -233,6 +233,37 @@ export default function SelectionWizard() {
     await supabase.auth.signOut();
     navigate('/draft-saved');
   };
+
+  // Section 3 (LVP) and Section 4 (SPC Tile) comment-coverage warnings.
+  // Detect when the buyer typed an area-upgrade comment that semantically belongs
+  // to one of these sections but left the section's own Notes field blank — the
+  // pattern that historically caused notes to be perceived as "missing".
+  const LVP_RELATED_AREA_IDS = useMemo(
+    () => new Set(['allLvp', 'mainLiving', 'secondBedroom', 'masterBedroom']),
+    [],
+  );
+  const TILE_RELATED_AREA_IDS = useMemo(
+    () => new Set(['guestBathroom', 'masterEnsuite', 'laundry']),
+    [],
+  );
+  const lvpRelatedAreaComments = useMemo(
+    () =>
+      (selections.areaUpgrades || []).filter(
+        (u) => u && u.comments && u.comments.trim() && LVP_RELATED_AREA_IDS.has(u.areaId),
+      ),
+    [selections.areaUpgrades, LVP_RELATED_AREA_IDS],
+  );
+  const tileRelatedAreaComments = useMemo(
+    () =>
+      (selections.areaUpgrades || []).filter(
+        (u) => u && u.comments && u.comments.trim() && TILE_RELATED_AREA_IDS.has(u.areaId),
+      ),
+    [selections.areaUpgrades, TILE_RELATED_AREA_IDS],
+  );
+  const showLvpCommentWarning =
+    !selections.lvpComments.trim() && lvpRelatedAreaComments.length > 0;
+  const showTileCommentWarning =
+    !selections.spcTileComments.trim() && tileRelatedAreaComments.length > 0;
 
   // Check authentication on mount
   useEffect(() => {
@@ -1442,6 +1473,33 @@ export default function SelectionWizard() {
                   onChange={(e) => updateSelection('lvpComments', e.target.value)}
                   className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 />
+                {showLvpCommentWarning && (
+                  <div
+                    role="status"
+                    className="mt-3 flex gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+                  >
+                    <AlertCircle className="h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
+                    <div className="space-y-1">
+                      <p className="font-medium">A note for our records?</p>
+                      <p>
+                        You added flooring upgrade notes later in the wizard but haven't left
+                        any general comments here. If those notes also describe what you'd
+                        like for your <strong>main floor LVP</strong>, please summarize them
+                        in this field so our team doesn't miss anything.
+                      </p>
+                      <ul className="list-disc pl-5 text-amber-800">
+                        {lvpRelatedAreaComments.map((u, i) => (
+                          <li key={i} className="truncate">
+                            <span className="font-medium">
+                              {AREA_DEFINITIONS.find((a) => a.id === u.areaId)?.name || u.areaId}:
+                            </span>{' '}
+                            {u.comments}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </StepContainer>
@@ -1648,6 +1706,33 @@ export default function SelectionWizard() {
                   onChange={(e) => updateSelection('spcTileComments', e.target.value)}
                   className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 />
+                {showTileCommentWarning && (
+                  <div
+                    role="status"
+                    className="mt-3 flex gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+                  >
+                    <AlertCircle className="h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
+                    <div className="space-y-1">
+                      <p className="font-medium">A note for our records?</p>
+                      <p>
+                        You added bathroom or laundry tile upgrade notes later in the wizard
+                        but haven't left any general comments here. If those notes also
+                        describe what you'd like for your <strong>bathroom or laundry tile</strong>,
+                        please summarize them in this field so our team doesn't miss anything.
+                      </p>
+                      <ul className="list-disc pl-5 text-amber-800">
+                        {tileRelatedAreaComments.map((u, i) => (
+                          <li key={i} className="truncate">
+                            <span className="font-medium">
+                              {AREA_DEFINITIONS.find((a) => a.id === u.areaId)?.name || u.areaId}:
+                            </span>{' '}
+                            {u.comments}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </StepContainer>
