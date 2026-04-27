@@ -17,7 +17,8 @@ import {
   LogOut,
   DollarSign,
   Users,
-  Download
+  Download,
+  Mail
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -36,6 +37,7 @@ const navItems = [
   { icon: Download, label: 'Export', path: '/admin/export' },
   { icon: DollarSign, label: 'Pricing Control', path: '/admin/pricing' },
   { icon: Users, label: 'User Management', path: '/admin/users' },
+  { icon: Mail, label: 'Email Preview', path: '/admin/email-preview' },
 ];
 
 export function AdminLayout({ children }: AdminLayoutProps) {
