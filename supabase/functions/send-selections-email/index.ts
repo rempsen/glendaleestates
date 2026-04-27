@@ -1860,57 +1860,128 @@ function buildPreviewSampleData(overrides: Record<string, unknown>): SelectionDa
   return { ...base, ...(overrides as Partial<SelectionData>) };
 }
 
-function buildPreviewPricing(): BuyerEmailPricing {
+// Sample pricing config that mirrors the real DB-backed pricing object
+// the production flow loads. Used only by preview/test endpoints so we
+// can exercise computeUpgradeTotalsServer() — the SAME function that
+// drives real emails — and guarantee the preview math matches production.
+function buildPreviewServerPricing() {
   return {
-    additionalWindowPrice: 673.5,
-    patioDoorPrice: 2680.5,
-    automatedMotorPrice: 645,
-    heatedFloorPrice: 1500,
-    stairLvpPrice: 2500,
-    stairCarpetUpgradePrice: 1200,
-    groutColorPrice: 300,
-    gstRate: 0.05,
-    areaUpgradeCosts: { lineItems: [], subtotal: 0 },
-    premiumCarpetBedroomSubtotal: 2000,
-    underpadBedroomSubtotal: 480,
-    underpadStairsSubtotal: 165,
-    bathroomTileSubtotal: 3200,
-    bathroomGuestSqft: 40,
-    bathroomEnsuiteSqft: 60,
-    tileCostPerSqft: 20,
-    section4HeatedFloorSubtotal: 3000,
-    heatedFloorBathroomCount: 2,
-    customTiledShowerSubtotal: 4500,
-    showerBaseCost: 2812.5,
+    materials: {
+      lvp: 4.5,
+      lvt: 5.0,
+      tile: 17.0,
+      carpet: 3.5,
+      hardwood: 9.0,
+      tiled_shower: 5250.0,
+      nonstandard_lvp: 5.0,
+      nonstandard_lvt: 5.5,
+      nonstandard_tile: 18.0,
+    },
+    config: {
+      additional_window_price: 673.5,
+      patio_door_price: 2347.8,
+      automated_motor_price: 645.0,
+      heated_floor_per_bathroom: 1850.0,
+      stair_lvp_upgrade_price: 2160.0,
+      stair_premium_lvp_upgrade_price: 3145.0,
+      premium_carpet_stairs_price: 640.0,
+      grout_color_change_price: 300.0,
+    },
+    unitAreas: {
+      C: {
+        mainLiving: 600,
+        secondBedroom: 120,
+        masterBedroom: 180,
+        masterBedroomLvp: 180,
+        guestBathroom: 55,
+        masterEnsuite: 80,
+        laundry: 25,
+        backsplash: 35,
+      },
+    },
     markupPercentage: 0.6,
+    gstRate: 0.05,
   };
 }
 
+function buildPreviewTotals(data: SelectionData): ServerTotalsResult {
+  const pricing = buildPreviewServerPricing();
+  return computeUpgradeTotalsServer({
+    unitTypeCode: 'C',
+    upgradeFloorSelection: null,
+    areaUpgrades: [
+      { areaId: 'secondBedroom', materialType: 'lvp', productName: 'Cortland' },
+      { areaId: 'guestBathroom', materialType: 'tile', productName: 'Frost White', heatedFloor: false },
+      { areaId: 'masterEnsuite', materialType: 'tile', productName: 'Frost White', heatedFloor: false },
+    ],
+    backsplashGroutEnabled: !!data.backsplashGroutEnabled,
+    backsplashGroutColor: data.backsplashGroutColor || null,
+    stairLvpUpgradeSelected: !!data.stairLvpUpgradeSelected,
+    stairPremiumCarpetSelected: !!data.stairPremiumCarpetSelected,
+    stairUpgradeType: data.stairUpgradeType || 'standard',
+    additionalWindowsQty: data.additionalWindowsQty || 0,
+    patioDoorsQty: data.patioDoorsQty || 0,
+    automatedWindowsQty: data.automatedWindowsQty || 0,
+    bathroomTileSelected: !!data.bathroomTileSelected,
+    heatedFloorBathrooms: data.heatedFloorBathrooms || 0,
+    customTiledShower: !!data.customTiledShower,
+  }, pricing);
+}
+
+function buildPreviewBuyerPricing(totals: ServerTotalsResult): BuyerEmailPricing {
+  // Adapter so generateBuyerConfirmationEmail (which still consumes the
+  // legacy BuyerEmailPricing shape) renders entirely from `totals`.
+  return {
+    additionalWindowPrice: totals.context.additionalWindowPrice,
+    patioDoorPrice: totals.context.patioDoorPrice,
+    automatedMotorPrice: totals.context.automatedMotorPrice,
+    heatedFloorPrice: totals.context.heatedFloorPerBathroom,
+    stairLvpPrice: 2160,
+    stairCarpetUpgradePrice: 640,
+    groutColorPrice: totals.context.groutColorPrice,
+    gstRate: totals.gstRate,
+    areaUpgradeCosts: {
+      subtotal: totals.pieces.flooringUpgrades.reduce((s, f) => s + f.amount, 0),
+      lineItems: totals.pieces.flooringUpgrades.map(f => ({
+        areaName: f.areaName,
+        materialName: f.materialName,
+        productName: f.productName,
+        productColor: f.productColor,
+        amount: f.amount,
+        heatedFloorAmount: f.heatedFloorAmount,
+      })),
+    },
+    premiumCarpetBedroomSubtotal: 0,
+    underpadBedroomSubtotal: 0,
+    underpadStairsSubtotal: 0,
+    bathroomTileSubtotal: totals.pieces.bathroomTile,
+    bathroomGuestSqft: totals.context.bathroomGuestSqft,
+    bathroomEnsuiteSqft: totals.context.bathroomEnsuiteSqft,
+    tileCostPerSqft: totals.context.tileCostPerSqft,
+    section4HeatedFloorSubtotal: totals.pieces.section4HeatedFloor,
+    heatedFloorBathroomCount: data => 0, // unused fallback; real value below
+    customTiledShowerSubtotal: totals.pieces.customShower,
+    showerBaseCost: totals.context.showerBaseCost,
+    markupPercentage: totals.markupPercentage,
+    totals,
+  } as unknown as BuyerEmailPricing;
+}
+
 function renderPreviewBuyerHtml(data: SelectionData): string {
-  return generateBuyerConfirmationEmail(data, 'PREVIEW-0000', buildPreviewPricing());
+  const totals = buildPreviewTotals(data);
+  const pricing = buildPreviewBuyerPricing(totals) as BuyerEmailPricing & Record<string, unknown>;
+  // Restore the scalar count field expected by the legacy template
+  (pricing as Record<string, unknown>).heatedFloorBathroomCount = data.heatedFloorBathrooms || 0;
+  return generateBuyerConfirmationEmail(data, 'PREVIEW-0000', pricing);
 }
 
 function renderPreviewAdminHtml(data: SelectionData): string {
-  // Minimal admin shell using shared theme — mirrors the real admin email's
-  // light/black palette so QA can verify legibility without a real submission.
-  const p = buildPreviewPricing();
-  const lines: Array<[string, number]> = [
-    ['Premium Carpet (Bedrooms)', p.premiumCarpetBedroomSubtotal],
-    ['Premium Underpad (Bedrooms)', p.underpadBedroomSubtotal],
-    ['Premium Underpad (Stairs)', p.underpadStairsSubtotal],
-    [`Additional Windows (${data.additionalWindowsQty} × $${p.additionalWindowPrice.toFixed(2)})`, data.additionalWindowsQty * p.additionalWindowPrice],
-    [`Patio Door Panel Track (${data.patioDoorsQty} × $${p.patioDoorPrice.toFixed(2)})`, data.patioDoorsQty * p.patioDoorPrice],
-    [`Somfy Automation (${data.automatedWindowsQty} × $${p.automatedMotorPrice.toFixed(2)})`, data.automatedWindowsQty * p.automatedMotorPrice],
-    ['Custom Backsplash Grout (Charcoal)', p.groutColorPrice],
-    ['Porcelain Tile Floor Upgrade', p.bathroomTileSubtotal],
-    [`Heated Tile Floor (${p.heatedFloorBathroomCount} bathrooms)`, p.section4HeatedFloorSubtotal],
-    ['Custom Tiled Shower', p.customTiledShowerSubtotal],
-  ];
-  const subtotal = lines.reduce((s, [, v]) => s + v, 0);
-  const gst = subtotal * p.gstRate;
-  const total = subtotal + gst;
-  const rows = lines.map(([l, v]) =>
-    `<tr><td style="padding:10px 8px; color:#000000; border-bottom:1px solid #e5e7eb;">${escapeHtml(l)}</td><td style="padding:10px 8px; color:#000000; text-align:right; font-weight:600; border-bottom:1px solid #e5e7eb;">$${v.toFixed(2)}</td></tr>`
+  // Render the admin preview directly from totals.lineItems — the same
+  // source the production admin email uses — so the preview reflects
+  // exactly what staff will receive.
+  const totals = buildPreviewTotals(data);
+  const rows = totals.lineItems.map(item =>
+    `<tr><td style="padding:10px 8px; color:#000000; border-bottom:1px solid #e5e7eb;">${escapeHtml(item.label)}${item.detail ? ` <span style="color:#4b5563;">— ${escapeHtml(item.detail)}</span>` : ''}</td><td style="padding:10px 8px; color:#000000; text-align:right; font-weight:600; border-bottom:1px solid #e5e7eb;">$${item.amount.toFixed(2)}</td></tr>`
   ).join('');
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Admin Email Preview</title></head>
 <body style="margin:0; padding:24px; background:#f9fafb; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif; color:#000000;">
@@ -1920,9 +1991,9 @@ function renderPreviewAdminHtml(data: SelectionData): string {
     <h2 style="color:#000000; font-size:16px; margin:0 0 12px;">Complete Upgrade Summary</h2>
     <table style="width:100%; border-collapse:collapse; color:#000000;">
       ${rows}
-      <tr><td style="padding:12px 8px; color:#000000; border-top:2px solid #d1d5db;">Subtotal (pre-GST)</td><td style="padding:12px 8px; color:#000000; text-align:right; border-top:2px solid #d1d5db;">$${subtotal.toFixed(2)}</td></tr>
-      <tr><td style="padding:8px; color:#000000;">GST (5%)</td><td style="padding:8px; color:#000000; text-align:right;">$${gst.toFixed(2)}</td></tr>
-      <tr><td style="padding:14px 8px; color:#000000; font-size:18px; font-weight:700; border-top:2px solid #1a1a2e;">GRAND TOTAL (incl. GST)</td><td style="padding:14px 8px; color:#047857; font-size:22px; font-weight:700; text-align:right; border-top:2px solid #1a1a2e;">$${total.toFixed(2)}</td></tr>
+      <tr><td style="padding:12px 8px; color:#000000; border-top:2px solid #d1d5db;">Subtotal (pre-GST)</td><td style="padding:12px 8px; color:#000000; text-align:right; border-top:2px solid #d1d5db;">$${totals.grandSubtotal.toFixed(2)}</td></tr>
+      <tr><td style="padding:8px; color:#000000;">GST (${(totals.gstRate * 100).toFixed(0)}%)</td><td style="padding:8px; color:#000000; text-align:right;">$${totals.gst.toFixed(2)}</td></tr>
+      <tr><td style="padding:14px 8px; color:#000000; font-size:18px; font-weight:700; border-top:2px solid #1a1a2e;">GRAND TOTAL (incl. GST)</td><td style="padding:14px 8px; color:#047857; font-size:22px; font-weight:700; text-align:right; border-top:2px solid #1a1a2e;">$${totals.grandTotal.toFixed(2)}</td></tr>
     </table>
   </div>
 </body></html>`;
