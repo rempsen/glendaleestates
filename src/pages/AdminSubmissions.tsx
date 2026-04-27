@@ -253,6 +253,7 @@ export default function AdminSubmissions() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [resyncingComments, setResyncingComments] = useState(false);
   const [originalSubmission, setOriginalSubmission] = useState<BuyerSelection | null>(null);
   const [activeTab, setActiveTab] = useState<'details' | 'compare' | 'history'>('details');
   const [emailPreviewOpen, setEmailPreviewOpen] = useState(false);
