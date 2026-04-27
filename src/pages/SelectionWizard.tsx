@@ -156,37 +156,6 @@ export default function SelectionWizard() {
   const isStairLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_lvp_upgrade_price'), [isFlatRateEnabled]);
   const isStairPremiumLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_premium_lvp_upgrade_price'), [isFlatRateEnabled]);
   const isUnderpadStairsEnabled = useMemo(() => isFlatRateEnabled('premium_underpad_stairs_price'), [isFlatRateEnabled]);
-
-  // Section 3 (LVP) and Section 4 (SPC Tile) comment-coverage warnings.
-  // Detect when the buyer typed an area-upgrade comment that semantically belongs
-  // to one of these sections but left the section's own Notes field blank — that
-  // pattern is what causes notes to feel "missing" downstream.
-  const LVP_RELATED_AREA_IDS = useMemo(
-    () => new Set(['allLvp', 'mainLiving', 'secondBedroom', 'masterBedroom']),
-    [],
-  );
-  const TILE_RELATED_AREA_IDS = useMemo(
-    () => new Set(['guestBathroom', 'masterEnsuite', 'laundry']),
-    [],
-  );
-  const lvpRelatedAreaComments = useMemo(
-    () =>
-      (selections.areaUpgrades || []).filter(
-        (u) => u && u.comments && u.comments.trim() && LVP_RELATED_AREA_IDS.has(u.areaId),
-      ),
-    [selections.areaUpgrades, LVP_RELATED_AREA_IDS],
-  );
-  const tileRelatedAreaComments = useMemo(
-    () =>
-      (selections.areaUpgrades || []).filter(
-        (u) => u && u.comments && u.comments.trim() && TILE_RELATED_AREA_IDS.has(u.areaId),
-      ),
-    [selections.areaUpgrades, TILE_RELATED_AREA_IDS],
-  );
-  const showLvpCommentWarning =
-    !selections.lvpComments.trim() && lvpRelatedAreaComments.length > 0;
-  const showTileCommentWarning =
-    !selections.spcTileComments.trim() && tileRelatedAreaComments.length > 0;
   const bedroomUnderpadUnitTypeCode = useMemo(() => {
     const code = unitInfo?.typeCode?.toUpperCase() || '';
 
