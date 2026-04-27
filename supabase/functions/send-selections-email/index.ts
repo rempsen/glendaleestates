@@ -1531,14 +1531,14 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     heatedFloorsHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Heated Tile Floors</h2>
-          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%); border-radius: 12px;">
+          <h2 style="margin: 0 0 16px; color: #000000; font-size: 18px; font-weight: 600;">Heated Tile Floors</h2>
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background: #fef2f2; border: 1px solid #fca5a5; border-radius: 12px;">
             <tr>
               <td style="padding: 20px;">
                 <table role="presentation" style="width: 100%; border-collapse: collapse;">
                   <tr>
-                    <td style="color: #991b1b; font-size: 14px;"><strong>Bathrooms with Heated Floors:</strong></td>
-                    <td style="color: #7f1d1d; font-size: 20px; font-weight: 700; text-align: right;">${data.heatedFloorBathrooms} bathroom${data.heatedFloorBathrooms > 1 ? 's' : ''}</td>
+                    <td style="color: #000000; font-size: 14px;"><strong>Bathrooms with Heated Floors:</strong></td>
+                    <td style="color: #000000; font-size: 20px; font-weight: 700; text-align: right;">${data.heatedFloorBathrooms} bathroom${data.heatedFloorBathrooms > 1 ? 's' : ''}</td>
                   </tr>
                 </table>
               </td>
