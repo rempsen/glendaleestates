@@ -978,6 +978,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
         }
         summaryItems.push(`<tr><td style="padding: 8px 0;">${escapeHtml(label)}</td><td style="text-align: right; font-weight: bold;">$${(item.cost + (item.heatedCost || 0)).toFixed(2)}</td></tr>`);
       }
+
+      // Section 4 bathroom upgrades (Porcelain Tile, Heated Floor, Custom Tiled Shower)
+      if (bathroomTileSubtotal > 0) {
+        summaryItems.push(`<tr><td style="padding: 8px 0;">Porcelain Tile Floor Upgrade (Guest ${bathroomGuestSqft} sq ft + Ensuite ${bathroomEnsuiteSqft} sq ft × $${tileCostPerSqft.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)</td><td style="text-align: right; font-weight: bold;">$${bathroomTileSubtotal.toFixed(2)}</td></tr>`);
+      }
+      if (section4HeatedFloorSubtotal > 0) {
+        summaryItems.push(`<tr><td style="padding: 8px 0;">Heated Tile Floor (${heatedFloorBathroomCount} bathroom${heatedFloorBathroomCount > 1 ? 's' : ''} × $${heatedFloorPrice.toFixed(2)})</td><td style="text-align: right; font-weight: bold;">$${section4HeatedFloorSubtotal.toFixed(2)}</td></tr>`);
+      }
+      if (customTiledShowerSubtotal > 0) {
+        summaryItems.push(`<tr><td style="padding: 8px 0;">Custom Tiled Shower (Base $${showerBaseCost.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)</td><td style="text-align: right; font-weight: bold;">$${customTiledShowerSubtotal.toFixed(2)}</td></tr>`);
+      }
       
       upgradeSummaryHtml = `
         <div class="section" style="background: #1a1a2e; color: white;">
