@@ -814,6 +814,62 @@ export default function AdminSubmissions() {
                     
                     <TabsContent value="details" className="mt-4">
               <div className="space-y-6">
+                {/* Missing-comments warning banner */}
+                {(() => {
+                  const sub = selectedSubmission;
+                  const hasUpgradeActivity =
+                    (sub.area_upgrades && sub.area_upgrades.length > 0) ||
+                    !!sub.bathroom_tile_selected ||
+                    !!sub.hardwood_upgrade_selected ||
+                    !!sub.custom_tiled_shower ||
+                    (sub.heated_floor_bathrooms ?? 0) > 0 ||
+                    !!sub.backsplash_grout_enabled ||
+                    !!sub.stair_lvp_upgrade_selected ||
+                    !!sub.premium_carpet_bedroom ||
+                    !!sub.premium_underpad_bedroom ||
+                    !!sub.premium_underpad_stairs;
+                  const hasInterests =
+                    sub.upgrade_interests &&
+                    Object.values(sub.upgrade_interests).some((v) => v);
+
+                  const missing: string[] = [];
+                  if (hasUpgradeActivity && !sub.upgrade_comments?.trim()) {
+                    missing.push('Upgrade Pricing Summary comments');
+                  }
+                  if (hasInterests && !sub.upgrade_interests_notes?.trim()) {
+                    missing.push('Upgrade Interests notes');
+                  }
+
+                  if (missing.length === 0) return null;
+
+                  return (
+                    <div className="p-4 rounded-xl bg-warning/10 border border-warning/40">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+                        <div className="space-y-1">
+                          <p className="font-semibold text-foreground text-sm">
+                            Possibly missing buyer comments
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            This submission has upgrade activity but the following
+                            comment field{missing.length > 1 ? 's are' : ' is'} blank:
+                          </p>
+                          <ul className="list-disc list-inside text-sm text-foreground pl-1">
+                            {missing.map((m) => (
+                              <li key={m}>{m}</li>
+                            ))}
+                          </ul>
+                          <p className="text-xs text-muted-foreground pt-1">
+                            These fields were added recently. Older submissions may
+                            have comments that were never captured — confirm with the
+                            buyer if needed.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Pricing Summary - FIRST */}
                 {(() => {
                   const pricing = calculateSubmissionPricing(selectedSubmission, pricingValues);
