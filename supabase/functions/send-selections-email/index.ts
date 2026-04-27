@@ -878,37 +878,36 @@ Deno.serve(async (req: Request): Promise<Response> => {
     let areaUpgradesHtml = '';
     if (data.areaUpgrades && data.areaUpgrades.length > 0) {
       areaUpgradesHtml = `
-        <div class="section highlight" style="background: #9b59b6;">
-          <h2 style="color: white; margin-top: 0;">Area Upgrades Selected</h2>
-          ${data.upgradeFloorSelection ? `<p style="color: white; margin-bottom: 15px;"><strong>Floor Selection (G/H units):</strong> Floor ${escapeHtml(data.upgradeFloorSelection)}</p>` : ''}
-          <table style="color: white; width: 100%;">
-            <tr style="border-bottom: 1px solid rgba(255,255,255,0.3);">
-              <th style="text-align: left; padding: 8px 0;">Area</th>
-              <th style="text-align: left; padding: 8px 0;">Material</th>
-              <th style="text-align: left; padding: 8px 0;">Product</th>
-              <th style="text-align: left; padding: 8px 0;">Color</th>
-              <th style="text-align: left; padding: 8px 0;">Heated</th>
-              <th style="text-align: right; padding: 8px 0;">Cost</th>
+        <div class="section" style="background: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #1a1a2e;">
+          <h2 style="color: #000000; margin-top: 0;">Area Upgrades Selected</h2>
+          ${data.upgradeFloorSelection ? `<p style="color: #000000; margin-bottom: 15px;"><strong>Floor Selection (G/H units):</strong> Floor ${escapeHtml(data.upgradeFloorSelection)}</p>` : ''}
+          <table style="color: #000000; width: 100%; border-collapse: collapse;">
+            <tr style="border-bottom: 2px solid #d1d5db; background: #f9fafb;">
+              <th style="text-align: left; padding: 10px 8px; color: #000000;">Area</th>
+              <th style="text-align: left; padding: 10px 8px; color: #000000;">Material</th>
+              <th style="text-align: left; padding: 10px 8px; color: #000000;">Product</th>
+              <th style="text-align: left; padding: 10px 8px; color: #000000;">Color</th>
+              <th style="text-align: left; padding: 10px 8px; color: #000000;">Heated</th>
+              <th style="text-align: right; padding: 10px 8px; color: #000000;">Cost</th>
             </tr>
             ${data.areaUpgrades.map(u => {
-              // Match by areaId for reliable lookup
               const lineItem = areaUpgradeCosts.lineItems.find(l => l.areaId === u.areaId);
               const materialCost = lineItem?.cost || 0;
               const heatedCost = lineItem?.heatedCost || 0;
               return `
-              <tr style="border-bottom: 1px solid rgba(255,255,255,0.2);">
-                <td style="padding: 8px 0;">${escapeHtml(AREA_NAMES[u.areaId] || u.areaId)}</td>
-                <td style="padding: 8px 0;">${escapeHtml(MATERIAL_NAMES[u.materialType] || u.materialType)}</td>
-                <td style="padding: 8px 0;">${escapeHtml(u.productName) || 'N/A'}</td>
-                <td style="padding: 8px 0;">${escapeHtml(u.productColor) || 'N/A'}</td>
-                <td style="padding: 8px 0;">${u.heatedFloor ? '<strong style="color: #ffd700;">Yes (+$' + heatedFloorPrice.toFixed(0) + ')</strong>' : 'No'}</td>
-                <td style="padding: 8px 0; text-align: right; font-weight: bold;">$${(materialCost + heatedCost).toFixed(2)}</td>
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 10px 8px; color: #000000;">${escapeHtml(AREA_NAMES[u.areaId] || u.areaId)}</td>
+                <td style="padding: 10px 8px; color: #000000;">${escapeHtml(MATERIAL_NAMES[u.materialType] || u.materialType)}</td>
+                <td style="padding: 10px 8px; color: #000000;">${escapeHtml(u.productName) || 'N/A'}</td>
+                <td style="padding: 10px 8px; color: #000000;">${escapeHtml(u.productColor) || 'N/A'}</td>
+                <td style="padding: 10px 8px; color: #000000;">${u.heatedFloor ? '<strong style="color: #000000;">Yes (+$' + heatedFloorPrice.toFixed(0) + ')</strong>' : 'No'}</td>
+                <td style="padding: 10px 8px; color: #000000; text-align: right; font-weight: bold;">$${(materialCost + heatedCost).toFixed(2)}</td>
               </tr>
-              ${u.comments ? `<tr><td colspan="6" style="padding: 4px 0 12px; font-size: 12px; font-style: italic;">Comments: ${escapeHtml(u.comments)}</td></tr>` : ''}
+              ${u.comments ? `<tr><td colspan="6" style="padding: 4px 8px 12px; color: #374151; font-size: 12px; font-style: italic;">Comments: ${escapeHtml(u.comments)}</td></tr>` : ''}
             `}).join('')}
-            <tr style="border-top: 2px solid rgba(255,255,255,0.5);">
-              <td colspan="5" style="padding: 12px 0 0; font-weight: bold;">Area Upgrades Subtotal:</td>
-              <td style="padding: 12px 0 0; text-align: right; font-weight: bold; font-size: 16px;">$${areaUpgradeCosts.subtotal.toFixed(2)}</td>
+            <tr style="border-top: 2px solid #1a1a2e; background: #f9fafb;">
+              <td colspan="5" style="padding: 12px 8px 0; color: #000000; font-weight: bold;">Area Upgrades Subtotal:</td>
+              <td style="padding: 12px 8px 0; color: #047857; text-align: right; font-weight: bold; font-size: 16px;">$${areaUpgradeCosts.subtotal.toFixed(2)}</td>
             </tr>
           </table>
         </div>
