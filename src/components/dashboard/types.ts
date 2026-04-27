@@ -10,7 +10,8 @@ export type WidgetType =
   | 'conversion-metrics'
   | 'alerts'
   | 'possession-calendar'
-  | 'material-popularity';
+  | 'material-popularity'
+  | 'unknown-area-comments';
 
 export interface WidgetConfig {
   id: string;
