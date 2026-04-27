@@ -206,11 +206,25 @@ export async function generateSubmissionPDF(submission: BuyerSubmission): Promis
   doc.line(margin, yPos, margin + 50, yPos);
   yPos += 10;
 
+  // Roll up section-relevant area-upgrade comments into the matching standard row,
+  // so notes typed against an LVP/Tile area upgrade in Section 9 don't appear "missing"
+  // from the corresponding standard section.
+  const LVP_AREA_IDS = new Set(['allLvp', 'mainLiving', 'secondBedroom', 'masterBedroom']);
+  const TILE_AREA_IDS = new Set(['guestBathroom', 'masterEnsuite', 'laundry']);
+  const collectAreaComments = (ids: Set<string>) =>
+    (submission.area_upgrades || [])
+      .filter((u) => u && u.comments && ids.has(u.areaId))
+      .map((u) => `[Upgrade — ${AREA_NAMES[u.areaId] || u.areaId}] ${u.comments}`)
+      .join('\n');
+  const lvpAreaNotes = collectAreaComments(LVP_AREA_IDS);
+  const tileAreaNotes = collectAreaComments(TILE_AREA_IDS);
+  const joinNotes = (...parts: string[]) => parts.filter(Boolean).join('\n');
+
   // Selections table
   const standardData: string[][] = [
-    ['Main Floor LVP', formatColour(submission.lvp_colour), submission.lvp_comments || ''],
-    ['Bathroom/Laundry Tile', formatColour(submission.spc_tile_colour), submission.spc_tile_comments || ''],
-    ['Kitchen Backsplash', formatOrientation(submission.backsplash_orientation), ''],
+    ['Main Floor LVP', formatColour(submission.lvp_colour), joinNotes(submission.lvp_comments || '', lvpAreaNotes)],
+    ['Bathroom/Laundry Tile', formatColour(submission.spc_tile_colour), joinNotes(submission.spc_tile_comments || '', tileAreaNotes)],
+    ['Kitchen Backsplash', formatOrientation(submission.backsplash_orientation), submission.backsplash_grout_comments || ''],
   ];
   
   if (submission.has_stairs) {
