@@ -1555,9 +1555,20 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
   
   // Area upgrade subtotal (already includes heated floors)
   const areaUpgradeSubtotal = pricing.areaUpgradeCosts.subtotal;
-  
-  // Grand totals (including area upgrades)
-  const grandSubtotal = windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal + areaUpgradeSubtotal;
+
+  // Section 4 bathroom + premium carpet/underpad subtotals (computed by caller)
+  const bathroomTileSub = pricing.bathroomTileSubtotal || 0;
+  const section4HeatedFloorSub = pricing.section4HeatedFloorSubtotal || 0;
+  const customTiledShowerSub = pricing.customTiledShowerSubtotal || 0;
+  const premiumCarpetBedroomSub = pricing.premiumCarpetBedroomSubtotal || 0;
+  const underpadBedroomSub = pricing.underpadBedroomSubtotal || 0;
+  const underpadStairsSub = pricing.underpadStairsSubtotal || 0;
+
+  // Grand totals (including ALL upgrades — matches PDF / on-screen summary exactly)
+  const grandSubtotal =
+    windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal +
+    areaUpgradeSubtotal + bathroomTileSub + section4HeatedFloorSub +
+    customTiledShowerSub + premiumCarpetBedroomSub + underpadBedroomSub + underpadStairsSub;
   const grandGst = grandSubtotal * pricing.gstRate;
   const grandTotal = grandSubtotal + grandGst;
   
@@ -1603,6 +1614,17 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
         cost: automatedWindowsQty * pricing.automatedMotorPrice 
       });
     }
+
+    // Premium Carpet / Underpad (Bedrooms / Stairs)
+    if (premiumCarpetBedroomSub > 0) {
+      upgradeLineItems.push({ label: 'Premium Carpet (Bedrooms)', cost: premiumCarpetBedroomSub });
+    }
+    if (underpadBedroomSub > 0) {
+      upgradeLineItems.push({ label: 'Premium Underpad (Bedrooms)', cost: underpadBedroomSub });
+    }
+    if (underpadStairsSub > 0) {
+      upgradeLineItems.push({ label: 'Premium Underpad (Stairs)', cost: underpadStairsSub });
+    }
     
     // Area upgrade line items with heated floor costs
     for (const item of pricing.areaUpgradeCosts.lineItems) {
@@ -1615,6 +1637,27 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
         cost: item.cost + (item.heatedCost || 0) 
       });
     }
+
+    // Section 4 bathroom upgrades (Porcelain Tile, Heated Floor count, Custom Tiled Shower)
+    if (bathroomTileSub > 0) {
+      upgradeLineItems.push({
+        label: `Porcelain Tile Floor Upgrade (Guest ${pricing.bathroomGuestSqft} sq ft + Ensuite ${pricing.bathroomEnsuiteSqft} sq ft × $${pricing.tileCostPerSqft.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)`,
+        cost: bathroomTileSub,
+      });
+    }
+    if (section4HeatedFloorSub > 0) {
+      upgradeLineItems.push({
+        label: `Heated Tile Floor (${pricing.heatedFloorBathroomCount} bathroom${pricing.heatedFloorBathroomCount > 1 ? 's' : ''} × $${pricing.heatedFloorPrice.toFixed(2)})`,
+        cost: section4HeatedFloorSub,
+      });
+    }
+    if (customTiledShowerSub > 0) {
+      upgradeLineItems.push({
+        label: `Custom Tiled Shower (Base $${pricing.showerBaseCost.toFixed(2)} + ${(pricing.markupPercentage * 100).toFixed(0)}% markup)`,
+        cost: customTiledShowerSub,
+      });
+    }
+
     
     const lineItemsHtml = upgradeLineItems.map(item => `
       <tr>
