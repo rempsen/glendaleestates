@@ -71,4 +71,5 @@ export const DEFAULT_LAYOUT: WidgetConfig[] = [
   { id: 'revenue-1', type: 'revenue-chart', title: 'Revenue Breakdown', x: 6, y: 2, w: 6, h: 4, minW: 4, minH: 3 },
   { id: 'upgrade-1', type: 'upgrade-popularity', title: 'Upgrade Popularity', x: 0, y: 6, w: 6, h: 3, minW: 4, minH: 2 },
   { id: 'recent-1', type: 'recent-submissions', title: 'Recent Submissions', x: 6, y: 6, w: 6, h: 4, minW: 4, minH: 3 },
+  { id: 'unknown-areas-1', type: 'unknown-area-comments', title: 'Unknown Area Comments', x: 0, y: 10, w: 6, h: 4, minW: 4, minH: 3 },
 ];
