@@ -189,6 +189,7 @@ export interface UnitAreaData {
   masterEnsuite: number; // sq ft - LVT
   laundry: number; // sq ft - LVT
   backsplash: number; // sq ft
+  [key: string]: number | undefined;
 }
 
 export const UNIT_AREA_DATA: Record<string, UnitAreaData> = {

@@ -15,6 +15,7 @@ import {
   UPGRADE_MATERIALS,
   MaterialType,
 } from '@/lib/upgradeCostData';
+import { computeUpgradeTotals } from '@/lib/upgradeTotals';
 
 // Unit area data structure (camelCase for internal use)
 export interface UnitAreaDataForPdf {
@@ -28,6 +29,7 @@ export interface UnitAreaDataForPdf {
   masterEnsuite: number;
   laundry: number;
   backsplash: number;
+  [key: string]: number | undefined;
 }
 
 // Pricing config interface for dynamic pricing
@@ -413,151 +415,100 @@ export async function generateBuyerPreviewPDF(
     return false;
   };
 
-  // Window Coverings Section - Use dynamic pricing
+  // ====================================================================
+  // Single source of truth for upgrade totals — matches on-screen UI 1:1
+  // ====================================================================
+  const totals = computeUpgradeTotals(
+    {
+      unitTypeCode,
+      upgradeFloorSelection: selections.upgradeFloorSelection,
+      areaUpgrades: selections.areaUpgrades || [],
+      backsplashGrout: selections.backsplashGrout,
+      stairLvpUpgradeSelected: selections.stairLvpUpgradeSelected,
+      stairPremiumCarpetSelected: selections.stairPremiumCarpetSelected,
+      additionalWindowsQty: selections.additionalWindowsQty,
+      patioDoorsQty: selections.patioDoorsQty,
+      automatedWindowsQty: selections.automatedWindowsQty,
+      bathroomTileSelected: selections.bathroomTileSelected,
+      heatedFloorBathrooms: selections.heatedFloorBathrooms,
+      customTiledShower: selections.customTiledShower,
+    },
+    pricing
+  );
+
+  console.log('[buyerPdfGenerator] computed totals:', {
+    windowSubtotal: totals.windowSubtotal,
+    upgradesSubtotal: totals.upgradesSubtotal,
+    grandTotal: totals.grandTotal,
+    bathroomTile: totals.pieces.bathroomTile,
+    section4HeatedFloor: totals.pieces.section4HeatedFloor,
+    customShower: totals.pieces.customShower,
+    inputs: {
+      bathroomTileSelected: selections.bathroomTileSelected,
+      heatedFloorBathrooms: selections.heatedFloorBathrooms,
+      customTiledShower: selections.customTiledShower,
+    },
+  });
+
   const additionalWindowPrice = pricing.getAdditionalWindowPrice();
   const patioDoorPrice = pricing.getPatioDoorPrice();
   const automatedMotorPrice = pricing.getAutomatedMotorPrice();
-  
-  const windowSubtotal = (selections.additionalWindowsQty * additionalWindowPrice) +
-                        (selections.patioDoorsQty * patioDoorPrice) +
-                        (selections.automatedWindowsQty * automatedMotorPrice);
 
-  if (windowSubtotal > 0) {
+  // ---- Window Coverings table ----
+  if (totals.windowSubtotal > 0) {
     checkNewPage(70);
-    
+
     doc.setFontSize(14);
     doc.setTextColor(...COLORS.primary);
     doc.setFont('helvetica', 'bold');
     doc.text('Window Coverings', margin, yPos);
     yPos += 3;
-    
+
     doc.setDrawColor(...COLORS.primary);
     doc.setLineWidth(2);
     doc.line(margin, yPos, margin + 40, yPos);
     yPos += 10;
 
     const windowData: string[][] = [];
-    
     if (selections.additionalWindowsQty > 0) {
-      windowData.push([
-        'Additional Windows',
-        `${selections.additionalWindowsQty} × $${additionalWindowPrice.toFixed(2)}`,
-        `$${(selections.additionalWindowsQty * additionalWindowPrice).toFixed(2)}`
-      ]);
+      windowData.push(['Additional Windows', `${selections.additionalWindowsQty} × $${additionalWindowPrice.toFixed(2)}`, `$${totals.pieces.windowAdditional.toFixed(2)}`]);
     }
-    
     if (selections.patioDoorsQty > 0) {
-      windowData.push([
-        'Patio Door Panel Track',
-        `${selections.patioDoorsQty} × $${patioDoorPrice.toFixed(2)}`,
-        `$${(selections.patioDoorsQty * patioDoorPrice).toFixed(2)}`
-      ]);
+      windowData.push(['Patio Door Panel Track', `${selections.patioDoorsQty} × $${patioDoorPrice.toFixed(2)}`, `$${totals.pieces.windowPatio.toFixed(2)}`]);
     }
-    
     if (selections.automatedWindowsQty > 0) {
-      windowData.push([
-        'Somfy Automation',
-        `${selections.automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)}`,
-        `$${(selections.automatedWindowsQty * automatedMotorPrice).toFixed(2)}`
-      ]);
+      windowData.push(['Somfy Automation', `${selections.automatedWindowsQty} × $${automatedMotorPrice.toFixed(2)}`, `$${totals.pieces.windowAutomation.toFixed(2)}`]);
     }
-
-    // Show only subtotal for this section - GST will be calculated once in grand total
-    windowData.push(['', 'Section Subtotal:', `$${windowSubtotal.toFixed(2)}`]);
+    windowData.push(['', 'Section Subtotal:', `$${totals.windowSubtotal.toFixed(2)}`]);
 
     autoTable(doc, {
       startY: yPos,
       body: windowData,
       margin: { left: margin, right: margin },
-      bodyStyles: {
-        fontSize: 10,
-        textColor: COLORS.dark,
-      },
+      bodyStyles: { fontSize: 10, textColor: COLORS.dark },
       columnStyles: {
         0: { cellWidth: 60 },
         1: { cellWidth: 60, halign: 'right' },
         2: { cellWidth: 40, halign: 'right', fontStyle: 'bold' },
       },
       didParseCell: (data: any) => {
-        // Highlight the last row (section subtotal)
-        if (data.row.index === windowData.length - 1) {
-          data.cell.styles.fontStyle = 'bold';
-        }
+        if (data.row.index === windowData.length - 1) data.cell.styles.fontStyle = 'bold';
       },
     });
 
     yPos = (doc as any).lastAutoTable.finalY + 15;
   }
 
-  // Upgrades Section
-  const effectiveUnitCode = normalizeUnitTypeCode(unitTypeCode);
-  
-  // Calculate upgrade costs using dynamic pricing (includes heated floors per area)
-  // Pass upgradeFloorSelection to resolve G/H unit codes to floor-specific versions
-  const upgradeCalc = calculateUpgradeCost(effectiveUnitCode || '', selections.areaUpgrades, pricing, selections.upgradeFloorSelection);
-  const groutPrice = selections.backsplashGrout?.enabled ? calculateGroutPrice(pricing) : null;
-  
-  // Stair LVP upgrade cost (from the stairLvpUpgradeSelected flag)
-  const stairLvpPrice = selections.stairLvpUpgradeSelected ? (pricing.getStairLvpUpgradePrice?.() || 2160) : 0;
-  
-  // Stair Premium Carpet upgrade cost (from the stairPremiumCarpetSelected flag)
-  const stairCarpetPrice = selections.stairPremiumCarpetSelected ? (pricing.getStairCarpetUpgradePrice?.() || 640) : 0;
-  
-  // Check if there's a stair selection in areaUpgrades (premium carpet from upgrade picker)
-  const stairUpgradeFromPicker = selections.areaUpgrades.find(u => u.areaId === 'stairs');
-  const stairUpgradePickerPrice = stairUpgradeFromPicker ? (pricing.getStairCarpetUpgradePrice?.() || 640) : 0;
-
-  // ----- Section 4 bathroom upgrades (matches UpgradePricingSummary) -----
-  const heatedFloorPerBathroom = pricing.getHeatedFloorPrice();
-
-  // Porcelain Tile Floor Upgrade — area-based, marked up
-  const bathroomTileSubtotal = (() => {
-    if (!selections.bathroomTileSelected || !effectiveUnitCode) return 0;
-    const tileCostPerSqft = pricing.getMaterialCost('tile' as MaterialType);
-    if (tileCostPerSqft <= 0) return 0;
-    const code = effectiveUnitCode.toUpperCase();
-    let guestBathArea = 0;
-    let ensuiteArea = 0;
-    if (['G', 'H'].includes(code) && pricing.getUnitAreaData) {
-      const d1 = pricing.getUnitAreaData(`${code}-1`);
-      const d2 = pricing.getUnitAreaData(`${code}-2`);
-      guestBathArea = Math.max(d1?.guestBathroom || 0, d2?.guestBathroom || 0);
-      ensuiteArea = Math.max(d1?.masterEnsuite || 0, d2?.masterEnsuite || 0);
-    } else if (pricing.getUnitAreaData) {
-      const areaData = pricing.getUnitAreaData(code);
-      guestBathArea = areaData?.guestBathroom || 0;
-      ensuiteArea = areaData?.masterEnsuite || 0;
-    }
-    return (guestBathArea + ensuiteArea) * tileCostPerSqft * (1 + pricing.markupPercentage);
-  })();
-
-  // Heated Tile Floor (Section 4) — flat per bathroom
-  const section4HeatedFloorSubtotal =
-    (selections.heatedFloorBathrooms || 0) > 0
-      ? selections.heatedFloorBathrooms * heatedFloorPerBathroom
-      : 0;
-
-  // Custom Tiled Shower — flat marked-up cost
-  const customShowerCost = pricing.getMaterialCost('tiled_shower' as MaterialType);
-  const customShowerSubtotal = selections.customTiledShower
-    ? customShowerCost * (1 + pricing.markupPercentage)
-    : 0;
-
-  // Note: heated floor costs are now included in upgradeCalc.subtotal per area
-  // Include stair upgrade picker price only if not already counted via stairCarpetPrice flag
-  const upgradesSubtotal = upgradeCalc.subtotal + (groutPrice?.markedUpCost || 0) + stairLvpPrice + 
-    (stairCarpetPrice > 0 ? stairCarpetPrice : stairUpgradePickerPrice) +
-    bathroomTileSubtotal + section4HeatedFloorSubtotal + customShowerSubtotal;
-
-  if (upgradesSubtotal > 0) {
+  // ---- Premium Upgrades table ----
+  if (totals.upgradesSubtotal > 0) {
     checkNewPage(80);
-    
+
     doc.setFontSize(14);
     doc.setTextColor(...COLORS.primary);
     doc.setFont('helvetica', 'bold');
     doc.text('Premium Upgrades', margin, yPos);
     yPos += 3;
-    
+
     doc.setDrawColor(...COLORS.primary);
     doc.setLineWidth(2);
     doc.line(margin, yPos, margin + 40, yPos);
@@ -565,109 +516,58 @@ export async function generateBuyerPreviewPDF(
 
     const upgradeData: string[][] = [];
 
-    // Area upgrades - show material names, heated floor, and prices using line items
-    // The lineItems now include areaId for reliable matching
-    selections.areaUpgrades.forEach(upgrade => {
-      // Skip stair selections - they're handled separately below
-      if (upgrade.areaId === 'stairs') return;
-      
-      const areaDef = AREA_DEFINITIONS.find(a => a.id === upgrade.areaId);
-      if (areaDef) {
-        // Find the matching line item by areaId (more reliable than areaName)
-        const itemCalc = upgradeCalc.lineItems.find(i => i.areaId === upgrade.areaId);
-        const materialCost = itemCalc?.markedUpCost || 0;
-        
-        // Add the material upgrade line
-        upgradeData.push([
-          `${areaDef.name} — ${upgrade.productName || UPGRADE_MATERIALS.find(m => m.id === upgrade.materialType)?.name || upgrade.materialType}`,
-          `$${materialCost.toFixed(2)}`
-        ]);
-        
-        // Add heated floor line if applicable
-        if (itemCalc?.heatedFloor && itemCalc.heatedFloorCost) {
-          upgradeData.push([
-            `  └ Heated Floor (${areaDef.name})`,
-            `$${itemCalc.heatedFloorCost.toFixed(2)}`
-          ]);
-        }
+    if (totals.pieces.stairLvp > 0) {
+      upgradeData.push(['Stair LVP Upgrade with Custom Nosings', `$${totals.pieces.stairLvp.toFixed(2)}`]);
+    }
+    if (totals.pieces.stairCarpet > 0) {
+      upgradeData.push(['Premium Carpet Stairs Upgrade', `$${totals.pieces.stairCarpet.toFixed(2)}`]);
+    }
+
+    totals.pieces.flooringUpgrades.forEach(item => {
+      const productLine = item.productName
+        ? `${item.productName}${item.productColor ? ` - ${item.productColor}` : ''}`
+        : item.materialName;
+      upgradeData.push([`${item.areaName} — ${productLine}`, `$${item.amount.toFixed(2)}`]);
+      if (item.heatedFloorAmount > 0) {
+        upgradeData.push([`  └ Heated Floor (${item.areaName})`, `$${item.heatedFloorAmount.toFixed(2)}`]);
       }
     });
-    
-    // Handle stair selections from areaUpgrades (premium carpet selections)
-    const stairUpgrade = selections.areaUpgrades.find(u => u.areaId === 'stairs');
-    
-    // Stair LVP upgrade (from stairLvpUpgradeSelected flag)
-    if (stairLvpPrice > 0) {
-      upgradeData.push([
-        'Stair LVP Upgrade with Custom Nosings',
-        `$${stairLvpPrice.toFixed(2)}`
-      ]);
-    }
-    // Stair Premium Carpet upgrade (from stairPremiumCarpetSelected flag) - only if no areaUpgrades stair
-    else if (stairCarpetPrice > 0 && !stairUpgrade) {
-      upgradeData.push([
-        'Premium Carpet Stairs Upgrade',
-        `$${stairCarpetPrice.toFixed(2)}`
-      ]);
-    }
-    // Stair selection from upgrade picker (premium carpet with product name)
-    else if (stairUpgrade) {
-      const stairCarpetUpgradePrice = pricing.getStairCarpetUpgradePrice?.() || 640;
-      upgradeData.push([
-        `Stairs — ${stairUpgrade.productName || UPGRADE_MATERIALS.find(m => m.id === stairUpgrade.materialType)?.name || 'Premium Carpet'}`,
-        `$${stairCarpetUpgradePrice.toFixed(2)}`
-      ]);
-    }
 
-    // Bathroom upgrades (Section 4)
-    if (bathroomTileSubtotal > 0) {
-      upgradeData.push([
-        'Porcelain Tile Floor Upgrade',
-        `$${bathroomTileSubtotal.toFixed(2)}`,
-      ]);
+    if (totals.pieces.bathroomTile > 0) {
+      upgradeData.push(['Porcelain Tile Floor Upgrade', `$${totals.pieces.bathroomTile.toFixed(2)}`]);
     }
-    if (section4HeatedFloorSubtotal > 0) {
-      const n = selections.heatedFloorBathrooms;
+    if (totals.pieces.section4HeatedFloor > 0) {
+      const n = selections.heatedFloorBathrooms || 0;
+      const heatedFloorPerBathroom = pricing.getHeatedFloorPrice();
       upgradeData.push([
         `Heated Tile Floor (${n} bathroom${n > 1 ? 's' : ''} × $${heatedFloorPerBathroom.toLocaleString()})`,
-        `$${section4HeatedFloorSubtotal.toFixed(2)}`,
+        `$${totals.pieces.section4HeatedFloor.toFixed(2)}`,
       ]);
     }
-    if (customShowerSubtotal > 0) {
+    if (totals.pieces.customShower > 0) {
+      upgradeData.push(['Custom Tiled Shower', `$${totals.pieces.customShower.toFixed(2)}`]);
+    }
+
+    if (totals.pieces.grout > 0) {
       upgradeData.push([
-        'Custom Tiled Shower',
-        `$${customShowerSubtotal.toFixed(2)}`,
+        `Backsplash Grout Color Change${selections.backsplashGrout?.groutColor ? ` — ${selections.backsplashGrout.groutColor}` : ''}`,
+        `$${totals.pieces.grout.toFixed(2)}`,
       ]);
     }
 
-    // Grout color change
-    if (groutPrice) {
-      upgradeData.push([
-        `Backsplash Grout Color Change${selections.backsplashGrout.groutColor ? ` — ${selections.backsplashGrout.groutColor}` : ''}`,
-        `$${groutPrice.markedUpCost.toFixed(2)}`
-      ]);
-    }
-
-    // Show only section subtotal - GST will be calculated once in grand total
-    upgradeData.push(['Section Subtotal:', `$${upgradesSubtotal.toFixed(2)}`]);
+    upgradeData.push(['Section Subtotal:', `$${totals.upgradesSubtotal.toFixed(2)}`]);
 
     autoTable(doc, {
       startY: yPos,
       body: upgradeData,
       margin: { left: margin, right: margin },
-      bodyStyles: {
-        fontSize: 10,
-        textColor: COLORS.dark,
-      },
+      bodyStyles: { fontSize: 10, textColor: COLORS.dark },
       columnStyles: {
         0: { cellWidth: 120 },
         1: { cellWidth: 40, halign: 'right', fontStyle: 'bold' },
       },
       didParseCell: (data: any) => {
-        // Highlight the last row (section subtotal)
-        if (data.row.index === upgradeData.length - 1) {
-          data.cell.styles.fontStyle = 'bold';
-        }
+        if (data.row.index === upgradeData.length - 1) data.cell.styles.fontStyle = 'bold';
       },
     });
 
@@ -681,103 +581,83 @@ export async function generateBuyerPreviewPDF(
 
   if (interests.length > 0) {
     checkNewPage(50);
-    
     doc.setFontSize(14);
     doc.setTextColor(...COLORS.primary);
     doc.setFont('helvetica', 'bold');
     doc.text('Upgrade Interests', margin, yPos);
     yPos += 3;
-    
     doc.setDrawColor(...COLORS.primary);
     doc.setLineWidth(2);
     doc.line(margin, yPos, margin + 40, yPos);
     yPos += 12;
-
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...COLORS.dark);
-    
     interests.forEach((interest, i) => {
       doc.text(`• ${interest.charAt(0).toUpperCase() + interest.slice(1)}`, margin, yPos + (i * 7));
     });
-    
     yPos += interests.length * 7 + 10;
     doc.setTextColor(...COLORS.muted);
     doc.text('Our team will contact you with details and pricing for these options.', margin, yPos);
     yPos += 15;
   }
 
-  // Grand Total - Consolidated summary of all upgrades
-  // Use individual subtotals to calculate GST once (not per-section totals which already include GST)
-  const grandSubtotal = windowSubtotal + upgradesSubtotal;
-  const grandGst = grandSubtotal * pricing.gstRate;
-  const grandTotal = grandSubtotal + grandGst;
-  
-  // Note: The section totals (Window Coverings and Premium Upgrades) each show their own GST.
-  // The Grand Total shows the combined subtotal with a single GST calculation.
-  // This is correct - we're applying GST once to the total, not re-applying to section totals.
-  
-  if (grandTotal > 0) {
+  // ---- Grand Total summary ----
+  if (totals.grandTotal > 0) {
     checkNewPage(60);
-    
-    // Summary box header
+
     doc.setFontSize(14);
     doc.setTextColor(...COLORS.primary);
     doc.setFont('helvetica', 'bold');
     doc.text('Complete Upgrade Summary', margin, yPos);
     yPos += 3;
-    
+
     doc.setDrawColor(...COLORS.primary);
     doc.setLineWidth(2);
     doc.line(margin, yPos, margin + 55, yPos);
     yPos += 12;
-    
-    // Summary breakdown
+
     doc.setFontSize(10);
     doc.setTextColor(...COLORS.dark);
     doc.setFont('helvetica', 'normal');
-    
-    if (windowSubtotal > 0) {
+
+    if (totals.windowSubtotal > 0) {
       doc.text('Window Coverings:', margin, yPos);
-      doc.text(`$${windowSubtotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+      doc.text(`$${totals.windowSubtotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
       yPos += 8;
     }
-    
-    if (upgradesSubtotal > 0) {
+    if (totals.upgradesSubtotal > 0) {
       doc.text('Premium Upgrades:', margin, yPos);
-      doc.text(`$${upgradesSubtotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+      doc.text(`$${totals.upgradesSubtotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
       yPos += 8;
     }
-    
-    // Totals
+
     yPos += 5;
     doc.setDrawColor(...COLORS.muted);
     doc.setLineWidth(0.5);
     doc.line(margin, yPos, pageWidth - margin, yPos);
     yPos += 8;
-    
+
     doc.text('Subtotal (pre-GST):', margin, yPos);
-    doc.text(`$${grandSubtotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+    doc.text(`$${totals.grandSubtotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
     yPos += 8;
-    
+
     doc.text(`GST (${(pricing.gstRate * 100).toFixed(0)}%):`, margin, yPos);
-    doc.text(`$${grandGst.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+    doc.text(`$${totals.gst.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
     yPos += 12;
-    
-    // Grand total highlight box
+
     doc.setFillColor(...COLORS.primary);
     doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 25, 3, 3, 'F');
-    
+
     doc.setFontSize(14);
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.text('Grand Total (incl. GST):', margin + 10, yPos + 16);
     doc.setFontSize(18);
-    doc.text(`$${grandTotal.toFixed(2)}`, pageWidth - margin - 10, yPos + 16, { align: 'right' });
-    
+    doc.text(`$${totals.grandTotal.toFixed(2)}`, pageWidth - margin - 10, yPos + 16, { align: 'right' });
+
     yPos += 35;
-    
-    // Material overage note
+
     doc.setFontSize(8);
     doc.setTextColor(...COLORS.muted);
     doc.setFont('helvetica', 'italic');
