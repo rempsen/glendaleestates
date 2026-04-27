@@ -1559,13 +1559,13 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     upgradeInterestsHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Additional Interests</h2>
-          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 16px 20px;">
-            <p style="margin: 0; color: #166534; font-size: 14px;">You've expressed interest in learning more about:</p>
-            <div style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
-              ${interests.map(interest => `<span style="display: inline-block; background: #dcfce7; color: #15803d; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 500;">${escapeHtml(interest)}</span>`).join(' ')}
+          <h2 style="margin: 0 0 16px; color: #000000; font-size: 18px; font-weight: 600;">Additional Interests</h2>
+          <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 12px; padding: 16px 20px;">
+            <p style="margin: 0; color: #000000; font-size: 14px;">You've expressed interest in learning more about:</p>
+            <div style="margin-top: 12px;">
+              ${interests.map(interest => `<span style="display: inline-block; background: #ffffff; color: #000000; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 500; border: 1px solid #86efac; margin: 0 6px 6px 0;">${escapeHtml(interest)}</span>`).join(' ')}
             </div>
-            <p style="margin: 12px 0 0; color: #16a34a; font-size: 12px;">Our team will reach out to discuss these options with you.</p>
+            <p style="margin: 12px 0 0; color: #000000; font-size: 12px;">Our team will reach out to discuss these options with you.</p>
           </div>
         </td>
       </tr>
