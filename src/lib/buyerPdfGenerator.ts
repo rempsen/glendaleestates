@@ -506,11 +506,48 @@ export async function generateBuyerPreviewPDF(
   // Check if there's a stair selection in areaUpgrades (premium carpet from upgrade picker)
   const stairUpgradeFromPicker = selections.areaUpgrades.find(u => u.areaId === 'stairs');
   const stairUpgradePickerPrice = stairUpgradeFromPicker ? (pricing.getStairCarpetUpgradePrice?.() || 640) : 0;
-  
+
+  // ----- Section 4 bathroom upgrades (matches UpgradePricingSummary) -----
+  const heatedFloorPerBathroom = pricing.getHeatedFloorPrice();
+
+  // Porcelain Tile Floor Upgrade — area-based, marked up
+  const bathroomTileSubtotal = (() => {
+    if (!selections.bathroomTileSelected || !effectiveUnitCode) return 0;
+    const tileCostPerSqft = pricing.getMaterialCost('tile' as MaterialType);
+    if (tileCostPerSqft <= 0) return 0;
+    const code = effectiveUnitCode.toUpperCase();
+    let guestBathArea = 0;
+    let ensuiteArea = 0;
+    if (['G', 'H'].includes(code) && pricing.getUnitAreaData) {
+      const d1 = pricing.getUnitAreaData(`${code}-1`);
+      const d2 = pricing.getUnitAreaData(`${code}-2`);
+      guestBathArea = Math.max(d1?.guestBathroom || 0, d2?.guestBathroom || 0);
+      ensuiteArea = Math.max(d1?.masterEnsuite || 0, d2?.masterEnsuite || 0);
+    } else if (pricing.getUnitAreaData) {
+      const areaData = pricing.getUnitAreaData(code);
+      guestBathArea = areaData?.guestBathroom || 0;
+      ensuiteArea = areaData?.masterEnsuite || 0;
+    }
+    return (guestBathArea + ensuiteArea) * tileCostPerSqft * (1 + pricing.markupPercentage);
+  })();
+
+  // Heated Tile Floor (Section 4) — flat per bathroom
+  const section4HeatedFloorSubtotal =
+    (selections.heatedFloorBathrooms || 0) > 0
+      ? selections.heatedFloorBathrooms * heatedFloorPerBathroom
+      : 0;
+
+  // Custom Tiled Shower — flat marked-up cost
+  const customShowerCost = pricing.getMaterialCost('tiled_shower' as MaterialType);
+  const customShowerSubtotal = selections.customTiledShower
+    ? customShowerCost * (1 + pricing.markupPercentage)
+    : 0;
+
   // Note: heated floor costs are now included in upgradeCalc.subtotal per area
   // Include stair upgrade picker price only if not already counted via stairCarpetPrice flag
   const upgradesSubtotal = upgradeCalc.subtotal + (groutPrice?.markedUpCost || 0) + stairLvpPrice + 
-    (stairCarpetPrice > 0 ? stairCarpetPrice : stairUpgradePickerPrice);
+    (stairCarpetPrice > 0 ? stairCarpetPrice : stairUpgradePickerPrice) +
+    bathroomTileSubtotal + section4HeatedFloorSubtotal + customShowerSubtotal;
 
   if (upgradesSubtotal > 0) {
     checkNewPage(80);
