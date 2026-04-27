@@ -733,9 +733,20 @@ export async function generateBuyerPreviewPDF(
   if (selections.backsplashGrout?.comments) commentEntries.push({ label: 'Backsplash Grout', text: selections.backsplashGrout.comments });
   if (selections.upgradeInterestsNotes) commentEntries.push({ label: 'Upgrade Interests', text: selections.upgradeInterestsNotes });
   if (selections.upgradeComments) commentEntries.push({ label: 'Upgrade Pricing Summary', text: selections.upgradeComments });
-  // Per-area upgrade comments
-  (selections.areaUpgrades || []).forEach(u => {
-    if (u.comments) commentEntries.push({ label: `Area Upgrade — ${u.areaId}`, text: u.comments });
+  // Per-area upgrade comments — render every comment, even when the area
+  // identifier is missing or a placeholder, so the buyer's note is preserved.
+  (selections.areaUpgrades || []).forEach((u, idx) => {
+    if (!u.comments) return;
+    const areaDef = AREA_DEFINITIONS.find(a => a.id === u.areaId);
+    let label: string;
+    if (areaDef) {
+      label = `Area Upgrade — ${areaDef.name}`;
+    } else if (!u.areaId || u.areaId.startsWith('unspecified_area')) {
+      label = `Area Upgrade — Unspecified Area #${idx + 1}`;
+    } else {
+      label = `Area Upgrade — ${u.areaId}`;
+    }
+    commentEntries.push({ label, text: u.comments });
   });
 
   if (commentEntries.length > 0) {
