@@ -815,9 +815,37 @@ Deno.serve(async (req: Request): Promise<Response> => {
         stairCarpetUpgradePrice: stairCarpetUpgradePrice,
       }
     );
-    
+
+    // ---- Section 4 bathroom upgrades (Porcelain Tile, Heated Floor, Custom Tiled Shower) ----
+    // These match the on-screen UpgradePricingSummary and the buyer PDF (computeUpgradeTotals).
+    const resolvedUnitCodeForBath = resolveFloorSpecificUnitCode(effectiveUnitCode, data.upgradeFloorSelection, pricing.unitAreas);
+    let bathroomGuestSqft = 0;
+    let bathroomEnsuiteSqft = 0;
+    if (effectiveUnitCode === 'G' || effectiveUnitCode === 'H') {
+      const d1 = pricing.unitAreas[`${effectiveUnitCode}-1`];
+      const d2 = pricing.unitAreas[`${effectiveUnitCode}-2`];
+      bathroomGuestSqft = Math.max(d1?.guestBathroom || 0, d2?.guestBathroom || 0);
+      bathroomEnsuiteSqft = Math.max(d1?.masterEnsuite || 0, d2?.masterEnsuite || 0);
+    } else {
+      const d = pricing.unitAreas[resolvedUnitCodeForBath];
+      bathroomGuestSqft = d?.guestBathroom || 0;
+      bathroomEnsuiteSqft = d?.masterEnsuite || 0;
+    }
+    const tileCostPerSqft = pricing.materials['tile'] || 0;
+    const showerBaseCost = pricing.materials['tiled_shower'] || 0;
+    const bathroomTileSubtotal = data.bathroomTileSelected && tileCostPerSqft > 0
+      ? (bathroomGuestSqft + bathroomEnsuiteSqft) * tileCostPerSqft * (1 + pricing.markupPercentage)
+      : 0;
+    const heatedFloorBathroomCount = Number(data.heatedFloorBathrooms) || 0;
+    const section4HeatedFloorSubtotal = heatedFloorBathroomCount > 0
+      ? heatedFloorBathroomCount * heatedFloorPrice
+      : 0;
+    const customTiledShowerSubtotal = data.customTiledShower && showerBaseCost > 0
+      ? showerBaseCost * (1 + pricing.markupPercentage)
+      : 0;
+
     // Calculate grand totals
-    const grandSubtotal = windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal + premiumCarpetBedroomSubtotal + underpadBedroomSubtotal + underpadStairsSubtotal + areaUpgradeCosts.subtotal;
+    const grandSubtotal = windowSubtotal + stairLvpSubtotal + stairCarpetSubtotal + groutSubtotal + premiumCarpetBedroomSubtotal + underpadBedroomSubtotal + underpadStairsSubtotal + areaUpgradeCosts.subtotal + bathroomTileSubtotal + section4HeatedFloorSubtotal + customTiledShowerSubtotal;
     const grandGst = grandSubtotal * gstRate;
     const grandTotal = grandSubtotal + grandGst;
     
