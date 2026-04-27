@@ -41,8 +41,9 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X, DollarSign, Trash2, Mail, GitCompare, History } from 'lucide-react';
+import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X, DollarSign, Trash2, Mail, GitCompare, History, Send } from 'lucide-react';
 import { generateSubmissionPDF } from '@/lib/submissionPdfGenerator';
+import { generateBuyerPreviewPDF } from '@/lib/buyerPdfGenerator';
 import { format } from 'date-fns';
 import { 
   calculateAreaUpgradePrice, 
@@ -256,13 +257,19 @@ export default function AdminSubmissions() {
   const [emailPreviewOpen, setEmailPreviewOpen] = useState(false);
   const [emailPreviewHtml, setEmailPreviewHtml] = useState('');
 
+  const [resendingPdf, setResendingPdf] = useState(false);
+
   // Use dynamic pricing from database
-  const { 
-    getAdditionalWindowPrice, 
+  const {
+    getAdditionalWindowPrice,
     getPatioDoorPrice,
+    getAutomatedMotorPrice,
     getHeatedFloorPrice,
     getGroutColorChangePrice,
     getStairLvpUpgradePrice,
+    getStairCarpetUpgradePrice,
+    getMaterialCost,
+    markupPercentage,
     gstRate,
   } = useDynamicPricing();
 
