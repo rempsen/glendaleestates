@@ -249,6 +249,22 @@ const customProperties = [
     description: "Admin/sales comments on the submission"
   },
   {
+    name: "bmd_upgrade_comments",
+    label: "Upgrade Pricing Summary Comments",
+    type: "string",
+    fieldType: "textarea",
+    groupName: "contactinformation",
+    description: "Buyer comments from the Upgrade Pricing Summary step"
+  },
+  {
+    name: "bmd_upgrade_interests_notes",
+    label: "Upgrade Interests Notes",
+    type: "string",
+    fieldType: "textarea",
+    groupName: "contactinformation",
+    description: "Buyer notes from the Upgrade Interests step"
+  },
+  {
     name: "bmd_pdf_url",
     label: "Submission PDF URL",
     type: "string",

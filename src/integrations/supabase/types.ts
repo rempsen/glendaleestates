@@ -93,8 +93,10 @@ export type Database = {
           unit_number: string
           unit_type: string | null
           updated_at: string
+          upgrade_comments: string | null
           upgrade_floor_selection: string | null
           upgrade_interests: Json | null
+          upgrade_interests_notes: string | null
           window_comments: string | null
           window_total: number | null
         }
@@ -143,8 +145,10 @@ export type Database = {
           unit_number: string
           unit_type?: string | null
           updated_at?: string
+          upgrade_comments?: string | null
           upgrade_floor_selection?: string | null
           upgrade_interests?: Json | null
+          upgrade_interests_notes?: string | null
           window_comments?: string | null
           window_total?: number | null
         }
@@ -193,8 +197,10 @@ export type Database = {
           unit_number?: string
           unit_type?: string | null
           updated_at?: string
+          upgrade_comments?: string | null
           upgrade_floor_selection?: string | null
           upgrade_interests?: Json | null
+          upgrade_interests_notes?: string | null
           window_comments?: string | null
           window_total?: number | null
         }

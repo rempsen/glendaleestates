@@ -224,6 +224,11 @@ interface BuyerSelections {
   patioDoorsQty: number;
   automatedWindowsQty: number;
   windowComments: string;
+  lvpComments?: string;
+  spcTileComments?: string;
+  salesComments?: string;
+  upgradeComments?: string;
+  upgradeInterestsNotes?: string;
   areaUpgrades: AreaUpgradeSelection[];
   upgradeFloorSelection: '1' | '2' | null;
   backsplashGrout: BacksplashGroutSelection;
@@ -718,6 +723,56 @@ export async function generateBuyerPreviewPDF(
     doc.setTextColor(...COLORS.muted);
     doc.setFont('helvetica', 'italic');
     doc.text('* A 10% material overage is allowed on all quoted amounts.', margin, yPos);
+  }
+
+  // ===== Buyer Comments & Notes =====
+  const commentEntries: Array<{ label: string; text: string }> = [];
+  if (selections.lvpComments) commentEntries.push({ label: 'Main Floor LVP', text: selections.lvpComments });
+  if (selections.spcTileComments) commentEntries.push({ label: 'Bathroom Tile', text: selections.spcTileComments });
+  if (selections.windowComments) commentEntries.push({ label: 'Window Coverings', text: selections.windowComments });
+  if (selections.backsplashGrout?.comments) commentEntries.push({ label: 'Backsplash Grout', text: selections.backsplashGrout.comments });
+  if (selections.upgradeInterestsNotes) commentEntries.push({ label: 'Upgrade Interests', text: selections.upgradeInterestsNotes });
+  if (selections.upgradeComments) commentEntries.push({ label: 'Upgrade Pricing Summary', text: selections.upgradeComments });
+  // Per-area upgrade comments
+  (selections.areaUpgrades || []).forEach(u => {
+    if (u.comments) commentEntries.push({ label: `Area Upgrade — ${u.areaId}`, text: u.comments });
+  });
+
+  if (commentEntries.length > 0) {
+    if (yPos > pageHeight - 80) {
+      doc.addPage();
+      yPos = margin;
+    } else {
+      yPos += 10;
+    }
+
+    doc.setFontSize(14);
+    doc.setTextColor(...COLORS.primary);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Your Comments & Notes', margin, yPos);
+    yPos += 3;
+    doc.setDrawColor(...COLORS.primary);
+    doc.setLineWidth(2);
+    doc.line(margin, yPos, margin + 50, yPos);
+    yPos += 10;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    commentEntries.forEach(entry => {
+      if (yPos > pageHeight - 30) {
+        doc.addPage();
+        yPos = margin;
+      }
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...COLORS.dark);
+      doc.text(`${entry.label}:`, margin, yPos);
+      yPos += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...COLORS.muted);
+      const wrapped = doc.splitTextToSize(entry.text, pageWidth - margin * 2);
+      doc.text(wrapped, margin, yPos);
+      yPos += wrapped.length * 5 + 4;
+    });
   }
 
   // Footer

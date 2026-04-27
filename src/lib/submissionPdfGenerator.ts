@@ -112,6 +112,8 @@ interface BuyerSubmission {
   heated_floor_bathrooms?: number;
   bathroom_tile_selected?: boolean;
   sales_comments?: string | null;
+  upgrade_comments?: string | null;
+  upgrade_interests_notes?: string | null;
 }
 
 export async function generateSubmissionPDF(submission: BuyerSubmission): Promise<void> {
@@ -502,6 +504,52 @@ export async function generateSubmissionPDF(submission: BuyerSubmission): Promis
     // Split long comments into multiple lines
     const splitComments = doc.splitTextToSize(submission.sales_comments, pageWidth - (margin * 2));
     doc.text(splitComments, margin, yPos);
+    yPos += splitComments.length * 5 + 5;
+  }
+
+  // ===== Buyer Comments captured throughout the wizard =====
+  const buyerComments: Array<{ label: string; text: string }> = [];
+  if (submission.lvp_comments) buyerComments.push({ label: 'Main Floor LVP', text: submission.lvp_comments });
+  if (submission.spc_tile_comments) buyerComments.push({ label: 'Bathroom Tile', text: submission.spc_tile_comments });
+  if (submission.window_comments) buyerComments.push({ label: 'Window Coverings', text: submission.window_comments });
+  if (submission.backsplash_grout_comments) buyerComments.push({ label: 'Backsplash Grout', text: submission.backsplash_grout_comments });
+  if (submission.upgrade_interests_notes) buyerComments.push({ label: 'Upgrade Interests', text: submission.upgrade_interests_notes });
+  if (submission.upgrade_comments) buyerComments.push({ label: 'Upgrade Pricing Summary', text: submission.upgrade_comments });
+
+  if (buyerComments.length > 0) {
+    if (yPos > pageHeight - 80) {
+      doc.addPage();
+      yPos = margin;
+    } else {
+      yPos += 10;
+    }
+
+    doc.setFontSize(14);
+    doc.setTextColor(...COLORS.primary);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Buyer Comments & Notes', margin, yPos);
+    yPos += 3;
+    doc.setDrawColor(...COLORS.primary);
+    doc.setLineWidth(2);
+    doc.line(margin, yPos, margin + 50, yPos);
+    yPos += 10;
+
+    doc.setFontSize(10);
+    buyerComments.forEach(entry => {
+      if (yPos > pageHeight - 30) {
+        doc.addPage();
+        yPos = margin;
+      }
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...COLORS.dark);
+      doc.text(`${entry.label}:`, margin, yPos);
+      yPos += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...COLORS.muted);
+      const wrapped = doc.splitTextToSize(entry.text, pageWidth - margin * 2);
+      doc.text(wrapped, margin, yPos);
+      yPos += wrapped.length * 5 + 4;
+    });
   }
 
   // Footer

@@ -261,6 +261,9 @@ interface SelectionData {
   backsplashGroutEnabled?: boolean;
   backsplashGroutColor?: string | null;
   backsplashGroutComments?: string | null;
+  // Comments collected on Upgrade Pricing Summary and Upgrade Interests steps
+  upgradeComments?: string | null;
+  upgradeInterestsNotes?: string | null;
   // PDF for HubSpot
   pdfBase64?: string | null;
   // Document uploads
@@ -576,6 +579,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       backsplashGroutEnabled: Boolean(rawData.backsplashGroutEnabled),
       backsplashGroutColor: rawData.backsplashGroutColor ? String(rawData.backsplashGroutColor).trim().slice(0, 100) : null,
       backsplashGroutComments: rawData.backsplashGroutComments ? String(rawData.backsplashGroutComments).trim().slice(0, 2000) : null,
+      upgradeComments: rawData.upgradeComments ? String(rawData.upgradeComments).trim().slice(0, 5000) : null,
+      upgradeInterestsNotes: rawData.upgradeInterestsNotes ? String(rawData.upgradeInterestsNotes).trim().slice(0, 5000) : null,
       // Document uploads
       documentUploads: Array.isArray(rawData.documentUploads) ? rawData.documentUploads.map((doc: unknown) => {
         const d = doc as Record<string, unknown>;
@@ -630,6 +635,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       premium_underpad_stairs: data.premiumUnderpadStairs || false,
       custom_tiled_shower: data.customTiledShower || false,
       document_uploads: data.documentUploads || [],
+      upgrade_comments: data.upgradeComments || null,
+      upgrade_interests_notes: data.upgradeInterestsNotes || null,
       status: "submitted",
     });
 
@@ -683,6 +690,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
           upgrade_floor_selection: data.upgradeFloorSelection,
           upgrade_interests: data.upgradeInterests,
           sales_comments: data.salesComments,
+          upgrade_comments: data.upgradeComments,
+          upgrade_interests_notes: data.upgradeInterestsNotes,
           status: 'submitted',
           created_at: savedSelection?.created_at,
           pdf_base64: data.pdfBase64 || null,
