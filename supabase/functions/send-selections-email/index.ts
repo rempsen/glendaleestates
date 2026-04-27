@@ -2000,3 +2000,125 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     </html>
   `;
 }
+// =====================================================================
+// Preview / Test helpers — render buyer/admin emails with sample data
+// so we can render in a browser or send a one-off test email to verify
+// legibility in Gmail/Outlook before any real submissions go out.
+// =====================================================================
+
+function buildPreviewSampleData(overrides: Record<string, unknown>): SelectionData {
+  const base: SelectionData = {
+    unitNumber: '00',
+    unitType: 'Type C (Preview)',
+    firstName: 'Sample',
+    lastName: 'Buyer',
+    phoneNumber: '555-0100',
+    email: 'preview@example.com',
+    estimatedPossessionDate: new Date().toISOString(),
+    hasStairs: true,
+    lvpColour: 'Cortland',
+    lvpComments: '',
+    spcTileColour: 'Frost White',
+    spcTileComments: '',
+    backsplashOrientation: 'Stacked',
+    stairCarpetColour: 'Standard',
+    stairLvpUpgradeSelected: false,
+    stairPremiumCarpetSelected: true,
+    stairUpgradeType: 'standard',
+    premiumCarpetBedroom: true,
+    premiumUnderpadBedroom: true,
+    premiumUnderpadStairs: true,
+    bedroomFlooringChoice: 'lvp',
+    bedroomCarpetColour: null,
+    bedroomLvpColour: 'Cortland',
+    bedroomLvpSameAsMain: true,
+    additionalWindowsQty: 2,
+    patioDoorsQty: 1,
+    automatedWindowsQty: 2,
+    windowComments: '',
+    salesComments: 'Preview submission — used to verify email legibility.',
+    upgradeInterests: { 'heated-tile-floor': true, 'custom-shower': true },
+    windowTotal: 4960.5,
+    hardwoodUpgradeSelected: false,
+    bathroomTileSelected: true,
+    heatedFloorBathrooms: 2,
+    customTiledShower: true,
+    areaUpgrades: [],
+    upgradeFloorSelection: null,
+    backsplashGroutEnabled: true,
+    backsplashGroutColor: 'Charcoal',
+    backsplashGroutComments: '',
+    upgradeComments: '',
+    upgradeInterestsNotes: '',
+    documentUploads: [],
+  };
+  return { ...base, ...(overrides as Partial<SelectionData>) };
+}
+
+function buildPreviewPricing(): BuyerEmailPricing {
+  return {
+    additionalWindowPrice: 673.5,
+    patioDoorPrice: 2680.5,
+    automatedMotorPrice: 645,
+    heatedFloorPrice: 1500,
+    stairLvpPrice: 2500,
+    stairCarpetUpgradePrice: 1200,
+    groutColorPrice: 300,
+    gstRate: 0.05,
+    areaUpgradeCosts: { lineItems: [], subtotal: 0 },
+    premiumCarpetBedroomSubtotal: 2000,
+    underpadBedroomSubtotal: 480,
+    underpadStairsSubtotal: 165,
+    bathroomTileSubtotal: 3200,
+    bathroomGuestSqft: 40,
+    bathroomEnsuiteSqft: 60,
+    tileCostPerSqft: 20,
+    section4HeatedFloorSubtotal: 3000,
+    heatedFloorBathroomCount: 2,
+    customTiledShowerSubtotal: 4500,
+    showerBaseCost: 2812.5,
+    markupPercentage: 0.6,
+  };
+}
+
+function renderPreviewBuyerHtml(data: SelectionData): string {
+  return generateBuyerConfirmationEmail(data, 'PREVIEW-0000', buildPreviewPricing());
+}
+
+function renderPreviewAdminHtml(data: SelectionData): string {
+  // Minimal admin shell using shared theme — mirrors the real admin email's
+  // light/black palette so QA can verify legibility without a real submission.
+  const p = buildPreviewPricing();
+  const lines: Array<[string, number]> = [
+    ['Premium Carpet (Bedrooms)', p.premiumCarpetBedroomSubtotal],
+    ['Premium Underpad (Bedrooms)', p.underpadBedroomSubtotal],
+    ['Premium Underpad (Stairs)', p.underpadStairsSubtotal],
+    [`Additional Windows (${data.additionalWindowsQty} × $${p.additionalWindowPrice.toFixed(2)})`, data.additionalWindowsQty * p.additionalWindowPrice],
+    [`Patio Door Panel Track (${data.patioDoorsQty} × $${p.patioDoorPrice.toFixed(2)})`, data.patioDoorsQty * p.patioDoorPrice],
+    [`Somfy Automation (${data.automatedWindowsQty} × $${p.automatedMotorPrice.toFixed(2)})`, data.automatedWindowsQty * p.automatedMotorPrice],
+    ['Custom Backsplash Grout (Charcoal)', p.groutColorPrice],
+    ['Porcelain Tile Floor Upgrade', p.bathroomTileSubtotal],
+    [`Heated Tile Floor (${p.heatedFloorBathroomCount} bathrooms)`, p.section4HeatedFloorSubtotal],
+    ['Custom Tiled Shower', p.customTiledShowerSubtotal],
+  ];
+  const subtotal = lines.reduce((s, [, v]) => s + v, 0);
+  const gst = subtotal * p.gstRate;
+  const total = subtotal + gst;
+  const rows = lines.map(([l, v]) =>
+    `<tr><td style="padding:10px 8px; color:#000000; border-bottom:1px solid #e5e7eb;">${escapeHtml(l)}</td><td style="padding:10px 8px; color:#000000; text-align:right; font-weight:600; border-bottom:1px solid #e5e7eb;">$${v.toFixed(2)}</td></tr>`
+  ).join('');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Admin Email Preview</title></head>
+<body style="margin:0; padding:24px; background:#f9fafb; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif; color:#000000;">
+  <div style="max-width:700px; margin:0 auto; background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; padding:32px;">
+    <h1 style="margin:0 0 8px; color:#000000; font-size:22px;">New Selection Submission (Preview)</h1>
+    <p style="margin:0 0 20px; color:#374151; font-size:13px;">Unit ${escapeHtml(data.unitNumber)} — ${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}</p>
+    <h2 style="color:#000000; font-size:16px; margin:0 0 12px;">Complete Upgrade Summary</h2>
+    <table style="width:100%; border-collapse:collapse; color:#000000;">
+      ${rows}
+      <tr><td style="padding:12px 8px; color:#000000; border-top:2px solid #d1d5db;">Subtotal (pre-GST)</td><td style="padding:12px 8px; color:#000000; text-align:right; border-top:2px solid #d1d5db;">$${subtotal.toFixed(2)}</td></tr>
+      <tr><td style="padding:8px; color:#000000;">GST (5%)</td><td style="padding:8px; color:#000000; text-align:right;">$${gst.toFixed(2)}</td></tr>
+      <tr><td style="padding:14px 8px; color:#000000; font-size:18px; font-weight:700; border-top:2px solid #1a1a2e;">GRAND TOTAL (incl. GST)</td><td style="padding:14px 8px; color:#047857; font-size:22px; font-weight:700; text-align:right; border-top:2px solid #1a1a2e;">$${total.toFixed(2)}</td></tr>
+    </table>
+  </div>
+</body></html>`;
+}
