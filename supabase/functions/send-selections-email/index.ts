@@ -919,13 +919,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (data.backsplashGroutEnabled) {
       const groutWithGst = groutColorPrice * (1 + gstRate);
       groutHtml = `
-        <div class="section" style="background: #f39c12; color: white;">
-          <h2 style="color: white; margin-top: 0;">Custom Backsplash Grout Color</h2>
-          <table style="color: white;">
-            <tr><td><strong>Grout Color:</strong></td><td>${escapeHtml(data.backsplashGroutColor) || 'Not specified'}</td></tr>
-            <tr><td><strong>Cost:</strong></td><td>$${groutColorPrice.toFixed(2)} + GST ($${groutWithGst.toFixed(2)} total)</td></tr>
+        <div class="section" style="background: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #f59e0b;">
+          <h2 style="color: #000000; margin-top: 0;">Custom Backsplash Grout Color</h2>
+          <table style="color: #000000;">
+            <tr><td style="color: #000000;"><strong>Grout Color:</strong></td><td style="color: #000000;">${escapeHtml(data.backsplashGroutColor) || 'Not specified'}</td></tr>
+            <tr><td style="color: #000000;"><strong>Cost:</strong></td><td style="color: #000000;">$${groutColorPrice.toFixed(2)} + GST ($${groutWithGst.toFixed(2)} total)</td></tr>
           </table>
-          ${data.backsplashGroutComments ? `<p style="margin-top: 10px; font-size: 14px;"><em>Comments: ${escapeHtml(data.backsplashGroutComments)}</em></p>` : ''}
+          ${data.backsplashGroutComments ? `<p style="margin-top: 10px; color: #374151; font-size: 14px;"><em>Comments: ${escapeHtml(data.backsplashGroutComments)}</em></p>` : ''}
         </div>
       `;
     }
@@ -935,22 +935,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (data.stairLvpUpgradeSelected) {
       const stairLvpWithGst = stairLvpPrice * (1 + gstRate);
       stairUpgradeHtml = `
-        <div class="section" style="background: #27ae60; color: white;">
-          <h2 style="color: white; margin-top: 0;">Stair Flooring Upgrade</h2>
-          <table style="color: white;">
-            <tr><td><strong>Selection:</strong></td><td>LVP with Custom Stair Nosings</td></tr>
-            <tr><td><strong>Cost:</strong></td><td>$${stairLvpPrice.toFixed(2)} + GST ($${stairLvpWithGst.toFixed(2)} total)</td></tr>
+        <div class="section" style="background: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #047857;">
+          <h2 style="color: #000000; margin-top: 0;">Stair Flooring Upgrade</h2>
+          <table style="color: #000000;">
+            <tr><td style="color: #000000;"><strong>Selection:</strong></td><td style="color: #000000;">LVP with Custom Stair Nosings</td></tr>
+            <tr><td style="color: #000000;"><strong>Cost:</strong></td><td style="color: #000000;">$${stairLvpPrice.toFixed(2)} + GST ($${stairLvpWithGst.toFixed(2)} total)</td></tr>
           </table>
         </div>
       `;
     } else if (data.stairPremiumCarpetSelected) {
       const stairCarpetWithGst = stairCarpetUpgradePrice * (1 + gstRate);
       stairUpgradeHtml = `
-        <div class="section" style="background: #8e44ad; color: white;">
-          <h2 style="color: white; margin-top: 0;">Stair Flooring Upgrade</h2>
-          <table style="color: white;">
-            <tr><td><strong>Selection:</strong></td><td>Premium Carpet Upgrade</td></tr>
-            <tr><td><strong>Cost:</strong></td><td>$${stairCarpetUpgradePrice.toFixed(2)} + GST ($${stairCarpetWithGst.toFixed(2)} total)</td></tr>
+        <div class="section" style="background: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #1a1a2e;">
+          <h2 style="color: #000000; margin-top: 0;">Stair Flooring Upgrade</h2>
+          <table style="color: #000000;">
+            <tr><td style="color: #000000;"><strong>Selection:</strong></td><td style="color: #000000;">Premium Carpet Upgrade</td></tr>
+            <tr><td style="color: #000000;"><strong>Cost:</strong></td><td style="color: #000000;">$${stairCarpetUpgradePrice.toFixed(2)} + GST ($${stairCarpetWithGst.toFixed(2)} total)</td></tr>
           </table>
         </div>
       `;
