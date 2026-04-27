@@ -125,7 +125,18 @@ function generateCSV(data: SelectionData, savedId: string | undefined, pricingBr
   rows.push(['Sales Comments', data.salesComments || '']);
   rows.push(['Upgrade Pricing Summary Comments', data.upgradeComments || '']);
   rows.push(['Upgrade Interests Notes', data.upgradeInterestsNotes || '']);
-  
+
+  // Pricing Breakdown (matches PDF / on-screen / email summaries)
+  if (pricingBreakdown) {
+    rows.push(['--- PRICING BREAKDOWN ---', '']);
+    for (const item of pricingBreakdown.lineItems) {
+      rows.push([item.label, `$${item.cost.toFixed(2)}`]);
+    }
+    rows.push(['Subtotal (pre-GST)', `$${pricingBreakdown.subtotal.toFixed(2)}`]);
+    rows.push([`GST (${(pricingBreakdown.gstRate * 100).toFixed(0)}%)`, `$${pricingBreakdown.gst.toFixed(2)}`]);
+    rows.push(['GRAND TOTAL (incl. GST)', `$${pricingBreakdown.grandTotal.toFixed(2)}`]);
+  }
+
   // Convert to CSV string with proper escaping
   return rows.map(row => 
     row.map(cell => {
