@@ -1414,21 +1414,21 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     windowCoveringsHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
-          <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Window Covering Upgrades</h2>
-          <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-radius: 12px; overflow: hidden;">
-            <tr style="background: #0369a1;">
-              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: left; font-weight: 600;">Item</th>
-              <th style="padding: 12px 16px; color: white; font-size: 13px; text-align: center; font-weight: 600;">Qty</th>
+          <h2 style="margin: 0 0 16px; color: #000000; font-size: 18px; font-weight: 600;">Window Covering Upgrades</h2>
+          <table role="presentation" style="width: 100%; border-collapse: collapse; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+            <tr style="background: #f9fafb;">
+              <th style="padding: 12px 16px; color: #000000; font-size: 13px; text-align: left; font-weight: 700; border-bottom: 2px solid #d1d5db;">Item</th>
+              <th style="padding: 12px 16px; color: #000000; font-size: 13px; text-align: center; font-weight: 700; border-bottom: 2px solid #d1d5db;">Qty</th>
             </tr>
             ${windowItems.map(item => `
               <tr>
-                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(3,105,161,0.1); color: #0c4a6e; font-size: 14px;">${escapeHtml(item.item)}</td>
-                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(3,105,161,0.1); color: #0c4a6e; font-size: 14px; text-align: center; font-weight: 600;">${item.qty}</td>
+                <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #000000; font-size: 14px;">${escapeHtml(item.item)}</td>
+                <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #000000; font-size: 14px; text-align: center; font-weight: 600;">${item.qty}</td>
               </tr>
             `).join('')}
-            <tr style="background: #0369a1;">
-              <td style="padding: 14px 16px; color: white; font-size: 15px; font-weight: 600;">Total (incl. GST)</td>
-              <td style="padding: 14px 16px; color: #fbbf24; font-size: 18px; text-align: center; font-weight: 700;">$${data.windowTotal.toFixed(2)}</td>
+            <tr style="background: #f9fafb;">
+              <td style="padding: 14px 16px; color: #000000; font-size: 15px; font-weight: 600;">Total (incl. GST)</td>
+              <td style="padding: 14px 16px; color: #047857; font-size: 18px; text-align: center; font-weight: 700;">$${data.windowTotal.toFixed(2)}</td>
             </tr>
           </table>
         </td>
