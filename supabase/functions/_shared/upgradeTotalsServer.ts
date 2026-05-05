@@ -61,6 +61,8 @@ export interface ServerTotalsInput {
   patioDoorsQty?: number;
   automatedWindowsQty?: number;
   bathroomTileSelected?: boolean;
+  bathroomTileEnsuiteSelected?: boolean;
+  bathroomTileGuestSelected?: boolean;
   heatedFloorBathrooms?: number;
   customTiledShower?: boolean;
 }
