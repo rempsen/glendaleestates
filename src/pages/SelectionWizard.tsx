@@ -1191,6 +1191,8 @@ export default function SelectionWizard() {
                   automatedWindowsQty: selections.automatedWindowsQty,
                 }}
                 bathroomTileSelected={selections.bathroomTileSelected}
+                bathroomTileEnsuiteSelected={selections.bathroomTileEnsuiteSelected}
+                bathroomTileGuestSelected={selections.bathroomTileGuestSelected}
                 heatedFloorBathrooms={selections.heatedFloorBathrooms}
                 customTiledShower={selections.customTiledShower}
               />
