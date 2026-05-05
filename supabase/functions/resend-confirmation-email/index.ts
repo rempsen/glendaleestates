@@ -246,6 +246,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       patioDoorsQty: sub.patio_doors_qty,
       automatedWindowsQty: sub.automated_windows_qty,
       bathroomTileSelected: sub.bathroom_tile_selected,
+      bathroomTileEnsuiteSelected: sub.bathroom_tile_ensuite_selected,
+      bathroomTileGuestSelected: sub.bathroom_tile_guest_selected,
       heatedFloorBathrooms: sub.heated_floor_bathrooms,
       customTiledShower: sub.custom_tiled_shower,
     }, pricing);
