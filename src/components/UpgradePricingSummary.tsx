@@ -42,6 +42,8 @@ export function UpgradePricingSummary({
   showTitle = true,
   compact = false,
   bathroomTileSelected = false,
+  bathroomTileEnsuiteSelected,
+  bathroomTileGuestSelected,
   heatedFloorBathrooms = 0,
   customTiledShower = false,
 }: UpgradePricingSummaryProps) {
