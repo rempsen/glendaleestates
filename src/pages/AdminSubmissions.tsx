@@ -845,6 +845,15 @@ export default function AdminSubmissions() {
                           <Eye className="w-4 h-4 mr-1" />
                           Preview Email
                         </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={openPdfPreview}
+                          disabled={pdfPreviewLoading}
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          {pdfPreviewLoading ? 'Rendering…' : 'Preview PDF'}
+                        </Button>
                         <Button 
                           variant="outline" 
                           size="sm" 
