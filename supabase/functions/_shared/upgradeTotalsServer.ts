@@ -226,6 +226,7 @@ export function computeUpgradeTotalsServer(
 
   const resolvedCode = resolveUnitCode(input.unitTypeCode, input.upgradeFloorSelection || null, pricing);
   const unitData = resolvedCode ? pricing.unitAreas[resolvedCode] : undefined;
+  const sectionHeatedFloorCount = Number(input.heatedFloorBathrooms) || 0;
 
   const lineItems: ServerLineItem[] = [];
 
@@ -279,7 +280,7 @@ export function computeUpgradeTotalsServer(
     const markedUp = base * (1 + pricing.markupPercentage);
     const areaName = AREA_NAMES[sel.areaId] || sel.areaId;
     const materialName = MATERIAL_NAMES[sel.materialType] || sel.materialType;
-    const hasHeat = !!sel.heatedFloor && (sel.materialType === 'tile' || sel.materialType === 'nonstandard_tile');
+    const hasHeat = !!sel.heatedFloor && sectionHeatedFloorCount === 0 && (sel.materialType === 'tile' || sel.materialType === 'nonstandard_tile');
     const heatAmount = hasHeat ? heatedFloorPerBathroom : 0;
     flooringSubtotal += markedUp;
     areaHeatedFloorSubtotal += heatAmount;
@@ -310,7 +311,7 @@ export function computeUpgradeTotalsServer(
   const bathroomTile = input.bathroomTileSelected && tileCostPerSqft > 0
     ? (baths.guest + baths.ensuite) * tileCostPerSqft * (1 + pricing.markupPercentage)
     : 0;
-  const heatedFloorCount = Number(input.heatedFloorBathrooms) || 0;
+  const heatedFloorCount = sectionHeatedFloorCount;
   const section4HeatedFloor = heatedFloorCount > 0 ? heatedFloorCount * heatedFloorPerBathroom : 0;
   const customShower = input.customTiledShower && showerBaseCost > 0
     ? showerBaseCost * (1 + pricing.markupPercentage)
