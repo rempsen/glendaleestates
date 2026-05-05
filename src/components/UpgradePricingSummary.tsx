@@ -92,11 +92,11 @@ export function UpgradePricingSummary({
     if (!bathroomTileSelected || !unitTypeCode) return 0;
     const tileCostPerSqft = getMaterialCost('tile' as any);
     if (tileCostPerSqft <= 0) return 0;
-    
+
     const code = unitTypeCode.toUpperCase();
     let guestBathArea = 0;
     let ensuiteArea = 0;
-    
+
     if (['G', 'H'].includes(code)) {
       const data1 = getUnitAreaData(`${code}-1`);
       const data2 = getUnitAreaData(`${code}-2`);
@@ -107,9 +107,13 @@ export function UpgradePricingSummary({
       guestBathArea = areaData?.guestBathroom || 0;
       ensuiteArea = areaData?.masterEnsuite || 0;
     }
-    
-    const totalArea = guestBathArea + ensuiteArea;
-    return totalArea * tileCostPerSqft * (1 + markupPercentage);
+
+    const subFlagsProvided = bathroomTileEnsuiteSelected !== undefined || bathroomTileGuestSelected !== undefined;
+    const ensuiteOn = subFlagsProvided ? !!bathroomTileEnsuiteSelected : true;
+    const guestOn = subFlagsProvided ? !!bathroomTileGuestSelected : true;
+    const ensuiteSqft = ensuiteOn ? ensuiteArea : 0;
+    const guestSqft = guestOn ? guestBathArea : 0;
+    return (ensuiteSqft + guestSqft) * tileCostPerSqft * (1 + markupPercentage);
   })();
 
   // Calculate backsplash grout color change costs
