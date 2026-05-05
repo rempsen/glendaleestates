@@ -678,6 +678,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       windowTotal: Math.max(0, Math.min(1000000, Number(rawData.windowTotal) || 0)),
       hardwoodUpgradeSelected: Boolean(rawData.hardwoodUpgradeSelected),
       bathroomTileSelected: Boolean(rawData.bathroomTileSelected),
+      bathroomTileEnsuiteSelected: rawData.bathroomTileEnsuiteSelected !== undefined ? Boolean(rawData.bathroomTileEnsuiteSelected) : undefined,
+      bathroomTileGuestSelected: rawData.bathroomTileGuestSelected !== undefined ? Boolean(rawData.bathroomTileGuestSelected) : undefined,
       heatedFloorBathrooms: Math.max(0, Math.min(10, Number(rawData.heatedFloorBathrooms) || 0)),
       customTiledShower: Boolean(rawData.customTiledShower),
       // New upgrade fields
