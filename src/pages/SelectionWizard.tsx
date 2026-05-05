@@ -879,6 +879,8 @@ export default function SelectionWizard() {
           upgradeComments={selections.upgradeComments}
           onUpgradeCommentsChange={(comments) => updateSelection('upgradeComments', comments)}
           bathroomTileSelected={selections.bathroomTileSelected}
+          bathroomTileEnsuiteSelected={selections.bathroomTileEnsuiteSelected}
+          bathroomTileGuestSelected={selections.bathroomTileGuestSelected}
           heatedFloorBathrooms={selections.heatedFloorBathrooms}
           customTiledShower={selections.customTiledShower}
         />
