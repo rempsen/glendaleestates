@@ -535,6 +535,8 @@ export default function AdminSubmissions() {
         comments: sub.backsplash_grout_comments || '',
       },
       bathroomTileSelected: !!sub.bathroom_tile_selected,
+      bathroomTileEnsuiteSelected: (sub as any).bathroom_tile_ensuite_selected ?? undefined,
+      bathroomTileGuestSelected: (sub as any).bathroom_tile_guest_selected ?? undefined,
       heatedFloorBathrooms: sub.heated_floor_bathrooms || 0,
       customTiledShower: !!(sub as any).custom_tiled_shower,
       stairLvpUpgradeSelected: !!(sub as any).stair_lvp_upgrade_selected,
