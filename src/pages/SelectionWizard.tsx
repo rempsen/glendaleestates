@@ -9,6 +9,7 @@ import { SelectionCard } from '@/components/SelectionCard';
 import { UpgradeTeaser } from '@/components/UpgradeTeaser';
 import { FloorPlanViewer } from '@/components/FloorPlanViewer';
 import { RoomUpgradePicker } from '@/components/RoomUpgradePicker';
+import { PremiumLVPSynergyShowcase } from '@/components/upgrades/PremiumLVPSynergyShowcase';
 import { PremiumLVPShowcase } from '@/components/upgrades/PremiumLVPShowcase';
 import { PremiumCarpetShowcase } from '@/components/upgrades/PremiumCarpetShowcase';
 import { UpgradePricingSummary } from '@/components/UpgradePricingSummary';
@@ -847,6 +848,9 @@ export default function SelectionWizard() {
       badge="Optional"
     >
       <div className="space-y-8">
+        {/* Premium LVP Educational Section */}
+        <PremiumLVPSynergyShowcase />
+
         {/* Premium Laminate Educational Section */}
         <PremiumLVPShowcase />
 
