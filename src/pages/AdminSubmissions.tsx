@@ -458,9 +458,123 @@ export default function AdminSubmissions() {
     }
   };
 
+  // Build the buyer PDF for a submission using EXACTLY the same pricing
+  // config + selection mapping that the emailed PDF uses. Returned as a
+  // base64 string so it can be either emailed (resend flow) or rendered in
+  // the in-portal PDF preview dialog. Centralised so the preview and the
+  // outbound file can never drift apart.
+  const buildBuyerPdfBase64 = async (sub: BuyerSelection): Promise<string> => {
+    const pdfPricingConfig = {
+      markupPercentage,
+      gstRate,
+      getMaterialCost,
+      getGroutColorFee: getGroutColorChangePrice,
+      getAdditionalWindowPrice,
+      getPatioDoorPrice,
+      getAutomatedMotorPrice,
+      getHeatedFloorPrice,
+      getStairLvpUpgradePrice,
+      getStairCarpetUpgradePrice,
+      getUnitAreaData: (unitTypeCode: string) => {
+        const row = unitAreaData.find(
+          u => u.unit_type_code?.toUpperCase() === unitTypeCode?.toUpperCase()
+        );
+        if (!row) return null;
+        return {
+          allLvp: Number(row.all_lvp) || 0,
+          mainLiving: Number(row.main_living) || 0,
+          secondBedroom: Number(row.second_bedroom) || 0,
+          masterBedroomLvp: Number((row as any).master_bedroom_lvp) || 0,
+          masterBedroom: Number(row.master_bedroom) || 0,
+          secondBedroomCarpet: Number(row.second_bedroom_carpet) || 0,
+          guestBathroom: Number(row.guest_bathroom) || 0,
+          masterEnsuite: Number(row.master_ensuite) || 0,
+          laundry: Number(row.laundry) || 0,
+          backsplash: Number(row.backsplash) || 0,
+        };
+      },
+    };
+
+    const selections = {
+      unitNumber: sub.unit_number || '',
+      firstName: sub.first_name || '',
+      lastName: sub.last_name || '',
+      phoneNumber: sub.phone_number || '',
+      email: sub.email || '',
+      estimatedPossessionDate: sub.estimated_possession_date || '',
+      hasStairs: !!sub.has_stairs,
+      lvpColour: sub.lvp_colour || '',
+      spcTileColour: sub.spc_tile_colour || '',
+      backsplashOrientation: sub.backsplash_orientation || '',
+      stairCarpetColour: sub.stair_carpet_colour || '',
+      bedroomFlooringChoice: (sub.bedroom_flooring_choice as 'lvp' | 'carpet' | '') || '',
+      bedroomCarpetColour: sub.bedroom_carpet_colour || '',
+      bedroomLvpColour: sub.bedroom_lvp_colour || '',
+      bedroomLvpSameAsMain: !!sub.bedroom_lvp_same_as_main,
+      additionalWindowsQty: sub.additional_windows_qty || 0,
+      patioDoorsQty: sub.patio_doors_qty || 0,
+      automatedWindowsQty: (sub as any).automated_windows_qty || 0,
+      windowComments: sub.window_comments || '',
+      lvpComments: sub.lvp_comments || '',
+      spcTileComments: sub.spc_tile_comments || '',
+      upgradeComments: (sub as any).upgrade_comments || '',
+      upgradeInterestsNotes: (sub as any).upgrade_interests_notes || '',
+      areaUpgrades: (sub.area_upgrades || []).map(u => ({
+        areaId: u.areaId,
+        materialType: u.materialType,
+        productName: (u as any).productName || '',
+        productColor: (u as any).productColor || '',
+        comments: u.comments || '',
+      })) as any,
+      upgradeFloorSelection: (sub.upgrade_floor_selection as '1' | '2' | null) || null,
+      backsplashGrout: {
+        enabled: !!sub.backsplash_grout_enabled,
+        groutColor: sub.backsplash_grout_color || '',
+        comments: sub.backsplash_grout_comments || '',
+      },
+      bathroomTileSelected: !!sub.bathroom_tile_selected,
+      heatedFloorBathrooms: sub.heated_floor_bathrooms || 0,
+      customTiledShower: !!(sub as any).custom_tiled_shower,
+      stairLvpUpgradeSelected: !!(sub as any).stair_lvp_upgrade_selected,
+      stairPremiumCarpetSelected: !!(sub as any).premium_underpad_stairs,
+      upgradeInterests: sub.upgrade_interests || {},
+    };
+
+    const unitTypeCode = sub.unit_type ? normalizeUnitTypeCode(sub.unit_type) : null;
+    const pdfBase64 = await generateBuyerPreviewPDF(
+      selections as any,
+      unitTypeCode,
+      pdfPricingConfig as any,
+      { returnBase64: true, saveToFile: false }
+    );
+    if (typeof pdfBase64 !== 'string' || !pdfBase64) {
+      throw new Error('PDF generation returned no data');
+    }
+    return pdfBase64;
+  };
+
+  // Open in-portal PDF preview — uses the EXACT same generator & pricing
+  // path as the emailed buyer PDF, so what admins see here is what buyers
+  // receive.
+  const openPdfPreview = async () => {
+    if (!selectedSubmission) return;
+    setPdfPreviewOpen(true);
+    setPdfPreviewLoading(true);
+    setPdfPreviewUrl('');
+    try {
+      const b64 = await buildBuyerPdfBase64(selectedSubmission);
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      setPdfPreviewUrl(URL.createObjectURL(blob));
+    } catch (err: any) {
+      toast.error('Failed to render PDF preview', { description: err?.message || 'Unknown error' });
+      setPdfPreviewOpen(false);
+    } finally {
+      setPdfPreviewLoading(false);
+    }
+  };
+
   // Re-send a corrected selection summary PDF to the buyer.
-  // Used to deliver an updated PDF that now includes comments which were captured
-  // in the database but were missing from the originally-sent PDF.
   const resendCorrectedPdf = async () => {
     if (!selectedSubmission) return;
     setResendingPdf(true);
