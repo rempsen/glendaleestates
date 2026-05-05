@@ -205,6 +205,8 @@ export default function SelectionWizard() {
     backsplashGrout: { enabled: false, groutColor: '', comments: '' },
     upgradeComments: '',
     bathroomTileSelected: false,
+    bathroomTileEnsuiteSelected: false,
+    bathroomTileGuestSelected: false,
     heatedFloorBathrooms: 0,
     customTiledShower: false,
     documentUploads: [],
