@@ -432,11 +432,8 @@ export async function generateBuyerPreviewPDF(
       patioDoorsQty: selections.patioDoorsQty,
       automatedWindowsQty: selections.automatedWindowsQty,
       bathroomTileSelected: selections.bathroomTileSelected,
-      heatedFloorBathrooms: selections.heatedFloorBathrooms,
-      customTiledShower: selections.customTiledShower,
-    },
-    pricing
-  );
+      bathroomTileEnsuiteSelected: selections.bathroomTileEnsuiteSelected,
+      bathroomTileGuestSelected: selections.bathroomTileGuestSelected,
 
   console.log('[buyerPdfGenerator] computed totals:', {
     windowSubtotal: totals.windowSubtotal,
