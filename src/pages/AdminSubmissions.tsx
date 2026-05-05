@@ -45,13 +45,8 @@ import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X, DollarSign, Tr
 import { generateSubmissionPDF } from '@/lib/submissionPdfGenerator';
 import { generateBuyerPreviewPDF } from '@/lib/buyerPdfGenerator';
 import { format } from 'date-fns';
-import { 
-  calculateAreaUpgradePrice, 
-  calculateBacksplashGroutPrice,
-  normalizeUnitTypeCode,
-  UNIT_AREA_DATA,
-  UpgradeArea
-} from '@/lib/upgradeCostData';
+import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
+import { computeUpgradeTotals } from '@/lib/upgradeTotals';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { useUnitAreaData } from '@/hooks/useUnitAreaData';
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
@@ -67,6 +62,7 @@ interface AreaUpgrade {
   productName: string;
   productColor: string;
   comments: string;
+  heatedFloor?: boolean;
 }
 
 // Area name mapping for display
@@ -98,10 +94,15 @@ const MATERIAL_NAMES: Record<string, string> = {
 interface PricingValues {
   patioDoorPrice: number;
   additionalWindowPrice: number;
+  automatedMotorPrice: number;
   heatedFloorPrice: number;
   backsplashGroutPrice: number;
   stairLvpUpgradePrice: number;
+  stairCarpetUpgradePrice: number;
+  markupPercentage: number;
   gstRate: number;
+  getMaterialCost: (materialType: any) => number;
+  getUnitAreaData: (unitTypeCode: string) => any;
 }
 
 // Calculate all pricing for a submission using dynamic values
@@ -113,80 +114,53 @@ function calculateSubmissionPricing(submission: BuyerSelection, pricing: Pricing
   backsplashGrout: { subtotal: number; gst: number; total: number };
   grandTotal: { subtotal: number; gst: number; total: number };
 } {
-  // Window Coverings
-  const patioTotal = (submission.patio_doors_qty || 0) * pricing.patioDoorPrice;
-  const windowTotal = (submission.additional_windows_qty || 0) * pricing.additionalWindowPrice;
-  const windowSubtotal = patioTotal + windowTotal;
-  const windowGst = windowSubtotal * pricing.gstRate;
-  
-  // Flooring Upgrades (LVP, Hardwood, Carpet)
-  let flooringSubtotal = 0;
-  if (submission.area_upgrades && submission.area_upgrades.length > 0) {
-    const unitTypeCode = extractUnitTypeCode(submission.unit_type, submission.upgrade_floor_selection);
-    for (const upgrade of submission.area_upgrades) {
-      if (['lvp', 'hardwood', 'carpet'].includes(upgrade.materialType)) {
-        const pricingCalc = calculateAreaUpgradePrice(
-          unitTypeCode, 
-          upgrade.areaId as UpgradeArea, 
-          upgrade.materialType as 'lvp' | 'hardwood' | 'carpet' | 'tile'
-        );
-        flooringSubtotal += pricingCalc.markedUpCost;
-      }
-    }
-  }
-  const flooringGst = flooringSubtotal * pricing.gstRate;
-  
-  // Tile Upgrades (bathroom tile, backsplash tile)
-  let tileSubtotal = 0;
-  // Note: Porcelain tile pricing is handled separately, but we keep this for compatibility
-  if (submission.area_upgrades && submission.area_upgrades.length > 0) {
-    const unitTypeCode = extractUnitTypeCode(submission.unit_type, submission.upgrade_floor_selection);
-    for (const upgrade of submission.area_upgrades) {
-      if (upgrade.materialType === 'tile') {
-        const pricingCalc = calculateAreaUpgradePrice(
-          unitTypeCode, 
-          upgrade.areaId as UpgradeArea, 
-          'tile'
-        );
-        tileSubtotal += pricingCalc.markedUpCost;
-      }
-    }
-  }
-  const tileGst = tileSubtotal * pricing.gstRate;
-  
-  // Heated Floors
-  const heatedSubtotal = (submission.heated_floor_bathrooms || 0) * pricing.heatedFloorPrice;
-  const heatedGst = heatedSubtotal * pricing.gstRate;
-  
-  // Backsplash Grout Color Change
-  const groutSubtotal = submission.backsplash_grout_enabled ? pricing.backsplashGroutPrice : 0;
-  const groutGst = groutSubtotal * pricing.gstRate;
-  
-  // Grand Total
-  const grandSubtotal = windowSubtotal + flooringSubtotal + tileSubtotal + heatedSubtotal + groutSubtotal;
-  const grandGst = grandSubtotal * pricing.gstRate;
-  const grandTotal = grandSubtotal + grandGst;
+  const totals = computeUpgradeTotals({
+    unitTypeCode: submission.unit_type ? normalizeUnitTypeCode(submission.unit_type) : null,
+    upgradeFloorSelection: (submission.upgrade_floor_selection as '1' | '2' | null) || null,
+    areaUpgrades: (submission.area_upgrades || []) as any,
+    backsplashGrout: submission.backsplash_grout_enabled ? {
+      enabled: true,
+      groutColor: submission.backsplash_grout_color || '',
+      comments: submission.backsplash_grout_comments || '',
+    } : null,
+    stairLvpUpgradeSelected: !!(submission as any).stair_lvp_upgrade_selected,
+    additionalWindowsQty: submission.additional_windows_qty || 0,
+    patioDoorsQty: submission.patio_doors_qty || 0,
+    automatedWindowsQty: (submission as any).automated_windows_qty || 0,
+    bathroomTileSelected: !!submission.bathroom_tile_selected,
+    heatedFloorBathrooms: submission.heated_floor_bathrooms || 0,
+    customTiledShower: !!(submission as any).custom_tiled_shower,
+  }, {
+    markupPercentage: pricing.markupPercentage,
+    gstRate: pricing.gstRate,
+    getMaterialCost: pricing.getMaterialCost,
+    getGroutColorFee: () => pricing.backsplashGroutPrice,
+    getAdditionalWindowPrice: () => pricing.additionalWindowPrice,
+    getPatioDoorPrice: () => pricing.patioDoorPrice,
+    getAutomatedMotorPrice: () => pricing.automatedMotorPrice,
+    getHeatedFloorPrice: () => pricing.heatedFloorPrice,
+    getStairLvpUpgradePrice: () => pricing.stairLvpUpgradePrice,
+    getStairCarpetUpgradePrice: () => pricing.stairCarpetUpgradePrice,
+    getUnitAreaData: pricing.getUnitAreaData,
+  });
+
+  const flooringSubtotal = totals.lineItems.filter(i => i.group === 'flooring' && !i.label.includes('Heated Floor')).reduce((s, i) => s + i.amount, 0);
+  const tileSubtotal = totals.pieces.bathroomTile;
+  const heatedSubtotal = totals.pieces.section4HeatedFloor + totals.pieces.flooringUpgrades.reduce((s, i) => s + i.heatedFloorAmount, 0);
+  const groutSubtotal = totals.pieces.grout;
+  const windowSubtotal = totals.windowSubtotal;
+  const grandSubtotal = totals.grandSubtotal;
+  const grandGst = totals.gst;
+  const grandTotal = totals.grandTotal;
   
   return {
-    windowCoverings: { subtotal: windowSubtotal, gst: windowGst, total: windowSubtotal + windowGst },
-    flooringUpgrades: { subtotal: flooringSubtotal, gst: flooringGst, total: flooringSubtotal + flooringGst },
-    tileUpgrades: { subtotal: tileSubtotal, gst: tileGst, total: tileSubtotal + tileGst },
-    heatedFloors: { subtotal: heatedSubtotal, gst: heatedGst, total: heatedSubtotal + heatedGst },
-    backsplashGrout: { subtotal: groutSubtotal, gst: groutGst, total: groutSubtotal + groutGst },
+    windowCoverings: { subtotal: windowSubtotal, gst: windowSubtotal * pricing.gstRate, total: windowSubtotal * (1 + pricing.gstRate) },
+    flooringUpgrades: { subtotal: flooringSubtotal, gst: flooringSubtotal * pricing.gstRate, total: flooringSubtotal * (1 + pricing.gstRate) },
+    tileUpgrades: { subtotal: tileSubtotal, gst: tileSubtotal * pricing.gstRate, total: tileSubtotal * (1 + pricing.gstRate) },
+    heatedFloors: { subtotal: heatedSubtotal, gst: heatedSubtotal * pricing.gstRate, total: heatedSubtotal * (1 + pricing.gstRate) },
+    backsplashGrout: { subtotal: groutSubtotal, gst: groutSubtotal * pricing.gstRate, total: groutSubtotal * (1 + pricing.gstRate) },
     grandTotal: { subtotal: grandSubtotal, gst: grandGst, total: grandTotal },
   };
-}
-
-// Extract unit type code from unit_type string
-function extractUnitTypeCode(unitType: string | null, floorSelection?: string | null): string {
-  if (!unitType) return 'J'; // Default
-  const match = unitType.match(/[A-J]/i);
-  if (!match) return 'J';
-  const code = match[0].toUpperCase();
-  if ((code === 'G' || code === 'H') && floorSelection) {
-    return `${code}-${floorSelection}`;
-  }
-  return code;
 }
 
 interface BuyerSelection {
@@ -280,10 +254,30 @@ export default function AdminSubmissions() {
   const pricingValues: PricingValues = {
     patioDoorPrice: getPatioDoorPrice(),
     additionalWindowPrice: getAdditionalWindowPrice(),
+    automatedMotorPrice: getAutomatedMotorPrice(),
     heatedFloorPrice: getHeatedFloorPrice(),
     backsplashGroutPrice: getGroutColorChangePrice(),
     stairLvpUpgradePrice: getStairLvpUpgradePrice(),
+    stairCarpetUpgradePrice: getStairCarpetUpgradePrice(),
+    markupPercentage,
     gstRate,
+    getMaterialCost,
+    getUnitAreaData: (unitTypeCode: string) => {
+      const row = unitAreaData.find(u => u.unit_type_code?.toUpperCase() === unitTypeCode?.toUpperCase());
+      if (!row) return null;
+      return {
+        allLvp: Number(row.all_lvp) || 0,
+        mainLiving: Number(row.main_living) || 0,
+        secondBedroom: Number(row.second_bedroom) || 0,
+        masterBedroomLvp: Number((row as any).master_bedroom_lvp) || 0,
+        masterBedroom: Number(row.master_bedroom) || 0,
+        secondBedroomCarpet: Number(row.second_bedroom_carpet) || 0,
+        guestBathroom: Number(row.guest_bathroom) || 0,
+        masterEnsuite: Number(row.master_ensuite) || 0,
+        laundry: Number(row.laundry) || 0,
+        backsplash: Number(row.backsplash) || 0,
+      };
+    },
   };
 
   const fetchSubmissions = async () => {
