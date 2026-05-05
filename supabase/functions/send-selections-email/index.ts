@@ -1933,6 +1933,8 @@ function buildPreviewTotals(data: SelectionData): ServerTotalsResult {
     patioDoorsQty: data.patioDoorsQty || 0,
     automatedWindowsQty: data.automatedWindowsQty || 0,
     bathroomTileSelected: !!data.bathroomTileSelected,
+    bathroomTileEnsuiteSelected: data.bathroomTileEnsuiteSelected,
+    bathroomTileGuestSelected: data.bathroomTileGuestSelected,
     heatedFloorBathrooms: data.heatedFloorBathrooms || 0,
     customTiledShower: !!data.customTiledShower,
   }, pricing);
