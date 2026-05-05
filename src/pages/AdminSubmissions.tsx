@@ -272,10 +272,30 @@ export default function AdminSubmissions() {
   const pricingValues: PricingValues = {
     patioDoorPrice: getPatioDoorPrice(),
     additionalWindowPrice: getAdditionalWindowPrice(),
+    automatedMotorPrice: getAutomatedMotorPrice(),
     heatedFloorPrice: getHeatedFloorPrice(),
     backsplashGroutPrice: getGroutColorChangePrice(),
     stairLvpUpgradePrice: getStairLvpUpgradePrice(),
+    stairCarpetUpgradePrice: getStairCarpetUpgradePrice(),
+    markupPercentage,
     gstRate,
+    getMaterialCost,
+    getUnitAreaData: (unitTypeCode: string) => {
+      const row = unitAreaData.find(u => u.unit_type_code?.toUpperCase() === unitTypeCode?.toUpperCase());
+      if (!row) return null;
+      return {
+        allLvp: Number(row.all_lvp) || 0,
+        mainLiving: Number(row.main_living) || 0,
+        secondBedroom: Number(row.second_bedroom) || 0,
+        masterBedroomLvp: Number((row as any).master_bedroom_lvp) || 0,
+        masterBedroom: Number(row.master_bedroom) || 0,
+        secondBedroomCarpet: Number(row.second_bedroom_carpet) || 0,
+        guestBathroom: Number(row.guest_bathroom) || 0,
+        masterEnsuite: Number(row.master_ensuite) || 0,
+        laundry: Number(row.laundry) || 0,
+        backsplash: Number(row.backsplash) || 0,
+      };
+    },
   };
 
   const fetchSubmissions = async () => {
