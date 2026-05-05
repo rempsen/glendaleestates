@@ -434,6 +434,11 @@ export async function generateBuyerPreviewPDF(
       bathroomTileSelected: selections.bathroomTileSelected,
       bathroomTileEnsuiteSelected: selections.bathroomTileEnsuiteSelected,
       bathroomTileGuestSelected: selections.bathroomTileGuestSelected,
+      heatedFloorBathrooms: selections.heatedFloorBathrooms,
+      customTiledShower: selections.customTiledShower,
+    },
+    pricing
+  );
 
   console.log('[buyerPdfGenerator] computed totals:', {
     windowSubtotal: totals.windowSubtotal,
