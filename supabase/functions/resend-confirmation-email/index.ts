@@ -250,6 +250,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
       customTiledShower: sub.custom_tiled_shower,
     }, pricing);
 
+    if (preview) {
+      const html = previewType === 'admin'
+        ? buildAdminHtml(sub, totals, editedBy)
+        : buildBuyerHtml(sub, totals);
+      return new Response(JSON.stringify({ html, grandTotal: totals.grandTotal }),
+        { status: 200, headers: { "Content-Type": "application/json", ...cors } });
+    }
+
     const results: { buyer?: boolean; admin?: boolean; errors: string[] } = { errors: [] };
 
     if (sendToBuyer) {
