@@ -284,6 +284,8 @@ interface SelectionData {
   windowTotal: number;
   hardwoodUpgradeSelected?: boolean;
   bathroomTileSelected?: boolean;
+  bathroomTileEnsuiteSelected?: boolean;
+  bathroomTileGuestSelected?: boolean;
   heatedFloorBathrooms?: number;
   premiumCarpetBedroom?: boolean;
   premiumUnderpadBedroom?: boolean;
