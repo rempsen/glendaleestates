@@ -1430,6 +1430,61 @@ export default function AdminSubmissions() {
           sending={sendingEmail}
         />
       )}
+
+      {/* PDF Preview Dialog — renders the EXACT PDF that gets emailed */}
+      <Dialog open={pdfPreviewOpen} onOpenChange={(o) => {
+        setPdfPreviewOpen(o);
+        if (!o && pdfPreviewUrl) {
+          URL.revokeObjectURL(pdfPreviewUrl);
+          setPdfPreviewUrl('');
+        }
+      }}>
+        <DialogContent className="max-w-5xl max-h-[92vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              Buyer PDF Preview
+              {selectedSubmission && (
+                <span className="text-sm font-normal text-muted-foreground">
+                  · Unit {selectedSubmission.unit_number} · {selectedSubmission.first_name} {selectedSubmission.last_name}
+                </span>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              This is the same PDF that gets attached to the buyer email — generated from the shared pricing engine.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 border rounded-lg bg-muted/20 overflow-hidden">
+            {pdfPreviewLoading || !pdfPreviewUrl ? (
+              <div className="w-full h-[70vh] flex items-center justify-center text-sm text-muted-foreground">
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                Rendering PDF…
+              </div>
+            ) : (
+              <iframe
+                src={pdfPreviewUrl}
+                title="Buyer PDF Preview"
+                className="w-full h-[70vh]"
+              />
+            )}
+          </div>
+          <div className="flex justify-between gap-2 pt-2 border-t">
+            <Button variant="outline" onClick={() => setPdfPreviewOpen(false)}>
+              <X className="w-4 h-4 mr-1" /> Close
+            </Button>
+            {pdfPreviewUrl && (
+              <a
+                href={pdfPreviewUrl}
+                download={selectedSubmission ? `Unit-${selectedSubmission.unit_number}-Selection-Preview.pdf` : 'preview.pdf'}
+              >
+                <Button>
+                  <Download className="w-4 h-4 mr-1" /> Download
+                </Button>
+              </a>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
