@@ -52,6 +52,7 @@ import {
   UNIT_AREA_DATA,
   UpgradeArea
 } from '@/lib/upgradeCostData';
+import { computeUpgradeTotals } from '@/lib/upgradeTotals';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { useUnitAreaData } from '@/hooks/useUnitAreaData';
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
@@ -67,6 +68,7 @@ interface AreaUpgrade {
   productName: string;
   productColor: string;
   comments: string;
+  heatedFloor?: boolean;
 }
 
 // Area name mapping for display
@@ -98,10 +100,15 @@ const MATERIAL_NAMES: Record<string, string> = {
 interface PricingValues {
   patioDoorPrice: number;
   additionalWindowPrice: number;
+  automatedMotorPrice: number;
   heatedFloorPrice: number;
   backsplashGroutPrice: number;
   stairLvpUpgradePrice: number;
+  stairCarpetUpgradePrice: number;
+  markupPercentage: number;
   gstRate: number;
+  getMaterialCost: (materialType: any) => number;
+  getUnitAreaData: (unitTypeCode: string) => any;
 }
 
 // Calculate all pricing for a submission using dynamic values
