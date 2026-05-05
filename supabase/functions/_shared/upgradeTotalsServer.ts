@@ -307,8 +307,12 @@ export function computeUpgradeTotalsServer(
   }
 
   // ---- Bathroom upgrades (Section 4) ----
+  const hasPricedBathroomTileAreas = (input.areaUpgrades || []).some(sel =>
+    ['guestBathroom', 'masterEnsuite'].includes(sel.areaId) &&
+    (sel.materialType === 'tile' || sel.materialType === 'nonstandard_tile')
+  );
   const baths = getBathroomAreas(resolvedCode, pricing);
-  const bathroomTile = input.bathroomTileSelected && tileCostPerSqft > 0
+  const bathroomTile = input.bathroomTileSelected && !hasPricedBathroomTileAreas && tileCostPerSqft > 0
     ? (baths.guest + baths.ensuite) * tileCostPerSqft * (1 + pricing.markupPercentage)
     : 0;
   const heatedFloorCount = sectionHeatedFloorCount;
