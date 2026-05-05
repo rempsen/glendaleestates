@@ -234,6 +234,9 @@ export default function AdminSubmissions() {
   const [emailPreviewHtml, setEmailPreviewHtml] = useState('');
 
   const [resendingPdf, setResendingPdf] = useState(false);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string>('');
+  const [pdfPreviewLoading, setPdfPreviewLoading] = useState(false);
 
   // Use dynamic pricing from database
   const {
