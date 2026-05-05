@@ -1,4 +1,6 @@
 import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
+import { computeUpgradeTotalsServer } from "../_shared/upgradeTotalsServer.ts";
+import { EMAIL_THEME, styles, wrapEmailShell } from "../_shared/emailTheme.ts";
 
 // HTML escape function to prevent XSS in email content
 function escapeHtml(text: string | undefined | null): string {
@@ -99,6 +101,35 @@ const MATERIAL_NAMES: Record<string, string> = {
   nonstandard_lvt: 'Non Standard LVT Color',
   nonstandard_tile: 'Non Standard Tile Color',
 };
+
+async function fetchDynamicPricing() {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const headers = { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}`, "Content-Type": "application/json" };
+  const [materialsRes, configRes, unitAreasRes] = await Promise.all([
+    fetch(`${supabaseUrl}/rest/v1/upgrade_materials?is_active=eq.true`, { headers }),
+    fetch(`${supabaseUrl}/rest/v1/pricing_config`, { headers }),
+    fetch(`${supabaseUrl}/rest/v1/unit_area_data`, { headers }),
+  ]);
+  const materials: Record<string, number> = {};
+  const config: Record<string, number> = {};
+  const unitAreas: Record<string, Record<string, number>> = {};
+  let markupPercentage = 0.6;
+  let gstRate = 0.05;
+  if (materialsRes.ok) for (const m of await materialsRes.json()) materials[m.material_key] = Number(m.cost_per_unit);
+  if (configRes.ok) for (const c of await configRes.json()) {
+    config[c.config_key] = Number(c.config_value);
+    if (c.config_key === 'markup_percentage') markupPercentage = Number(c.config_value) / 100;
+    if (c.config_key === 'gst_rate') gstRate = Number(c.config_value) / 100;
+  }
+  if (unitAreasRes.ok) for (const u of await unitAreasRes.json()) unitAreas[u.unit_type_code] = {
+    allLvp: Number(u.all_lvp), mainLiving: Number(u.main_living), secondBedroom: Number(u.second_bedroom),
+    masterBedroomLvp: Number(u.master_bedroom_lvp || 0), masterBedroom: Number(u.master_bedroom),
+    secondBedroomCarpet: Number(u.second_bedroom_carpet), guestBathroom: Number(u.guest_bathroom),
+    masterEnsuite: Number(u.master_ensuite), laundry: Number(u.laundry), backsplash: Number(u.backsplash),
+  };
+  return { materials, config, unitAreas, markupPercentage, gstRate };
+}
 
 // Generate buyer confirmation email HTML
 function generateBuyerConfirmationEmail(submission: Record<string, unknown>): string {
