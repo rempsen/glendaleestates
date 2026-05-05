@@ -235,6 +235,8 @@ interface BuyerSelections {
   upgradeFloorSelection: '1' | '2' | null;
   backsplashGrout: BacksplashGroutSelection;
   bathroomTileSelected: boolean;
+  bathroomTileEnsuiteSelected?: boolean;
+  bathroomTileGuestSelected?: boolean;
   heatedFloorBathrooms: number;
   customTiledShower?: boolean;
   upgradeInterests: Record<string, boolean>;
