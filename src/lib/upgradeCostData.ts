@@ -515,24 +515,28 @@ export function getAvailableAreasForUnit(unitTypeCode: string): AreaInfo[] {
 // G and H units need floor specification
 export function normalizeUnitTypeCode(typeCode: string | null): string | null {
   if (!typeCode) return null;
-  
+
   const upper = typeCode.toUpperCase().trim();
-  
-  // Handle G and H with floor numbers
-  if (upper.startsWith('G-') || upper.startsWith('H-')) {
-    return upper;
-  }
-  
+
+  // Handle G and H with floor numbers (e.g. "G-1", "Corner Unit G-2")
+  const floorMatch = upper.match(/\b([GH])-?\s?([12])\b/);
+  if (floorMatch) return `${floorMatch[1]}-${floorMatch[2]}`;
+
   // Direct match for single-letter codes
-  if (['A', 'B', 'C', 'D', 'E', 'F', 'J'].includes(upper)) {
+  if (['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J'].includes(upper)) {
     return upper;
   }
-  
-  // If just G or H, we'll need to ask user which floor
-  if (upper === 'G' || upper === 'H') {
-    return upper; // Handle this case in UI
+
+  // Extract trailing letter from labels like "Corner Unit E", "Unit Type A",
+  // "Type J", "Unit B (Corner)". Take the LAST standalone letter token.
+  const letterMatches = upper.match(/\b([A-J])\b/g);
+  if (letterMatches && letterMatches.length > 0) {
+    const candidate = letterMatches[letterMatches.length - 1];
+    if (['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J'].includes(candidate)) {
+      return candidate;
+    }
   }
-  
+
   return null;
 }
 
