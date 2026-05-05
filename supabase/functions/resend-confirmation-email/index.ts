@@ -219,7 +219,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
-    const { submissionId, sendToBuyer = true, editedBy = 'Admin' } = await req.json();
+    const { submissionId, sendToBuyer = true, editedBy = 'Admin', preview = false, previewType = 'buyer' } = await req.json();
     if (!submissionId) {
       return new Response(JSON.stringify({ error: "Submission ID is required" }),
         { status: 400, headers: { "Content-Type": "application/json", ...cors } });
