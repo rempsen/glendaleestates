@@ -128,6 +128,8 @@ function calculateSubmissionPricing(submission: BuyerSelection, pricing: Pricing
     patioDoorsQty: submission.patio_doors_qty || 0,
     automatedWindowsQty: (submission as any).automated_windows_qty || 0,
     bathroomTileSelected: !!submission.bathroom_tile_selected,
+    bathroomTileEnsuiteSelected: (submission as any).bathroom_tile_ensuite_selected ?? undefined,
+    bathroomTileGuestSelected: (submission as any).bathroom_tile_guest_selected ?? undefined,
     heatedFloorBathrooms: submission.heated_floor_bathrooms || 0,
     customTiledShower: !!(submission as any).custom_tiled_shower,
   }, {
