@@ -56,6 +56,8 @@ export type Database = {
           backsplash_grout_comments: string | null
           backsplash_grout_enabled: boolean | null
           backsplash_orientation: string | null
+          bathroom_tile_ensuite_selected: boolean | null
+          bathroom_tile_guest_selected: boolean | null
           bathroom_tile_selected: boolean | null
           bedroom_carpet_colour: string | null
           bedroom_flooring_choice: string | null
@@ -108,6 +110,8 @@ export type Database = {
           backsplash_grout_comments?: string | null
           backsplash_grout_enabled?: boolean | null
           backsplash_orientation?: string | null
+          bathroom_tile_ensuite_selected?: boolean | null
+          bathroom_tile_guest_selected?: boolean | null
           bathroom_tile_selected?: boolean | null
           bedroom_carpet_colour?: string | null
           bedroom_flooring_choice?: string | null
@@ -160,6 +164,8 @@ export type Database = {
           backsplash_grout_comments?: string | null
           backsplash_grout_enabled?: boolean | null
           backsplash_orientation?: string | null
+          bathroom_tile_ensuite_selected?: boolean | null
+          bathroom_tile_guest_selected?: boolean | null
           bathroom_tile_selected?: boolean | null
           bedroom_carpet_colour?: string | null
           bedroom_flooring_choice?: string | null
