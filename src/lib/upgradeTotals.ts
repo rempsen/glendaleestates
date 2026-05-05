@@ -147,6 +147,7 @@ export function computeUpgradeTotals(
   const unitData = resolvedCode && pricing.getUnitAreaData ? pricing.getUnitAreaData(resolvedCode) : null;
 
   const heatedFloorPerBathroom = pricing.getHeatedFloorPrice();
+  const sectionHeatedFloorCount = Number(input.heatedFloorBathrooms) || 0;
   const lineItems: UpgradeLineItem[] = [];
 
   // ---- Stair upgrades ----
@@ -192,7 +193,7 @@ export function computeUpgradeTotals(
     const markedUp = base * (1 + pricing.markupPercentage);
     const areaDef = AREA_DEFINITIONS.find(a => a.id === sel.areaId);
     const matDef = UPGRADE_MATERIALS.find(m => m.id === sel.materialType);
-    const hasHeat = !!sel.heatedFloor && (sel.materialType === 'tile' || sel.materialType === 'nonstandard_tile');
+    const hasHeat = !!sel.heatedFloor && sectionHeatedFloorCount === 0 && (sel.materialType === 'tile' || sel.materialType === 'nonstandard_tile');
     const heatAmount = hasHeat ? heatedFloorPerBathroom : 0;
     flooringSubtotal += markedUp;
     areaHeatedFloorSubtotal += heatAmount;
@@ -222,8 +223,8 @@ export function computeUpgradeTotals(
   const bathroomTile = input.bathroomTileSelected && tileCostPerSqft > 0
     ? (baths.guest + baths.ensuite) * tileCostPerSqft * (1 + pricing.markupPercentage)
     : 0;
-  const section4HeatedFloor = (input.heatedFloorBathrooms || 0) > 0
-    ? (input.heatedFloorBathrooms || 0) * heatedFloorPerBathroom
+  const section4HeatedFloor = sectionHeatedFloorCount > 0
+    ? sectionHeatedFloorCount * heatedFloorPerBathroom
     : 0;
   const showerBaseCost = pricing.getMaterialCost('tiled_shower');
   const customShower = input.customTiledShower && showerBaseCost > 0
@@ -231,7 +232,7 @@ export function computeUpgradeTotals(
     : 0;
   if (bathroomTile > 0) lineItems.push({ group: 'bathroom', label: 'Porcelain Tile Floor Upgrade', amount: bathroomTile });
   if (section4HeatedFloor > 0) {
-    const n = input.heatedFloorBathrooms || 0;
+    const n = sectionHeatedFloorCount;
     lineItems.push({
       group: 'bathroom',
       label: `Heated Tile Floor (${n} bathroom${n > 1 ? 's' : ''} × $${heatedFloorPerBathroom.toLocaleString()})`,
