@@ -79,22 +79,22 @@ export function PremiumLVPSynergyShowcase() {
       </div>
 
       {/* Hero room scene */}
-      <div className="relative aspect-[16/9] rounded-xl overflow-hidden bg-muted mb-3">
+      <div className="relative aspect-[4/3] sm:aspect-[16/9] rounded-xl overflow-hidden bg-muted mb-3">
         <img
           src={toffeeRoom}
           alt="Synergy Premium Plank in Toffee – bedroom scene"
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-        <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+        <div className="absolute inset-x-0 bottom-0 h-20 sm:h-24 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+        <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 text-white">
           <p className="text-[10px] uppercase tracking-widest opacity-80">Featured · Bedroom</p>
-          <p className="font-serif text-lg md:text-xl font-medium">Toffee · RVISYPRTOFF</p>
+          <p className="font-serif text-base sm:text-lg md:text-xl font-medium">Toffee · RVISYPRTOFF</p>
         </div>
       </div>
 
       {/* Color carousel — plank swatches */}
       <div className="mb-6">
-        <div className="relative aspect-[16/9] rounded-xl overflow-hidden bg-muted">
+        <div className="relative aspect-[4/3] sm:aspect-[16/9] rounded-xl overflow-hidden bg-muted">
           <AnimatePresence mode="wait">
             <motion.img
               key={current.code}
@@ -108,39 +108,45 @@ export function PremiumLVPSynergyShowcase() {
             />
           </AnimatePresence>
 
-          <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-          <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+          <div className="absolute inset-x-0 bottom-0 h-20 sm:h-24 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+          <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 text-white">
             <p className="text-[10px] uppercase tracking-widest opacity-80">{current.code}</p>
-            <p className="font-serif text-lg md:text-xl font-medium">{current.name}</p>
+            <p className="font-serif text-base sm:text-lg md:text-xl font-medium">{current.name}</p>
           </div>
 
           <button
             onClick={goPrev}
             aria-label="Previous color"
-            className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/80 hover:bg-background shadow-lg transition-colors"
+            className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 h-10 w-10 sm:h-11 sm:w-11 flex items-center justify-center rounded-full bg-background/85 hover:bg-background shadow-lg transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button
             onClick={goNext}
             aria-label="Next color"
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/80 hover:bg-background shadow-lg transition-colors"
+            className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 h-10 w-10 sm:h-11 sm:w-11 flex items-center justify-center rounded-full bg-background/85 hover:bg-background shadow-lg transition-colors"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
 
-          <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-background/85 text-[11px] font-medium">
+          <div className="absolute top-2 right-2 sm:top-3 sm:right-3 px-2.5 py-1 rounded-full bg-background/85 text-[11px] font-medium">
             {activeColor + 1} / {colorways.length}
           </div>
         </div>
 
-        {/* Thumbnail strip */}
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-3">
+        {/* Thumbnail strip — horizontal scroll on mobile, grid on larger screens */}
+        <div
+          className="flex gap-2 mt-3 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory sm:grid sm:grid-cols-6 sm:overflow-visible sm:mx-0 sm:px-0"
+          role="tablist"
+          aria-label="Colorways"
+        >
           {colorways.map((c, idx) => (
             <button
               key={c.code}
               onClick={() => setActiveColor(idx)}
-              className={`group relative aspect-[4/3] rounded-lg overflow-hidden border-2 transition-all ${
+              role="tab"
+              aria-selected={activeColor === idx}
+              className={`group relative flex-shrink-0 w-20 sm:w-auto aspect-[4/3] snap-start rounded-lg overflow-hidden border-2 transition-all ${
                 activeColor === idx
                   ? 'border-primary ring-2 ring-primary/20'
                   : 'border-border hover:border-primary/50'
