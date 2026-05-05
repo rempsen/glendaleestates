@@ -24,6 +24,8 @@ interface UpgradePricingSummaryProps {
   showTitle?: boolean;
   compact?: boolean;
   bathroomTileSelected?: boolean;
+  bathroomTileEnsuiteSelected?: boolean;
+  bathroomTileGuestSelected?: boolean;
   heatedFloorBathrooms?: number;
   customTiledShower?: boolean;
 }
