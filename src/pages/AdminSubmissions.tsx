@@ -400,12 +400,30 @@ export default function AdminSubmissions() {
     }
   };
 
-  // Open email preview
-  const openEmailPreview = () => {
+  // Open email preview — renders the EXACT HTML the buyer will receive
+  // by asking the resend-confirmation-email function for a preview build.
+  const openEmailPreview = async () => {
     if (!selectedSubmission) return;
-    const html = generateEmailPreviewHtml(selectedSubmission);
-    setEmailPreviewHtml(html);
-    setEmailPreviewOpen(true);
+    try {
+      setEmailPreviewHtml('<p style="padding:24px;font-family:sans-serif;color:#555">Loading preview…</p>');
+      setEmailPreviewOpen(true);
+      const { data, error } = await supabase.functions.invoke('resend-confirmation-email', {
+        body: {
+          submissionId: selectedSubmission.id,
+          preview: true,
+          previewType: 'buyer',
+          editedBy: 'Admin (Preview)',
+        },
+      });
+      if (error) throw error;
+      if (!data?.html) throw new Error('No preview HTML returned');
+      setEmailPreviewHtml(data.html);
+    } catch (err: any) {
+      console.error('Preview failed:', err);
+      toast.error('Failed to load email preview', { description: err?.message || 'Unknown error' });
+      // Fallback to legacy local preview so admin still sees something
+      setEmailPreviewHtml(generateEmailPreviewHtml(selectedSubmission));
+    }
   };
 
   // Resend confirmation email

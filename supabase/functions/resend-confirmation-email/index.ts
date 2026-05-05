@@ -219,7 +219,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
-    const { submissionId, sendToBuyer = true, editedBy = 'Admin' } = await req.json();
+    const { submissionId, sendToBuyer = true, editedBy = 'Admin', preview = false, previewType = 'buyer' } = await req.json();
     if (!submissionId) {
       return new Response(JSON.stringify({ error: "Submission ID is required" }),
         { status: 400, headers: { "Content-Type": "application/json", ...cors } });
@@ -249,6 +249,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
       heatedFloorBathrooms: sub.heated_floor_bathrooms,
       customTiledShower: sub.custom_tiled_shower,
     }, pricing);
+
+    if (preview) {
+      const html = previewType === 'admin'
+        ? buildAdminHtml(sub, totals, editedBy)
+        : buildBuyerHtml(sub, totals);
+      return new Response(JSON.stringify({ html, grandTotal: totals.grandTotal }),
+        { status: 200, headers: { "Content-Type": "application/json", ...cors } });
+    }
 
     const results: { buyer?: boolean; admin?: boolean; errors: string[] } = { errors: [] };
 
