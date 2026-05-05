@@ -45,13 +45,7 @@ import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X, DollarSign, Tr
 import { generateSubmissionPDF } from '@/lib/submissionPdfGenerator';
 import { generateBuyerPreviewPDF } from '@/lib/buyerPdfGenerator';
 import { format } from 'date-fns';
-import { 
-  calculateAreaUpgradePrice, 
-  calculateBacksplashGroutPrice,
-  normalizeUnitTypeCode,
-  UNIT_AREA_DATA,
-  UpgradeArea
-} from '@/lib/upgradeCostData';
+import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
 import { computeUpgradeTotals } from '@/lib/upgradeTotals';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { useUnitAreaData } from '@/hooks/useUnitAreaData';
@@ -167,18 +161,6 @@ function calculateSubmissionPricing(submission: BuyerSelection, pricing: Pricing
     backsplashGrout: { subtotal: groutSubtotal, gst: groutSubtotal * pricing.gstRate, total: groutSubtotal * (1 + pricing.gstRate) },
     grandTotal: { subtotal: grandSubtotal, gst: grandGst, total: grandTotal },
   };
-}
-
-// Extract unit type code from unit_type string
-function extractUnitTypeCode(unitType: string | null, floorSelection?: string | null): string {
-  if (!unitType) return 'J'; // Default
-  const match = unitType.match(/[A-J]/i);
-  if (!match) return 'J';
-  const code = match[0].toUpperCase();
-  if ((code === 'G' || code === 'H') && floorSelection) {
-    return `${code}-${floorSelection}`;
-  }
-  return code;
 }
 
 interface BuyerSelection {
