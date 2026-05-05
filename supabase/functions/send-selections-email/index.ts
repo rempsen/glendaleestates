@@ -732,6 +732,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       upgrade_interests: data.upgradeInterests,
       hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
       bathroom_tile_selected: data.bathroomTileSelected,
+      bathroom_tile_ensuite_selected: data.bathroomTileEnsuiteSelected ?? data.bathroomTileSelected,
+      bathroom_tile_guest_selected: data.bathroomTileGuestSelected ?? data.bathroomTileSelected,
       heated_floor_bathrooms: data.heatedFloorBathrooms,
       // New upgrade fields
       area_upgrades: data.areaUpgrades,
