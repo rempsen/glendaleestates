@@ -1546,56 +1546,133 @@ export default function SelectionWizard() {
 
               {/* Porcelain Tile Upgrade Option */}
               <div className="pt-4 border-t border-border space-y-4">
-                <div className="flex items-start gap-3">
-                  <Switch
-                    id="bathroomTileUpgrade"
-                    checked={selections.bathroomTileSelected}
-                    onCheckedChange={(checked) => {
-                      updateSelection('bathroomTileSelected', checked);
-                      if (!checked) {
-                        updateSelection('heatedFloorBathrooms', 0);
-                      }
-                    }}
-                  />
-                  <div className="flex-1">
-                    <Label htmlFor="bathroomTileUpgrade" className="text-foreground font-medium cursor-pointer">
-                      Upgrade to Porcelain Tile
-                    </Label>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      Replace the standard LVT with premium porcelain tile in your bathrooms
-                    </p>
-                    {(() => {
-                      const tileCost = getMaterialCost('tile' as MaterialType);
-                      const code = unitInfo?.typeCode?.toUpperCase() || '';
-                      // For G/H units, try both floors and combine bathroom areas
-                      let guestBathArea = 0;
-                      let ensuiteArea = 0;
-                      if (['G', 'H'].includes(code)) {
-                        const data1 = getUnitAreaData(`${code}-1`);
-                        const data2 = getUnitAreaData(`${code}-2`);
-                        guestBathArea = Math.max(data1?.guestBathroom || 0, data2?.guestBathroom || 0);
-                        ensuiteArea = Math.max(data1?.masterEnsuite || 0, data2?.masterEnsuite || 0);
-                      } else {
-                        const areaData = getUnitAreaData(code);
-                        guestBathArea = areaData?.guestBathroom || 0;
-                        ensuiteArea = areaData?.masterEnsuite || 0;
-                      }
-                      const totalArea = guestBathArea + ensuiteArea;
-                      const baseCost = totalArea * tileCost;
-                      const markedUp = baseCost * (1 + markupPercentage);
-                      const tileTotal = markedUp * (1 + gstRate);
-                      
-                      return totalArea > 0 ? (
-                        <p className="text-sm font-medium text-primary mt-1">
-                          ${tileTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (incl. GST)
-                        </p>
-                      ) : null;
-                    })()}
-                  </div>
-                </div>
+                {(() => {
+                  const tileCost = getMaterialCost('tile' as MaterialType);
+                  const code = unitInfo?.typeCode?.toUpperCase() || '';
+                  let guestBathArea = 0;
+                  let ensuiteArea = 0;
+                  if (['G', 'H'].includes(code)) {
+                    const data1 = getUnitAreaData(`${code}-1`);
+                    const data2 = getUnitAreaData(`${code}-2`);
+                    guestBathArea = Math.max(data1?.guestBathroom || 0, data2?.guestBathroom || 0);
+                    ensuiteArea = Math.max(data1?.masterEnsuite || 0, data2?.masterEnsuite || 0);
+                  } else {
+                    const areaData = getUnitAreaData(code);
+                    guestBathArea = areaData?.guestBathroom || 0;
+                    ensuiteArea = areaData?.masterEnsuite || 0;
+                  }
+                  const hasSecondBath = guestBathArea > 0;
+                  const ensuiteTotal = ensuiteArea * tileCost * (1 + markupPercentage) * (1 + gstRate);
+                  const guestTotal = guestBathArea * tileCost * (1 + markupPercentage) * (1 + gstRate);
+                  const tileMaster = selections.bathroomTileSelected;
 
-                {/* Heated Floor Option - only when tile is selected */}
-                {selections.bathroomTileSelected && (
+                  return (
+                    <>
+                      <div className="flex items-start gap-3">
+                        <Switch
+                          id="bathroomTileUpgrade"
+                          checked={tileMaster}
+                          onCheckedChange={(checked) => {
+                            updateSelection('bathroomTileSelected', checked);
+                            if (checked) {
+                              // Default ON: ensuite selected; second bathroom only if it exists
+                              updateSelection('bathroomTileEnsuiteSelected', true);
+                              updateSelection('bathroomTileGuestSelected', hasSecondBath);
+                            } else {
+                              updateSelection('bathroomTileEnsuiteSelected', false);
+                              updateSelection('bathroomTileGuestSelected', false);
+                              updateSelection('heatedFloorBathrooms', 0);
+                            }
+                          }}
+                        />
+                        <div className="flex-1">
+                          <Label htmlFor="bathroomTileUpgrade" className="text-foreground font-medium cursor-pointer">
+                            Upgrade to Porcelain Tile
+                          </Label>
+                          <p className="text-sm text-muted-foreground mt-0.5">
+                            Replace the standard LVT with premium porcelain tile in your bathrooms
+                          </p>
+                        </div>
+                      </div>
+
+                      {tileMaster && (
+                        <div className="ml-8 space-y-3">
+                          {/* Ensuite toggle */}
+                          {ensuiteArea > 0 && (
+                            <div className="p-4 rounded-lg bg-muted/50 flex items-start gap-3">
+                              <Switch
+                                id="bathroomTileEnsuite"
+                                checked={selections.bathroomTileEnsuiteSelected}
+                                onCheckedChange={(checked) => {
+                                  updateSelection('bathroomTileEnsuiteSelected', checked);
+                                  // Cap heated floor count to selected tiled bathrooms
+                                  const tiled = (checked ? 1 : 0) + (selections.bathroomTileGuestSelected ? 1 : 0);
+                                  if (selections.heatedFloorBathrooms > tiled) {
+                                    updateSelection('heatedFloorBathrooms', tiled);
+                                  }
+                                  if (!checked && !selections.bathroomTileGuestSelected) {
+                                    updateSelection('bathroomTileSelected', false);
+                                    updateSelection('heatedFloorBathrooms', 0);
+                                  }
+                                }}
+                              />
+                              <div className="flex-1">
+                                <Label htmlFor="bathroomTileEnsuite" className="text-foreground font-medium cursor-pointer">
+                                  Master Ensuite
+                                </Label>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  Upgrade the ensuite floor to porcelain tile
+                                </p>
+                                {ensuiteTotal > 0 && (
+                                  <p className="text-sm font-medium text-primary mt-1">
+                                    ${ensuiteTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (incl. GST)
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Second bathroom toggle (only if unit has one) */}
+                          {hasSecondBath && (
+                            <div className="p-4 rounded-lg bg-muted/50 flex items-start gap-3">
+                              <Switch
+                                id="bathroomTileGuest"
+                                checked={selections.bathroomTileGuestSelected}
+                                onCheckedChange={(checked) => {
+                                  updateSelection('bathroomTileGuestSelected', checked);
+                                  const tiled = (selections.bathroomTileEnsuiteSelected ? 1 : 0) + (checked ? 1 : 0);
+                                  if (selections.heatedFloorBathrooms > tiled) {
+                                    updateSelection('heatedFloorBathrooms', tiled);
+                                  }
+                                  if (!checked && !selections.bathroomTileEnsuiteSelected) {
+                                    updateSelection('bathroomTileSelected', false);
+                                    updateSelection('heatedFloorBathrooms', 0);
+                                  }
+                                }}
+                              />
+                              <div className="flex-1">
+                                <Label htmlFor="bathroomTileGuest" className="text-foreground font-medium cursor-pointer">
+                                  Second Bathroom
+                                </Label>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  Upgrade the second bathroom floor to porcelain tile
+                                </p>
+                                {guestTotal > 0 && (
+                                  <p className="text-sm font-medium text-primary mt-1">
+                                    ${guestTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (incl. GST)
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+
+                {/* Heated Floor Option - only when at least one bathroom is tiled */}
+                {selections.bathroomTileSelected && (selections.bathroomTileEnsuiteSelected || selections.bathroomTileGuestSelected) && (
                   <div className="ml-8 p-4 rounded-lg bg-muted/50 space-y-3">
                     <div className="flex items-start gap-3">
                       <Switch
@@ -1624,26 +1701,12 @@ export default function SelectionWizard() {
                     </div>
 
                     {selections.heatedFloorBathrooms > 0 && (() => {
-                      const code = unitInfo?.typeCode?.toUpperCase() || '';
-                      let guestBathArea = 0;
-                      let ensuiteArea = 0;
-                      if (['G', 'H'].includes(code)) {
-                        const data1 = getUnitAreaData(`${code}-1`);
-                        const data2 = getUnitAreaData(`${code}-2`);
-                        guestBathArea = Math.max(data1?.guestBathroom || 0, data2?.guestBathroom || 0);
-                        ensuiteArea = Math.max(data1?.masterEnsuite || 0, data2?.masterEnsuite || 0);
-                      } else {
-                        const areaData = getUnitAreaData(code);
-                        guestBathArea = areaData?.guestBathroom || 0;
-                        ensuiteArea = areaData?.masterEnsuite || 0;
-                      }
-                      const bathroomCount = (guestBathArea > 0 ? 1 : 0) + (ensuiteArea > 0 ? 1 : 0);
-                      
-                      return bathroomCount > 1 ? (
+                      const tiledBathrooms = (selections.bathroomTileEnsuiteSelected ? 1 : 0) + (selections.bathroomTileGuestSelected ? 1 : 0);
+                      return tiledBathrooms > 1 ? (
                         <div className="ml-8 space-y-2">
                           <Label className="text-sm text-foreground">Number of bathrooms to heat</Label>
                           <div className="flex gap-3">
-                            {[1, 2].filter(n => n <= bathroomCount).map(n => (
+                            {[1, 2].filter(n => n <= tiledBathrooms).map(n => (
                               <button
                                 key={n}
                                 type="button"
