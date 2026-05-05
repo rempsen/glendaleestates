@@ -108,6 +108,8 @@ interface SelectionState {
   upgradeComments: string; // Comments for upgrade pricing summary
   // Heated floors (kept separate)
   bathroomTileSelected: boolean;
+  bathroomTileEnsuiteSelected: boolean;
+  bathroomTileGuestSelected: boolean;
   heatedFloorBathrooms: number;
   customTiledShower: boolean;
   // Document uploads
