@@ -284,6 +284,8 @@ interface SelectionData {
   windowTotal: number;
   hardwoodUpgradeSelected?: boolean;
   bathroomTileSelected?: boolean;
+  bathroomTileEnsuiteSelected?: boolean;
+  bathroomTileGuestSelected?: boolean;
   heatedFloorBathrooms?: number;
   premiumCarpetBedroom?: boolean;
   premiumUnderpadBedroom?: boolean;
@@ -678,6 +680,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       windowTotal: Math.max(0, Math.min(1000000, Number(rawData.windowTotal) || 0)),
       hardwoodUpgradeSelected: Boolean(rawData.hardwoodUpgradeSelected),
       bathroomTileSelected: Boolean(rawData.bathroomTileSelected),
+      bathroomTileEnsuiteSelected: rawData.bathroomTileEnsuiteSelected !== undefined ? Boolean(rawData.bathroomTileEnsuiteSelected) : undefined,
+      bathroomTileGuestSelected: rawData.bathroomTileGuestSelected !== undefined ? Boolean(rawData.bathroomTileGuestSelected) : undefined,
       heatedFloorBathrooms: Math.max(0, Math.min(10, Number(rawData.heatedFloorBathrooms) || 0)),
       customTiledShower: Boolean(rawData.customTiledShower),
       // New upgrade fields
@@ -730,6 +734,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       upgrade_interests: data.upgradeInterests,
       hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
       bathroom_tile_selected: data.bathroomTileSelected,
+      bathroom_tile_ensuite_selected: data.bathroomTileEnsuiteSelected ?? data.bathroomTileSelected,
+      bathroom_tile_guest_selected: data.bathroomTileGuestSelected ?? data.bathroomTileSelected,
       heated_floor_bathrooms: data.heatedFloorBathrooms,
       // New upgrade fields
       area_upgrades: data.areaUpgrades,
@@ -788,6 +794,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
           window_comments: data.windowComments,
           hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
           bathroom_tile_selected: data.bathroomTileSelected,
+          bathroom_tile_ensuite_selected: data.bathroomTileEnsuiteSelected ?? data.bathroomTileSelected,
+          bathroom_tile_guest_selected: data.bathroomTileGuestSelected ?? data.bathroomTileSelected,
           heated_floor_bathrooms: data.heatedFloorBathrooms,
           custom_tiled_shower: data.customTiledShower,
           backsplash_grout_enabled: data.backsplashGroutEnabled,
@@ -835,6 +843,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       patioDoorsQty: data.patioDoorsQty,
       automatedWindowsQty: data.automatedWindowsQty,
       bathroomTileSelected: data.bathroomTileSelected,
+      bathroomTileEnsuiteSelected: data.bathroomTileEnsuiteSelected,
+      bathroomTileGuestSelected: data.bathroomTileGuestSelected,
       heatedFloorBathrooms: data.heatedFloorBathrooms,
       customTiledShower: data.customTiledShower,
     }, pricing);
@@ -1923,6 +1933,8 @@ function buildPreviewTotals(data: SelectionData): ServerTotalsResult {
     patioDoorsQty: data.patioDoorsQty || 0,
     automatedWindowsQty: data.automatedWindowsQty || 0,
     bathroomTileSelected: !!data.bathroomTileSelected,
+    bathroomTileEnsuiteSelected: data.bathroomTileEnsuiteSelected,
+    bathroomTileGuestSelected: data.bathroomTileGuestSelected,
     heatedFloorBathrooms: data.heatedFloorBathrooms || 0,
     customTiledShower: !!data.customTiledShower,
   }, pricing);

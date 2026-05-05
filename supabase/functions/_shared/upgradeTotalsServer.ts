@@ -61,6 +61,8 @@ export interface ServerTotalsInput {
   patioDoorsQty?: number;
   automatedWindowsQty?: number;
   bathroomTileSelected?: boolean;
+  bathroomTileEnsuiteSelected?: boolean;
+  bathroomTileGuestSelected?: boolean;
   heatedFloorBathrooms?: number;
   customTiledShower?: boolean;
 }
@@ -312,9 +314,24 @@ export function computeUpgradeTotalsServer(
     (sel.materialType === 'tile' || sel.materialType === 'nonstandard_tile')
   );
   const baths = getBathroomAreas(resolvedCode, pricing);
-  const bathroomTile = input.bathroomTileSelected && !hasPricedBathroomTileAreas && tileCostPerSqft > 0
-    ? (baths.guest + baths.ensuite) * tileCostPerSqft * (1 + pricing.markupPercentage)
-    : 0;
+  // Per-bathroom tile selection. If neither sub-flag was provided but the
+  // master flag is true (legacy data), default to BOTH bathrooms to preserve
+  // historical pricing.
+  const subFlagsProvided = input.bathroomTileEnsuiteSelected !== undefined ||
+    input.bathroomTileGuestSelected !== undefined;
+  const ensuiteOn = subFlagsProvided
+    ? !!input.bathroomTileEnsuiteSelected
+    : !!input.bathroomTileSelected;
+  const guestOn = subFlagsProvided
+    ? !!input.bathroomTileGuestSelected
+    : !!input.bathroomTileSelected;
+  const masterOn = !!input.bathroomTileSelected || ensuiteOn || guestOn;
+  let bathroomTile = 0;
+  if (masterOn && !hasPricedBathroomTileAreas && tileCostPerSqft > 0) {
+    const ensuiteSqft = ensuiteOn ? baths.ensuite : 0;
+    const guestSqft = guestOn && baths.guest > 0 ? baths.guest : 0;
+    bathroomTile = (ensuiteSqft + guestSqft) * tileCostPerSqft * (1 + pricing.markupPercentage);
+  }
   const heatedFloorCount = sectionHeatedFloorCount;
   const section4HeatedFloor = heatedFloorCount > 0 ? heatedFloorCount * heatedFloorPerBathroom : 0;
   const customShower = input.customTiledShower && showerBaseCost > 0
