@@ -843,6 +843,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       patioDoorsQty: data.patioDoorsQty,
       automatedWindowsQty: data.automatedWindowsQty,
       bathroomTileSelected: data.bathroomTileSelected,
+      bathroomTileEnsuiteSelected: data.bathroomTileEnsuiteSelected,
+      bathroomTileGuestSelected: data.bathroomTileGuestSelected,
       heatedFloorBathrooms: data.heatedFloorBathrooms,
       customTiledShower: data.customTiledShower,
     }, pricing);
