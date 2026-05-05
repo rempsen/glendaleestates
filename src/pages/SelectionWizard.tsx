@@ -847,7 +847,7 @@ export default function SelectionWizard() {
       badge="Optional"
     >
       <div className="space-y-8">
-        {/* Premium LVP Educational Section */}
+        {/* Premium Laminate Educational Section */}
         <PremiumLVPShowcase />
 
         {/* Premium Carpet Educational Section */}

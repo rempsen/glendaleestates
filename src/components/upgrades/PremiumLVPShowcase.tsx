@@ -56,7 +56,7 @@ export function PremiumLVPShowcase() {
       <div className="flex items-start justify-between mb-6 gap-4">
         <div>
           <h3 className="font-serif text-xl font-semibold text-foreground">
-            Premium Upgrade - LVP
+            Premium Upgrade - Laminate
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
             TIER PVC-Free, Element Premier
