@@ -208,6 +208,7 @@ export function computeUpgradeTotals(
       productColor: sel.productColor,
       amount: markedUp,
       heatedFloorAmount: heatAmount,
+      sqft: qty,
     });
     lineItems.push({
       group: 'flooring',
