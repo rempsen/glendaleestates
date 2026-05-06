@@ -281,6 +281,198 @@ export type Database = {
         }
         Relationships: []
       }
+      qbo_connections: {
+        Row: {
+          access_token: string
+          access_token_expires_at: string
+          connected_by_email: string | null
+          connected_by_user_id: string | null
+          created_at: string
+          environment: string
+          id: string
+          is_active: boolean
+          realm_id: string
+          refresh_token: string
+          refresh_token_expires_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          access_token_expires_at: string
+          connected_by_email?: string | null
+          connected_by_user_id?: string | null
+          created_at?: string
+          environment?: string
+          id?: string
+          is_active?: boolean
+          realm_id: string
+          refresh_token: string
+          refresh_token_expires_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          access_token_expires_at?: string
+          connected_by_email?: string | null
+          connected_by_user_id?: string | null
+          created_at?: string
+          environment?: string
+          id?: string
+          is_active?: boolean
+          realm_id?: string
+          refresh_token?: string
+          refresh_token_expires_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      qbo_entity_map: {
+        Row: {
+          created_at: string
+          entity_type: string
+          id: string
+          last_synced_at: string
+          metadata: Json
+          portal_ref_id: string
+          portal_ref_type: string
+          qbo_id: string
+          qbo_sync_token: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entity_type: string
+          id?: string
+          last_synced_at?: string
+          metadata?: Json
+          portal_ref_id: string
+          portal_ref_type: string
+          qbo_id: string
+          qbo_sync_token?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entity_type?: string
+          id?: string
+          last_synced_at?: string
+          metadata?: Json
+          portal_ref_id?: string
+          portal_ref_type?: string
+          qbo_id?: string
+          qbo_sync_token?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      qbo_settings: {
+        Row: {
+          auto_create_items: boolean
+          created_at: string
+          customer_name_template: string
+          default_ar_account_name: string | null
+          default_ar_account_ref: string | null
+          default_deposit_account_name: string | null
+          default_deposit_account_ref: string | null
+          default_income_account_name: string | null
+          default_income_account_ref: string | null
+          default_tax_code_name: string | null
+          default_tax_code_ref: string | null
+          id: string
+          item_sku_prefix: string
+          project_name_template: string
+          updated_at: string
+          webhook_verifier_token: string | null
+        }
+        Insert: {
+          auto_create_items?: boolean
+          created_at?: string
+          customer_name_template?: string
+          default_ar_account_name?: string | null
+          default_ar_account_ref?: string | null
+          default_deposit_account_name?: string | null
+          default_deposit_account_ref?: string | null
+          default_income_account_name?: string | null
+          default_income_account_ref?: string | null
+          default_tax_code_name?: string | null
+          default_tax_code_ref?: string | null
+          id?: string
+          item_sku_prefix?: string
+          project_name_template?: string
+          updated_at?: string
+          webhook_verifier_token?: string | null
+        }
+        Update: {
+          auto_create_items?: boolean
+          created_at?: string
+          customer_name_template?: string
+          default_ar_account_name?: string | null
+          default_ar_account_ref?: string | null
+          default_deposit_account_name?: string | null
+          default_deposit_account_ref?: string | null
+          default_income_account_name?: string | null
+          default_income_account_ref?: string | null
+          default_tax_code_name?: string | null
+          default_tax_code_ref?: string | null
+          id?: string
+          item_sku_prefix?: string
+          project_name_template?: string
+          updated_at?: string
+          webhook_verifier_token?: string | null
+        }
+        Relationships: []
+      }
+      qbo_sync_log: {
+        Row: {
+          created_at: string
+          direction: string
+          entity_type: string | null
+          error_message: string | null
+          id: string
+          operation: string
+          portal_ref_id: string | null
+          portal_ref_type: string | null
+          qbo_id: string | null
+          request_payload: Json | null
+          response_payload: Json | null
+          status: string
+          triggered_by_email: string | null
+          triggered_by_user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          direction: string
+          entity_type?: string | null
+          error_message?: string | null
+          id?: string
+          operation: string
+          portal_ref_id?: string | null
+          portal_ref_type?: string | null
+          qbo_id?: string | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          status: string
+          triggered_by_email?: string | null
+          triggered_by_user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          direction?: string
+          entity_type?: string | null
+          error_message?: string | null
+          id?: string
+          operation?: string
+          portal_ref_id?: string | null
+          portal_ref_type?: string | null
+          qbo_id?: string | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          status?: string
+          triggered_by_email?: string | null
+          triggered_by_user_id?: string | null
+        }
+        Relationships: []
+      }
       sales_pipeline: {
         Row: {
           buyer_email: string | null
