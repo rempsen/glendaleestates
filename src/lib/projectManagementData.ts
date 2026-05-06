@@ -233,17 +233,16 @@ export async function loadProjectManagementData(): Promise<PMData> {
     });
   }
 
-  // ---------- aggregate by Material + Color + Area ----------
+  // ---------- aggregate by Material + Color ----------
   const aggMap = new Map<string, PMAggregateRow>();
   for (const l of lines) {
     const mat = l.material_key || 'unknown';
     const col = l.color_name || '—';
-    const area = l.area_type || '—';
-    const key = `${mat}::${col}::${area}`;
+    const key = `${mat}::${col}`;
     let agg = aggMap.get(key);
     if (!agg) {
       agg = {
-        key, material_key: mat, color_name: col, area_type: area,
+        key, material_key: mat, color_name: col, area_type: '',
         total_qty: 0, ordered_qty: 0, unit_of_measure: l.unit_of_measure,
         suppliers: [], units: [],
         status_summary: { not_started: 0, ordered: 0, received: 0, installed: 0 },
