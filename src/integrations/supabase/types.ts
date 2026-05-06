@@ -541,6 +541,8 @@ export type Database = {
       submission_payments: {
         Row: {
           balance_owing: number
+          balance_paid: number
+          balance_paid_date: string | null
           created_at: string
           deposit_amount: number
           deposit_paid: boolean
@@ -555,6 +557,8 @@ export type Database = {
         }
         Insert: {
           balance_owing?: number
+          balance_paid?: number
+          balance_paid_date?: string | null
           created_at?: string
           deposit_amount?: number
           deposit_paid?: boolean
@@ -569,6 +573,8 @@ export type Database = {
         }
         Update: {
           balance_owing?: number
+          balance_paid?: number
+          balance_paid_date?: string | null
           created_at?: string
           deposit_amount?: number
           deposit_paid?: boolean
