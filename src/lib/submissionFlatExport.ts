@@ -193,6 +193,14 @@ const STATIC_GROUPS: GroupDef[] = [
             .filter(Boolean)
             .join(' | '),
       },
+      {
+        label: 'Document Paths',
+        get: ({ sections }) =>
+          (sections.documents || [])
+            .map((d) => String(d.path || ''))
+            .filter(Boolean)
+            .join(' | '),
+      },
       { label: 'Document Count', get: ({ sections }) => (sections.documents || []).length },
     ],
   },
@@ -219,6 +227,31 @@ const STATIC_GROUPS: GroupDef[] = [
             .map((li) => `${li.label}${li.detail ? ` (${li.detail})` : ''}: $${money(li.amount).toFixed(2)}`)
             .join(' | '),
       },
+    ],
+  },
+  {
+    name: 'Payments / AR',
+    cols: [
+      { label: 'Deposit Required', get: ({ downstream, s }) => yesNo(downstream.payments[s.id]?.deposit_required) },
+      { label: 'Deposit Amount $', get: ({ downstream, s }) => money(Number(downstream.payments[s.id]?.deposit_amount ?? 0)) },
+      { label: 'Deposit Paid', get: ({ downstream, s }) => yesNo(downstream.payments[s.id]?.deposit_paid) },
+      { label: 'Deposit Paid Date', get: ({ downstream, s }) => fmtDate(downstream.payments[s.id]?.deposit_paid_date) },
+      { label: 'Balance Owing $', get: ({ downstream, s }) => money(Number(downstream.payments[s.id]?.balance_owing ?? 0)) },
+      { label: 'Invoice #', get: ({ downstream, s }) => downstream.payments[s.id]?.invoice_number ?? '' },
+      { label: 'Payment Status', get: ({ downstream, s }) => downstream.payments[s.id]?.payment_status ?? '' },
+      { label: 'Payment Notes', get: ({ downstream, s }) => downstream.payments[s.id]?.notes ?? '' },
+    ],
+  },
+  {
+    name: 'Ownership / RACI',
+    cols: [
+      { label: 'Designer Assigned', get: ({ downstream, s }) => downstream.ownership[s.id]?.designer_assigned ?? '' },
+      { label: 'Sales Rep', get: ({ downstream, s }) => downstream.ownership[s.id]?.sales_rep ?? '' },
+      { label: 'Next Action', get: ({ downstream, s }) => downstream.ownership[s.id]?.next_action ?? '' },
+      { label: 'Next Action Owner', get: ({ downstream, s }) => downstream.ownership[s.id]?.next_action_owner ?? '' },
+      { label: 'Due Date', get: ({ downstream, s }) => fmtDate(downstream.ownership[s.id]?.due_date) },
+      { label: 'Risk Level', get: ({ downstream, s }) => downstream.ownership[s.id]?.risk_level ?? '' },
+      { label: 'Ownership Notes', get: ({ downstream, s }) => downstream.ownership[s.id]?.notes ?? '' },
     ],
   },
 ];
