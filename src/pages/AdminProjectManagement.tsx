@@ -105,6 +105,7 @@ export default function AdminProjectManagement() {
     if (!data) return [];
     const q = search.trim().toLowerCase();
     return data.lines.filter((l) => {
+      if (linesUnit !== 'all' && l.unit_number !== linesUnit) return false;
       if (filterMaterial !== 'all' && (l.material_key || 'unknown') !== filterMaterial) return false;
       if (filterColor !== 'all' && (l.color_name || '—') !== filterColor) return false;
       if (filterSupplier !== 'all' && (l.supplier || '') !== filterSupplier) return false;
@@ -113,7 +114,14 @@ export default function AdminProjectManagement() {
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [data, search, filterMaterial, filterColor, filterSupplier]);
+  }, [data, search, linesUnit, filterMaterial, filterColor, filterSupplier]);
+
+  const unitOptions = useMemo(
+    () => Array.from(new Set((data?.units || []).map((u) => u.unit_number))).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true })
+    ),
+    [data],
+  );
 
   const filteredUnits = useMemo(() => {
     if (!data) return [];
