@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, Loader2, RefreshCw, Truck, ListChecks, LayoutGrid } from 'lucide-react';
+import { Search, Loader2, RefreshCw, Truck, ListChecks, LayoutGrid, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { SuppliersManager } from '@/components/admin/SuppliersManager';
 import {
   loadProjectManagementData, type PMData, type PMLineRow,
@@ -37,6 +37,12 @@ export default function AdminProjectManagement() {
   const [filterColor, setFilterColor] = useState<string>('all');
   const [filterSupplier, setFilterSupplier] = useState<string>('all');
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<'material_key' | 'color_name' | 'area_type' | 'total_qty' | 'ordered_qty' | 'pct' | 'units' | 'suppliers'>('material_key');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const toggleSort = (k: typeof sortKey) => {
+    if (sortKey === k) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(k); setSortDir('asc'); }
+  };
 
   const refresh = useCallback(async () => {
     setLoading(true);
