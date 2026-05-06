@@ -38,7 +38,7 @@ export default function AdminProjectManagement() {
   const [filterSupplier, setFilterSupplier] = useState<string>('all');
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [linesUnit, setLinesUnit] = useState<string>('all');
-  const [sortKey, setSortKey] = useState<'material_key' | 'color_name' | 'area_type' | 'total_qty' | 'ordered_qty' | 'pct' | 'units' | 'suppliers'>('material_key');
+  const [sortKey, setSortKey] = useState<'material_key' | 'color_name' | 'total_qty' | 'ordered_qty' | 'pct' | 'units' | 'suppliers'>('material_key');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const toggleSort = (k: typeof sortKey) => {
     if (sortKey === k) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -141,7 +141,7 @@ export default function AdminProjectManagement() {
       if (filterColor !== 'all' && a.color_name !== filterColor) return false;
       if (filterSupplier !== 'all' && !a.suppliers.includes(filterSupplier)) return false;
       if (!q) return true;
-      return [a.material_key, a.color_name, a.area_type].some((v) => v.toLowerCase().includes(q));
+      return [a.material_key, a.color_name].some((v) => v.toLowerCase().includes(q));
     });
     const dir = sortDir === 'asc' ? 1 : -1;
     const get = (a: typeof rows[number]) => {
@@ -475,7 +475,6 @@ export default function AdminProjectManagement() {
                   <TableRow>
                     <SortHead label="Material" k="material_key" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                     <SortHead label="Color" k="color_name" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-                    <SortHead label="Area" k="area_type" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                     <SortHead label="Total Qty" k="total_qty" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
                     <SortHead label="Ordered" k="ordered_qty" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
                     <TableHead>UoM</TableHead>
@@ -491,7 +490,6 @@ export default function AdminProjectManagement() {
                       <TableRow key={a.key}>
                         <TableCell className="font-medium">{a.material_key}</TableCell>
                         <TableCell>{a.color_name}</TableCell>
-                        <TableCell>{a.area_type}</TableCell>
                         <TableCell className="text-right">{a.total_qty.toFixed(0)}</TableCell>
                         <TableCell className="text-right">{a.ordered_qty.toFixed(0)} <span className="text-xs text-muted-foreground">({pct}%)</span></TableCell>
                         <TableCell>{a.unit_of_measure}</TableCell>
