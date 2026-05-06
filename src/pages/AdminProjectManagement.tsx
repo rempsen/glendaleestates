@@ -414,13 +414,26 @@ export default function AdminProjectManagement() {
                             }} />
                         </TableCell>
                         <TableCell>
-                          <Select value={l.supplier ?? '__none'} onValueChange={(v) => patchLine(l, { supplier: v === '__none' ? null : v })}>
-                            <SelectTrigger className="h-8 w-40"><SelectValue placeholder="Supplier" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none">— None —</SelectItem>
-                              {supplierOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
+                          <Input
+                            list="pm-supplier-options"
+                            className="h-8 w-40"
+                            placeholder="Supplier"
+                            defaultValue={l.supplier ?? ''}
+                            onBlur={async (e) => {
+                              const v = e.target.value.trim();
+                              const next = v || null;
+                              if (next === (l.supplier ?? null)) return;
+                              if (next && !supplierOptions.some((s) => s.toLowerCase() === next.toLowerCase())) {
+                                const { error } = await supabase
+                                  .from('suppliers')
+                                  .insert({ name: next, is_active: true });
+                                if (error && !/duplicate/i.test(error.message)) {
+                                  toast.error('Could not add supplier', { description: error.message });
+                                }
+                              }
+                              await patchLine(l, { supplier: next });
+                            }}
+                          />
                         </TableCell>
                         <TableCell>
                           <Select value={l.installation_status} onValueChange={(v) => patchLine(l, { installation_status: v })}>
