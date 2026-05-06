@@ -33,15 +33,22 @@ async function verifyState(state: string, secret: string): Promise<{ ok: boolean
 }
 
 function htmlRedirect(url: string, message: string) {
-  return new Response(
-    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${message}</title>
-     <meta http-equiv="refresh" content="1;url=${url}">
-     <style>body{font-family:system-ui;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-     .card{background:#1e293b;padding:2rem 3rem;border-radius:12px;text-align:center}</style></head>
-     <body><div class="card"><h2>${message}</h2><p>Redirecting back to portal…</p>
-     <p><a style="color:#60a5fa" href="${url}">Click here if not redirected</a></p></div></body></html>`,
-    { headers: { 'Content-Type': 'text/html' } }
-  );
+  const safeUrl = url.replace(/"/g, '&quot;');
+  const body = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>${message}</title>
+<meta http-equiv="refresh" content="0;url=${safeUrl}">
+<script>window.location.replace(${JSON.stringify(url)});</script>
+<style>body{font-family:system-ui;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+.card{background:#1e293b;padding:2rem 3rem;border-radius:12px;text-align:center}</style>
+</head><body><div class="card"><h2>${message}</h2><p>Redirecting back to portal…</p>
+<p><a style="color:#60a5fa" href="${safeUrl}">Click here if not redirected</a></p></div></body></html>`;
+  return new Response(body, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
 }
 
 Deno.serve(async (req) => {
