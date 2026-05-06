@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.trigger_qbo_auto_sync() FROM PUBLIC, anon, authenticated;
