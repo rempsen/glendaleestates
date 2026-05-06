@@ -348,7 +348,27 @@ export default function AdminProjectManagement() {
           </TabsContent>
 
           {/* ---------------- LINE ITEMS ---------------- */}
-          <TabsContent value="lines" className="mt-4">
+          <TabsContent value="lines" className="mt-4 space-y-3">
+            <Card className="p-3 flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium">Unit:</span>
+              <Select value={linesUnit} onValueChange={setLinesUnit}>
+                <SelectTrigger className="h-9 w-48"><SelectValue placeholder="Select unit" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All units</SelectItem>
+                  {unitOptions.map((u) => {
+                    const buyer = data?.units.find((x) => x.unit_number === u);
+                    return (
+                      <SelectItem key={u} value={u}>
+                        Unit {u}{buyer?.full_name ? ` — ${buyer.full_name}` : ''}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground ml-auto">
+                {filteredLines.length} line item{filteredLines.length === 1 ? '' : 's'}
+              </span>
+            </Card>
             <Card className="overflow-x-auto">
               <Table>
                 <TableHeader>
