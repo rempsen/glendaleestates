@@ -238,7 +238,10 @@ export default function AdminProjectManagement() {
                     <TableHead className="text-right">Paid To Date</TableHead>
                     <TableHead className="text-right">Balance</TableHead>
                     <TableHead>Payment Status</TableHead>
-                    <TableHead>Invoice #</TableHead>
+                    <TableHead>
+                      Invoice Number
+                      <div className="text-[10px] font-normal text-muted-foreground">separate by comma or Enter</div>
+                    </TableHead>
                     <TableHead>Procurement</TableHead>
                   </TableRow>
                 </TableHeader>
