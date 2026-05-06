@@ -52,6 +52,7 @@ export interface PMLineRow {
   material_key: string | null;
   color_name: string | null;
   quantity_required: number | null;
+  canonical_quantity: number;
   unit_of_measure: string;
   // tracking
   approval_status: string;
