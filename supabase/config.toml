@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.qbo-oauth-callback]
 verify_jwt = false
+
+[functions.qbo-sync-submission]
+verify_jwt = false
