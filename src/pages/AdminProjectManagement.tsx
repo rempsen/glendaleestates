@@ -37,6 +37,7 @@ export default function AdminProjectManagement() {
   const [filterColor, setFilterColor] = useState<string>('all');
   const [filterSupplier, setFilterSupplier] = useState<string>('all');
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [linesUnit, setLinesUnit] = useState<string>('all');
   const [sortKey, setSortKey] = useState<'material_key' | 'color_name' | 'area_type' | 'total_qty' | 'ordered_qty' | 'pct' | 'units' | 'suppliers'>('material_key');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const toggleSort = (k: typeof sortKey) => {
