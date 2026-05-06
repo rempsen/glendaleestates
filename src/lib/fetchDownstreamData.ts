@@ -45,6 +45,10 @@ export interface SubmissionLineItemRow {
   installation_status: string;
   risk_level: string;
   notes: string | null;
+  area_type?: string | null;
+  material_key?: string | null;
+  color_name?: string | null;
+  unit_of_measure?: string | null;
 }
 
 export interface DownstreamData {
