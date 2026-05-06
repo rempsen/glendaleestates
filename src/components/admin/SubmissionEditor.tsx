@@ -905,6 +905,22 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
             </div>
           </AccordionContent>
         </AccordionItem>
+
+        {/* Downstream Tracking */}
+        <AccordionItem value="downstream" className="border rounded-lg px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="w-4 h-4" />
+              <span>Downstream Tracking (Payments, Ownership, Procurement)</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="pt-4 pb-6">
+            <DownstreamTrackingPanel
+              submissionId={submission.id}
+              submission={editData}
+            />
+          </AccordionContent>
+        </AccordionItem>
       </Accordion>
     </div>
   );
