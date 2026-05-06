@@ -37,6 +37,7 @@ import {
   type ExportPricing,
 } from '@/lib/submissionExportBuilder';
 import { buildFlatExport } from '@/lib/submissionFlatExport';
+import { fetchDownstreamData, type DownstreamData } from '@/lib/fetchDownstreamData';
 
 const STATUS_OPTIONS = ['submitted', 'in_review', 'quoted', 'completed', 'cancelled'];
 
