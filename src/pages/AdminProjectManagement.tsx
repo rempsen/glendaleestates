@@ -467,3 +467,16 @@ function ProgressDots({ total, ordered, received, installed }: { total: number; 
     </div>
   );
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function SortHead({ label, k, sortKey, sortDir, onClick, align }: { label: string; k: any; sortKey: string; sortDir: 'asc' | 'desc'; onClick: (k: any) => void; align?: 'right' }) {
+  const active = sortKey === k;
+  const Icon = !active ? ArrowUpDown : sortDir === 'asc' ? ArrowUp : ArrowDown;
+  return (
+    <TableHead className={align === 'right' ? 'text-right' : ''}>
+      <button onClick={() => onClick(k)} className={`inline-flex items-center gap-1 hover:text-foreground ${active ? 'text-foreground' : ''}`}>
+        {label} <Icon className="w-3 h-3" />
+      </button>
+    </TableHead>
+  );
+}
