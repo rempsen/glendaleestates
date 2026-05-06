@@ -29,6 +29,8 @@ export interface PMUnitRow {
   deposit_amount: number;
   deposit_paid: boolean;
   deposit_paid_date: string | null;
+  balance_paid: number;
+  balance_paid_date: string | null;
   payments_to_date: number;
   balance_owing: number;
   payment_status: string;
