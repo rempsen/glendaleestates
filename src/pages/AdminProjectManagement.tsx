@@ -281,6 +281,23 @@ export default function AdminProjectManagement() {
                         />
                       </TableCell>
                       <TableCell className="text-right">{fmt$(u.payments_to_date)}</TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          type="number" className="h-8 w-24 text-right"
+                          defaultValue={u.balance_paid || ''}
+                          onBlur={(e) => {
+                            const v = Number(e.target.value) || 0;
+                            if (v !== u.balance_paid) patchPayment(u.submission_id, { balance_paid: v });
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="date" className="h-8 w-36"
+                          defaultValue={u.balance_paid_date ?? ''}
+                          onBlur={(e) => patchPayment(u.submission_id, { balance_paid_date: e.target.value || null })}
+                        />
+                      </TableCell>
                       <TableCell className="text-right font-medium">{fmt$(u.balance_owing)}</TableCell>
                       <TableCell>
                         <Select value={u.payment_status} onValueChange={(v) => patchPayment(u.submission_id, { payment_status: v })}>
