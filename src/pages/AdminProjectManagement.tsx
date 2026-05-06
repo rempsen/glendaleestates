@@ -490,7 +490,6 @@ export default function AdminProjectManagement() {
                       <TableRow key={a.key}>
                         <TableCell className="font-medium">{a.material_key}</TableCell>
                         <TableCell>{a.color_name}</TableCell>
-                        <TableCell>{a.area_type}</TableCell>
                         <TableCell className="text-right">{a.total_qty.toFixed(0)}</TableCell>
                         <TableCell className="text-right">{a.ordered_qty.toFixed(0)} <span className="text-xs text-muted-foreground">({pct}%)</span></TableCell>
                         <TableCell>{a.unit_of_measure}</TableCell>
