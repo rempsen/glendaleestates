@@ -54,6 +54,10 @@ export interface PMLineRow {
   quantity_required: number | null;
   canonical_quantity: number;
   unit_of_measure: string;
+  canonical_unit_of_measure: string;
+  canonical_area_type: string | null;
+  tracked_unit_of_measure: string | null;
+  tracked_area_type: string | null;
   // tracking
   approval_status: string;
   installation_status: string;
@@ -193,6 +197,10 @@ export async function loadProjectManagementData(): Promise<PMData> {
         quantity_required: tracked?.quantity_required ?? cl.quantity,
         canonical_quantity: cl.quantity,
         unit_of_measure: tracked?.unit_of_measure ?? cl.unit_of_measure,
+        canonical_unit_of_measure: cl.unit_of_measure,
+        canonical_area_type: cl.area_type,
+        tracked_unit_of_measure: tracked?.unit_of_measure ?? null,
+        tracked_area_type: tracked?.area_type ?? null,
         approval_status: tracked?.approval_status ?? 'pending_client_confirmation',
         installation_status: status,
         supplier: tracked?.supplier ?? null,
