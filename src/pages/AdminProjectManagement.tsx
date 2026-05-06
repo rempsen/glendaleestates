@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, Loader2, RefreshCw, Truck, ListChecks, LayoutGrid } from 'lucide-react';
+import { Search, Loader2, RefreshCw, Truck, ListChecks, LayoutGrid, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { SuppliersManager } from '@/components/admin/SuppliersManager';
 import {
   loadProjectManagementData, type PMData, type PMLineRow,
@@ -37,6 +37,12 @@ export default function AdminProjectManagement() {
   const [filterColor, setFilterColor] = useState<string>('all');
   const [filterSupplier, setFilterSupplier] = useState<string>('all');
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<'material_key' | 'color_name' | 'area_type' | 'total_qty' | 'ordered_qty' | 'pct' | 'units' | 'suppliers'>('material_key');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const toggleSort = (k: typeof sortKey) => {
+    if (sortKey === k) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(k); setSortDir('asc'); }
+  };
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -121,14 +127,30 @@ export default function AdminProjectManagement() {
   const filteredAgg = useMemo(() => {
     if (!data) return [];
     const q = search.trim().toLowerCase();
-    return data.aggregates.filter((a) => {
+    const rows = data.aggregates.filter((a) => {
       if (filterMaterial !== 'all' && a.material_key !== filterMaterial) return false;
       if (filterColor !== 'all' && a.color_name !== filterColor) return false;
       if (filterSupplier !== 'all' && !a.suppliers.includes(filterSupplier)) return false;
       if (!q) return true;
       return [a.material_key, a.color_name, a.area_type].some((v) => v.toLowerCase().includes(q));
     });
-  }, [data, search, filterMaterial, filterColor, filterSupplier]);
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const get = (a: typeof rows[number]) => {
+      switch (sortKey) {
+        case 'pct': return a.total_qty > 0 ? a.ordered_qty / a.total_qty : 0;
+        case 'units': return a.units.length;
+        case 'suppliers': return a.suppliers.join(',');
+        case 'total_qty': return a.total_qty;
+        case 'ordered_qty': return a.ordered_qty;
+        default: return a[sortKey];
+      }
+    };
+    return [...rows].sort((a, b) => {
+      const av = get(a), bv = get(b);
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+      return String(av).localeCompare(String(bv)) * dir;
+    });
+  }, [data, search, filterMaterial, filterColor, filterSupplier, sortKey, sortDir]);
 
   const materialOptions = useMemo(
     () => Array.from(new Set((data?.lines || []).map((l) => l.material_key || 'unknown'))).sort(),
@@ -369,14 +391,14 @@ export default function AdminProjectManagement() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Material</TableHead>
-                    <TableHead>Color</TableHead>
-                    <TableHead>Area</TableHead>
-                    <TableHead className="text-right">Total Qty</TableHead>
-                    <TableHead className="text-right">Ordered</TableHead>
+                    <SortHead label="Material" k="material_key" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                    <SortHead label="Color" k="color_name" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                    <SortHead label="Area" k="area_type" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                    <SortHead label="Total Qty" k="total_qty" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
+                    <SortHead label="Ordered" k="ordered_qty" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
                     <TableHead>UoM</TableHead>
-                    <TableHead>Suppliers</TableHead>
-                    <TableHead>Units</TableHead>
+                    <SortHead label="Suppliers" k="suppliers" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                    <SortHead label="Units" k="units" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -443,5 +465,18 @@ function ProgressDots({ total, ordered, received, installed }: { total: number; 
       <span className="text-blue-600 ml-1">Rec {received}</span> ·
       <span className="text-emerald-600 ml-1">Inst {installed}</span>
     </div>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function SortHead({ label, k, sortKey, sortDir, onClick, align }: { label: string; k: any; sortKey: string; sortDir: 'asc' | 'desc'; onClick: (k: any) => void; align?: 'right' }) {
+  const active = sortKey === k;
+  const Icon = !active ? ArrowUpDown : sortDir === 'asc' ? ArrowUp : ArrowDown;
+  return (
+    <TableHead className={align === 'right' ? 'text-right' : ''}>
+      <button onClick={() => onClick(k)} className={`inline-flex items-center gap-1 hover:text-foreground ${active ? 'text-foreground' : ''}`}>
+        {label} <Icon className="w-3 h-3" />
+      </button>
+    </TableHead>
   );
 }
