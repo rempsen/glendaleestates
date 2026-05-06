@@ -191,6 +191,9 @@ export default function AdminProjectManagement() {
 
   return (
     <AdminLayout>
+      <datalist id="pm-supplier-options">
+        {supplierOptions.map((s) => <option key={s} value={s} />)}
+      </datalist>
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
