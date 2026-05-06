@@ -52,6 +52,7 @@ export interface PMLineRow {
   material_key: string | null;
   color_name: string | null;
   quantity_required: number | null;
+  canonical_quantity: number;
   unit_of_measure: string;
   // tracking
   approval_status: string;
@@ -190,6 +191,7 @@ export async function loadProjectManagementData(): Promise<PMData> {
         material_key: cl.material_key,
         color_name: cl.color_name,
         quantity_required: tracked?.quantity_required ?? cl.quantity,
+        canonical_quantity: cl.quantity,
         unit_of_measure: tracked?.unit_of_measure ?? cl.unit_of_measure,
         approval_status: tracked?.approval_status ?? 'pending_client_confirmation',
         installation_status: status,

@@ -468,7 +468,51 @@ export default function AdminProjectManagement() {
           </TabsContent>
 
           {/* ---------------- AGGREGATE ---------------- */}
-          <TabsContent value="aggregate" className="mt-4">
+          <TabsContent value="aggregate" className="mt-4 space-y-3">
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={loading || !data}
+                onClick={async () => {
+                  if (!data) return;
+                  if (!confirm('Recalculate quantities from price control? This will overwrite stored Total Qty values for all line items with the freshly computed square footage / unit counts.')) return;
+                  setSavingKey('recalc');
+                  const rows = data.lines.map((l) => ({
+                    submission_id: l.submission_id,
+                    line_key: l.line_key,
+                    line_label: l.line_label,
+                    approval_status: l.approval_status,
+                    installation_status: l.installation_status,
+                    supplier: l.supplier,
+                    sku: l.sku,
+                    quantity_required: l.canonical_quantity,
+                    quantity_ordered: l.quantity_ordered,
+                    po_number: l.po_number,
+                    order_date: l.order_date,
+                    expected_delivery: l.expected_delivery,
+                    received_date: l.received_date,
+                    storage_location: l.storage_location,
+                    notes: l.notes,
+                    area_type: l.area_type,
+                    material_key: l.material_key,
+                    color_name: l.color_name,
+                    unit_of_measure: l.unit_of_measure,
+                  }));
+                  const { error } = await supabase
+                    .from('submission_line_items')
+                    .upsert(rows, { onConflict: 'submission_id,line_key' });
+                  setSavingKey(null);
+                  if (error) return toast.error(error.message);
+                  toast.success(`Recalculated ${rows.length} line items from price control`);
+                  await refresh();
+                }}
+                className="gap-2"
+              >
+                {savingKey === 'recalc' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                Recalculate quantities from price control
+              </Button>
+            </div>
             <Card className="overflow-x-auto">
               <Table>
                 <TableHeader>
