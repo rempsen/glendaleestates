@@ -20,8 +20,9 @@ import {
 } from '@/components/ui/accordion';
 import { 
   Save, X, Plus, Trash2, Home, Sofa, BedDouble, Bath, 
-  WashingMachine, LayoutGrid, Flame, User
+  WashingMachine, LayoutGrid, Flame, User, ClipboardList
 } from 'lucide-react';
+import { DownstreamTrackingPanel } from './DownstreamTrackingPanel';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { createAuditLog, calculateChanges, generateChangeSummary } from '@/lib/auditLog';
