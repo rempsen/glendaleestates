@@ -83,8 +83,9 @@ export interface UpgradeTotalsResult {
     windowAdditional: number;
     windowPatio: number;
     windowAutomation: number;
-    flooringUpgrades: Array<{ areaId: string; areaName: string; materialName: string; amount: number; productName?: string; productColor?: string; heatedFloorAmount: number }>;
+    flooringUpgrades: Array<{ areaId: string; areaName: string; materialName: string; amount: number; productName?: string; productColor?: string; heatedFloorAmount: number; sqft: number }>;
     bathroomTile: number;
+    bathroomTileSqft: number;
     section4HeatedFloor: number;
     customShower: number;
   };
