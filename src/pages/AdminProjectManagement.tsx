@@ -127,14 +127,30 @@ export default function AdminProjectManagement() {
   const filteredAgg = useMemo(() => {
     if (!data) return [];
     const q = search.trim().toLowerCase();
-    return data.aggregates.filter((a) => {
+    const rows = data.aggregates.filter((a) => {
       if (filterMaterial !== 'all' && a.material_key !== filterMaterial) return false;
       if (filterColor !== 'all' && a.color_name !== filterColor) return false;
       if (filterSupplier !== 'all' && !a.suppliers.includes(filterSupplier)) return false;
       if (!q) return true;
       return [a.material_key, a.color_name, a.area_type].some((v) => v.toLowerCase().includes(q));
     });
-  }, [data, search, filterMaterial, filterColor, filterSupplier]);
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const get = (a: typeof rows[number]) => {
+      switch (sortKey) {
+        case 'pct': return a.total_qty > 0 ? a.ordered_qty / a.total_qty : 0;
+        case 'units': return a.units.length;
+        case 'suppliers': return a.suppliers.join(',');
+        case 'total_qty': return a.total_qty;
+        case 'ordered_qty': return a.ordered_qty;
+        default: return a[sortKey];
+      }
+    };
+    return [...rows].sort((a, b) => {
+      const av = get(a), bv = get(b);
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+      return String(av).localeCompare(String(bv)) * dir;
+    });
+  }, [data, search, filterMaterial, filterColor, filterSupplier, sortKey, sortDir]);
 
   const materialOptions = useMemo(
     () => Array.from(new Set((data?.lines || []).map((l) => l.material_key || 'unknown'))).sort(),
