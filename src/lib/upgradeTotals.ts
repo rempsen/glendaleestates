@@ -241,10 +241,12 @@ export function computeUpgradeTotals(
     : !!input.bathroomTileSelected;
   const masterOn = !!input.bathroomTileSelected || ensuiteOn || guestOn;
   let bathroomTile = 0;
+  let bathroomTileSqft = 0;
   if (masterOn && !hasPricedBathroomTileAreas && tileCostPerSqft > 0) {
     const ensuiteSqft = ensuiteOn ? baths.ensuite : 0;
     const guestSqft = guestOn && baths.guest > 0 ? baths.guest : 0;
-    bathroomTile = (ensuiteSqft + guestSqft) * tileCostPerSqft * (1 + pricing.markupPercentage);
+    bathroomTileSqft = ensuiteSqft + guestSqft;
+    bathroomTile = bathroomTileSqft * tileCostPerSqft * (1 + pricing.markupPercentage);
   }
   const section4HeatedFloor = sectionHeatedFloorCount > 0
     ? sectionHeatedFloorCount * heatedFloorPerBathroom
