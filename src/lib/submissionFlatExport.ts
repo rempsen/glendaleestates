@@ -58,6 +58,7 @@ const STATIC_GROUPS: GroupDef[] = [
       { label: 'Unit Type', get: ({ s }) => s.unit_type ?? '' },
       { label: 'Possession Date', get: ({ s }) => fmtDate(s.estimated_possession_date) },
       { label: 'Status', get: ({ s }) => s.status ?? '' },
+      { label: 'Submission ID', get: ({ s }) => s.id },
       { label: 'Submitted', get: ({ s }) => fmtDateTime(s.created_at) },
       { label: 'Updated', get: ({ s }) => fmtDateTime(s.updated_at) },
       { label: 'Reviewed', get: ({ s }) => fmtDateTime(s.reviewed_at) },
