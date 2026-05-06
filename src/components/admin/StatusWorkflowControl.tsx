@@ -110,6 +110,24 @@ export function StatusWorkflowControl({
 
       onStatusChange(newStatus, newTimestamps);
       toast.success(`Status updated to ${newStatus}`);
+
+      // Auto-sync to QuickBooks when entering 'quoted' state.
+      if (newStatus === 'quoted') {
+        toast.info('Syncing to QuickBooks…');
+        supabase.functions.invoke('qbo-sync-submission', {
+          body: { submission_id: submissionId },
+        }).then(({ data, error: syncErr }) => {
+          if (syncErr || (data as { error?: string })?.error) {
+            const msg = syncErr?.message || (data as { error?: string })?.error || 'Unknown error';
+            toast.error('QuickBooks sync failed', { description: msg });
+          } else {
+            const docNum = (data as { doc_number?: string })?.doc_number;
+            toast.success('QuickBooks Estimate created', {
+              description: docNum ? `Estimate #${docNum}` : undefined,
+            });
+          }
+        });
+      }
     } catch (error: any) {
       toast.error('Failed to update status', {
         description: error.message,

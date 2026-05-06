@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, XCircle, ExternalLink, Loader2, Unplug, Link as LinkIcon } from 'lucide-react';
+import QboSettingsPanel from '@/components/admin/QboSettingsPanel';
 
 interface QboConnection {
   id: string;
@@ -175,6 +176,8 @@ export default function AdminQuickBooksSettings() {
             )}
           </CardContent>
         </Card>
+
+        <QboSettingsPanel enabled={!!conn} />
 
         <Card>
           <CardHeader>
