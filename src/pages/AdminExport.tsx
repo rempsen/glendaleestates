@@ -234,11 +234,12 @@ export default function AdminExport() {
     return true;
   };
 
-  const exportXlsxAll = () => {
+  const exportXlsxAll = async () => {
     if (!ensureReady()) return;
     setGenerating('xlsx-all');
     try {
-      const buf = buildSingleSheetXlsx(filtered, exportPricing);
+      const downstream = await fetchDownstreamData(filtered.map((s) => s.id));
+      const buf = buildSingleSheetXlsx(filtered, exportPricing, downstream);
       downloadBlob(
         buf,
         `submissions-export-${format(new Date(), 'yyyy-MM-dd')}.xlsx`,
@@ -253,15 +254,16 @@ export default function AdminExport() {
     }
   };
 
-  const exportSingleClient = (s: BuyerSelection) => {
+  const exportSingleClient = async (s: BuyerSelection) => {
     if (!pricingLoaded) {
       toast.error('Pricing data still loading — try again in a moment');
       return;
     }
     setGenerating(`xlsx-${s.id}`);
     try {
+      const downstream = await fetchDownstreamData([s.id]);
       const baseName = `${sanitize(s.unit_number || 'unit')}_${sanitize(s.last_name || 'client')}_${format(new Date(), 'yyyy-MM-dd')}`;
-      const buf = buildSingleSheetXlsx([s], exportPricing);
+      const buf = buildSingleSheetXlsx([s], exportPricing, downstream);
       downloadBlob(
         buf,
         `${baseName}.xlsx`,
