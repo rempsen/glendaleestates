@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
-import JSZip from 'jszip';
 import {
   CalendarIcon,
   Download,
@@ -10,7 +9,6 @@ import {
   Filter,
   RefreshCw,
   Database,
-  Archive,
   Package,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -35,26 +33,12 @@ import { generateSubmissionPDF } from '@/lib/submissionPdfGenerator';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { useUnitAreaData } from '@/hooks/useUnitAreaData';
 import {
-  EXPORT_SECTIONS,
-  buildSubmissionSectionRows,
   type BuyerSelection,
   type ExportPricing,
 } from '@/lib/submissionExportBuilder';
+import { buildFlatExport } from '@/lib/submissionFlatExport';
 
 const STATUS_OPTIONS = ['submitted', 'in_review', 'quoted', 'completed', 'cancelled'];
-
-// ---------- helpers ----------
-const escapeCsv = (value: unknown): string => {
-  if (value === null || value === undefined) return '';
-  const str = typeof value === 'object' ? JSON.stringify(value) : String(value);
-  return `"${str.replace(/"/g, '""')}"`;
-};
-
-const rowsToCsv = (columns: string[], rows: Record<string, unknown>[]): string => {
-  const header = columns.map(escapeCsv).join(',');
-  const body = rows.map((r) => columns.map((c) => escapeCsv(r[c])).join(','));
-  return [header, ...body].join('\n');
-};
 
 const downloadBlob = (content: BlobPart, filename: string, mime: string) => {
   const blob = new Blob([content], { type: mime });
@@ -67,6 +51,48 @@ const downloadBlob = (content: BlobPart, filename: string, mime: string) => {
 };
 
 const sanitize = (s: string) => s.replace(/[^a-z0-9_-]+/gi, '_').slice(0, 60);
+
+// Build a single XLSX workbook with one sheet, grouped header banner row + sub-header.
+function buildSingleSheetXlsx(targets: BuyerSelection[], pricing: ExportPricing): ArrayBuffer {
+  const flat = buildFlatExport(targets, pricing);
+
+  // Row 1: group banner (one cell per group, then merged across its span)
+  // Row 2: column sub-headers
+  // Row 3+: data
+  const aoa: (string | number | boolean | null)[][] = [];
+
+  const bannerRow: (string | number | boolean | null)[] = [];
+  flat.groups.forEach((g) => {
+    bannerRow.push(g.name);
+    for (let i = 1; i < g.span; i++) bannerRow.push('');
+  });
+  aoa.push(bannerRow);
+  aoa.push(flat.columns.map((c) => c.label));
+  for (const r of flat.rows) aoa.push(r);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+  // Merges for the group banner row
+  const merges: XLSX.Range[] = [];
+  let cursor = 0;
+  flat.groups.forEach((g) => {
+    if (g.span > 1) {
+      merges.push({ s: { r: 0, c: cursor }, e: { r: 0, c: cursor + g.span - 1 } });
+    }
+    cursor += g.span;
+  });
+  ws['!merges'] = merges;
+
+  // Column widths: rough auto-fit based on header label length
+  ws['!cols'] = flat.columns.map((c) => ({ wch: Math.min(40, Math.max(12, c.label.length + 2)) }));
+
+  // Freeze top two header rows + first column (Unit #)
+  ws['!freeze'] = { xSplit: 1, ySplit: 2 } as unknown as XLSX.WorkSheet['!freeze'];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Submissions');
+  return XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
+}
 
 export default function AdminExport() {
   const [loading, setLoading] = useState(true);
@@ -139,7 +165,7 @@ export default function AdminExport() {
       const { data, error } = await supabase
         .from('buyer_selections')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('unit_number', { ascending: true });
       if (error) throw error;
       setSubmissions((data || []) as BuyerSelection[]);
     } catch (e) {
@@ -190,21 +216,6 @@ export default function AdminExport() {
     setEmailQuery('');
   };
 
-  // ---------- Build aggregated section rows ----------
-  // For each section, an array of rows aggregated across `targets`.
-  const buildAggregatedRows = (targets: BuyerSelection[]) => {
-    const aggregated: Record<string, Record<string, unknown>[]> = {};
-    EXPORT_SECTIONS.forEach((sec) => (aggregated[sec.id] = []));
-    for (const s of targets) {
-      const perSubmission = buildSubmissionSectionRows(s, exportPricing);
-      for (const sec of EXPORT_SECTIONS) {
-        const rows = perSubmission[sec.id] || [];
-        aggregated[sec.id].push(...rows);
-      }
-    }
-    return aggregated;
-  };
-
   // ---------- Exports ----------
   const ensureReady = (): boolean => {
     if (!pricingLoaded) {
@@ -222,23 +233,13 @@ export default function AdminExport() {
     if (!ensureReady()) return;
     setGenerating('xlsx-all');
     try {
-      const aggregated = buildAggregatedRows(filtered);
-      const wb = XLSX.utils.book_new();
-      for (const sec of EXPORT_SECTIONS) {
-        const rows = aggregated[sec.id];
-        // Always write header row even if empty
-        const ws = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{}], {
-          header: sec.columns,
-        });
-        XLSX.utils.book_append_sheet(wb, ws, sec.name.slice(0, 31));
-      }
-      const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const buf = buildSingleSheetXlsx(filtered, exportPricing);
       downloadBlob(
         buf,
         `submissions-export-${format(new Date(), 'yyyy-MM-dd')}.xlsx`,
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       );
-      toast.success(`Exported ${filtered.length} submissions across ${EXPORT_SECTIONS.length} sheets`);
+      toast.success(`Exported ${filtered.length} submissions`);
     } catch (e) {
       console.error(e);
       toast.error('Failed to generate XLSX');
@@ -247,65 +248,20 @@ export default function AdminExport() {
     }
   };
 
-  const exportCsvZipAll = async () => {
-    if (!ensureReady()) return;
-    setGenerating('csv-zip-all');
-    try {
-      const aggregated = buildAggregatedRows(filtered);
-      const zip = new JSZip();
-      for (const sec of EXPORT_SECTIONS) {
-        const csv = rowsToCsv(sec.columns, aggregated[sec.id]);
-        zip.file(sec.filename, csv);
-      }
-      const blob = await zip.generateAsync({ type: 'blob' });
-      downloadBlob(
-        blob,
-        `submissions-export-${format(new Date(), 'yyyy-MM-dd')}.zip`,
-        'application/zip',
-      );
-      toast.success(`Exported ${filtered.length} submissions in ${EXPORT_SECTIONS.length} CSV files`);
-    } catch (e) {
-      console.error(e);
-      toast.error('Failed to generate CSV ZIP');
-    } finally {
-      setGenerating(null);
-    }
-  };
-
-  const exportSingleClient = async (s: BuyerSelection, kind: 'xlsx' | 'csv-zip') => {
+  const exportSingleClient = (s: BuyerSelection) => {
     if (!pricingLoaded) {
       toast.error('Pricing data still loading — try again in a moment');
       return;
     }
-    setGenerating(`${kind}-${s.id}`);
+    setGenerating(`xlsx-${s.id}`);
     try {
-      const perSubmission = buildSubmissionSectionRows(s, exportPricing);
       const baseName = `${sanitize(s.unit_number || 'unit')}_${sanitize(s.last_name || 'client')}_${format(new Date(), 'yyyy-MM-dd')}`;
-
-      if (kind === 'xlsx') {
-        const wb = XLSX.utils.book_new();
-        for (const sec of EXPORT_SECTIONS) {
-          const rows = perSubmission[sec.id] || [];
-          const ws = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{}], {
-            header: sec.columns,
-          });
-          XLSX.utils.book_append_sheet(wb, ws, sec.name.slice(0, 31));
-        }
-        const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        downloadBlob(
-          buf,
-          `${baseName}.xlsx`,
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        );
-      } else {
-        const zip = new JSZip();
-        for (const sec of EXPORT_SECTIONS) {
-          const csv = rowsToCsv(sec.columns, perSubmission[sec.id] || []);
-          zip.file(sec.filename, csv);
-        }
-        const blob = await zip.generateAsync({ type: 'blob' });
-        downloadBlob(blob, `${baseName}.zip`, 'application/zip');
-      }
+      const buf = buildSingleSheetXlsx([s], exportPricing);
+      downloadBlob(
+        buf,
+        `${baseName}.xlsx`,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
       toast.success(`Exported ${s.first_name} ${s.last_name}`);
     } catch (e) {
       console.error(e);
@@ -346,6 +302,16 @@ export default function AdminExport() {
 
   const busy = loading || generating !== null || !pricingLoaded;
 
+  // Preview group banner for the "Sections covered" card
+  const previewGroups = useMemo(() => {
+    if (!pricingLoaded) return [];
+    try {
+      return buildFlatExport(filtered.length ? filtered : submissions, exportPricing).groups;
+    } catch {
+      return [];
+    }
+  }, [pricingLoaded, filtered, submissions, exportPricing]);
+
   return (
     <AdminLayout>
       <div className="space-y-8">
@@ -355,7 +321,7 @@ export default function AdminExport() {
               Export Submissions
             </h1>
             <p className="text-muted-foreground mt-1">
-              Section-organized export covering every field, comment, and pricing total — admin-only data included.
+              Single-tab Excel export — one row per client, grouped section headers across the top.
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="gap-2">
@@ -487,9 +453,9 @@ export default function AdminExport() {
             Bulk export ({filtered.length} clients)
           </h2>
           <p className="text-sm text-muted-foreground mb-4">
-            Each export includes 13 sections mirroring the buyer wizard, with one row per client per sheet.
+            Single-tab Excel: column A = Unit #, column B = Name, then every selection grouped by section.
           </p>
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2">
             <div className="p-6 rounded-xl border border-primary/30 bg-primary/5 flex flex-col">
               <div className="flex items-start gap-4 flex-1">
                 <div className="p-3 rounded-lg bg-primary/20">
@@ -500,7 +466,7 @@ export default function AdminExport() {
                     Excel workbook (.xlsx)
                   </h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    One workbook with 13 tabs (sections 1–13), every column included.
+                    All clients on one sheet. Grouped section banners across the top, one row per client.
                   </p>
                 </div>
               </div>
@@ -511,31 +477,6 @@ export default function AdminExport() {
               >
                 <Download className="w-4 h-4" />
                 {generating === 'xlsx-all' ? 'Generating…' : 'Download XLSX'}
-              </Button>
-            </div>
-
-            <div className="p-6 rounded-xl border border-border bg-card flex flex-col">
-              <div className="flex items-start gap-4 flex-1">
-                <div className="p-3 rounded-lg bg-accent/20">
-                  <Archive className="w-6 h-6 text-accent" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-serif text-lg font-semibold text-foreground mb-1">
-                    CSV bundle (.zip)
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    13 CSV files — one per section — bundled into a single ZIP.
-                  </p>
-                </div>
-              </div>
-              <Button
-                onClick={exportCsvZipAll}
-                disabled={busy || filtered.length === 0}
-                className="gap-2 w-full"
-                variant="outline"
-              >
-                <Download className="w-4 h-4" />
-                {generating === 'csv-zip-all' ? 'Generating…' : 'Download CSV ZIP'}
               </Button>
             </div>
 
@@ -568,22 +509,22 @@ export default function AdminExport() {
           </div>
         </div>
 
-        {/* Sections covered */}
+        {/* Section groups preview */}
         <div className="p-6 rounded-xl border border-border bg-card">
           <div className="flex items-center gap-2 mb-3">
             <Database className="w-4 h-4 text-muted-foreground" />
-            <h3 className="font-medium text-foreground">Sections covered in each export</h3>
+            <h3 className="font-medium text-foreground">Column groups in the export</h3>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-sm">
-            {EXPORT_SECTIONS.map((sec) => (
-              <div key={sec.id} className="flex items-start gap-2">
+            {previewGroups.map((g, i) => (
+              <div key={`${g.name}-${i}`} className="flex items-start gap-2">
                 <span className="text-muted-foreground tabular-nums w-6">
-                  {String(sec.number).padStart(2, '0')}
+                  {String(i + 1).padStart(2, '0')}
                 </span>
                 <div>
-                  <div className="text-foreground">{sec.name.replace(/^\d+\s*/, '')}</div>
+                  <div className="text-foreground">{g.name}</div>
                   <div className="text-xs text-muted-foreground">
-                    {sec.columns.length} column{sec.columns.length === 1 ? '' : 's'}
+                    {g.span} column{g.span === 1 ? '' : 's'}
                   </div>
                 </div>
               </div>
@@ -597,7 +538,7 @@ export default function AdminExport() {
             <Package className="w-4 h-4 text-muted-foreground" />
             <h3 className="font-medium text-foreground">Per-client export</h3>
             <span className="ml-2 text-xs text-muted-foreground">
-              Choose a client to download just that record
+              Download a single-row XLSX for one client
             </span>
           </div>
           {loading ? (
@@ -636,26 +577,16 @@ export default function AdminExport() {
                         {s.created_at ? format(new Date(s.created_at), 'yyyy-MM-dd') : '—'}
                       </td>
                       <td className="px-4 py-2">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end">
                           <Button
                             size="sm"
                             variant="outline"
                             disabled={busy}
-                            onClick={() => exportSingleClient(s, 'xlsx')}
+                            onClick={() => exportSingleClient(s)}
                             className="gap-1"
                           >
                             <FileSpreadsheet className="w-3.5 h-3.5" />
                             {generating === `xlsx-${s.id}` ? '…' : 'XLSX'}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={busy}
-                            onClick={() => exportSingleClient(s, 'csv-zip')}
-                            className="gap-1"
-                          >
-                            <Archive className="w-3.5 h-3.5" />
-                            {generating === `csv-zip-${s.id}` ? '…' : 'CSV ZIP'}
                           </Button>
                         </div>
                       </td>
