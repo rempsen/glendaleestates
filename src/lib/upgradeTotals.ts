@@ -290,6 +290,7 @@ export function computeUpgradeTotals(
       windowAutomation,
       flooringUpgrades,
       bathroomTile,
+      bathroomTileSqft,
       section4HeatedFloor,
       customShower,
     },
