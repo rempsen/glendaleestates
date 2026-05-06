@@ -281,10 +281,23 @@ async function computeTotalsForSubmission(admin: any, submission: any): Promise<
 
   const code = normalizeUnitTypeCode(submission.unit_type);
   return computeUpgradeTotalsServer({
-    selection: submission,
-    pricing: { materials, config, unitAreas, markupPercentage, gstRate },
     unitTypeCode: code,
-  });
+    upgradeFloorSelection: submission.upgrade_floor_selection,
+    areaUpgrades: (submission.area_upgrades as any[]) || [],
+    backsplashGroutEnabled: submission.backsplash_grout_enabled,
+    backsplashGroutColor: submission.backsplash_grout_color,
+    stairLvpUpgradeSelected: submission.stair_lvp_upgrade_selected,
+    stairPremiumCarpetSelected: submission.premium_underpad_stairs,
+    stairUpgradeType: submission.stair_upgrade_type,
+    additionalWindowsQty: submission.additional_windows_qty,
+    patioDoorsQty: submission.patio_doors_qty,
+    automatedWindowsQty: (submission as any).automated_windows_qty,
+    bathroomTileSelected: submission.bathroom_tile_selected,
+    bathroomTileEnsuiteSelected: submission.bathroom_tile_ensuite_selected,
+    bathroomTileGuestSelected: submission.bathroom_tile_guest_selected,
+    heatedFloorBathrooms: submission.heated_floor_bathrooms,
+    customTiledShower: submission.custom_tiled_shower,
+  }, { materials, config, unitAreas, markupPercentage, gstRate });
 }
 
 // ---------- main ----------
