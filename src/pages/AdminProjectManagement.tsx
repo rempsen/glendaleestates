@@ -475,7 +475,6 @@ export default function AdminProjectManagement() {
                   <TableRow>
                     <SortHead label="Material" k="material_key" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                     <SortHead label="Color" k="color_name" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-                    <SortHead label="Area" k="area_type" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                     <SortHead label="Total Qty" k="total_qty" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
                     <SortHead label="Ordered" k="ordered_qty" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
                     <TableHead>UoM</TableHead>
