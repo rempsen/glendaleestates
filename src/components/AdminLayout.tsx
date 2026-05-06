@@ -19,7 +19,8 @@ import {
   Users,
   Download,
   Mail,
-  ClipboardList
+  ClipboardList,
+  Receipt
 } from 'lucide-react';
 
 interface AdminLayoutProps {
