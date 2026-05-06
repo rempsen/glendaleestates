@@ -72,8 +72,24 @@ const STATIC_GROUPS: GroupDef[] = [
       { label: 'Has Stairs', get: ({ s }) => yesNo(s.has_stairs) },
       { label: 'Upgrade Floor Selection', get: ({ s }) => s.upgrade_floor_selection ?? '' },
       {
-        label: 'Floor Plan Annotations',
+        label: 'Floor Plan Annotation Count',
         get: ({ s }) => (Array.isArray(s.floor_plan_annotations) ? s.floor_plan_annotations.length : 0),
+      },
+      {
+        label: 'Floor Plan Annotation Notes',
+        get: ({ s }) => {
+          const arr = Array.isArray(s.floor_plan_annotations)
+            ? (s.floor_plan_annotations as Array<Record<string, unknown>>)
+            : [];
+          return arr
+            .map((a) => {
+              const txt = (a?.text ?? a?.note ?? a?.label ?? a?.comment ?? '') as string;
+              const loc = (a?.areaName ?? a?.area ?? a?.room ?? '') as string;
+              return [loc, txt].filter(Boolean).join(': ');
+            })
+            .filter(Boolean)
+            .join(' | ');
+        },
       },
     ],
   },
