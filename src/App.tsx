@@ -19,6 +19,7 @@ import AdminPricingControl from "./pages/AdminPricingControl";
 import AdminUsers from "./pages/AdminUsers";
 import AdminEmailPreview from "./pages/AdminEmailPreview";
 import AdminProjectManagement from "./pages/AdminProjectManagement";
+import AdminQuickBooksSettings from "./pages/AdminQuickBooksSettings";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
