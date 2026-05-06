@@ -108,21 +108,24 @@ export async function loadProjectManagementData(): Promise<PMData> {
     linesBySub.get(row.submission_id)!.set(row.line_key, row);
   });
 
-  // ---------- pricing helpers (mirror useDynamicPricing minimally) ----------
+  // ---------- pricing helpers (mirror useDynamicPricing) ----------
   const cfg: Record<string, number> = {};
   (pricingRes.data || []).forEach((r) => { cfg[r.config_key] = num(r.config_value); });
-  const matCost = (m: string) => cfg[`material_${m}`] ?? cfg[m] ?? 0;
+  const matCostMap: Record<string, number> = {};
+  (matRes.data || []).forEach((r: { material_key: string; cost_per_unit: number }) => {
+    matCostMap[r.material_key] = num(r.cost_per_unit);
+  });
   const pricing = {
-    markupPercentage: cfg.markup_percentage ?? 0.6,
-    gstRate: cfg.gst_rate ?? 0.05,
-    getMaterialCost: matCost,
+    markupPercentage: (cfg.markup_percentage ?? 60) / 100,
+    gstRate: (cfg.gst_rate ?? 5) / 100,
+    getMaterialCost: (m: string) => matCostMap[m] ?? 0,
     getGroutColorFee: () => cfg.grout_color_change_price ?? 0,
     getAdditionalWindowPrice: () => cfg.additional_window_price ?? 0,
     getPatioDoorPrice: () => cfg.patio_door_price ?? 0,
     getAutomatedMotorPrice: () => cfg.automated_motor_price ?? 0,
-    getHeatedFloorPrice: () => cfg.heated_floor_price ?? 0,
+    getHeatedFloorPrice: () => cfg.heated_floor_per_bathroom ?? 0,
     getStairLvpUpgradePrice: () => cfg.stair_lvp_upgrade_price ?? 0,
-    getStairCarpetUpgradePrice: () => cfg.stair_carpet_upgrade_price ?? 0,
+    getStairCarpetUpgradePrice: () => cfg.premium_carpet_stairs_price ?? 0,
     getUnitAreaData: (code: string) => {
       const row = (areasRes.data || []).find((u) => u.unit_type_code?.toUpperCase() === code?.toUpperCase());
       if (!row) return null;
