@@ -48,6 +48,7 @@ const App = () => (
           <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
           <Route path="/admin/email-preview" element={<ProtectedRoute><AdminEmailPreview /></ProtectedRoute>} />
           <Route path="/admin/project-management" element={<ProtectedRoute><AdminProjectManagement /></ProtectedRoute>} />
+          <Route path="/admin/settings/quickbooks" element={<ProtectedRoute><AdminQuickBooksSettings /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
