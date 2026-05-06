@@ -11,6 +11,7 @@ import { Search, Download, CheckCircle2, XCircle, Eye, FileText } from 'lucide-r
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { loadProjectManagementData } from '@/lib/projectManagementData';
 
 interface BuyerSelection {
   id: string;
