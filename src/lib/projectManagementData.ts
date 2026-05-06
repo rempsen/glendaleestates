@@ -206,7 +206,9 @@ export async function loadProjectManagementData(): Promise<PMData> {
     });
 
     const pay = payments.get(s.id);
-    const paid = pay?.deposit_paid ? num(pay.deposit_amount) : 0;
+    const depositPaidAmt = pay?.deposit_paid ? num(pay.deposit_amount) : 0;
+    const balancePaidAmt = num((pay as { balance_paid?: number } | undefined)?.balance_paid);
+    const paidToDate = depositPaidAmt + balancePaidAmt;
     units.push({
       submission_id: s.id,
       unit_number: s.unit_number,
@@ -218,8 +220,10 @@ export async function loadProjectManagementData(): Promise<PMData> {
       deposit_amount: num(pay?.deposit_amount),
       deposit_paid: !!pay?.deposit_paid,
       deposit_paid_date: pay?.deposit_paid_date ?? null,
-      payments_to_date: paid,
-      balance_owing: pay ? num(pay.balance_owing) : Math.max(totals.grandTotal - paid, 0),
+      balance_paid: balancePaidAmt,
+      balance_paid_date: (pay as { balance_paid_date?: string | null } | undefined)?.balance_paid_date ?? null,
+      payments_to_date: paidToDate,
+      balance_owing: Math.max(totals.grandTotal - paidToDate, 0),
       payment_status: pay?.payment_status ?? 'unbilled',
       invoice_number: pay?.invoice_number ?? null,
       lines_total: canonical.length,
