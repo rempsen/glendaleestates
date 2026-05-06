@@ -238,7 +238,10 @@ export default function AdminProjectManagement() {
                     <TableHead className="text-right">Paid To Date</TableHead>
                     <TableHead className="text-right">Balance</TableHead>
                     <TableHead>Payment Status</TableHead>
-                    <TableHead>Invoice #</TableHead>
+                    <TableHead>
+                      Invoice Number
+                      <div className="text-[10px] font-normal text-muted-foreground">separate by comma or Enter</div>
+                    </TableHead>
                     <TableHead>Procurement</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -287,8 +290,23 @@ export default function AdminProjectManagement() {
                       </TableCell>
                       <TableCell>
                         <Input
-                          className="h-8 w-28" defaultValue={u.invoice_number ?? ''}
-                          onBlur={(e) => patchPayment(u.submission_id, { invoice_number: e.target.value || null })}
+                          className="h-8 w-40" defaultValue={u.invoice_number ?? ''}
+                          placeholder="INV-001, INV-002"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const el = e.currentTarget;
+                              const v = el.value.trim();
+                              if (v && !v.endsWith(',')) el.value = v + ', ';
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const cleaned = e.target.value
+                              .split(',').map((s) => s.trim()).filter(Boolean).join(', ');
+                            if (cleaned !== (u.invoice_number ?? '')) {
+                              patchPayment(u.submission_id, { invoice_number: cleaned || null });
+                            }
+                          }}
                         />
                       </TableCell>
                       <TableCell>
