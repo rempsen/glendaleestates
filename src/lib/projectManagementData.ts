@@ -54,6 +54,10 @@ export interface PMLineRow {
   quantity_required: number | null;
   canonical_quantity: number;
   unit_of_measure: string;
+  canonical_unit_of_measure: string;
+  canonical_area_type: string | null;
+  tracked_unit_of_measure: string | null;
+  tracked_area_type: string | null;
   // tracking
   approval_status: string;
   installation_status: string;
