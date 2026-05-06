@@ -235,7 +235,12 @@ export default function AdminHomes() {
                         {(submission.additional_windows_qty || 0) > 0 || (submission.patio_doors_qty || 0) > 0 ? <CheckCircle2 className="w-5 h-5 text-success mx-auto" /> : <XCircle className="w-5 h-5 text-muted-foreground mx-auto" />}
                       </td>
                       <td className="py-4 px-4 text-right">
-                        {(submission.window_total || 0) > 0 ? <span className="font-medium">${(submission.window_total || 0).toLocaleString()}</span> : <span className="text-muted-foreground">—</span>}
+                        {(() => {
+                          const total = totalsById[submission.id] ?? 0;
+                          return total > 0
+                            ? <span className="font-medium">${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            : <span className="text-muted-foreground">—</span>;
+                        })()}
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex items-center justify-center gap-1">
