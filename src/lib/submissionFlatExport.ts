@@ -42,6 +42,7 @@ interface RowCtx {
   s: BuyerSelection;
   sections: ReturnType<typeof buildSubmissionSectionRows>;
   totals: ReturnType<typeof computeTotalsForSubmission>;
+  downstream: DownstreamData;
 }
 
 const STATIC_GROUPS: GroupDef[] = [
