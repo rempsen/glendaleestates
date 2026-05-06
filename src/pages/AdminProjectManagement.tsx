@@ -37,6 +37,7 @@ export default function AdminProjectManagement() {
   const [filterColor, setFilterColor] = useState<string>('all');
   const [filterSupplier, setFilterSupplier] = useState<string>('all');
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [linesUnit, setLinesUnit] = useState<string>('all');
   const [sortKey, setSortKey] = useState<'material_key' | 'color_name' | 'area_type' | 'total_qty' | 'ordered_qty' | 'pct' | 'units' | 'suppliers'>('material_key');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const toggleSort = (k: typeof sortKey) => {
@@ -104,6 +105,7 @@ export default function AdminProjectManagement() {
     if (!data) return [];
     const q = search.trim().toLowerCase();
     return data.lines.filter((l) => {
+      if (linesUnit !== 'all' && l.unit_number !== linesUnit) return false;
       if (filterMaterial !== 'all' && (l.material_key || 'unknown') !== filterMaterial) return false;
       if (filterColor !== 'all' && (l.color_name || '—') !== filterColor) return false;
       if (filterSupplier !== 'all' && (l.supplier || '') !== filterSupplier) return false;
@@ -112,7 +114,14 @@ export default function AdminProjectManagement() {
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [data, search, filterMaterial, filterColor, filterSupplier]);
+  }, [data, search, linesUnit, filterMaterial, filterColor, filterSupplier]);
+
+  const unitOptions = useMemo(
+    () => Array.from(new Set((data?.units || []).map((u) => u.unit_number))).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true })
+    ),
+    [data],
+  );
 
   const filteredUnits = useMemo(() => {
     if (!data) return [];
@@ -339,7 +348,27 @@ export default function AdminProjectManagement() {
           </TabsContent>
 
           {/* ---------------- LINE ITEMS ---------------- */}
-          <TabsContent value="lines" className="mt-4">
+          <TabsContent value="lines" className="mt-4 space-y-3">
+            <Card className="p-3 flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium">Unit:</span>
+              <Select value={linesUnit} onValueChange={setLinesUnit}>
+                <SelectTrigger className="h-9 w-48"><SelectValue placeholder="Select unit" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All units</SelectItem>
+                  {unitOptions.map((u) => {
+                    const buyer = data?.units.find((x) => x.unit_number === u);
+                    return (
+                      <SelectItem key={u} value={u}>
+                        Unit {u}{buyer?.full_name ? ` — ${buyer.full_name}` : ''}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground ml-auto">
+                {filteredLines.length} line item{filteredLines.length === 1 ? '' : 's'}
+              </span>
+            </Card>
             <Card className="overflow-x-auto">
               <Table>
                 <TableHeader>
