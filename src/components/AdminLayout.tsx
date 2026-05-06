@@ -41,6 +41,7 @@ const navItems = [
   { icon: DollarSign, label: 'Pricing Control', path: '/admin/pricing' },
   { icon: Users, label: 'User Management', path: '/admin/users' },
   { icon: Mail, label: 'Email Preview', path: '/admin/email-preview' },
+  { icon: Receipt, label: 'QuickBooks', path: '/admin/settings/quickbooks' },
 ];
 
 export function AdminLayout({ children }: AdminLayoutProps) {
