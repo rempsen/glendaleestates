@@ -141,7 +141,7 @@ export default function AdminProjectManagement() {
       if (filterColor !== 'all' && a.color_name !== filterColor) return false;
       if (filterSupplier !== 'all' && !a.suppliers.includes(filterSupplier)) return false;
       if (!q) return true;
-      return [a.material_key, a.color_name, a.area_type].some((v) => v.toLowerCase().includes(q));
+      return [a.material_key, a.color_name].some((v) => v.toLowerCase().includes(q));
     });
     const dir = sortDir === 'asc' ? 1 : -1;
     const get = (a: typeof rows[number]) => {
