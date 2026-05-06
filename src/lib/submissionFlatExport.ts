@@ -10,6 +10,8 @@ import {
   type BuyerSelection,
   type ExportPricing,
 } from './submissionExportBuilder';
+import { buildCanonicalLines } from './submissionLineItems';
+import type { DownstreamData } from './fetchDownstreamData';
 
 export interface FlatExportColumn {
   label: string;
@@ -40,6 +42,7 @@ interface RowCtx {
   s: BuyerSelection;
   sections: ReturnType<typeof buildSubmissionSectionRows>;
   totals: ReturnType<typeof computeTotalsForSubmission>;
+  downstream: DownstreamData;
 }
 
 const STATIC_GROUPS: GroupDef[] = [
@@ -55,6 +58,7 @@ const STATIC_GROUPS: GroupDef[] = [
       { label: 'Unit Type', get: ({ s }) => s.unit_type ?? '' },
       { label: 'Possession Date', get: ({ s }) => fmtDate(s.estimated_possession_date) },
       { label: 'Status', get: ({ s }) => s.status ?? '' },
+      { label: 'Submission ID', get: ({ s }) => s.id },
       { label: 'Submitted', get: ({ s }) => fmtDateTime(s.created_at) },
       { label: 'Updated', get: ({ s }) => fmtDateTime(s.updated_at) },
       { label: 'Reviewed', get: ({ s }) => fmtDateTime(s.reviewed_at) },
@@ -68,8 +72,24 @@ const STATIC_GROUPS: GroupDef[] = [
       { label: 'Has Stairs', get: ({ s }) => yesNo(s.has_stairs) },
       { label: 'Upgrade Floor Selection', get: ({ s }) => s.upgrade_floor_selection ?? '' },
       {
-        label: 'Floor Plan Annotations',
+        label: 'Floor Plan Annotation Count',
         get: ({ s }) => (Array.isArray(s.floor_plan_annotations) ? s.floor_plan_annotations.length : 0),
+      },
+      {
+        label: 'Floor Plan Annotation Notes',
+        get: ({ s }) => {
+          const arr = Array.isArray(s.floor_plan_annotations)
+            ? (s.floor_plan_annotations as Array<Record<string, unknown>>)
+            : [];
+          return arr
+            .map((a) => {
+              const txt = (a?.text ?? a?.note ?? a?.label ?? a?.comment ?? '') as string;
+              const loc = (a?.areaName ?? a?.area ?? a?.room ?? '') as string;
+              return [loc, txt].filter(Boolean).join(': ');
+            })
+            .filter(Boolean)
+            .join(' | ');
+        },
       },
     ],
   },
@@ -173,6 +193,14 @@ const STATIC_GROUPS: GroupDef[] = [
             .filter(Boolean)
             .join(' | '),
       },
+      {
+        label: 'Document Paths',
+        get: ({ sections }) =>
+          (sections.documents || [])
+            .map((d) => String(d.path || ''))
+            .filter(Boolean)
+            .join(' | '),
+      },
       { label: 'Document Count', get: ({ sections }) => (sections.documents || []).length },
     ],
   },
@@ -201,6 +229,31 @@ const STATIC_GROUPS: GroupDef[] = [
       },
     ],
   },
+  {
+    name: 'Payments / AR',
+    cols: [
+      { label: 'Deposit Required', get: ({ downstream, s }) => yesNo(downstream.payments[s.id]?.deposit_required) },
+      { label: 'Deposit Amount $', get: ({ downstream, s }) => money(Number(downstream.payments[s.id]?.deposit_amount ?? 0)) },
+      { label: 'Deposit Paid', get: ({ downstream, s }) => yesNo(downstream.payments[s.id]?.deposit_paid) },
+      { label: 'Deposit Paid Date', get: ({ downstream, s }) => fmtDate(downstream.payments[s.id]?.deposit_paid_date) },
+      { label: 'Balance Owing $', get: ({ downstream, s }) => money(Number(downstream.payments[s.id]?.balance_owing ?? 0)) },
+      { label: 'Invoice #', get: ({ downstream, s }) => downstream.payments[s.id]?.invoice_number ?? '' },
+      { label: 'Payment Status', get: ({ downstream, s }) => downstream.payments[s.id]?.payment_status ?? '' },
+      { label: 'Payment Notes', get: ({ downstream, s }) => downstream.payments[s.id]?.notes ?? '' },
+    ],
+  },
+  {
+    name: 'Ownership / RACI',
+    cols: [
+      { label: 'Designer Assigned', get: ({ downstream, s }) => downstream.ownership[s.id]?.designer_assigned ?? '' },
+      { label: 'Sales Rep', get: ({ downstream, s }) => downstream.ownership[s.id]?.sales_rep ?? '' },
+      { label: 'Next Action', get: ({ downstream, s }) => downstream.ownership[s.id]?.next_action ?? '' },
+      { label: 'Next Action Owner', get: ({ downstream, s }) => downstream.ownership[s.id]?.next_action_owner ?? '' },
+      { label: 'Due Date', get: ({ downstream, s }) => fmtDate(downstream.ownership[s.id]?.due_date) },
+      { label: 'Risk Level', get: ({ downstream, s }) => downstream.ownership[s.id]?.risk_level ?? '' },
+      { label: 'Ownership Notes', get: ({ downstream, s }) => downstream.ownership[s.id]?.notes ?? '' },
+    ],
+  },
 ];
 
 function buildAreaUpgradeGroup(maxCount: number): GroupDef {
@@ -208,6 +261,7 @@ function buildAreaUpgradeGroup(maxCount: number): GroupDef {
   for (let i = 0; i < maxCount; i++) {
     const idx = i; // capture
     const n = i + 1;
+    const lk = `area_upgrade:${idx}`;
     cols.push(
       { label: `#${n} Area`, get: ({ sections }) => (sections.area_upgrades?.[idx]?.area_name as string) ?? '' },
       { label: `#${n} Material`, get: ({ sections }) => (sections.area_upgrades?.[idx]?.material_name as string) ?? '' },
@@ -217,20 +271,72 @@ function buildAreaUpgradeGroup(maxCount: number): GroupDef {
       { label: `#${n} Heated Floor`, get: ({ sections }) => yesNo(sections.area_upgrades?.[idx]?.heated_floor) },
       { label: `#${n} Amount $`, get: ({ sections }) => Number(sections.area_upgrades?.[idx]?.amount ?? 0) },
       { label: `#${n} Heated Floor $`, get: ({ sections }) => Number(sections.area_upgrades?.[idx]?.heated_floor_amount ?? 0) },
+      { label: `#${n} Approval Status`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[lk]?.approval_status ?? '' },
+      { label: `#${n} Supplier`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[lk]?.supplier ?? '' },
+      { label: `#${n} SKU`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[lk]?.sku ?? '' },
+      { label: `#${n} Qty Required`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[lk]?.quantity_required ?? '' },
+      { label: `#${n} Qty Ordered`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[lk]?.quantity_ordered ?? '' },
+      { label: `#${n} PO #`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[lk]?.po_number ?? '' },
+      { label: `#${n} Order Date`, get: ({ downstream, s }) => fmtDate(downstream.lineItems[s.id]?.[lk]?.order_date) },
+      { label: `#${n} Expected Delivery`, get: ({ downstream, s }) => fmtDate(downstream.lineItems[s.id]?.[lk]?.expected_delivery) },
+      { label: `#${n} Received Date`, get: ({ downstream, s }) => fmtDate(downstream.lineItems[s.id]?.[lk]?.received_date) },
+      { label: `#${n} Storage Location`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[lk]?.storage_location ?? '' },
+      { label: `#${n} Installation Status`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[lk]?.installation_status ?? '' },
+      { label: `#${n} Risk Level`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[lk]?.risk_level ?? '' },
+      { label: `#${n} Procurement Notes`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[lk]?.notes ?? '' },
     );
   }
   return { name: `Area Upgrades (up to ${maxCount})`, cols };
 }
 
+// Builds a procurement group for the fixed (non-area-upgrade) line keys.
+// One sub-group of columns per key; surfaces approval + procurement fields.
+const FIXED_PROCUREMENT_KEYS: { key: string; label: string }[] = [
+  { key: 'bathroom_tile', label: 'Bathroom Tile' },
+  { key: 'heated_floor', label: 'Heated Floor' },
+  { key: 'custom_shower', label: 'Custom Shower' },
+  { key: 'grout', label: 'Grout' },
+  { key: 'stair_lvp', label: 'Stair LVP' },
+  { key: 'stair_carpet', label: 'Stair Carpet' },
+  { key: 'window_additional', label: 'Add. Windows' },
+  { key: 'window_patio', label: 'Patio Doors' },
+  { key: 'window_automation', label: 'Window Automation' },
+];
+
+function buildFixedProcurementGroup(): GroupDef {
+  const cols: ColDef[] = [];
+  for (const { key, label } of FIXED_PROCUREMENT_KEYS) {
+    cols.push(
+      { label: `${label}: Approval`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[key]?.approval_status ?? '' },
+      { label: `${label}: Supplier`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[key]?.supplier ?? '' },
+      { label: `${label}: SKU`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[key]?.sku ?? '' },
+      { label: `${label}: Qty Req`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[key]?.quantity_required ?? '' },
+      { label: `${label}: Qty Ord`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[key]?.quantity_ordered ?? '' },
+      { label: `${label}: PO #`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[key]?.po_number ?? '' },
+      { label: `${label}: Order Date`, get: ({ downstream, s }) => fmtDate(downstream.lineItems[s.id]?.[key]?.order_date) },
+      { label: `${label}: Exp Delivery`, get: ({ downstream, s }) => fmtDate(downstream.lineItems[s.id]?.[key]?.expected_delivery) },
+      { label: `${label}: Received`, get: ({ downstream, s }) => fmtDate(downstream.lineItems[s.id]?.[key]?.received_date) },
+      { label: `${label}: Storage`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[key]?.storage_location ?? '' },
+      { label: `${label}: Install Status`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[key]?.installation_status ?? '' },
+      { label: `${label}: Risk`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[key]?.risk_level ?? '' },
+    );
+  }
+  return { name: 'Procurement (Fixed Line Items)', cols };
+}
+
+import type { DownstreamData as _DD } from './fetchDownstreamData';
+const EMPTY_DOWNSTREAM: _DD = { payments: {}, ownership: {}, lineItems: {} };
+
 export function buildFlatExport(
   targets: BuyerSelection[],
   pricing: ExportPricing,
+  downstream: _DD = EMPTY_DOWNSTREAM,
 ): FlatExportResult {
   // Pre-compute sections + totals so we can size the dynamic Area Upgrades group.
   const computed = targets.map((s) => {
     const sections = buildSubmissionSectionRows(s, pricing);
     const totals = computeTotalsForSubmission(s, pricing);
-    return { s, sections, totals };
+    return { s, sections, totals, downstream };
   });
 
   const maxAreaUpgrades = Math.max(
@@ -238,7 +344,7 @@ export function buildFlatExport(
     ...computed.map((c) => (c.sections.area_upgrades || []).length),
   );
 
-  // Insert Area Upgrades group right after Window Coverings (between index 7 and Hardwood).
+  // Insert Area Upgrades group right after Window Coverings, then fixed procurement at the end.
   const groups: GroupDef[] = [];
   for (const g of STATIC_GROUPS) {
     groups.push(g);
@@ -246,6 +352,7 @@ export function buildFlatExport(
       groups.push(buildAreaUpgradeGroup(maxAreaUpgrades));
     }
   }
+  groups.push(buildFixedProcurementGroup());
 
   const groupHeaders: FlatExportGroup[] = groups.map((g) => ({ name: g.name, span: g.cols.length }));
   const columns: FlatExportColumn[] = groups.flatMap((g) => g.cols.map((c) => ({ label: c.label })));

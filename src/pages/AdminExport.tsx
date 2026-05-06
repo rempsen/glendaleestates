@@ -37,6 +37,7 @@ import {
   type ExportPricing,
 } from '@/lib/submissionExportBuilder';
 import { buildFlatExport } from '@/lib/submissionFlatExport';
+import { fetchDownstreamData, type DownstreamData } from '@/lib/fetchDownstreamData';
 
 const STATUS_OPTIONS = ['submitted', 'in_review', 'quoted', 'completed', 'cancelled'];
 
@@ -53,8 +54,12 @@ const downloadBlob = (content: BlobPart, filename: string, mime: string) => {
 const sanitize = (s: string) => s.replace(/[^a-z0-9_-]+/gi, '_').slice(0, 60);
 
 // Build a single XLSX workbook with one sheet, grouped header banner row + sub-header.
-function buildSingleSheetXlsx(targets: BuyerSelection[], pricing: ExportPricing): ArrayBuffer {
-  const flat = buildFlatExport(targets, pricing);
+function buildSingleSheetXlsx(
+  targets: BuyerSelection[],
+  pricing: ExportPricing,
+  downstream: DownstreamData,
+): ArrayBuffer {
+  const flat = buildFlatExport(targets, pricing, downstream);
 
   // Row 1: group banner (one cell per group, then merged across its span)
   // Row 2: column sub-headers
@@ -229,11 +234,12 @@ export default function AdminExport() {
     return true;
   };
 
-  const exportXlsxAll = () => {
+  const exportXlsxAll = async () => {
     if (!ensureReady()) return;
     setGenerating('xlsx-all');
     try {
-      const buf = buildSingleSheetXlsx(filtered, exportPricing);
+      const downstream = await fetchDownstreamData(filtered.map((s) => s.id));
+      const buf = buildSingleSheetXlsx(filtered, exportPricing, downstream);
       downloadBlob(
         buf,
         `submissions-export-${format(new Date(), 'yyyy-MM-dd')}.xlsx`,
@@ -248,15 +254,16 @@ export default function AdminExport() {
     }
   };
 
-  const exportSingleClient = (s: BuyerSelection) => {
+  const exportSingleClient = async (s: BuyerSelection) => {
     if (!pricingLoaded) {
       toast.error('Pricing data still loading — try again in a moment');
       return;
     }
     setGenerating(`xlsx-${s.id}`);
     try {
+      const downstream = await fetchDownstreamData([s.id]);
       const baseName = `${sanitize(s.unit_number || 'unit')}_${sanitize(s.last_name || 'client')}_${format(new Date(), 'yyyy-MM-dd')}`;
-      const buf = buildSingleSheetXlsx([s], exportPricing);
+      const buf = buildSingleSheetXlsx([s], exportPricing, downstream);
       downloadBlob(
         buf,
         `${baseName}.xlsx`,

@@ -418,6 +418,159 @@ export type Database = {
         }
         Relationships: []
       }
+      submission_line_items: {
+        Row: {
+          approval_status: string
+          created_at: string
+          expected_delivery: string | null
+          id: string
+          installation_status: string
+          line_key: string
+          line_label: string | null
+          notes: string | null
+          order_date: string | null
+          po_number: string | null
+          quantity_ordered: number | null
+          quantity_required: number | null
+          received_date: string | null
+          risk_level: string
+          sku: string | null
+          storage_location: string | null
+          submission_id: string
+          supplier: string | null
+          updated_at: string
+        }
+        Insert: {
+          approval_status?: string
+          created_at?: string
+          expected_delivery?: string | null
+          id?: string
+          installation_status?: string
+          line_key: string
+          line_label?: string | null
+          notes?: string | null
+          order_date?: string | null
+          po_number?: string | null
+          quantity_ordered?: number | null
+          quantity_required?: number | null
+          received_date?: string | null
+          risk_level?: string
+          sku?: string | null
+          storage_location?: string | null
+          submission_id: string
+          supplier?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approval_status?: string
+          created_at?: string
+          expected_delivery?: string | null
+          id?: string
+          installation_status?: string
+          line_key?: string
+          line_label?: string | null
+          notes?: string | null
+          order_date?: string | null
+          po_number?: string | null
+          quantity_ordered?: number | null
+          quantity_required?: number | null
+          received_date?: string | null
+          risk_level?: string
+          sku?: string | null
+          storage_location?: string | null
+          submission_id?: string
+          supplier?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      submission_ownership: {
+        Row: {
+          created_at: string
+          designer_assigned: string | null
+          due_date: string | null
+          id: string
+          next_action: string | null
+          next_action_owner: string | null
+          notes: string | null
+          risk_level: string
+          sales_rep: string | null
+          submission_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          designer_assigned?: string | null
+          due_date?: string | null
+          id?: string
+          next_action?: string | null
+          next_action_owner?: string | null
+          notes?: string | null
+          risk_level?: string
+          sales_rep?: string | null
+          submission_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          designer_assigned?: string | null
+          due_date?: string | null
+          id?: string
+          next_action?: string | null
+          next_action_owner?: string | null
+          notes?: string | null
+          risk_level?: string
+          sales_rep?: string | null
+          submission_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      submission_payments: {
+        Row: {
+          balance_owing: number
+          created_at: string
+          deposit_amount: number
+          deposit_paid: boolean
+          deposit_paid_date: string | null
+          deposit_required: boolean
+          id: string
+          invoice_number: string | null
+          notes: string | null
+          payment_status: string
+          submission_id: string
+          updated_at: string
+        }
+        Insert: {
+          balance_owing?: number
+          created_at?: string
+          deposit_amount?: number
+          deposit_paid?: boolean
+          deposit_paid_date?: string | null
+          deposit_required?: boolean
+          id?: string
+          invoice_number?: string | null
+          notes?: string | null
+          payment_status?: string
+          submission_id: string
+          updated_at?: string
+        }
+        Update: {
+          balance_owing?: number
+          created_at?: string
+          deposit_amount?: number
+          deposit_paid?: boolean
+          deposit_paid_date?: string | null
+          deposit_required?: boolean
+          id?: string
+          invoice_number?: string | null
+          notes?: string | null
+          payment_status?: string
+          submission_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       unit_area_data: {
         Row: {
           all_lvp: number

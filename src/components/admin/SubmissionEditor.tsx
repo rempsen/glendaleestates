@@ -20,8 +20,9 @@ import {
 } from '@/components/ui/accordion';
 import { 
   Save, X, Plus, Trash2, Home, Sofa, BedDouble, Bath, 
-  WashingMachine, LayoutGrid, Flame, User
+  WashingMachine, LayoutGrid, Flame, User, ClipboardList
 } from 'lucide-react';
+import { DownstreamTrackingPanel } from './DownstreamTrackingPanel';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { createAuditLog, calculateChanges, generateChangeSummary } from '@/lib/auditLog';
@@ -902,6 +903,22 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                 rows={4}
               />
             </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Downstream Tracking */}
+        <AccordionItem value="downstream" className="border rounded-lg px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="w-4 h-4" />
+              <span>Downstream Tracking (Payments, Ownership, Procurement)</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="pt-4 pb-6">
+            <DownstreamTrackingPanel
+              submissionId={submission.id}
+              submission={editData}
+            />
           </AccordionContent>
         </AccordionItem>
       </Accordion>
