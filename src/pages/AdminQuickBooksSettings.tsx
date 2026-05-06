@@ -177,6 +177,8 @@ export default function AdminQuickBooksSettings() {
           </CardContent>
         </Card>
 
+        <QboSettingsPanel enabled={!!conn} />
+
         <Card>
           <CardHeader>
             <CardTitle>Setup checklist</CardTitle>
