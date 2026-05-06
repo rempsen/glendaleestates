@@ -236,6 +236,8 @@ export default function AdminProjectManagement() {
                     <TableHead>Deposit Paid</TableHead>
                     <TableHead>Paid Date</TableHead>
                     <TableHead className="text-right">Paid To Date</TableHead>
+                    <TableHead className="text-right">Balance Paid</TableHead>
+                    <TableHead>Balance Paid Date</TableHead>
                     <TableHead className="text-right">Balance</TableHead>
                     <TableHead>Payment Status</TableHead>
                     <TableHead>
