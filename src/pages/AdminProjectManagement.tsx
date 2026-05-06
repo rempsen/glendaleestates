@@ -217,7 +217,7 @@ export default function AdminProjectManagement() {
         <Tabs defaultValue="units">
           <TabsList>
             <TabsTrigger value="units" className="gap-2"><LayoutGrid className="w-4 h-4" /> Per-Unit</TabsTrigger>
-            <TabsTrigger value="lines" className="gap-2"><ListChecks className="w-4 h-4" /> Line Items</TabsTrigger>
+            <TabsTrigger value="lines" className="gap-2"><ListChecks className="w-4 h-4" /> Line Items Per Unit</TabsTrigger>
             <TabsTrigger value="aggregate" className="gap-2"><Truck className="w-4 h-4" /> Master Aggregate</TabsTrigger>
             <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
           </TabsList>
