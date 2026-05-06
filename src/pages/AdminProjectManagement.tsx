@@ -476,6 +476,34 @@ export default function AdminProjectManagement() {
                 disabled={loading || !data}
                 onClick={async () => {
                   if (!data) return;
+                  // Detect mapping drift: tracked rows whose unit_of_measure or area_type
+                  // no longer match the freshly computed canonical values.
+                  const drift = data.lines.filter((l) => {
+                    const uomChanged = l.tracked_unit_of_measure !== null
+                      && l.tracked_unit_of_measure !== l.canonical_unit_of_measure;
+                    const areaChanged = l.tracked_area_type !== null
+                      && (l.tracked_area_type || '') !== (l.canonical_area_type || '');
+                    return uomChanged || areaChanged;
+                  });
+                  if (drift.length > 0) {
+                    const sample = drift.slice(0, 5).map((d) =>
+                      `• ${d.unit_number} — ${d.line_label}: ${
+                        d.tracked_unit_of_measure !== d.canonical_unit_of_measure
+                          ? `UoM "${d.tracked_unit_of_measure}" → "${d.canonical_unit_of_measure}"`
+                          : ''
+                      }${
+                        (d.tracked_area_type || '') !== (d.canonical_area_type || '')
+                          ? ` Area "${d.tracked_area_type ?? '—'}" → "${d.canonical_area_type ?? '—'}"`
+                          : ''
+                      }`
+                    ).join('\n');
+                    const more = drift.length > 5 ? `\n…and ${drift.length - 5} more` : '';
+                    if (!confirm(
+                      `WARNING: Mapping changes detected on ${drift.length} line item(s).\n\n` +
+                      `The unit_of_measure or area_type for these lines has changed since they were last saved. ` +
+                      `Recalculating will overwrite them with the new mappings.\n\n${sample}${more}\n\nProceed?`
+                    )) return;
+                  }
                   if (!confirm('Recalculate quantities from price control? This will overwrite stored Total Qty values for all line items with the freshly computed square footage / unit counts.')) return;
                   setSavingKey('recalc');
                   const rows = data.lines.map((l) => ({
