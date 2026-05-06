@@ -10,6 +10,8 @@ import {
   type BuyerSelection,
   type ExportPricing,
 } from './submissionExportBuilder';
+import { buildCanonicalLines } from './submissionLineItems';
+import type { DownstreamData } from './fetchDownstreamData';
 
 export interface FlatExportColumn {
   label: string;
