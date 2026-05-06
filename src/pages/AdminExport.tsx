@@ -54,8 +54,12 @@ const downloadBlob = (content: BlobPart, filename: string, mime: string) => {
 const sanitize = (s: string) => s.replace(/[^a-z0-9_-]+/gi, '_').slice(0, 60);
 
 // Build a single XLSX workbook with one sheet, grouped header banner row + sub-header.
-function buildSingleSheetXlsx(targets: BuyerSelection[], pricing: ExportPricing): ArrayBuffer {
-  const flat = buildFlatExport(targets, pricing);
+function buildSingleSheetXlsx(
+  targets: BuyerSelection[],
+  pricing: ExportPricing,
+  downstream: DownstreamData,
+): ArrayBuffer {
+  const flat = buildFlatExport(targets, pricing, downstream);
 
   // Row 1: group banner (one cell per group, then merged across its span)
   // Row 2: column sub-headers
