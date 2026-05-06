@@ -88,13 +88,14 @@ export interface PMData {
 const num = (v: unknown) => Number(v) || 0;
 
 export async function loadProjectManagementData(): Promise<PMData> {
-  const [subRes, payRes, lineRes, supRes, pricingRes, areasRes] = await Promise.all([
+  const [subRes, payRes, lineRes, supRes, pricingRes, areasRes, matRes] = await Promise.all([
     supabase.from('buyer_selections').select('*').order('unit_number'),
     supabase.from('submission_payments').select('*'),
     supabase.from('submission_line_items').select('*'),
     supabase.from('suppliers').select('id,name').eq('is_active', true).order('name'),
     supabase.from('pricing_config').select('*').eq('is_active', true),
     supabase.from('unit_area_data').select('*'),
+    supabase.from('upgrade_materials').select('material_key,cost_per_unit').eq('is_active', true),
   ]);
 
   const submissions = (subRes.data || []) as Submission[];
