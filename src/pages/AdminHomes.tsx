@@ -43,6 +43,7 @@ interface BuyerSelection {
 
 export default function AdminHomes() {
   const [submissions, setSubmissions] = useState<BuyerSelection[]>([]);
+  const [totalsById, setTotalsById] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -51,13 +52,21 @@ export default function AdminHomes() {
 
   useEffect(() => {
     const fetchSubmissions = async () => {
-      const { data, error } = await supabase
-        .from('buyer_selections')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const [{ data, error }, pm] = await Promise.all([
+        supabase
+          .from('buyer_selections')
+          .select('*')
+          .order('created_at', { ascending: false }),
+        loadProjectManagementData().catch((e) => { console.error('PM totals load failed', e); return null; }),
+      ]);
 
       if (!error && data) {
         setSubmissions(data as BuyerSelection[]);
+      }
+      if (pm) {
+        const map: Record<string, number> = {};
+        pm.units.forEach((u) => { map[u.submission_id] = u.grand_total; });
+        setTotalsById(map);
       }
       setLoading(false);
     };
