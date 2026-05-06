@@ -11,6 +11,7 @@ import { Search, Download, CheckCircle2, XCircle, Eye, FileText } from 'lucide-r
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { loadProjectManagementData } from '@/lib/projectManagementData';
 
 interface BuyerSelection {
   id: string;
@@ -42,6 +43,7 @@ interface BuyerSelection {
 
 export default function AdminHomes() {
   const [submissions, setSubmissions] = useState<BuyerSelection[]>([]);
+  const [totalsById, setTotalsById] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -50,13 +52,21 @@ export default function AdminHomes() {
 
   useEffect(() => {
     const fetchSubmissions = async () => {
-      const { data, error } = await supabase
-        .from('buyer_selections')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const [{ data, error }, pm] = await Promise.all([
+        supabase
+          .from('buyer_selections')
+          .select('*')
+          .order('created_at', { ascending: false }),
+        loadProjectManagementData().catch((e) => { console.error('PM totals load failed', e); return null; }),
+      ]);
 
       if (!error && data) {
         setSubmissions(data as BuyerSelection[]);
+      }
+      if (pm) {
+        const map: Record<string, number> = {};
+        pm.units.forEach((u) => { map[u.submission_id] = u.grand_total; });
+        setTotalsById(map);
       }
       setLoading(false);
     };
@@ -225,7 +235,12 @@ export default function AdminHomes() {
                         {(submission.additional_windows_qty || 0) > 0 || (submission.patio_doors_qty || 0) > 0 ? <CheckCircle2 className="w-5 h-5 text-success mx-auto" /> : <XCircle className="w-5 h-5 text-muted-foreground mx-auto" />}
                       </td>
                       <td className="py-4 px-4 text-right">
-                        {(submission.window_total || 0) > 0 ? <span className="font-medium">${(submission.window_total || 0).toLocaleString()}</span> : <span className="text-muted-foreground">—</span>}
+                        {(() => {
+                          const total = totalsById[submission.id] ?? 0;
+                          return total > 0
+                            ? <span className="font-medium">${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            : <span className="text-muted-foreground">—</span>;
+                        })()}
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex items-center justify-center gap-1">
