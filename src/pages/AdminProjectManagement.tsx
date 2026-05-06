@@ -391,14 +391,14 @@ export default function AdminProjectManagement() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Material</TableHead>
-                    <TableHead>Color</TableHead>
-                    <TableHead>Area</TableHead>
-                    <TableHead className="text-right">Total Qty</TableHead>
-                    <TableHead className="text-right">Ordered</TableHead>
+                    <SortHead label="Material" k="material_key" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                    <SortHead label="Color" k="color_name" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                    <SortHead label="Area" k="area_type" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                    <SortHead label="Total Qty" k="total_qty" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
+                    <SortHead label="Ordered" k="ordered_qty" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
                     <TableHead>UoM</TableHead>
-                    <TableHead>Suppliers</TableHead>
-                    <TableHead>Units</TableHead>
+                    <SortHead label="Suppliers" k="suppliers" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                    <SortHead label="Units" k="units" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
