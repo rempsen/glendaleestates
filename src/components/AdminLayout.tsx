@@ -18,7 +18,8 @@ import {
   DollarSign,
   Users,
   Download,
-  Mail
+  Mail,
+  ClipboardList
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -32,6 +33,7 @@ const navItems = [
   { icon: GitGraph, label: 'Pipeline', path: '/admin/pipeline' },
   { icon: Inbox, label: 'Submissions', path: '/admin/submissions' },
   { icon: Home, label: 'All Homes', path: '/admin/homes' },
+  { icon: ClipboardList, label: 'Project Management', path: '/admin/project-management' },
   { icon: BarChart3, label: 'Sales Analytics', path: '/admin/sales-analytics' },
   { icon: FileText, label: 'Reports', path: '/admin/reports' },
   { icon: Download, label: 'Export', path: '/admin/export' },

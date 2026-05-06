@@ -11,6 +11,11 @@ export interface CanonicalLine {
   line_key: string;
   line_label: string;
   amount: number;
+  material_key: string | null;
+  color_name: string | null;
+  area_type: string | null;
+  quantity: number;
+  unit_of_measure: string;
 }
 
 export function buildCanonicalLines(
@@ -26,29 +31,65 @@ export function buildCanonicalLines(
       windowAdditional: number;
       windowPatio: number;
       windowAutomation: number;
-      flooringUpgrades: { areaId: string; areaName: string; materialName: string; amount: number; heatedFloorAmount: number }[];
+      flooringUpgrades: { areaId: string; areaName: string; materialName: string; amount: number; heatedFloorAmount: number; productName?: string; productColor?: string }[];
     };
   },
 ): CanonicalLine[] {
   const out: CanonicalLine[] = [];
-  const push = (k: string, l: string, a: number) => {
-    if (a > 0) out.push({ line_key: k, line_label: l, amount: a });
+  const push = (
+    k: string, l: string, a: number,
+    extra: Partial<CanonicalLine> = {},
+  ) => {
+    if (a > 0) out.push({
+      line_key: k, line_label: l, amount: a,
+      material_key: null, color_name: null, area_type: null,
+      quantity: 1, unit_of_measure: 'unit',
+      ...extra,
+    });
   };
-  push('bathroom_tile', 'Bathroom Tile', totals.pieces.bathroomTile);
-  push('heated_floor', 'Heated Floor (Bathrooms)', totals.pieces.section4HeatedFloor);
-  push('custom_shower', 'Custom Tiled Shower', totals.pieces.customShower);
-  push('grout', 'Backsplash Grout', totals.pieces.grout);
-  push('stair_lvp', 'Stair LVP Upgrade', totals.pieces.stairLvp);
-  push('stair_carpet', 'Stair Carpet Upgrade', totals.pieces.stairCarpet);
-  push('window_additional', 'Additional Windows', totals.pieces.windowAdditional);
-  push('window_patio', 'Patio Doors', totals.pieces.windowPatio);
-  push('window_automation', 'Window Automation', totals.pieces.windowAutomation);
+  push('bathroom_tile', 'Bathroom Tile', totals.pieces.bathroomTile, {
+    material_key: 'tile', area_type: 'bathroom', unit_of_measure: 'sqft',
+  });
+  push('heated_floor', 'Heated Floor (Bathrooms)', totals.pieces.section4HeatedFloor, {
+    material_key: 'heated_floor', area_type: 'bathroom',
+    quantity: Number((s as { heated_floor_bathrooms?: number }).heated_floor_bathrooms) || 1,
+  });
+  push('custom_shower', 'Custom Tiled Shower', totals.pieces.customShower, {
+    material_key: 'tiled_shower', area_type: 'bathroom',
+  });
+  push('grout', 'Backsplash Grout', totals.pieces.grout, {
+    material_key: 'grout', color_name: (s as { backsplash_grout_color?: string }).backsplash_grout_color || null,
+    area_type: 'kitchen',
+  });
+  push('stair_lvp', 'Stair LVP Upgrade', totals.pieces.stairLvp, {
+    material_key: 'stair_lvp', area_type: 'stairs',
+  });
+  push('stair_carpet', 'Stair Carpet Upgrade', totals.pieces.stairCarpet, {
+    material_key: 'stair_carpet', area_type: 'stairs',
+  });
+  push('window_additional', 'Additional Windows', totals.pieces.windowAdditional, {
+    material_key: 'window_blind', area_type: 'window',
+    quantity: Number((s as { additional_windows_qty?: number }).additional_windows_qty) || 1,
+  });
+  push('window_patio', 'Patio Doors', totals.pieces.windowPatio, {
+    material_key: 'patio_door', area_type: 'window',
+    quantity: Number((s as { patio_doors_qty?: number }).patio_doors_qty) || 1,
+  });
+  push('window_automation', 'Window Automation', totals.pieces.windowAutomation, {
+    material_key: 'window_automation', area_type: 'window',
+    quantity: Number((s as { automated_windows_qty?: number }).automated_windows_qty) || 1,
+  });
 
   (totals.pieces.flooringUpgrades || []).forEach((u, i) => {
     out.push({
       line_key: `area_upgrade:${i}`,
       line_label: `${u.areaName} - ${u.materialName}`,
       amount: u.amount + u.heatedFloorAmount,
+      material_key: u.materialName,
+      color_name: u.productColor || u.productName || null,
+      area_type: u.areaId,
+      quantity: 1,
+      unit_of_measure: 'sqft',
     });
   });
   return out;

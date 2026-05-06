@@ -421,12 +421,15 @@ export type Database = {
       submission_line_items: {
         Row: {
           approval_status: string
+          area_type: string | null
+          color_name: string | null
           created_at: string
           expected_delivery: string | null
           id: string
           installation_status: string
           line_key: string
           line_label: string | null
+          material_key: string | null
           notes: string | null
           order_date: string | null
           po_number: string | null
@@ -438,16 +441,20 @@ export type Database = {
           storage_location: string | null
           submission_id: string
           supplier: string | null
+          unit_of_measure: string | null
           updated_at: string
         }
         Insert: {
           approval_status?: string
+          area_type?: string | null
+          color_name?: string | null
           created_at?: string
           expected_delivery?: string | null
           id?: string
           installation_status?: string
           line_key: string
           line_label?: string | null
+          material_key?: string | null
           notes?: string | null
           order_date?: string | null
           po_number?: string | null
@@ -459,16 +466,20 @@ export type Database = {
           storage_location?: string | null
           submission_id: string
           supplier?: string | null
+          unit_of_measure?: string | null
           updated_at?: string
         }
         Update: {
           approval_status?: string
+          area_type?: string | null
+          color_name?: string | null
           created_at?: string
           expected_delivery?: string | null
           id?: string
           installation_status?: string
           line_key?: string
           line_label?: string | null
+          material_key?: string | null
           notes?: string | null
           order_date?: string | null
           po_number?: string | null
@@ -480,6 +491,7 @@ export type Database = {
           storage_location?: string | null
           submission_id?: string
           supplier?: string | null
+          unit_of_measure?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -567,6 +579,42 @@ export type Database = {
           notes?: string | null
           payment_status?: string
           submission_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      suppliers: {
+        Row: {
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
           updated_at?: string
         }
         Relationships: []

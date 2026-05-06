@@ -18,6 +18,7 @@ import AdminExport from "./pages/AdminExport";
 import AdminPricingControl from "./pages/AdminPricingControl";
 import AdminUsers from "./pages/AdminUsers";
 import AdminEmailPreview from "./pages/AdminEmailPreview";
+import AdminProjectManagement from "./pages/AdminProjectManagement";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
@@ -45,6 +46,7 @@ const App = () => (
           <Route path="/admin/pricing" element={<ProtectedRoute><AdminPricingControl /></ProtectedRoute>} />
           <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
           <Route path="/admin/email-preview" element={<ProtectedRoute><AdminEmailPreview /></ProtectedRoute>} />
+          <Route path="/admin/project-management" element={<ProtectedRoute><AdminProjectManagement /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
