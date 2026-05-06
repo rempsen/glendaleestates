@@ -23,6 +23,7 @@ export function buildCanonicalLines(
   totals: {
     pieces: {
       bathroomTile: number;
+      bathroomTileSqft?: number;
       section4HeatedFloor: number;
       customShower: number;
       grout: number;
@@ -31,7 +32,7 @@ export function buildCanonicalLines(
       windowAdditional: number;
       windowPatio: number;
       windowAutomation: number;
-      flooringUpgrades: { areaId: string; areaName: string; materialName: string; amount: number; heatedFloorAmount: number; productName?: string; productColor?: string }[];
+      flooringUpgrades: { areaId: string; areaName: string; materialName: string; amount: number; heatedFloorAmount: number; productName?: string; productColor?: string; sqft?: number }[];
     };
   },
 ): CanonicalLine[] {
@@ -49,6 +50,7 @@ export function buildCanonicalLines(
   };
   push('bathroom_tile', 'Bathroom Tile', totals.pieces.bathroomTile, {
     material_key: 'tile', area_type: 'bathroom', unit_of_measure: 'sqft',
+    quantity: Number(totals.pieces.bathroomTileSqft) || 1,
   });
   push('heated_floor', 'Heated Floor (Bathrooms)', totals.pieces.section4HeatedFloor, {
     material_key: 'heated_floor', area_type: 'bathroom',
@@ -88,7 +90,7 @@ export function buildCanonicalLines(
       material_key: u.materialName,
       color_name: u.productColor || u.productName || null,
       area_type: u.areaId,
-      quantity: 1,
+      quantity: Number(u.sqft) || 1,
       unit_of_measure: 'sqft',
     });
   });

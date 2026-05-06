@@ -83,8 +83,9 @@ export interface UpgradeTotalsResult {
     windowAdditional: number;
     windowPatio: number;
     windowAutomation: number;
-    flooringUpgrades: Array<{ areaId: string; areaName: string; materialName: string; amount: number; productName?: string; productColor?: string; heatedFloorAmount: number }>;
+    flooringUpgrades: Array<{ areaId: string; areaName: string; materialName: string; amount: number; productName?: string; productColor?: string; heatedFloorAmount: number; sqft: number }>;
     bathroomTile: number;
+    bathroomTileSqft: number;
     section4HeatedFloor: number;
     customShower: number;
   };
@@ -207,6 +208,7 @@ export function computeUpgradeTotals(
       productColor: sel.productColor,
       amount: markedUp,
       heatedFloorAmount: heatAmount,
+      sqft: qty,
     });
     lineItems.push({
       group: 'flooring',
@@ -239,10 +241,12 @@ export function computeUpgradeTotals(
     : !!input.bathroomTileSelected;
   const masterOn = !!input.bathroomTileSelected || ensuiteOn || guestOn;
   let bathroomTile = 0;
+  let bathroomTileSqft = 0;
   if (masterOn && !hasPricedBathroomTileAreas && tileCostPerSqft > 0) {
     const ensuiteSqft = ensuiteOn ? baths.ensuite : 0;
     const guestSqft = guestOn && baths.guest > 0 ? baths.guest : 0;
-    bathroomTile = (ensuiteSqft + guestSqft) * tileCostPerSqft * (1 + pricing.markupPercentage);
+    bathroomTileSqft = ensuiteSqft + guestSqft;
+    bathroomTile = bathroomTileSqft * tileCostPerSqft * (1 + pricing.markupPercentage);
   }
   const section4HeatedFloor = sectionHeatedFloorCount > 0
     ? sectionHeatedFloorCount * heatedFloorPerBathroom
@@ -286,6 +290,7 @@ export function computeUpgradeTotals(
       windowAutomation,
       flooringUpgrades,
       bathroomTile,
+      bathroomTileSqft,
       section4HeatedFloor,
       customShower,
     },
