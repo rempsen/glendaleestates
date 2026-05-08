@@ -52,6 +52,7 @@ import somfyMotorsImg from '@/assets/somfy-motors.png';
 import somfyControlsImg from '@/assets/somfy-controls.png';
 import bedroomCarpetPreviewImg from '@/assets/bedroom-carpet-preview.jpg';
 import bedroomLvpPreviewImg from '@/assets/bedroom-lvp-preview.jpg';
+import customTiledShowerNicheImg from '@/assets/custom-tiled-shower-niche.jpg';
 import { DocumentUploader } from '@/components/DocumentUploader';
 
 // Dynamic step configuration based on unit
