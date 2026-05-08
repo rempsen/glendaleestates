@@ -1767,6 +1767,44 @@ export default function SelectionWizard() {
                         </p>
                       );
                     })()}
+
+                    {/* Detailed inclusions / exclusions */}
+                    <div className="mt-4 rounded-md border border-border bg-muted/30 p-4">
+                      <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-start">
+                        <div className="space-y-3 text-sm">
+                          <div>
+                            <p className="font-medium text-foreground mb-1.5">What's included</p>
+                            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                              <li>Tiling of three shower walls</li>
+                              <li>One shower floor with a 4&quot; center drain</li>
+                              <li>Full waterproofing with a 4&quot; curb</li>
+                              <li>Tile budget of $9 per square foot</li>
+                              <li>One niche — 20&quot; high × 12&quot; wide</li>
+                            </ul>
+                          </div>
+                          <div>
+                            <p className="font-medium text-foreground mb-1.5">Not included</p>
+                            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                              <li>Custom glass shower door</li>
+                              <li>Additional shelving</li>
+                              <li>Sloping for a linear drain</li>
+                              <li>Tile priced above $9 per square foot</li>
+                            </ul>
+                          </div>
+                        </div>
+                        <figure className="md:w-48">
+                          <img
+                            src={customTiledShowerNicheImg}
+                            alt="Finished tiled shower niche reference"
+                            className="w-full rounded-md border border-border object-cover"
+                            loading="lazy"
+                          />
+                          <figcaption className="mt-1 text-xs text-muted-foreground text-center">
+                            Niche reference (finished)
+                          </figcaption>
+                        </figure>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
