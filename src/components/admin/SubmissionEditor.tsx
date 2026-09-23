@@ -237,6 +237,8 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
         productColor: upgrade.productColor,
         comments: upgrade.comments,
         heatedFloor: upgrade.heatedFloor || false,
+        manualPrice: Number(upgrade.manualPrice) > 0 ? Number(upgrade.manualPrice) : null,
+        manualPriceNote: upgrade.manualPriceNote || '',
       }));
 
       const updatePayload = {
