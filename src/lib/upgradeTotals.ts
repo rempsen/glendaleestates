@@ -193,7 +193,9 @@ export function computeUpgradeTotals(
     const qty = unitData ? Number((unitData as Record<string, number | undefined>)[fieldName]) || 0 : 0;
     const cost = pricing.getMaterialCost(sel.materialType);
     const base = qty * cost;
-    const markedUp = base * (1 + pricing.markupPercentage);
+    // Manual office price (GST-exclusive, PST included) overrides the calculated price
+    const manual = Number(sel.manualPrice) || 0;
+    const markedUp = manual > 0 ? manual : base * (1 + pricing.markupPercentage);
     const areaDef = AREA_DEFINITIONS.find(a => a.id === sel.areaId);
     const matDef = UPGRADE_MATERIALS.find(m => m.id === sel.materialType);
     const hasHeat = !!sel.heatedFloor && sectionHeatedFloorCount === 0 && (sel.materialType === 'tile' || sel.materialType === 'nonstandard_tile');
@@ -219,6 +221,7 @@ export function computeUpgradeTotals(
     if (heatAmount > 0) {
       lineItems.push({ group: 'flooring', label: `  └ Heated Floor (${areaDef?.name || sel.areaId})`, amount: heatAmount });
     }
+
   }
 
   // ---- Bathroom upgrades (Section 4) ----

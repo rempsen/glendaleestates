@@ -24,7 +24,10 @@ export interface ServerAreaUpgrade {
   productColor?: string;
   comments?: string;
   heatedFloor?: boolean;
+  manualPrice?: number | null;
+  manualPriceNote?: string;
 }
+
 
 export interface ServerUnitArea {
   allLvp?: number;
