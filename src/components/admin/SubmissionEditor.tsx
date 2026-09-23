@@ -79,7 +79,10 @@ interface AreaUpgrade {
   productColor: string;
   comments: string;
   heatedFloor?: boolean;
+  manualPrice?: number | null;
+  manualPriceNote?: string;
 }
+
 
 // Submission interface matching the database schema
 interface BuyerSelection {
@@ -183,7 +186,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
     handleChange('area_upgrades', [...(editData.area_upgrades || []), newUpgrade]);
   };
 
-  const updateAreaUpgrade = (index: number, field: keyof AreaUpgrade, value: string | boolean) => {
+  const updateAreaUpgrade = (index: number, field: keyof AreaUpgrade, value: string | boolean | number | null) => {
     const upgrades = [...(editData.area_upgrades || [])];
     upgrades[index] = { ...upgrades[index], [field]: value };
     handleChange('area_upgrades', upgrades);
@@ -234,6 +237,8 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
         productColor: upgrade.productColor,
         comments: upgrade.comments,
         heatedFloor: upgrade.heatedFloor || false,
+        manualPrice: Number(upgrade.manualPrice) > 0 ? Number(upgrade.manualPrice) : null,
+        manualPriceNote: upgrade.manualPriceNote || '',
       }));
 
       const updatePayload = {
@@ -838,6 +843,42 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                         placeholder="Any notes..."
                       />
                     </div>
+
+                    {/* Manual office price override */}
+                    <div className="col-span-2 p-3 rounded-lg bg-muted/50 border space-y-2">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Office Quoted Price (GST excl.)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={upgrade.manualPrice ?? ''}
+                            onChange={(e) => updateAreaUpgrade(index, 'manualPrice', e.target.value === '' ? null : Number(e.target.value))}
+                            placeholder="e.g., 8400.00"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Quote Reference / Note</Label>
+                          <Input
+                            value={upgrade.manualPriceNote ?? ''}
+                            onChange={(e) => updateAreaUpgrade(index, 'manualPriceNote', e.target.value)}
+                            placeholder="e.g., Ceratec quote, porcelain shower"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Enter the price exclusive of GST. PST is already included in this amount and GST is added automatically.
+                        Leave blank to use the standard calculated price.
+                      </p>
+                      {Number(upgrade.manualPrice) > 0 && (
+                        <p className="text-xs font-medium">
+                          Total with GST: ${(Number(upgrade.manualPrice) * 1.05).toFixed(2)} — this replaces the calculated price for this area.
+                        </p>
+                      )}
+                    </div>
+
+
 
                     {/* Heated Floor Option for tile types in bathrooms */}
                     {(upgrade.materialType === 'tile' || upgrade.materialType === 'nonstandard_tile') &&

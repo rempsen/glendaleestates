@@ -424,7 +424,12 @@ export interface AreaUpgradeSelection {
   productColor: string;
   comments: string;
   heatedFloor?: boolean; // Only for tile in bathrooms
+  // Manual price quoted by the BMD office (GST-exclusive, PST already included).
+  // When set (> 0) it overrides the calculated area × material price.
+  manualPrice?: number | null;
+  manualPriceNote?: string;
 }
+
 
 // Backsplash grout color change option
 export interface BacksplashGroutSelection {
