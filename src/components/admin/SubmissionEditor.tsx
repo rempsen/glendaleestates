@@ -79,7 +79,10 @@ interface AreaUpgrade {
   productColor: string;
   comments: string;
   heatedFloor?: boolean;
+  manualPrice?: number | null;
+  manualPriceNote?: string;
 }
+
 
 // Submission interface matching the database schema
 interface BuyerSelection {
@@ -183,7 +186,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
     handleChange('area_upgrades', [...(editData.area_upgrades || []), newUpgrade]);
   };
 
-  const updateAreaUpgrade = (index: number, field: keyof AreaUpgrade, value: string | boolean) => {
+  const updateAreaUpgrade = (index: number, field: keyof AreaUpgrade, value: string | boolean | number | null) => {
     const upgrades = [...(editData.area_upgrades || [])];
     upgrades[index] = { ...upgrades[index], [field]: value };
     handleChange('area_upgrades', upgrades);
