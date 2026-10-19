@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
-import { lvpOptions, spcTileOptions, carpetOptions } from '@/lib/mockData';
+import { lvpOptions, spcTileOptions, carpetOptions, resolveOptionName } from '@/lib/mockData';
 import { generateBuyerSelectionPDF } from '@/lib/pdfGenerator';
 import { Search, Download, CheckCircle2, XCircle, Eye, FileText } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";

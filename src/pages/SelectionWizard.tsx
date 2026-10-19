@@ -28,6 +28,7 @@ import {
   carpetOptions,
   carpetSpecs,
   windowCoveringProduct,
+  resolveOptionName,
 } from '@/lib/mockData';
 import { getUnitInfo, UnitInfo } from '@/lib/unitData';
 import { 
