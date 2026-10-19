@@ -242,6 +242,8 @@ interface AreaUpgrade {
   productColor: string;
   comments: string;
   heatedFloor?: boolean;
+  manualPrice?: number;
+  manualPriceNote?: string;
 }
 
 // Document upload interface
@@ -750,7 +752,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       premium_underpad_bedroom: data.premiumUnderpadBedroom || false,
       premium_underpad_stairs: data.premiumUnderpadStairs || false,
       stair_premium_carpet_selected: data.stairPremiumCarpetSelected || false,
-      stair_lvp_upgrade_selected: data.stairUpgradeType === 'lvp' || data.stairUpgradeType === 'premium_lvp' || !!data.stairLvpUpgradeSelected,
       automated_windows_qty: data.automatedWindowsQty || 0,
       custom_tiled_shower: data.customTiledShower || false,
       document_uploads: data.documentUploads || [],

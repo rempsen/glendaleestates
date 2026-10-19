@@ -240,6 +240,13 @@ interface BuyerSelections {
   bathroomTileGuestSelected?: boolean;
   heatedFloorBathrooms: number;
   customTiledShower?: boolean;
+  stairUpgradeType?: 'standard' | 'lvp' | 'premium_lvp' | string;
+  premiumCarpetBedroom?: boolean;
+  premiumUnderpadBedroom?: boolean;
+  premiumUnderpadStairs?: boolean;
+  hardwoodUpgradeSelected?: boolean;
+  documentCount?: number;
+  documentUploads?: unknown[];
   upgradeInterests: Record<string, boolean>;
 }
 
@@ -354,6 +361,8 @@ export async function generateBuyerPreviewPDF(
     ['Main Floor LVP', resolveOptionName(lvpOptions, selections.lvpColour) || 'Not selected'],
     ['Bathroom/Laundry Tile', resolveOptionName(spcTileOptions, selections.spcTileColour) || 'Not selected'],
     ['Kitchen Backsplash', `${backsplashProduct.name} — ${selections.backsplashOrientation || 'Orientation not selected'}`],
+    ['Phone', selections.phoneNumber || 'Not provided'],
+    ...(selections.upgradeFloorSelection ? [['Upgrade Floor', `Floor ${selections.upgradeFloorSelection}`]] : []),
     ['Bedroom Flooring', selections.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : (selections.bedroomFlooringChoice === 'carpet' ? 'Carpet' : 'Not selected')],
   ];
 
@@ -522,16 +531,17 @@ export async function generateBuyerPreviewPDF(
     const upgradeData: string[][] = [];
 
     if (totals.pieces.stairLvp > 0) {
-      upgradeData.push(['Stair LVP Upgrade with Custom Nosings', `$${totals.pieces.stairLvp.toFixed(2)}`]);
+      upgradeData.push([selections.stairUpgradeType === 'premium_lvp' ? 'Stair Premium LVP Upgrade with Custom Nosings' : 'Stair LVP Upgrade with Custom Nosings', `$${totals.pieces.stairLvp.toFixed(2)}`]);
     }
     if (totals.pieces.stairCarpet > 0) {
       upgradeData.push(['Premium Carpet Stairs Upgrade', `$${totals.pieces.stairCarpet.toFixed(2)}`]);
     }
 
     totals.pieces.flooringUpgrades.forEach(item => {
-      const productLine = item.productName
-        ? `${item.productName}${item.productColor ? ` - ${item.productColor}` : ''}`
-        : item.materialName;
+      const productLine = [item.materialName, item.productName, item.productColor]
+        .filter(Boolean)
+        .filter((v, i, a) => a.indexOf(v) === i)
+        .join(' — ');
       upgradeData.push([`${item.areaName} — ${productLine}`, `$${item.amount.toFixed(2)}`]);
       if (item.heatedFloorAmount > 0) {
         upgradeData.push([`  └ Heated Floor (${item.areaName})`, `$${item.heatedFloorAmount.toFixed(2)}`]);
@@ -539,7 +549,11 @@ export async function generateBuyerPreviewPDF(
     });
 
     if (totals.pieces.bathroomTile > 0) {
-      upgradeData.push(['Porcelain Tile Floor Upgrade', `$${totals.pieces.bathroomTile.toFixed(2)}`]);
+      const bathrooms = [
+        selections.bathroomTileEnsuiteSelected && 'Ensuite',
+        selections.bathroomTileGuestSelected && 'Guest Bathroom',
+      ].filter(Boolean).join(', ');
+      upgradeData.push([`Porcelain Tile Floor Upgrade${bathrooms ? ` — ${bathrooms}` : ''}`, `$${totals.pieces.bathroomTile.toFixed(2)}`]);
     }
     if (totals.pieces.section4HeatedFloor > 0) {
       const n = selections.heatedFloorBathrooms || 0;
