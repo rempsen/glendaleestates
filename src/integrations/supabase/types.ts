@@ -52,6 +52,7 @@ export type Database = {
           additional_windows_qty: number | null
           admin_notes: string | null
           area_upgrades: Json | null
+          automated_windows_qty: number
           backsplash_grout_color: string | null
           backsplash_grout_comments: string | null
           backsplash_grout_enabled: boolean | null
@@ -90,6 +91,7 @@ export type Database = {
           spc_tile_comments: string | null
           stair_carpet_colour: string | null
           stair_lvp_upgrade_selected: boolean | null
+          stair_premium_carpet_selected: boolean
           stair_upgrade_type: string | null
           status: string | null
           unit_number: string
@@ -106,6 +108,7 @@ export type Database = {
           additional_windows_qty?: number | null
           admin_notes?: string | null
           area_upgrades?: Json | null
+          automated_windows_qty?: number
           backsplash_grout_color?: string | null
           backsplash_grout_comments?: string | null
           backsplash_grout_enabled?: boolean | null
@@ -144,6 +147,7 @@ export type Database = {
           spc_tile_comments?: string | null
           stair_carpet_colour?: string | null
           stair_lvp_upgrade_selected?: boolean | null
+          stair_premium_carpet_selected?: boolean
           stair_upgrade_type?: string | null
           status?: string | null
           unit_number: string
@@ -160,6 +164,7 @@ export type Database = {
           additional_windows_qty?: number | null
           admin_notes?: string | null
           area_upgrades?: Json | null
+          automated_windows_qty?: number
           backsplash_grout_color?: string | null
           backsplash_grout_comments?: string | null
           backsplash_grout_enabled?: boolean | null
@@ -198,6 +203,7 @@ export type Database = {
           spc_tile_comments?: string | null
           stair_carpet_colour?: string | null
           stair_lvp_upgrade_selected?: boolean | null
+          stair_premium_carpet_selected?: boolean
           stair_upgrade_type?: string | null
           status?: string | null
           unit_number?: string
