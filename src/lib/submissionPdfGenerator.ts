@@ -1,3 +1,4 @@
+import { resolveOptionName, lvpOptions, spcTileOptions, carpetOptions } from '@/lib/mockData';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
@@ -228,7 +229,13 @@ export async function generateSubmissionPDF(submission: BuyerSubmission): Promis
   ];
   
   if (submission.has_stairs) {
-    standardData.push(['Stairs Carpet', formatColour(submission.stair_carpet_colour), '']);
+    const st = submission as any;
+    const stairType = st.stair_upgrade_type || (st.stair_lvp_upgrade_selected ? 'lvp' : 'standard');
+    const stairLabel = stairType === 'premium_lvp' ? 'Premium LVP Upgrade with Custom Nosings'
+      : stairType === 'lvp' ? 'LVP Upgrade with Custom Nosings'
+      : st.stair_premium_carpet_selected ? `Premium Carpet (${formatColour(submission.stair_carpet_colour)})`
+      : `Carpet (${formatColour(submission.stair_carpet_colour)})`;
+    standardData.push(['Stair Flooring', stairLabel, st.premium_underpad_stairs ? 'Premium underpad (stairs)' : '']);
   }
   
   standardData.push([
@@ -240,6 +247,25 @@ export async function generateSubmissionPDF(submission: BuyerSubmission): Promis
         : 'Not selected',
     ''
   ]);
+  {
+    const x = submission as any;
+    const extras: string[][] = [];
+    if (x.premium_carpet_bedroom) extras.push(['Premium Carpet (Bedrooms)', 'Selected', '']);
+    if (x.premium_underpad_bedroom) extras.push(['Premium Underpad (Bedrooms)', 'Selected', '']);
+    if (x.bathroom_tile_selected || x.bathroom_tile_ensuite_selected || x.bathroom_tile_guest_selected) {
+      const b = [x.bathroom_tile_ensuite_selected && 'Ensuite', x.bathroom_tile_guest_selected && 'Guest Bathroom'].filter(Boolean).join(', ');
+      extras.push(['Porcelain Tile Floor Upgrade', b || 'Selected', '']);
+    }
+    if (x.heated_floor_bathrooms) extras.push(['Heated Tile Floor', `${x.heated_floor_bathrooms} bathroom(s)`, '']);
+    if (x.custom_tiled_shower) extras.push(['Custom Tiled Shower', 'Selected', '']);
+    if (x.automated_windows_qty) extras.push(['Automated Window Coverings', `${x.automated_windows_qty} motor(s)`, '']);
+    if (x.hardwood_upgrade_selected) extras.push(['Hardwood Upgrade', 'Interested', '']);
+    (Array.isArray(x.area_upgrades) ? x.area_upgrades : []).forEach((u: any) => {
+      if (u?.manualPrice != null && u.manualPrice !== '') extras.push([`Office Price — ${u.areaId}`, `$${Number(u.manualPrice).toFixed(2)} + GST`, u.manualPriceNote || '']);
+    });
+    if (Array.isArray(x.document_uploads) && x.document_uploads.length) extras.push(['Documents Uploaded', `${x.document_uploads.length} file(s)`, '']);
+    standardData.push(...extras);
+  }
 
   autoTable(doc, {
     startY: yPos,
@@ -612,10 +638,7 @@ export async function generateSubmissionPDF(submission: BuyerSubmission): Promis
 
 function formatColour(colour: string | null): string {
   if (!colour) return 'Not selected';
-  return colour
-    .split('-')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+  return resolveOptionName([...lvpOptions, ...spcTileOptions, ...carpetOptions], colour) || colour;
 }
 
 function formatOrientation(orientation: string | null): string {
