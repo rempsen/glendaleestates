@@ -23,6 +23,7 @@ export interface ExportPricing {
   heatedFloorPrice: number;
   backsplashGroutPrice: number;
   stairLvpUpgradePrice: number;
+  stairPremiumLvpUpgradePrice?: number;
   stairCarpetUpgradePrice: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getMaterialCost: (m: any) => number;

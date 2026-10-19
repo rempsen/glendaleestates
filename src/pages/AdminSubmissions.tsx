@@ -98,6 +98,7 @@ interface PricingValues {
   heatedFloorPrice: number;
   backsplashGroutPrice: number;
   stairLvpUpgradePrice: number;
+  stairPremiumLvpUpgradePrice?: number;
   stairCarpetUpgradePrice: number;
   markupPercentage: number;
   gstRate: number;
