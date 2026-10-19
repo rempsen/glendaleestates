@@ -1,0 +1,3 @@
+- [ ] Consolidate saved-record PDFs so All Homes, preview, and bulk downloads preserve upgrades and buyer notes.
+- [ ] Verify Unit 2 and audit all saved submissions for missing/recoverable notes.
+- [ ] Run regression tests and inspect generated PDFs.
