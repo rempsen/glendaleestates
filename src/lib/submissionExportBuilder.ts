@@ -214,6 +214,7 @@ export function computeTotalsForSubmission(s: BuyerSelection, pricing: ExportPri
         : null,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       stairLvpUpgradeSelected: !!(s as any).stair_lvp_upgrade_selected,
+      stairUpgradeType: (s as any).stair_upgrade_type || null,
       stairPremiumCarpetSelected: !!s.premium_carpet_bedroom,
       additionalWindowsQty: s.additional_windows_qty || 0,
       patioDoorsQty: s.patio_doors_qty || 0,

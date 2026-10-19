@@ -84,6 +84,7 @@ export function DownstreamTrackingPanel({ submissionId, submission }: Props) {
           ? { enabled: true, groutColor: submission.backsplash_grout_color || '', comments: '' }
           : null,
         stairLvpUpgradeSelected: !!submission.stair_lvp_upgrade_selected,
+        stairUpgradeType: (submission as any).stair_upgrade_type || null,
         stairPremiumCarpetSelected: !!submission.premium_carpet_bedroom,
         additionalWindowsQty: submission.additional_windows_qty || 0,
         patioDoorsQty: submission.patio_doors_qty || 0,

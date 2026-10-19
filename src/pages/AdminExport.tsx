@@ -123,6 +123,7 @@ export default function AdminExport() {
     getHeatedFloorPrice,
     getGroutColorChangePrice,
     getStairLvpUpgradePrice,
+    getStairPremiumLvpUpgradePrice,
     getStairCarpetUpgradePrice,
   } = useDynamicPricing();
   const { unitAreaData } = useUnitAreaData();
@@ -160,7 +161,8 @@ export default function AdminExport() {
   }), [
     markupPercentage, gstRate, getPatioDoorPrice, getAdditionalWindowPrice,
     getAutomatedMotorPrice, getHeatedFloorPrice, getGroutColorChangePrice,
-    getStairLvpUpgradePrice, getStairCarpetUpgradePrice, getMaterialCost,
+    getStairLvpUpgradePrice,
+    getStairPremiumLvpUpgradePrice, getStairCarpetUpgradePrice, getMaterialCost,
     unitAreaData,
   ]);
 

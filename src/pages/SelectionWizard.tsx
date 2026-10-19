@@ -141,6 +141,7 @@ export default function SelectionWizard() {
     getHeatedFloorPrice,
     getStairLvpUpgradePrice,
     getStairPremiumLvpUpgradePrice,
+    getStairPremiumLvpUpgradePrice,
     getGroutColorChangePrice,
     getUnderpadStairsPrice,
     getUnderpadCostPerSqyd,
@@ -439,6 +440,7 @@ export default function SelectionWizard() {
           getAutomatedMotorPrice,
           getHeatedFloorPrice,
           getStairLvpUpgradePrice,
+          getStairPremiumLvpUpgradePrice,
           getUnitAreaData,
         };
         
@@ -1249,6 +1251,7 @@ export default function SelectionWizard() {
                 getAutomatedMotorPrice,
                 getHeatedFloorPrice,
                 getStairLvpUpgradePrice,
+                getStairPremiumLvpUpgradePrice,
                 getUnitAreaData,
               };
               await generateBuyerPreviewPDF(selections, unitInfo?.typeCode || null, pricingConfig);
