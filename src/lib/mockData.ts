@@ -394,6 +394,31 @@ export function resolveOptionName(
   if (!value) return undefined;
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
   const v = norm(value);
-  const hit = options.find(o => o.id === value || norm(o.id) === v || norm(o.name) === v);
+  const id = toOptionId(value);
+  const hit = options.find(o => o.id === id);
   return hit ? hit.name : value;
+}
+
+// Legacy / alternate names used by staff that refer to the same product.
+const OPTION_ALIASES: Record<string, string> = {
+  venatinopolished: 'venatino-auguste',
+  venatino: 'venatino-auguste',
+  pezzogrey: 'pezzo',
+  piccolowhite: 'piccolo',
+  winterbrooke: 'winterbrooke-898',
+  midnight: 'midnight-shadow-427',
+  midnightshadow: 'midnight-shadow-427',
+  jetstream: 'jet-stream-200',
+  sawgrass: 'sawgrass-701',
+};
+
+/** Convert any stored value (id, display name, or legacy alias) to the canonical wizard id. */
+export function toOptionId(value: string | null | undefined): string {
+  if (!value) return '';
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const v = norm(value);
+  if (OPTION_ALIASES[v]) return OPTION_ALIASES[v];
+  const all = [...lvpOptions, ...spcTileOptions, ...carpetOptions];
+  const hit = all.find(o => o.id === value || norm(o.id) === v || norm(o.name) === v);
+  return hit ? hit.id : value;
 }

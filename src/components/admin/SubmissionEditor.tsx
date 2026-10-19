@@ -438,7 +438,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
               <div className="space-y-2">
                 <Label>Main Floor LVP Color</Label>
                 <Select
-                  value={editData.lvp_colour || ''}
+                  value={toOptionId(editData.lvp_colour)}
                   onValueChange={(value) => handleChange('lvp_colour', value || null)}
                 >
                   <SelectTrigger>
@@ -456,7 +456,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
               <div className="space-y-2">
                 <Label>Bathroom SPC Tile Color</Label>
                 <Select
-                  value={editData.spc_tile_colour || ''}
+                  value={toOptionId(editData.spc_tile_colour)}
                   onValueChange={(value) => handleChange('spc_tile_colour', value || null)}
                 >
                   <SelectTrigger>
@@ -514,7 +514,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                 <div className="space-y-2">
                   <Label>Bedroom Carpet Color</Label>
                   <Select
-                    value={editData.bedroom_carpet_colour || ''}
+                    value={toOptionId(editData.bedroom_carpet_colour)}
                     onValueChange={(value) => handleChange('bedroom_carpet_colour', value || null)}
                   >
                     <SelectTrigger>
@@ -547,7 +547,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                     <div className="space-y-2">
                       <Label>Bedroom LVP Color</Label>
                       <Select
-                        value={editData.bedroom_lvp_colour || ''}
+                        value={toOptionId(editData.bedroom_lvp_colour)}
                         onValueChange={(value) => handleChange('bedroom_lvp_colour', value || null)}
                       >
                         <SelectTrigger>
@@ -593,7 +593,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                     <div className="space-y-2">
                       <Label>Stair Carpet Color</Label>
                       <Select
-                        value={editData.stair_carpet_colour || ''}
+                        value={toOptionId(editData.stair_carpet_colour)}
                         onValueChange={(value) => handleChange('stair_carpet_colour', value || null)}
                       >
                         <SelectTrigger>
