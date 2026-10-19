@@ -290,11 +290,11 @@ export default function AdminHomes() {
                     <div className="grid gap-3 text-sm">
                       <div className="flex justify-between py-2 border-b border-border">
                         <span className="text-muted-foreground">Main Floor LVP</span>
-                        <span className="font-medium">{lvpOptions.find(o => o.id === selectedSubmission.lvp_colour)?.name || 'Not selected'}</span>
+                        <span className="font-medium">{resolveOptionName(lvpOptions, selectedSubmission.lvp_colour) || 'Not selected'}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b border-border">
                         <span className="text-muted-foreground">Bathroom SPC</span>
-                        <span className="font-medium">{spcTileOptions.find(o => o.id === selectedSubmission.spc_tile_colour)?.name || 'Not selected'}</span>
+                        <span className="font-medium">{resolveOptionName(spcTileOptions, selectedSubmission.spc_tile_colour) || 'Not selected'}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b border-border">
                         <span className="text-muted-foreground">Backsplash</span>
@@ -302,7 +302,7 @@ export default function AdminHomes() {
                       </div>
                       <div className="flex justify-between py-2 border-b border-border">
                         <span className="text-muted-foreground">Stairs Carpet</span>
-                        <span className="font-medium">{carpetOptions.find(o => o.id === selectedSubmission.stair_carpet_colour)?.name || 'N/A'}</span>
+                        <span className="font-medium">{resolveOptionName(carpetOptions, selectedSubmission.stair_carpet_colour) || 'N/A'}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b border-border">
                         <span className="text-muted-foreground">Bedroom Flooring</span>
