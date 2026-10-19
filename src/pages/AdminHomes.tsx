@@ -88,7 +88,7 @@ export default function AdminHomes() {
 
   const handleExportCSV = () => {
     const csv = [
-      ['Unit', 'Unit Type', 'First Name', 'Last Name', 'Email', 'Status', 'LVP Colour', 'SPC Tile', 'Additional Windows', 'Patio Doors', 'Window Total'].join(','),
+      ['Unit', 'Unit Type', 'First Name', 'Last Name', 'Email', 'Status', 'LVP Colour', 'SPC Tile', 'Additional Windows', 'Patio Doors', 'Upgrades Total (incl. GST)'].join(','),
       ...filteredSubmissions.map(s => [
         s.unit_number, 
         s.unit_type || '', 
