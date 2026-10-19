@@ -370,7 +370,7 @@ export async function generateBuyerPreviewPDF(
 
   if (selections.hasStairs) {
     if (selections.stairLvpUpgradeSelected) {
-      const stairLvpPrice = totals.pieces.stairLvp || pricing.getStairLvpUpgradePrice?.() || 2160;
+      const stairLvpPrice = (selections.stairUpgradeType === 'premium_lvp' ? pricing.getStairPremiumLvpUpgradePrice?.() : undefined) || pricing.getStairLvpUpgradePrice?.() || 2160;
       standardData.push(['Stair Flooring', `${selections.stairUpgradeType === 'premium_lvp' ? 'Premium ' : ''}LVP Upgrade with Custom Nosings — $${stairLvpPrice.toLocaleString()} + GST`]);
     } else if (selections.stairPremiumCarpetSelected) {
       const stairCarpetPrice = pricing.getStairCarpetUpgradePrice?.() || 640;
