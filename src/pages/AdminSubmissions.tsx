@@ -143,6 +143,7 @@ function calculateSubmissionPricing(submission: BuyerSelection, pricing: Pricing
     getAutomatedMotorPrice: () => pricing.automatedMotorPrice,
     getHeatedFloorPrice: () => pricing.heatedFloorPrice,
     getStairLvpUpgradePrice: () => pricing.stairLvpUpgradePrice,
+    getStairPremiumLvpUpgradePrice: () => (pricing as any).stairPremiumLvpUpgradePrice || 0,
     getStairCarpetUpgradePrice: () => pricing.stairCarpetUpgradePrice,
     getUnitAreaData: pricing.getUnitAreaData,
   });
@@ -265,6 +266,7 @@ export default function AdminSubmissions() {
     heatedFloorPrice: getHeatedFloorPrice(),
     backsplashGroutPrice: getGroutColorChangePrice(),
     stairLvpUpgradePrice: getStairLvpUpgradePrice(),
+    stairPremiumLvpUpgradePrice: getStairPremiumLvpUpgradePrice(),
     stairCarpetUpgradePrice: getStairCarpetUpgradePrice(),
     markupPercentage,
     gstRate,

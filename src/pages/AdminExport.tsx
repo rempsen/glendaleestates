@@ -137,6 +137,7 @@ export default function AdminExport() {
     heatedFloorPrice: getHeatedFloorPrice(),
     backsplashGroutPrice: getGroutColorChangePrice(),
     stairLvpUpgradePrice: getStairLvpUpgradePrice(),
+    stairPremiumLvpUpgradePrice: getStairPremiumLvpUpgradePrice(),
     stairCarpetUpgradePrice: getStairCarpetUpgradePrice(),
     getMaterialCost,
     getUnitAreaData: (code: string) => {
