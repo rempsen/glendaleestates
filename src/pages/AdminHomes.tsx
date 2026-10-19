@@ -100,7 +100,7 @@ export default function AdminHomes() {
         s.spc_tile_colour || '', 
         s.additional_windows_qty || 0, 
         s.patio_doors_qty || 0, 
-        s.window_total || 0
+        (totalsById[s.id] ?? 0).toFixed(2)
       ].join(','))
     ].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -301,8 +301,16 @@ export default function AdminHomes() {
                         <span className="font-medium capitalize">{selectedSubmission.backsplash_orientation || 'Not selected'}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b border-border">
-                        <span className="text-muted-foreground">Stairs Carpet</span>
-                        <span className="font-medium">{resolveOptionName(carpetOptions, selectedSubmission.stair_carpet_colour) || 'N/A'}</span>
+                        <span className="text-muted-foreground">Stair Flooring</span>
+                        <span className="font-medium">{(() => {
+                          const x = selectedSubmission as any;
+                          if (!x.has_stairs) return 'N/A (no stairs)';
+                          const t = x.stair_upgrade_type || (x.stair_lvp_upgrade_selected ? 'lvp' : 'standard');
+                          if (t === 'premium_lvp') return 'Premium LVP upgrade (custom nosings)';
+                          if (t === 'lvp') return 'LVP upgrade (custom nosings)';
+                          const c = resolveOptionName(carpetOptions, x.stair_carpet_colour) || 'Standard carpet';
+                          return x.stair_premium_carpet_selected ? `Premium carpet — ${c}` : c;
+                        })()}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b border-border">
                         <span className="text-muted-foreground">Bedroom Flooring</span>
@@ -346,10 +354,10 @@ export default function AdminHomes() {
                     </div>
                   )}
                   
-                  {(selectedSubmission.window_total || 0) > 0 && (
+                  {(totalsById[selectedSubmission.id] ?? 0) > 0 && (
                     <div className="p-4 rounded-lg bg-primary/10 border border-primary/30">
-                      <h4 className="font-medium text-foreground mb-1">Window Extension Total</h4>
-                      <p className="text-2xl font-serif font-semibold text-primary">${(selectedSubmission.window_total || 0).toLocaleString()}</p>
+                      <h4 className="font-medium text-foreground mb-1">Upgrades Total (incl. GST)</h4>
+                      <p className="text-2xl font-serif font-semibold text-primary">${(totalsById[selectedSubmission.id] ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                     </div>
                   )}
 
