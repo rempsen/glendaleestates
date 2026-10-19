@@ -40,6 +40,7 @@ export interface UpgradeTotalsPricing {
   getAutomatedMotorPrice: () => number;
   getHeatedFloorPrice: () => number;
   getStairLvpUpgradePrice?: () => number;
+  getStairPremiumLvpUpgradePrice?: () => number;
   getStairCarpetUpgradePrice?: () => number;
   getUnitAreaData?: (code: string) => UnitAreaForTotals | null;
 }
@@ -50,6 +51,7 @@ export interface UpgradeTotalsInput {
   areaUpgrades: AreaUpgradeSelection[];
   backsplashGrout?: BacksplashGroutSelection | null;
   stairLvpUpgradeSelected?: boolean;
+  stairUpgradeType?: 'standard' | 'lvp' | 'premium_lvp' | string | null;
   stairPremiumCarpetSelected?: boolean;
   additionalWindowsQty?: number;
   patioDoorsQty?: number;
@@ -154,10 +156,15 @@ export function computeUpgradeTotals(
   const lineItems: UpgradeLineItem[] = [];
 
   // ---- Stair upgrades ----
-  const stairLvp = input.stairLvpUpgradeSelected ? (pricing.getStairLvpUpgradePrice?.() || 0) : 0;
-  const stairCarpet = input.stairPremiumCarpetSelected && !input.stairLvpUpgradeSelected
+  // stairUpgradeType is canonical; the legacy boolean is the fallback.
+  const isPremiumStairLvp = input.stairUpgradeType === 'premium_lvp';
+  const isStairLvp = isPremiumStairLvp || input.stairUpgradeType === 'lvp' || !!input.stairLvpUpgradeSelected;
+  const stairLvp = !isStairLvp ? 0 : isPremiumStairLvp
+    ? (pricing.getStairPremiumLvpUpgradePrice?.() || pricing.getStairLvpUpgradePrice?.() || 0)
+    : (pricing.getStairLvpUpgradePrice?.() || 0);
+  const stairCarpet = input.stairPremiumCarpetSelected && !isStairLvp
     ? (pricing.getStairCarpetUpgradePrice?.() || 0) : 0;
-  if (stairLvp > 0) lineItems.push({ group: 'stair', label: 'LVP with Custom Stair Nosings', amount: stairLvp });
+  if (stairLvp > 0) lineItems.push({ group: 'stair', label: isPremiumStairLvp ? 'Premium LVP with Custom Stair Nosings' : 'LVP with Custom Stair Nosings', amount: stairLvp });
   if (stairCarpet > 0) lineItems.push({ group: 'stair', label: 'Premium Carpet Stairs Upgrade', amount: stairCarpet });
 
   // ---- Grout ----

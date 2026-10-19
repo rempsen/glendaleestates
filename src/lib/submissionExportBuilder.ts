@@ -23,6 +23,7 @@ export interface ExportPricing {
   heatedFloorPrice: number;
   backsplashGroutPrice: number;
   stairLvpUpgradePrice: number;
+  stairPremiumLvpUpgradePrice?: number;
   stairCarpetUpgradePrice: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getMaterialCost: (m: any) => number;
@@ -192,6 +193,7 @@ function buildPricingAdapter(p: ExportPricing): UpgradeTotalsPricing {
     getAutomatedMotorPrice: () => p.automatedMotorPrice,
     getHeatedFloorPrice: () => p.heatedFloorPrice,
     getStairLvpUpgradePrice: () => p.stairLvpUpgradePrice,
+    getStairPremiumLvpUpgradePrice: () => (p as any).stairPremiumLvpUpgradePrice || 0,
     getStairCarpetUpgradePrice: () => p.stairCarpetUpgradePrice,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     getUnitAreaData: (code: string) => p.getUnitAreaData(code) as any,
@@ -214,7 +216,8 @@ export function computeTotalsForSubmission(s: BuyerSelection, pricing: ExportPri
         : null,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       stairLvpUpgradeSelected: !!(s as any).stair_lvp_upgrade_selected,
-      stairPremiumCarpetSelected: !!s.premium_carpet_bedroom,
+      stairUpgradeType: (s as any).stair_upgrade_type || null,
+      stairPremiumCarpetSelected: !!(s as any).stair_premium_carpet_selected,
       additionalWindowsQty: s.additional_windows_qty || 0,
       patioDoorsQty: s.patio_doors_qty || 0,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -98,6 +98,7 @@ interface PricingValues {
   heatedFloorPrice: number;
   backsplashGroutPrice: number;
   stairLvpUpgradePrice: number;
+  stairPremiumLvpUpgradePrice?: number;
   stairCarpetUpgradePrice: number;
   markupPercentage: number;
   gstRate: number;
@@ -124,6 +125,7 @@ function calculateSubmissionPricing(submission: BuyerSelection, pricing: Pricing
       comments: submission.backsplash_grout_comments || '',
     } : null,
     stairLvpUpgradeSelected: !!(submission as any).stair_lvp_upgrade_selected,
+    stairUpgradeType: (submission as any).stair_upgrade_type || null,
     additionalWindowsQty: submission.additional_windows_qty || 0,
     patioDoorsQty: submission.patio_doors_qty || 0,
     automatedWindowsQty: (submission as any).automated_windows_qty || 0,
@@ -142,6 +144,7 @@ function calculateSubmissionPricing(submission: BuyerSelection, pricing: Pricing
     getAutomatedMotorPrice: () => pricing.automatedMotorPrice,
     getHeatedFloorPrice: () => pricing.heatedFloorPrice,
     getStairLvpUpgradePrice: () => pricing.stairLvpUpgradePrice,
+    getStairPremiumLvpUpgradePrice: () => (pricing as any).stairPremiumLvpUpgradePrice || 0,
     getStairCarpetUpgradePrice: () => pricing.stairCarpetUpgradePrice,
     getUnitAreaData: pricing.getUnitAreaData,
   });
@@ -248,6 +251,7 @@ export default function AdminSubmissions() {
     getHeatedFloorPrice,
     getGroutColorChangePrice,
     getStairLvpUpgradePrice,
+    getStairPremiumLvpUpgradePrice,
     getStairCarpetUpgradePrice,
     getMaterialCost,
     markupPercentage,
@@ -263,6 +267,7 @@ export default function AdminSubmissions() {
     heatedFloorPrice: getHeatedFloorPrice(),
     backsplashGroutPrice: getGroutColorChangePrice(),
     stairLvpUpgradePrice: getStairLvpUpgradePrice(),
+    stairPremiumLvpUpgradePrice: getStairPremiumLvpUpgradePrice(),
     stairCarpetUpgradePrice: getStairCarpetUpgradePrice(),
     markupPercentage,
     gstRate,
@@ -476,6 +481,7 @@ export default function AdminSubmissions() {
       getAutomatedMotorPrice,
       getHeatedFloorPrice,
       getStairLvpUpgradePrice,
+      getStairPremiumLvpUpgradePrice,
       getStairCarpetUpgradePrice,
       getUnitAreaData: (unitTypeCode: string) => {
         const row = unitAreaData.find(

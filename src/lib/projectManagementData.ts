@@ -132,6 +132,7 @@ export async function loadProjectManagementData(): Promise<PMData> {
     getAutomatedMotorPrice: () => cfg.automated_motor_price ?? 0,
     getHeatedFloorPrice: () => cfg.heated_floor_per_bathroom ?? 0,
     getStairLvpUpgradePrice: () => cfg.stair_lvp_upgrade_price ?? 0,
+    getStairPremiumLvpUpgradePrice: () => cfg.stair_premium_lvp_upgrade_price ?? 0,
     getStairCarpetUpgradePrice: () => cfg.premium_carpet_stairs_price ?? 0,
     getUnitAreaData: (code: string) => {
       const row = (areasRes.data || []).find((u) => u.unit_type_code?.toUpperCase() === code?.toUpperCase());
@@ -162,7 +163,8 @@ export async function loadProjectManagementData(): Promise<PMData> {
           ? { enabled: true, groutColor: s.backsplash_grout_color || '', comments: '' }
           : null,
         stairLvpUpgradeSelected: !!s.stair_lvp_upgrade_selected,
-        stairPremiumCarpetSelected: !!s.premium_carpet_bedroom,
+        stairUpgradeType: s.stair_upgrade_type || null,
+        stairPremiumCarpetSelected: !!s.stair_premium_carpet_selected,
         additionalWindowsQty: s.additional_windows_qty || 0,
         patioDoorsQty: s.patio_doors_qty || 0,
         automatedWindowsQty: s.automated_windows_qty || 0,

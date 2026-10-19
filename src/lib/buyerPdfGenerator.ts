@@ -45,6 +45,7 @@ export interface PdfPricingConfig {
   getAutomatedMotorPrice: () => number;
   getHeatedFloorPrice: () => number;
   getStairLvpUpgradePrice?: () => number;
+  getStairPremiumLvpUpgradePrice?: () => number;
   getStairCarpetUpgradePrice?: () => number;
   getUnitAreaData?: (unitTypeCode: string) => UnitAreaDataForPdf | null;
 }
@@ -369,7 +370,7 @@ export async function generateBuyerPreviewPDF(
 
   if (selections.hasStairs) {
     if (selections.stairLvpUpgradeSelected) {
-      const stairLvpPrice = pricing.getStairLvpUpgradePrice?.() || 2160;
+      const stairLvpPrice = (selections.stairUpgradeType === 'premium_lvp' ? pricing.getStairPremiumLvpUpgradePrice?.() : undefined) || pricing.getStairLvpUpgradePrice?.() || 2160;
       standardData.push(['Stair Flooring', `${selections.stairUpgradeType === 'premium_lvp' ? 'Premium ' : ''}LVP Upgrade with Custom Nosings — $${stairLvpPrice.toLocaleString()} + GST`]);
     } else if (selections.stairPremiumCarpetSelected) {
       const stairCarpetPrice = pricing.getStairCarpetUpgradePrice?.() || 640;
@@ -446,6 +447,7 @@ export async function generateBuyerPreviewPDF(
       areaUpgrades: selections.areaUpgrades || [],
       backsplashGrout: selections.backsplashGrout,
       stairLvpUpgradeSelected: selections.stairLvpUpgradeSelected,
+      stairUpgradeType: selections.stairUpgradeType,
       stairPremiumCarpetSelected: selections.stairPremiumCarpetSelected,
       additionalWindowsQty: selections.additionalWindowsQty,
       patioDoorsQty: selections.patioDoorsQty,
