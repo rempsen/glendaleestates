@@ -11,7 +11,7 @@ import {
   lvpSpecs,
   spcTileSpecs,
   carpetSpecs,
-  windowCoveringProduct
+  windowCoveringProduct,
   resolveOptionName,
 } from "@/lib/mockData";
 
