@@ -28,6 +28,7 @@ import {
   carpetOptions,
   carpetSpecs,
   windowCoveringProduct,
+  resolveOptionName,
 } from '@/lib/mockData';
 import { getUnitInfo, UnitInfo } from '@/lib/unitData';
 import { 
@@ -1018,13 +1019,13 @@ export default function SelectionWizard() {
             <div className="flex justify-between">
               <span className="text-muted-foreground">Main Floor LVP</span>
               <span className="font-medium">
-                {lvpOptions.find(o => o.id === selections.lvpColour)?.name || 'Not selected'}
+                {resolveOptionName(lvpOptions, selections.lvpColour) || 'Not selected'}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Bathroom/Laundry SPC</span>
               <span className="font-medium">
-                {spcTileOptions.find(o => o.id === selections.spcTileColour)?.name || 'Not selected'}
+                {resolveOptionName(spcTileOptions, selections.spcTileColour) || 'Not selected'}
               </span>
             </div>
             {selections.bathroomTileSelected && (
@@ -1060,7 +1061,7 @@ export default function SelectionWizard() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Stairs Carpet</span>
                   <span className="font-medium">
-                    {carpetOptions.find(o => o.id === selections.stairCarpetColour)?.name || 'Not selected'}
+                    {resolveOptionName(carpetOptions, selections.stairCarpetColour) || 'Not selected'}
                   </span>
                 </div>
               )
@@ -1081,7 +1082,7 @@ export default function SelectionWizard() {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Bedroom Carpet Colour</span>
                 <span className="font-medium">
-                  {carpetOptions.find(o => o.id === selections.bedroomCarpetColour)?.name}
+                  {resolveOptionName(carpetOptions, selections.bedroomCarpetColour)}
                 </span>
               </div>
             )}
@@ -1102,8 +1103,8 @@ export default function SelectionWizard() {
                 <span className="text-muted-foreground">Bedroom LVP Colour</span>
                 <span className="font-medium">
                   {selections.bedroomLvpSameAsMain
-                    ? `${lvpOptions.find(o => o.id === selections.lvpColour)?.name || 'Not selected'} (Same as Main Floor)`
-                    : lvpOptions.find(o => o.id === selections.bedroomLvpColour)?.name || 'Not selected'
+                    ? `${resolveOptionName(lvpOptions, selections.lvpColour) || 'Not selected'} (Same as Main Floor)`
+                    : resolveOptionName(lvpOptions, selections.bedroomLvpColour) || 'Not selected'
                   }
                 </span>
               </div>
@@ -2287,7 +2288,7 @@ export default function SelectionWizard() {
                         </span>
                         {selections.lvpColour && (
                           <span className="ml-2 text-sm text-muted-foreground">
-                            — {lvpOptions.find(o => o.id === selections.lvpColour)?.name}
+                            — {resolveOptionName(lvpOptions, selections.lvpColour)}
                           </span>
                         )}
                       </div>
@@ -2468,7 +2469,7 @@ export default function SelectionWizard() {
                         <ul className="space-y-1 text-sm">
                           <li className="flex items-center gap-2 text-muted-foreground">
                             <Check className="w-4 h-4 text-success" />
-                            Matching LVP to main floor ({lvpOptions.find(o => o.id === selections.lvpColour)?.name || 'your selection'})
+                            Matching LVP to main floor ({resolveOptionName(lvpOptions, selections.lvpColour) || 'your selection'})
                           </li>
                           <li className="flex items-center gap-2 text-muted-foreground">
                             <Check className="w-4 h-4 text-success" />

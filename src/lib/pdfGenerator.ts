@@ -11,8 +11,9 @@ import {
   lvpSpecs,
   spcTileSpecs,
   carpetSpecs,
-  windowCoveringProduct
-} from '@/lib/mockData';
+  windowCoveringProduct,
+  resolveOptionName,
+} from "@/lib/mockData";
 
 // BMD brand colors
 const COLORS = {
@@ -119,15 +120,15 @@ export async function generateBuyerSelectionPDF(home: HomeData): Promise<void> {
   // Selections table
   const selections = home.selections;
   const standardData = [
-    ['Main Floor LVP', lvpOptions.find(o => o.id === selections?.lvpColour)?.name || 'Not selected', lvpSpecs.productType],
-    ['Bathroom/Laundry Tile', spcTileOptions.find(o => o.id === selections?.spcTileColour)?.name || 'Not selected', `${spcTileSpecs.size} ${spcTileSpecs.collection}`],
-    ['Kitchen Backsplash', backsplashOrientations.find(o => o.id === selections?.backsplashOrientation)?.name || 'Not selected', `${backsplashProduct.name} ${backsplashProduct.size}`],
-    ['Stairs Carpet', home.hasStairs ? (carpetOptions.find(o => o.id === selections?.stairCarpetColour)?.name || 'Not selected') : 'N/A (no stairs)', carpetSpecs.productType],
+    ['Main Floor LVP', resolveOptionName(lvpOptions, selections?.lvpColour) || 'Not selected', lvpSpecs.productType],
+    ['Bathroom/Laundry Tile', resolveOptionName(spcTileOptions, selections?.spcTileColour) || 'Not selected', `${spcTileSpecs.size} ${spcTileSpecs.collection}`],
+    ['Kitchen Backsplash', resolveOptionName(backsplashOrientations, selections?.backsplashOrientation) || 'Not selected', `${backsplashProduct.name} ${backsplashProduct.size}`],
+    ['Stairs Carpet', home.hasStairs ? (resolveOptionName(carpetOptions, selections?.stairCarpetColour) || 'Not selected') : 'N/A (no stairs)', carpetSpecs.productType],
     ['Bedroom Flooring', selections?.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : (selections?.bedroomFlooringChoice === 'carpet' ? 'Carpet' : 'Not selected'), ''],
   ];
 
   if (selections?.bedroomFlooringChoice === 'carpet' && selections?.bedroomCarpetColour) {
-    standardData.push(['Bedroom Carpet Colour', carpetOptions.find(o => o.id === selections.bedroomCarpetColour)?.name || '', '']);
+    standardData.push(['Bedroom Carpet Colour', resolveOptionName(carpetOptions, selections.bedroomCarpetColour) || '', '']);
   }
 
   autoTable(doc, {
@@ -306,10 +307,10 @@ export async function generateAllSelectionsPDF(homes: HomeData[]): Promise<void>
     .map(h => [
       h.lot,
       h.buyerName,
-      lvpOptions.find(o => o.id === h.selections?.lvpColour)?.name || '—',
-      spcTileOptions.find(o => o.id === h.selections?.spcTileColour)?.name || '—',
+      resolveOptionName(lvpOptions, h.selections?.lvpColour) || '—',
+      resolveOptionName(spcTileOptions, h.selections?.spcTileColour) || '—',
       h.selections?.backsplashOrientation || '—',
-      carpetOptions.find(o => o.id === h.selections?.stairCarpetColour)?.name || '—',
+      resolveOptionName(carpetOptions, h.selections?.stairCarpetColour) || '—',
       h.selections?.additionalWindowsQty || 0,
       h.selections?.patioDoorsQty || 0,
       h.windowExtensionTotal > 0 ? `$${h.windowExtensionTotal.toLocaleString()}` : '—',

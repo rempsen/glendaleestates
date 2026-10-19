@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
-import { lvpOptions, spcTileOptions, carpetOptions } from '@/lib/mockData';
+import { lvpOptions, spcTileOptions, carpetOptions, resolveOptionName } from '@/lib/mockData';
 import { generateBuyerSelectionPDF } from '@/lib/pdfGenerator';
 import { Search, Download, CheckCircle2, XCircle, Eye, FileText } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -290,11 +290,11 @@ export default function AdminHomes() {
                     <div className="grid gap-3 text-sm">
                       <div className="flex justify-between py-2 border-b border-border">
                         <span className="text-muted-foreground">Main Floor LVP</span>
-                        <span className="font-medium">{lvpOptions.find(o => o.id === selectedSubmission.lvp_colour)?.name || 'Not selected'}</span>
+                        <span className="font-medium">{resolveOptionName(lvpOptions, selectedSubmission.lvp_colour) || 'Not selected'}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b border-border">
                         <span className="text-muted-foreground">Bathroom SPC</span>
-                        <span className="font-medium">{spcTileOptions.find(o => o.id === selectedSubmission.spc_tile_colour)?.name || 'Not selected'}</span>
+                        <span className="font-medium">{resolveOptionName(spcTileOptions, selectedSubmission.spc_tile_colour) || 'Not selected'}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b border-border">
                         <span className="text-muted-foreground">Backsplash</span>
@@ -302,7 +302,7 @@ export default function AdminHomes() {
                       </div>
                       <div className="flex justify-between py-2 border-b border-border">
                         <span className="text-muted-foreground">Stairs Carpet</span>
-                        <span className="font-medium">{carpetOptions.find(o => o.id === selectedSubmission.stair_carpet_colour)?.name || 'N/A'}</span>
+                        <span className="font-medium">{resolveOptionName(carpetOptions, selectedSubmission.stair_carpet_colour) || 'N/A'}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b border-border">
                         <span className="text-muted-foreground">Bedroom Flooring</span>
