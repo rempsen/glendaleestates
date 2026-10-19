@@ -141,7 +141,6 @@ export default function SelectionWizard() {
     getHeatedFloorPrice,
     getStairLvpUpgradePrice,
     getStairPremiumLvpUpgradePrice,
-    getStairPremiumLvpUpgradePrice,
     getGroutColorChangePrice,
     getUnderpadStairsPrice,
     getUnderpadCostPerSqyd,
