@@ -522,6 +522,8 @@ export default function AdminSubmissions() {
       upgradeComments: (sub as any).upgrade_comments || '',
       upgradeInterestsNotes: (sub as any).upgrade_interests_notes || '',
       areaUpgrades: (sub.area_upgrades || []).map(u => ({
+        // Keep EVERY stored field (manual office price, heated floor, flags, etc.)
+        ...(u as any),
         areaId: u.areaId,
         materialType: u.materialType,
         productName: (u as any).productName || '',
