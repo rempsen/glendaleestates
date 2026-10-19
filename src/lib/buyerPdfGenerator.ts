@@ -5,7 +5,8 @@ import {
   spcTileOptions, 
   carpetOptions, 
   backsplashProduct,
-} from '@/lib/mockData';
+  resolveOptionName,
+} from "@/lib/mockData";
 import { 
   AreaUpgradeSelection,
   BacksplashGroutSelection,
@@ -350,8 +351,8 @@ export async function generateBuyerPreviewPDF(
 
   // Selections table
   const standardData: string[][] = [
-    ['Main Floor LVP', lvpOptions.find(o => o.id === selections.lvpColour)?.name || 'Not selected'],
-    ['Bathroom/Laundry Tile', spcTileOptions.find(o => o.id === selections.spcTileColour)?.name || 'Not selected'],
+    ['Main Floor LVP', resolveOptionName(lvpOptions, selections.lvpColour) || 'Not selected'],
+    ['Bathroom/Laundry Tile', resolveOptionName(spcTileOptions, selections.spcTileColour) || 'Not selected'],
     ['Kitchen Backsplash', `${backsplashProduct.name} — ${selections.backsplashOrientation || 'Orientation not selected'}`],
     ['Bedroom Flooring', selections.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : (selections.bedroomFlooringChoice === 'carpet' ? 'Carpet' : 'Not selected')],
   ];
@@ -365,19 +366,19 @@ export async function generateBuyerPreviewPDF(
       standardData.push(['Stair Flooring', `Premium Carpet Upgrade — $${stairCarpetPrice.toLocaleString()} + GST`]);
     } else {
       standardData.push(['Stair Flooring', selections.stairCarpetColour 
-        ? carpetOptions.find(o => o.id === selections.stairCarpetColour)?.name || 'Standard Carpet (Included)'
+        ? resolveOptionName(carpetOptions, selections.stairCarpetColour) || 'Standard Carpet (Included)'
         : 'Standard Carpet (Included)']);
     }
   }
 
   if (selections.bedroomFlooringChoice === 'carpet' && selections.bedroomCarpetColour) {
-    standardData.push(['Bedroom Carpet Colour', carpetOptions.find(o => o.id === selections.bedroomCarpetColour)?.name || 'Not selected']);
+    standardData.push(['Bedroom Carpet Colour', resolveOptionName(carpetOptions, selections.bedroomCarpetColour) || 'Not selected']);
   }
 
   if (selections.bedroomFlooringChoice === 'lvp') {
     const lvpColor = selections.bedroomLvpSameAsMain 
-      ? `${lvpOptions.find(o => o.id === selections.lvpColour)?.name || 'Not selected'} (Same as Main)`
-      : lvpOptions.find(o => o.id === selections.bedroomLvpColour)?.name || 'Not selected';
+      ? `${resolveOptionName(lvpOptions, selections.lvpColour) || 'Not selected'} (Same as Main)`
+      : resolveOptionName(lvpOptions, selections.bedroomLvpColour) || 'Not selected';
     standardData.push(['Bedroom LVP Colour', lvpColor]);
   }
 

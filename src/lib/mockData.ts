@@ -381,3 +381,19 @@ export const getDashboardStats = () => {
     upgradeInterests,
   };
 };
+
+/**
+ * Resolve a stored selection value (wizard id like "wolf-river" OR an
+ * admin-entered display name like "Wolf River" / "Venatino Polished")
+ * to a display name. Never drops unknown values — returns them as-is.
+ */
+export function resolveOptionName(
+  options: ReadonlyArray<{ id: string; name: string }>,
+  value: string | null | undefined,
+): string | undefined {
+  if (!value) return undefined;
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const v = norm(value);
+  const hit = options.find(o => o.id === value || norm(o.id) === v || norm(o.name) === v);
+  return hit ? hit.name : value;
+}
