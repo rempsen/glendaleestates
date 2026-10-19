@@ -1,3 +1,4 @@
+import { lvpOptions, spcTileOptions, carpetOptions, toOptionId } from '@/lib/mockData';
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,27 +37,11 @@ import {
 import { useUpgradePricing } from '@/hooks/useUpgradePricing';
 import { getUnitInfo } from '@/lib/unitData';
 
-// LVP color options (standard selections from wizard)
-const LVP_COLORS = [
-  { id: 'cortland', name: 'Cortland' },
-  { id: 'opal', name: 'Opal' },
-  { id: 'wolf-river', name: 'Wolf River' },
-];
-
-// Tile color options
-const TILE_COLORS = [
-  { id: 'pezzo-grey', name: 'Pezzo Grey' },
-  { id: 'piccolo-white', name: 'Piccolo White' },
-  { id: 'venatino-polished', name: 'Venatino Polished' },
-];
-
-// Carpet color options
-const CARPET_COLORS = [
-  { id: 'jetstream', name: 'Jetstream' },
-  { id: 'midnight', name: 'Midnight' },
-  { id: 'sawgrass', name: 'Sawgrass' },
-  { id: 'winterbrooke', name: 'Winterbrooke' },
-];
+// Colour options — single source of truth shared with the buyer wizard.
+// Values saved are the wizard ids (e.g. 'wolf-river') so every PDF/email resolves them.
+const LVP_COLORS = lvpOptions.map(o => ({ id: o.id, name: o.name }));
+const TILE_COLORS = spcTileOptions.map(o => ({ id: o.id, name: o.name }));
+const CARPET_COLORS = carpetOptions.map(o => ({ id: o.id, name: o.name }));
 
 // Backsplash orientation options
 const BACKSPLASH_ORIENTATIONS = [
@@ -453,7 +438,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
               <div className="space-y-2">
                 <Label>Main Floor LVP Color</Label>
                 <Select
-                  value={editData.lvp_colour || ''}
+                  value={toOptionId(editData.lvp_colour)}
                   onValueChange={(value) => handleChange('lvp_colour', value || null)}
                 >
                   <SelectTrigger>
@@ -461,7 +446,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                   </SelectTrigger>
                   <SelectContent>
                     {LVP_COLORS.map(color => (
-                      <SelectItem key={color.id} value={color.name}>{color.name}</SelectItem>
+                      <SelectItem key={color.id} value={color.id}>{color.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -471,7 +456,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
               <div className="space-y-2">
                 <Label>Bathroom SPC Tile Color</Label>
                 <Select
-                  value={editData.spc_tile_colour || ''}
+                  value={toOptionId(editData.spc_tile_colour)}
                   onValueChange={(value) => handleChange('spc_tile_colour', value || null)}
                 >
                   <SelectTrigger>
@@ -479,7 +464,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                   </SelectTrigger>
                   <SelectContent>
                     {TILE_COLORS.map(color => (
-                      <SelectItem key={color.id} value={color.name}>{color.name}</SelectItem>
+                      <SelectItem key={color.id} value={color.id}>{color.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -529,7 +514,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                 <div className="space-y-2">
                   <Label>Bedroom Carpet Color</Label>
                   <Select
-                    value={editData.bedroom_carpet_colour || ''}
+                    value={toOptionId(editData.bedroom_carpet_colour)}
                     onValueChange={(value) => handleChange('bedroom_carpet_colour', value || null)}
                   >
                     <SelectTrigger>
@@ -537,7 +522,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                     </SelectTrigger>
                     <SelectContent>
                       {CARPET_COLORS.map(color => (
-                        <SelectItem key={color.id} value={color.name}>{color.name}</SelectItem>
+                        <SelectItem key={color.id} value={color.id}>{color.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -562,7 +547,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                     <div className="space-y-2">
                       <Label>Bedroom LVP Color</Label>
                       <Select
-                        value={editData.bedroom_lvp_colour || ''}
+                        value={toOptionId(editData.bedroom_lvp_colour)}
                         onValueChange={(value) => handleChange('bedroom_lvp_colour', value || null)}
                       >
                         <SelectTrigger>
@@ -570,7 +555,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                         </SelectTrigger>
                         <SelectContent>
                           {LVP_COLORS.map(color => (
-                            <SelectItem key={color.id} value={color.name}>{color.name}</SelectItem>
+                            <SelectItem key={color.id} value={color.id}>{color.name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -608,7 +593,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                     <div className="space-y-2">
                       <Label>Stair Carpet Color</Label>
                       <Select
-                        value={editData.stair_carpet_colour || ''}
+                        value={toOptionId(editData.stair_carpet_colour)}
                         onValueChange={(value) => handleChange('stair_carpet_colour', value || null)}
                       >
                         <SelectTrigger>
@@ -616,7 +601,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                         </SelectTrigger>
                         <SelectContent>
                           {CARPET_COLORS.map(color => (
-                            <SelectItem key={color.id} value={color.name}>{color.name}</SelectItem>
+                            <SelectItem key={color.id} value={color.id}>{color.name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

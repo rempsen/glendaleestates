@@ -516,12 +516,15 @@ export default function AdminSubmissions() {
       additionalWindowsQty: sub.additional_windows_qty || 0,
       patioDoorsQty: sub.patio_doors_qty || 0,
       automatedWindowsQty: (sub as any).automated_windows_qty || 0,
+      salesComments: '', // internal — never printed on buyer PDF
       windowComments: sub.window_comments || '',
       lvpComments: sub.lvp_comments || '',
       spcTileComments: sub.spc_tile_comments || '',
       upgradeComments: (sub as any).upgrade_comments || '',
       upgradeInterestsNotes: (sub as any).upgrade_interests_notes || '',
       areaUpgrades: (sub.area_upgrades || []).map(u => ({
+        // Keep EVERY stored field (manual office price, heated floor, flags, etc.)
+        ...(u as any),
         areaId: u.areaId,
         materialType: u.materialType,
         productName: (u as any).productName || '',
@@ -540,7 +543,13 @@ export default function AdminSubmissions() {
       heatedFloorBathrooms: sub.heated_floor_bathrooms || 0,
       customTiledShower: !!(sub as any).custom_tiled_shower,
       stairLvpUpgradeSelected: !!(sub as any).stair_lvp_upgrade_selected,
-      stairPremiumCarpetSelected: !!(sub as any).premium_underpad_stairs,
+      stairUpgradeType: (sub as any).stair_upgrade_type || ((sub as any).stair_lvp_upgrade_selected ? 'lvp' : 'standard'),
+      stairPremiumCarpetSelected: !!(sub as any).stair_premium_carpet_selected,
+      premiumCarpetBedroom: !!(sub as any).premium_carpet_bedroom,
+      premiumUnderpadBedroom: !!(sub as any).premium_underpad_bedroom,
+      premiumUnderpadStairs: !!(sub as any).premium_underpad_stairs,
+      hardwoodUpgradeSelected: !!(sub as any).hardwood_upgrade_selected,
+      documentCount: Array.isArray((sub as any).document_uploads) ? (sub as any).document_uploads.length : 0,
       upgradeInterests: sub.upgrade_interests || {},
     };
 
