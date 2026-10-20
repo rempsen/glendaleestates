@@ -207,7 +207,7 @@ const loadLogo = (): Promise<string> => {
   });
 };
 
-interface BuyerSelections {
+export interface BuyerSelections {
   unitNumber: string;
   firstName: string;
   lastName: string;
@@ -369,7 +369,7 @@ export async function generateBuyerPreviewPDF(
   ];
 
   if (selections.hasStairs) {
-    if (selections.stairLvpUpgradeSelected) {
+    if (selections.stairUpgradeType === 'lvp' || selections.stairUpgradeType === 'premium_lvp' || selections.stairLvpUpgradeSelected) {
       const stairLvpPrice = (selections.stairUpgradeType === 'premium_lvp' ? pricing.getStairPremiumLvpUpgradePrice?.() : undefined) || pricing.getStairLvpUpgradePrice?.() || 2160;
       standardData.push(['Stair Flooring', `${selections.stairUpgradeType === 'premium_lvp' ? 'Premium ' : ''}LVP Upgrade with Custom Nosings — $${stairLvpPrice.toLocaleString()} + GST`]);
     } else if (selections.stairPremiumCarpetSelected) {
@@ -691,7 +691,6 @@ export async function generateBuyerPreviewPDF(
     doc.setFontSize(8);
     doc.setTextColor(...COLORS.muted);
     doc.setFont('helvetica', 'italic');
-    doc.text('* A 10% material overage is allowed on all quoted amounts.', margin, yPos);
   }
 
   // ===== Buyer Comments & Notes =====
@@ -736,22 +735,14 @@ export async function generateBuyerPreviewPDF(
     doc.line(margin, yPos, margin + 50, yPos);
     yPos += 10;
 
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    commentEntries.forEach(entry => {
-      if (yPos > pageHeight - 30) {
-        doc.addPage();
-        yPos = margin;
-      }
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...COLORS.dark);
-      doc.text(`${entry.label}:`, margin, yPos);
-      yPos += 6;
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...COLORS.muted);
-      const wrapped = doc.splitTextToSize(entry.text, pageWidth - margin * 2);
-      doc.text(wrapped, margin, yPos);
-      yPos += wrapped.length * 5 + 4;
+    // AutoTable splits even a single long note across pages; raw doc.text did
+    // not, so long comments could be printed below the page and disappear.
+    autoTable(doc, {
+      startY: yPos,
+      body: commentEntries.map(entry => [entry.label, entry.text]),
+      margin: { left: margin, right: margin, bottom: 30 },
+      bodyStyles: { fontSize: 10, textColor: COLORS.dark },
+      columnStyles: { 0: { cellWidth: 50, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
     });
   }
 
