@@ -1,3 +1,3 @@
-- [ ] Consolidate saved-record PDFs so All Homes, preview, and bulk downloads preserve upgrades and buyer notes.
-- [ ] Verify Unit 2 and audit all saved submissions for missing/recoverable notes.
-- [ ] Run regression tests and inspect generated PDFs.
+- [x] Consolidate saved-record PDFs so All Homes, preview, bulk downloads, and Export preserve upgrades and buyer notes.
+- [x] Verify Unit 2 and audit all nine saved submissions; the only historical missing note was explicitly cleared in Unit 2's audit log, so it was not restored without confirmation.
+- [x] Run regression tests and inspect generated PDFs.
