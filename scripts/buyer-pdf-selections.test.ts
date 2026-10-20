@@ -21,6 +21,9 @@ test('Unit 2 grout selection and colour are preserved', () => {
   expect(toBuyerPdfSelections(record).backsplashGrout.enabled).toBe(true);
   expect(toBuyerPdfSelections(record).backsplashGrout.groutColor).toBe('Pewter #2');
 });
+test('legacy saved LVP upgrades are not discarded by an old default stair type', () => {
+  expect(toBuyerPdfSelections({ ...record, stair_upgrade_type: 'standard', stair_lvp_upgrade_selected: true }).stairLvpUpgradeSelected).toBe(true);
+});
 for (const [stored, mapped] of [
   ['lvp_comments', 'lvpComments'], ['spc_tile_comments', 'spcTileComments'],
   ['window_comments', 'windowComments'], ['upgrade_comments', 'upgradeComments'],

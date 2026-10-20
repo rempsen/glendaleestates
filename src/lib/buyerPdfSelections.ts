@@ -24,7 +24,7 @@ export function toBuyerPdfSelections(s: Tables<'buyer_selections'>): BuyerSelect
     bathroomTileSelected: !!s.bathroom_tile_selected, bathroomTileEnsuiteSelected: !!s.bathroom_tile_ensuite_selected,
     bathroomTileGuestSelected: !!s.bathroom_tile_guest_selected, heatedFloorBathrooms: s.heated_floor_bathrooms || 0,
     customTiledShower: !!s.custom_tiled_shower, stairUpgradeType: stairType,
-    stairLvpUpgradeSelected: stairType === 'lvp' || stairType === 'premium_lvp',
+    stairLvpUpgradeSelected: stairType === 'lvp' || stairType === 'premium_lvp' || !!s.stair_lvp_upgrade_selected,
     stairPremiumCarpetSelected: !!s.stair_premium_carpet_selected,
     premiumCarpetBedroom: !!s.premium_carpet_bedroom, premiumUnderpadBedroom: !!s.premium_underpad_bedroom,
     premiumUnderpadStairs: !!s.premium_underpad_stairs, hardwoodUpgradeSelected: !!s.hardwood_upgrade_selected,
