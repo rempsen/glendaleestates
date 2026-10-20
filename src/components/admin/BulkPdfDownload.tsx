@@ -22,7 +22,7 @@ import { Download, CalendarIcon, FileText, Loader2, CheckCircle } from 'lucide-r
 import { format, isWithinInterval, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { generateSubmissionPDF } from '@/lib/submissionPdfGenerator';
+import { generateSavedSubmissionPdf } from '@/lib/savedSubmissionPdf';
 import JSZip from 'jszip';
 
 interface BuyerSubmission {
@@ -123,7 +123,7 @@ export function BulkPdfDownload({ submissions }: BulkPdfDownloadProps) {
       
       if (selectedIds.size === 1) {
         // Single PDF - download directly
-        await generateSubmissionPDF(selectedSubmissions[0]);
+        await generateSavedSubmissionPdf(selectedSubmissions[0].id, true);
         toast.success('PDF downloaded successfully');
       } else {
         // Multiple PDFs - create ZIP file
@@ -134,9 +134,9 @@ export function BulkPdfDownload({ submissions }: BulkPdfDownloadProps) {
           setProgress({ current: i + 1, total: selectedSubmissions.length });
           
           // Generate PDF as blob using a modified approach
-          const pdfBlob = await generatePdfBlob(sub);
+          const pdfBase64 = await generateSavedSubmissionPdf(sub.id);
           const fileName = `Unit_${sub.unit_number}_${sub.last_name}_${sub.first_name}.pdf`;
-          zip.file(fileName, pdfBlob);
+          zip.file(fileName, pdfBase64, { base64: true });
         }
         
         // Generate and download ZIP
@@ -326,59 +326,3 @@ export function BulkPdfDownload({ submissions }: BulkPdfDownloadProps) {
   );
 }
 
-// Helper function to generate PDF as blob for ZIP
-async function generatePdfBlob(submission: BuyerSubmission): Promise<Blob> {
-  // Import jsPDF dynamically for blob generation
-  const { default: jsPDF } = await import('jspdf');
-  const { default: autoTable } = await import('jspdf-autotable');
-  
-  const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 20;
-  let yPos = margin;
-
-  // Simplified PDF generation for bulk export
-  doc.setFontSize(18);
-  doc.setTextColor(45, 70, 60);
-  doc.text('Selection Summary', margin, yPos);
-  yPos += 15;
-
-  doc.setFontSize(14);
-  doc.text(`Unit ${submission.unit_number}`, margin, yPos);
-  yPos += 10;
-
-  doc.setFontSize(11);
-  doc.setTextColor(60, 60, 60);
-  doc.text(`Buyer: ${submission.first_name} ${submission.last_name}`, margin, yPos);
-  yPos += 8;
-  doc.text(`Email: ${submission.email || 'N/A'}`, margin, yPos);
-  yPos += 8;
-  doc.text(`Status: ${submission.status}`, margin, yPos);
-  yPos += 8;
-  
-  if (submission.estimated_possession_date) {
-    doc.text(`Possession: ${format(parseISO(submission.estimated_possession_date), 'MMMM d, yyyy')}`, margin, yPos);
-    yPos += 8;
-  }
-  
-  doc.text(`Submitted: ${format(parseISO(submission.created_at), 'MMMM d, yyyy')}`, margin, yPos);
-  yPos += 15;
-
-  // Add basic selections table
-  const tableData = [
-    ['LVP Color', submission.lvp_colour || 'Standard'],
-    ['Tile Color', submission.spc_tile_colour || 'Standard'],
-    ['Backsplash', submission.backsplash_orientation || 'Standard'],
-    ['Bedroom Floor', submission.bedroom_flooring_choice || 'LVP'],
-  ];
-
-  autoTable(doc, {
-    startY: yPos,
-    head: [['Selection', 'Choice']],
-    body: tableData,
-    margin: { left: margin, right: margin },
-    headStyles: { fillColor: [45, 70, 60] },
-  });
-
-  return doc.output('blob');
-}

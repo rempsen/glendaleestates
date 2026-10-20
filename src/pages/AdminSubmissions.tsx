@@ -42,8 +42,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X, DollarSign, Trash2, Mail, GitCompare, History, Send, AlertTriangle } from 'lucide-react';
-import { generateSubmissionPDF } from '@/lib/submissionPdfGenerator';
-import { generateBuyerPreviewPDF } from '@/lib/buyerPdfGenerator';
+import { generateSavedSubmissionPdf } from '@/lib/savedSubmissionPdf';
 import { format } from 'date-fns';
 import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
 import { computeUpgradeTotals } from '@/lib/upgradeTotals';
@@ -471,105 +470,7 @@ export default function AdminSubmissions() {
   // the in-portal PDF preview dialog. Centralised so the preview and the
   // outbound file can never drift apart.
   const buildBuyerPdfBase64 = async (sub: BuyerSelection): Promise<string> => {
-    const pdfPricingConfig = {
-      markupPercentage,
-      gstRate,
-      getMaterialCost,
-      getGroutColorFee: getGroutColorChangePrice,
-      getAdditionalWindowPrice,
-      getPatioDoorPrice,
-      getAutomatedMotorPrice,
-      getHeatedFloorPrice,
-      getStairLvpUpgradePrice,
-      getStairPremiumLvpUpgradePrice,
-      getStairCarpetUpgradePrice,
-      getUnitAreaData: (unitTypeCode: string) => {
-        const row = unitAreaData.find(
-          u => u.unit_type_code?.toUpperCase() === unitTypeCode?.toUpperCase()
-        );
-        if (!row) return null;
-        return {
-          allLvp: Number(row.all_lvp) || 0,
-          mainLiving: Number(row.main_living) || 0,
-          secondBedroom: Number(row.second_bedroom) || 0,
-          masterBedroomLvp: Number((row as any).master_bedroom_lvp) || 0,
-          masterBedroom: Number(row.master_bedroom) || 0,
-          secondBedroomCarpet: Number(row.second_bedroom_carpet) || 0,
-          guestBathroom: Number(row.guest_bathroom) || 0,
-          masterEnsuite: Number(row.master_ensuite) || 0,
-          laundry: Number(row.laundry) || 0,
-          backsplash: Number(row.backsplash) || 0,
-        };
-      },
-    };
-
-    const selections = {
-      unitNumber: sub.unit_number || '',
-      firstName: sub.first_name || '',
-      lastName: sub.last_name || '',
-      phoneNumber: sub.phone_number || '',
-      email: sub.email || '',
-      estimatedPossessionDate: sub.estimated_possession_date || '',
-      hasStairs: !!sub.has_stairs,
-      lvpColour: sub.lvp_colour || '',
-      spcTileColour: sub.spc_tile_colour || '',
-      backsplashOrientation: sub.backsplash_orientation || '',
-      stairCarpetColour: sub.stair_carpet_colour || '',
-      bedroomFlooringChoice: (sub.bedroom_flooring_choice as 'lvp' | 'carpet' | '') || '',
-      bedroomCarpetColour: sub.bedroom_carpet_colour || '',
-      bedroomLvpColour: sub.bedroom_lvp_colour || '',
-      bedroomLvpSameAsMain: !!sub.bedroom_lvp_same_as_main,
-      additionalWindowsQty: sub.additional_windows_qty || 0,
-      patioDoorsQty: sub.patio_doors_qty || 0,
-      automatedWindowsQty: (sub as any).automated_windows_qty || 0,
-      salesComments: '', // internal — never printed on buyer PDF
-      windowComments: sub.window_comments || '',
-      lvpComments: sub.lvp_comments || '',
-      spcTileComments: sub.spc_tile_comments || '',
-      upgradeComments: (sub as any).upgrade_comments || '',
-      upgradeInterestsNotes: (sub as any).upgrade_interests_notes || '',
-      areaUpgrades: (sub.area_upgrades || []).map(u => ({
-        // Keep EVERY stored field (manual office price, heated floor, flags, etc.)
-        ...(u as any),
-        areaId: u.areaId,
-        materialType: u.materialType,
-        productName: (u as any).productName || '',
-        productColor: (u as any).productColor || '',
-        comments: u.comments || '',
-      })) as any,
-      upgradeFloorSelection: (sub.upgrade_floor_selection as '1' | '2' | null) || null,
-      backsplashGrout: {
-        enabled: !!sub.backsplash_grout_enabled,
-        groutColor: sub.backsplash_grout_color || '',
-        comments: sub.backsplash_grout_comments || '',
-      },
-      bathroomTileSelected: !!sub.bathroom_tile_selected,
-      bathroomTileEnsuiteSelected: (sub as any).bathroom_tile_ensuite_selected ?? undefined,
-      bathroomTileGuestSelected: (sub as any).bathroom_tile_guest_selected ?? undefined,
-      heatedFloorBathrooms: sub.heated_floor_bathrooms || 0,
-      customTiledShower: !!(sub as any).custom_tiled_shower,
-      stairLvpUpgradeSelected: !!(sub as any).stair_lvp_upgrade_selected,
-      stairUpgradeType: (sub as any).stair_upgrade_type || ((sub as any).stair_lvp_upgrade_selected ? 'lvp' : 'standard'),
-      stairPremiumCarpetSelected: !!(sub as any).stair_premium_carpet_selected,
-      premiumCarpetBedroom: !!(sub as any).premium_carpet_bedroom,
-      premiumUnderpadBedroom: !!(sub as any).premium_underpad_bedroom,
-      premiumUnderpadStairs: !!(sub as any).premium_underpad_stairs,
-      hardwoodUpgradeSelected: !!(sub as any).hardwood_upgrade_selected,
-      documentCount: Array.isArray((sub as any).document_uploads) ? (sub as any).document_uploads.length : 0,
-      upgradeInterests: sub.upgrade_interests || {},
-    };
-
-    const unitTypeCode = sub.unit_type ? normalizeUnitTypeCode(sub.unit_type) : null;
-    const pdfBase64 = await generateBuyerPreviewPDF(
-      selections as any,
-      unitTypeCode,
-      pdfPricingConfig as any,
-      { returnBase64: true, saveToFile: false }
-    );
-    if (typeof pdfBase64 !== 'string' || !pdfBase64) {
-      throw new Error('PDF generation returned no data');
-    }
-    return pdfBase64;
+    return generateSavedSubmissionPdf(sub.id);
   };
 
   // Open in-portal PDF preview — uses the EXACT same generator & pricing
@@ -1110,7 +1011,7 @@ export default function AdminSubmissions() {
                         setGeneratingPdf(true);
                         console.log('Generating PDF for submission:', selectedSubmission.id);
                         try {
-                          await generateSubmissionPDF(selectedSubmission);
+                          await generateSavedSubmissionPdf(selectedSubmission.id, true);
                           console.log('PDF generated successfully');
                           toast.success('PDF downloaded successfully');
                         } catch (error) {
