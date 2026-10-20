@@ -29,7 +29,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import { generateSubmissionPDF } from '@/lib/submissionPdfGenerator';
+import { generateSavedSubmissionPdf } from '@/lib/savedSubmissionPdf';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { useUnitAreaData } from '@/hooks/useUnitAreaData';
 import {
@@ -289,8 +289,7 @@ export default function AdminExport() {
     setGenerating('pdf-bundle');
     try {
       for (const s of filtered) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await generateSubmissionPDF(s as any);
+        await generateSavedSubmissionPdf(s.id, true);
         await new Promise((r) => setTimeout(r, 250));
       }
       toast.success(`Generated ${filtered.length} PDFs`);

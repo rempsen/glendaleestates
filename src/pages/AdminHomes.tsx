@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { lvpOptions, spcTileOptions, carpetOptions, resolveOptionName } from '@/lib/mockData';
-import { generateBuyerSelectionPDF } from '@/lib/pdfGenerator';
+import { generateSavedSubmissionPdf } from '@/lib/savedSubmissionPdf';
 import { Search, Download, CheckCircle2, XCircle, Eye, FileText } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from 'sonner';
@@ -111,39 +111,7 @@ export default function AdminHomes() {
   const handleGeneratePDF = async (submission: BuyerSelection) => {
     setGeneratingPDF(submission.id);
     try {
-      // Convert to format expected by PDF generator
-      const pdfData = {
-        id: submission.id,
-        lot: submission.unit_number,
-        address: submission.unit_type || 'N/A',
-        buyerName: `${submission.first_name} ${submission.last_name}`,
-        buyerEmail: submission.email,
-        status: (submission.status || 'submitted') as any,
-        hasStairs: submission.has_stairs || false,
-        flooringCompleted: !!submission.lvp_colour && !!submission.spc_tile_colour,
-        windowExtensions: (submission.additional_windows_qty || 0) > 0 || (submission.patio_doors_qty || 0) > 0,
-        windowExtensionSubtotal: 0,
-        windowExtensionGST: 0,
-        windowExtensionTotal: submission.window_total || 0,
-        lastActivityDate: submission.created_at,
-        selectionVersion: 1,
-        selections: {
-          lvpColour: submission.lvp_colour as any,
-          spcTileColour: submission.spc_tile_colour as any,
-          backsplashTile: 'white-subway-2x12-matte' as const,
-          backsplashOrientation: submission.backsplash_orientation as any,
-          stairCarpetColour: submission.stair_carpet_colour as any,
-          bedroomFlooringChoice: submission.bedroom_flooring_choice as any,
-          bedroomCarpetColour: submission.bedroom_carpet_colour as any,
-          additionalWindowsQty: submission.additional_windows_qty || 0,
-          patioDoorsQty: submission.patio_doors_qty || 0,
-          upgradeInterestFlooring: submission.upgrade_interests?.flooring || false,
-          upgradeInterestTile: submission.upgrade_interests?.tile || false,
-          upgradeInterestHeatedFloor: submission.upgrade_interests?.['heated-floor'] || false,
-          upgradeInterestAutomation: submission.upgrade_interests?.automation || false,
-        }
-      };
-      await generateBuyerSelectionPDF(pdfData);
+      await generateSavedSubmissionPdf(submission.id, true);
       toast.success('PDF generated successfully', { description: `${submission.unit_number} selection summary downloaded.` });
     } catch (error) {
       toast.error('Failed to generate PDF');
