@@ -121,9 +121,11 @@ export default function AdminPricingControl() {
     }
   };
 
-  const calculateCustomerPrice = (baseCost: number, unitType: string) => {
-    if (unitType === 'flat') {
-      // Flat fees like grout color don't get markup
+  // Materials whose stored cost is already the customer price (no markup in quotes).
+  const NO_MARKUP_MATERIALS = new Set(['backsplash_grout']);
+  const calculateCustomerPrice = (baseCost: number, materialKey: string) => {
+    if (NO_MARKUP_MATERIALS.has(materialKey)) {
+      // Grout color is charged at a flat rate with no markup
       const gst = baseCost * getGstRate();
       return baseCost + gst;
     }
@@ -786,7 +788,7 @@ export default function AdminPricingControl() {
               <TableBody>
                 {materials.map((material) => {
                   const isChild = !!material.parent_material_key;
-                  const customerPrice = calculateCustomerPrice(material.cost_per_unit, material.unit_type);
+                  const customerPrice = calculateCustomerPrice(material.cost_per_unit, material.material_key);
                   
                   return (
                     <TableRow key={material.id} className={isChild ? 'bg-muted/30' : ''}>
@@ -819,7 +821,7 @@ export default function AdminPricingControl() {
                           ${customerPrice.toFixed(2)}
                         </span>
                         <span className="text-xs text-muted-foreground ml-1">
-                          (incl. {getMarkupPercentage() * 100}% + GST)
+                          ({NO_MARKUP_MATERIALS.has(material.material_key) ? 'incl. GST, no markup' : `incl. ${getMarkupPercentage() * 100}% + GST`})
                         </span>
                       </TableCell>
                       <TableCell>
