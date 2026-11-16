@@ -34,7 +34,15 @@ export function UpgradeRequestSummary({ submissionId }: { submissionId: string }
       </div>
       {summary ? (
         <>
-          <div className="text-sm whitespace-pre-wrap leading-relaxed">{summary.replace(/\*\*/g, '')}</div>
+          <div className="text-sm leading-relaxed space-y-1">
+            {summary.replace(/\*\*/g, '').replace(/^\*(.*)\*$/gm, '$1').split('\n').filter(l => l.trim()).map((line, i) =>
+              /^#{1,6}\s/.test(line)
+                ? <h5 key={i} className="font-semibold text-foreground pt-2">{line.replace(/^#+\s*/, '')}</h5>
+                : /^\s*[-*]\s/.test(line)
+                  ? <p key={i} className="pl-4 -indent-3">• {line.replace(/^\s*[-*]\s*/, '')}</p>
+                  : <p key={i}>{line}</p>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">AI-generated {at ? new Date(at).toLocaleString() : ''} — staff only. Check against the record before quoting.</p>
         </>
       ) : (
