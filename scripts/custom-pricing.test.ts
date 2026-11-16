@@ -51,3 +51,14 @@ test('stair carpet upgrades are not charged when stairs are upgraded to LVP', ()
   const t = computeUpgradeTotals({ ...base, stairUpgradeType: 'lvp', stairPremiumCarpetSelected: true, stairPremiumUnderpadSelected: true }, stairPricing);
   expect(t.pieces.stairCarpet + t.pieces.stairUnderpad).toBe(0);
 });
+
+test('office price on a Stairs row adds to the total (Unit 24: +$1,005)', () => {
+  const base = computeUpgradeTotals(unit31, pricing).grandSubtotal;
+  const withStair = computeUpgradeTotals({ ...unit31, areaUpgrades: [...unit31.areaUpgrades, { areaId: 'stairs', materialType: 'carpet', productName: '', productColor: '', manualPrice: 1005 } as any] }, pricing).grandSubtotal;
+  expect(withStair - base).toBeCloseTo(1005, 2);
+});
+test('Stairs row without office price adds nothing', () => {
+  const base = computeUpgradeTotals(unit31, pricing).grandSubtotal;
+  const t = computeUpgradeTotals({ ...unit31, areaUpgrades: [...unit31.areaUpgrades, { areaId: 'stairs', materialType: 'carpet', productName: '', productColor: '' } as any] }, pricing).grandSubtotal;
+  expect(t).toBeCloseTo(base, 2);
+});
