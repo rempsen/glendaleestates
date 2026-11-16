@@ -55,6 +55,7 @@ import bedroomCarpetPreviewImg from '@/assets/bedroom-carpet-preview.jpg';
 import bedroomLvpPreviewImg from '@/assets/bedroom-lvp-preview.jpg';
 import customTiledShowerNicheImg from '@/assets/custom-tiled-shower-niche.jpg';
 import { DocumentUploader } from '@/components/DocumentUploader';
+import { StairCarpetAddOn } from '@/components/buyer/StairCarpetAddOn';
 
 // Dynamic step configuration based on unit
 const getSteps = (hasStairs: boolean) => {
@@ -2769,6 +2770,9 @@ export default function SelectionWizard() {
           </div>
         </div>
       )}
+
+      {/* Post-confirmation stair carpet add-on */}
+      <StairCarpetAddOn />
 
       {/* Progress */}
       <div className="border-b border-border bg-card">
