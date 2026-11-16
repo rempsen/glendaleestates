@@ -61,10 +61,32 @@ export interface UpgradeTotalsInput {
   bathroomTileGuestSelected?: boolean;
   heatedFloorBathrooms?: number;
   customTiledShower?: boolean;
+  customPricing?: CustomPricing | null;
+}
+
+// Office pricing set by sales/admin. Amounts are GST-exclusive, PST included.
+export type OverrideKey = 'stair' | 'grout' | 'bathroomTile' | 'heatedFloor' | 'customShower';
+export interface PriceOverride { amount?: number | null; label?: string }
+export interface CustomLineItem { id: string; label: string; detail?: string; quantity?: number | null; unitPrice?: number | null; amount?: number | null }
+export interface CustomPricing {
+  overrides?: Partial<Record<OverrideKey, PriceOverride>>;
+  customItems?: CustomLineItem[];
+}
+
+export function customItemAmount(i: CustomLineItem): number {
+  const q = Number(i.quantity); const u = Number(i.unitPrice);
+  if (q > 0 && u) return q * u;
+  return Number(i.amount) || 0;
+}
+
+export function parseCustomPricing(raw: unknown): CustomPricing {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const r = raw as CustomPricing;
+  return { overrides: r.overrides || {}, customItems: Array.isArray(r.customItems) ? r.customItems : [] };
 }
 
 export interface UpgradeLineItem {
-  group: 'stair' | 'grout' | 'window' | 'flooring' | 'bathroom';
+  group: 'stair' | 'grout' | 'window' | 'flooring' | 'bathroom' | 'custom';
   label: string;
   detail?: string;
   amount: number;
@@ -90,6 +112,9 @@ export interface UpgradeTotalsResult {
     bathroomTileSqft: number;
     section4HeatedFloor: number;
     customShower: number;
+    customItems: Array<{ label: string; detail?: string; amount: number }>;
+    customItemsTotal: number;
+    labels: Partial<Record<OverrideKey, string>>;
   };
 }
 
@@ -154,25 +179,33 @@ export function computeUpgradeTotals(
   const heatedFloorPerBathroom = pricing.getHeatedFloorPrice();
   const sectionHeatedFloorCount = Number(input.heatedFloorBathrooms) || 0;
   const lineItems: UpgradeLineItem[] = [];
+  const cp = parseCustomPricing(input.customPricing);
+  const ov = (k: OverrideKey, calc: number, active: boolean): number => {
+    const o = cp.overrides?.[k];
+    const a = Number(o?.amount);
+    return active && o && o.amount !== null && o.amount !== undefined && !Number.isNaN(a) && a >= 0 && String(o.amount) !== '' ? a : calc;
+  };
+  const labels: Partial<Record<OverrideKey, string>> = {};
+  (Object.keys(cp.overrides || {}) as OverrideKey[]).forEach(k => { const l = cp.overrides?.[k]?.label?.trim(); if (l) labels[k] = l; });
 
   // ---- Stair upgrades ----
   // stairUpgradeType is canonical; the legacy boolean is the fallback.
   const isPremiumStairLvp = input.stairUpgradeType === 'premium_lvp';
   const isStairLvp = isPremiumStairLvp || input.stairUpgradeType === 'lvp' || !!input.stairLvpUpgradeSelected;
-  const stairLvp = !isStairLvp ? 0 : isPremiumStairLvp
+  const stairLvp = !isStairLvp ? 0 : ov('stair', isPremiumStairLvp
     ? (pricing.getStairPremiumLvpUpgradePrice?.() || pricing.getStairLvpUpgradePrice?.() || 0)
-    : (pricing.getStairLvpUpgradePrice?.() || 0);
+    : (pricing.getStairLvpUpgradePrice?.() || 0), true);
   const stairCarpet = input.stairPremiumCarpetSelected && !isStairLvp
     ? (pricing.getStairCarpetUpgradePrice?.() || 0) : 0;
-  if (stairLvp > 0) lineItems.push({ group: 'stair', label: isPremiumStairLvp ? 'Premium LVP with Custom Stair Nosings' : 'LVP with Custom Stair Nosings', amount: stairLvp });
+  if (stairLvp > 0) lineItems.push({ group: 'stair', label: labels.stair || (isPremiumStairLvp ? 'Premium LVP with Custom Stair Nosings' : 'LVP with Custom Stair Nosings'), amount: stairLvp });
   if (stairCarpet > 0) lineItems.push({ group: 'stair', label: 'Premium Carpet Stairs Upgrade', amount: stairCarpet });
 
   // ---- Grout ----
-  const grout = input.backsplashGrout?.enabled ? pricing.getGroutColorFee() : 0;
+  const grout = input.backsplashGrout?.enabled ? ov('grout', pricing.getGroutColorFee(), true) : 0;
   if (grout > 0) {
     lineItems.push({
       group: 'grout',
-      label: 'Custom Grout Color',
+      label: labels.grout || 'Custom Grout Color',
       detail: input.backsplashGrout?.groutColor || undefined,
       amount: grout,
     });
@@ -258,27 +291,35 @@ export function computeUpgradeTotals(
     bathroomTileSqft = ensuiteSqft + guestSqft;
     bathroomTile = bathroomTileSqft * tileCostPerSqft * (1 + pricing.markupPercentage);
   }
-  const section4HeatedFloor = sectionHeatedFloorCount > 0
+  bathroomTile = ov('bathroomTile', bathroomTile, masterOn && !hasPricedBathroomTileAreas);
+  const section4HeatedFloor = ov('heatedFloor', sectionHeatedFloorCount > 0
     ? sectionHeatedFloorCount * heatedFloorPerBathroom
-    : 0;
+    : 0, sectionHeatedFloorCount > 0);
   const showerBaseCost = pricing.getMaterialCost('tiled_shower');
-  const customShower = input.customTiledShower && showerBaseCost > 0
+  const customShower = ov('customShower', input.customTiledShower && showerBaseCost > 0
     ? showerBaseCost * (1 + pricing.markupPercentage)
-    : 0;
-  if (bathroomTile > 0) lineItems.push({ group: 'bathroom', label: 'Porcelain Tile Floor Upgrade', amount: bathroomTile });
+    : 0, !!input.customTiledShower);
+  if (bathroomTile > 0) lineItems.push({ group: 'bathroom', label: labels.bathroomTile || 'Porcelain Tile Floor Upgrade', amount: bathroomTile });
   if (section4HeatedFloor > 0) {
     const n = sectionHeatedFloorCount;
     lineItems.push({
       group: 'bathroom',
-      label: `Heated Tile Floor (${n} bathroom${n > 1 ? 's' : ''} × $${heatedFloorPerBathroom.toLocaleString()})`,
+      label: labels.heatedFloor || `Heated Tile Floor (${n} bathroom${n > 1 ? 's' : ''} × $${heatedFloorPerBathroom.toLocaleString()})`,
       amount: section4HeatedFloor,
     });
   }
-  if (customShower > 0) lineItems.push({ group: 'bathroom', label: 'Custom Tiled Shower', amount: customShower });
+  if (customShower > 0) lineItems.push({ group: 'bathroom', label: labels.customShower || 'Custom Tiled Shower', amount: customShower });
+
+  // ---- Custom office line items ----
+  const customItems = (cp.customItems || [])
+    .map(i => ({ label: (i.label || '').trim() || 'Custom Item', detail: i.detail?.trim() || undefined, amount: customItemAmount(i) }))
+    .filter(i => i.amount !== 0);
+  const customItemsTotal = customItems.reduce((t, i) => t + i.amount, 0);
+  customItems.forEach(i => lineItems.push({ group: 'custom', label: i.label, detail: i.detail, amount: i.amount }));
 
   const upgradesSubtotal =
     flooringSubtotal + areaHeatedFloorSubtotal + stairLvp + stairCarpet + grout +
-    bathroomTile + section4HeatedFloor + customShower;
+    bathroomTile + section4HeatedFloor + customShower + customItemsTotal;
 
   const grandSubtotal = upgradesSubtotal + windowSubtotal;
   const gst = grandSubtotal * pricing.gstRate;
@@ -303,6 +344,9 @@ export function computeUpgradeTotals(
       bathroomTileSqft,
       section4HeatedFloor,
       customShower,
+      customItems,
+      customItemsTotal,
+      labels,
     },
   };
 }
