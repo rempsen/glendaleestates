@@ -17,7 +17,7 @@ import {
   UPGRADE_MATERIALS,
   MaterialType,
 } from '@/lib/upgradeCostData';
-import { computeUpgradeTotals } from '@/lib/upgradeTotals';
+import { computeUpgradeTotals, type CustomPricing } from '@/lib/upgradeTotals';
 
 // Unit area data structure (camelCase for internal use)
 export interface UnitAreaDataForPdf {
@@ -242,6 +242,7 @@ export interface BuyerSelections {
   bathroomTileGuestSelected?: boolean;
   heatedFloorBathrooms: number;
   customTiledShower?: boolean;
+  customPricing?: CustomPricing | null;
   stairUpgradeType?: 'standard' | 'lvp' | 'premium_lvp' | string;
   premiumCarpetBedroom?: boolean;
   premiumUnderpadBedroom?: boolean;
@@ -544,7 +545,7 @@ export async function generateBuyerPreviewPDF(
     const upgradeData: string[][] = [];
 
     if (totals.pieces.stairLvp > 0) {
-      upgradeData.push([selections.stairUpgradeType === 'premium_lvp' ? 'Stair Premium LVP Upgrade with Custom Nosings' : 'Stair LVP Upgrade with Custom Nosings', `$${totals.pieces.stairLvp.toFixed(2)}`]);
+      upgradeData.push([totals.pieces.labels.stair || (selections.stairUpgradeType === 'premium_lvp' ? 'Stair Premium LVP Upgrade with Custom Nosings' : 'Stair LVP Upgrade with Custom Nosings'), `$${totals.pieces.stairLvp.toFixed(2)}`]);
     }
     if (totals.pieces.stairCarpet > 0) {
       upgradeData.push(['Premium Carpet Stairs Upgrade', `$${totals.pieces.stairCarpet.toFixed(2)}`]);
@@ -566,26 +567,30 @@ export async function generateBuyerPreviewPDF(
         selections.bathroomTileEnsuiteSelected && 'Ensuite',
         selections.bathroomTileGuestSelected && 'Guest Bathroom',
       ].filter(Boolean).join(', ');
-      upgradeData.push([`Porcelain Tile Floor Upgrade${bathrooms ? ` — ${bathrooms}` : ''}`, `$${totals.pieces.bathroomTile.toFixed(2)}`]);
+      upgradeData.push([totals.pieces.labels.bathroomTile || `Porcelain Tile Floor Upgrade${bathrooms ? ` — ${bathrooms}` : ''}`, `$${totals.pieces.bathroomTile.toFixed(2)}`]);
     }
     if (totals.pieces.section4HeatedFloor > 0) {
       const n = selections.heatedFloorBathrooms || 0;
       const heatedFloorPerBathroom = pricing.getHeatedFloorPrice();
       upgradeData.push([
-        `Heated Tile Floor (${n} bathroom${n > 1 ? 's' : ''} × $${heatedFloorPerBathroom.toLocaleString()})`,
+        totals.pieces.labels.heatedFloor || `Heated Tile Floor (${n} bathroom${n > 1 ? 's' : ''} × $${heatedFloorPerBathroom.toLocaleString()})`,
         `$${totals.pieces.section4HeatedFloor.toFixed(2)}`,
       ]);
     }
     if (totals.pieces.customShower > 0) {
-      upgradeData.push(['Custom Tiled Shower', `$${totals.pieces.customShower.toFixed(2)}`]);
+      upgradeData.push([totals.pieces.labels.customShower || 'Custom Tiled Shower', `$${totals.pieces.customShower.toFixed(2)}`]);
     }
 
     if (totals.pieces.grout > 0) {
       upgradeData.push([
-        `Backsplash Grout Color Change${selections.backsplashGrout?.groutColor ? ` — ${selections.backsplashGrout.groutColor}` : ''}`,
+        totals.pieces.labels.grout || `Backsplash Grout Color Change${selections.backsplashGrout?.groutColor ? ` — ${selections.backsplashGrout.groutColor}` : ''}`,
         `$${totals.pieces.grout.toFixed(2)}`,
       ]);
     }
+
+    totals.pieces.customItems.forEach(item => {
+      upgradeData.push([item.detail ? `${item.label} — ${item.detail}` : item.label, `$${item.amount.toFixed(2)}`]);
+    });
 
     upgradeData.push(['Section Subtotal:', `$${totals.upgradesSubtotal.toFixed(2)}`]);
 
