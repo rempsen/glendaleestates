@@ -137,6 +137,7 @@ const STATIC_GROUPS: GroupDef[] = [
       { label: 'Premium Underpad (Stairs)', get: ({ s }) => yesNo(s.premium_underpad_stairs) },
       { label: 'Stair LVP $', get: ({ totals }) => money(totals.pieces.stairLvp) },
       { label: 'Stair Carpet $', get: ({ totals }) => money(totals.pieces.stairCarpet) },
+      { label: 'Stair Underpad $', get: ({ totals }) => money(totals.pieces.stairUnderpad) },
     ],
   },
   {
