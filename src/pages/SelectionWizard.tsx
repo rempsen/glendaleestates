@@ -95,6 +95,7 @@ interface SelectionState {
   premiumCarpetBedroom: boolean;
   premiumUnderpadBedroom: boolean;
   premiumUnderpadStairs: boolean;
+  stairPremiumCarpetSelected: boolean;
   bedroomLvpColour: string;
   bedroomLvpSameAsMain: boolean;
   additionalWindowsQty: number;
@@ -143,6 +144,7 @@ export default function SelectionWizard() {
     getStairPremiumLvpUpgradePrice,
     getGroutColorChangePrice,
     getUnderpadStairsPrice,
+    getStairCarpetUpgradePrice,
     getUnderpadCostPerSqyd,
     isFlatRateEnabled,
     getUnitAreaData,
@@ -157,6 +159,8 @@ export default function SelectionWizard() {
   const stairPremiumLvpUpgradePrice = useMemo(() => getStairPremiumLvpUpgradePrice(), [getStairPremiumLvpUpgradePrice]);
   const groutColorChangePrice = useMemo(() => getGroutColorChangePrice(), [getGroutColorChangePrice]);
   const underpadStairsPrice = useMemo(() => getUnderpadStairsPrice(), [getUnderpadStairsPrice]);
+  const stairCarpetUpgradePrice = useMemo(() => getStairCarpetUpgradePrice(), [getStairCarpetUpgradePrice]);
+  const isStairCarpetUpgradeEnabled = useMemo(() => isFlatRateEnabled('premium_carpet_stairs_price'), [isFlatRateEnabled]);
   const underpadCostPerSqyd = useMemo(() => getUnderpadCostPerSqyd(), [getUnderpadCostPerSqyd]);
   const isStairLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_lvp_upgrade_price'), [isFlatRateEnabled]);
   const isStairPremiumLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_premium_lvp_upgrade_price'), [isFlatRateEnabled]);
@@ -192,6 +196,7 @@ export default function SelectionWizard() {
     premiumCarpetBedroom: false,
     premiumUnderpadBedroom: false,
     premiumUnderpadStairs: false,
+    stairPremiumCarpetSelected: false,
     bedroomLvpColour: '',
     bedroomLvpSameAsMain: true,
     additionalWindowsQty: 0,
@@ -458,7 +463,7 @@ export default function SelectionWizard() {
             stairCarpetColour: selections.stairCarpetColour,
             stairLvpUpgradeSelected: selections.stairLvpUpgradeSelected,
             stairUpgradeType: selections.stairUpgradeType,
-            stairPremiumCarpetSelected: (selections as any).stairPremiumCarpetSelected,
+            stairPremiumCarpetSelected: selections.stairPremiumCarpetSelected,
             premiumCarpetBedroom: selections.premiumCarpetBedroom,
             premiumUnderpadBedroom: selections.premiumUnderpadBedroom,
             premiumUnderpadStairs: selections.premiumUnderpadStairs,
@@ -522,6 +527,7 @@ export default function SelectionWizard() {
           premiumCarpetBedroom: selections.premiumCarpetBedroom,
           premiumUnderpadBedroom: selections.premiumUnderpadBedroom,
           premiumUnderpadStairs: selections.premiumUnderpadStairs,
+          stairPremiumCarpetSelected: selections.stairPremiumCarpetSelected,
           customTiledShower: selections.customTiledShower,
           pdfBase64: pdfBase64,
           documentUploads: selections.documentUploads,
@@ -2377,13 +2383,15 @@ export default function SelectionWizard() {
             // If selecting an upgrade, clear carpet selection
             if (type !== 'standard') {
               updateSelection('stairCarpetColour', '');
+              updateSelection('stairPremiumCarpetSelected', false);
+              updateSelection('premiumUnderpadStairs', false);
             }
           };
 
           return (
             <StepContainer
-              title="Stair Flooring"
-              subtitle="Choose standard carpet (included) or upgrade to LVP with custom nosings"
+              title="Stair Flooring — Main Level to Lower Level"
+              subtitle="Your stairs lead from the main level down to the carpeted lower level. Choose standard carpet (included), upgrade the carpet and underpad, or upgrade to LVP with custom nosings."
               badge={selections.stairUpgradeType !== 'standard' ? "Upgrade" : "Included"}
             >
               <div className="space-y-4">
@@ -2545,6 +2553,41 @@ export default function SelectionWizard() {
                   )}
                 </div>
 
+                {/* Premium Carpet for Stairs to Lower Level */}
+                {selections.stairUpgradeType === 'standard' && isStairCarpetUpgradeEnabled && stairCarpetUpgradePrice > 0 && (
+                  <div
+                    className={`p-5 rounded-xl border-2 transition-all cursor-pointer ${
+                      selections.stairPremiumCarpetSelected ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'
+                    }`}
+                    onClick={() => updateSelection('stairPremiumCarpetSelected', !selections.stairPremiumCarpetSelected)}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                        selections.stairPremiumCarpetSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground'
+                      }`}>
+                        {selections.stairPremiumCarpetSelected && <Check className="w-4 h-4" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-2 gap-2">
+                          <h3 className="font-semibold text-foreground">Upgrade to Premium Carpet — Stairs to Lower Level</h3>
+                          <span className="px-3 py-1 rounded-full text-sm font-medium bg-accent/20 text-accent-foreground whitespace-nowrap">
+                            ${stairCarpetUpgradePrice.toFixed(2)} + GST
+                          </span>
+                        </div>
+                        <p className="text-muted-foreground text-sm">
+                          Premium carpet on the staircase from the main level down to the basement or lower level, in your selected colour.
+                        </p>
+                        {selections.stairPremiumCarpetSelected && (
+                          <div className="mt-2 pt-3 border-t border-border flex justify-between items-center text-sm">
+                            <span className="text-foreground font-medium">Total with GST:</span>
+                            <span className="text-primary font-semibold text-lg">${(stairCarpetUpgradePrice * (1 + gstRate)).toFixed(2)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Premium Underpad for Stairs - show when carpet is selected (standard or premium) */}
                 {(selections.stairUpgradeType === 'standard') && isUnderpadStairsEnabled && underpadStairsPrice > 0 && (
                   <motion.div
@@ -2576,7 +2619,7 @@ export default function SelectionWizard() {
                           </span>
                         </div>
                         <p className="text-muted-foreground text-sm mb-3">
-                          Premium underpad for your stairs with waterproof barrier and dense memory foam for extra comfort and durability.
+                          Premium underpad for the stairs from the main level to the lower level, with waterproof barrier and dense memory foam for extra comfort and durability.
                         </p>
                         {selections.premiumUnderpadStairs && (
                           <div className="mt-2 pt-3 border-t border-border">
