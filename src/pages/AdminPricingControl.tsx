@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AdminLayout } from '@/components/AdminLayout';
 import { useUpgradePricing } from '@/hooks/useUpgradePricing';
+import { CustomFlatRateManager } from '@/components/admin/CustomFlatRateManager';
 import { UnitAreaDataManager } from '@/components/admin/UnitAreaDataManager';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -645,6 +646,7 @@ export default function AdminPricingControl() {
                 );
               })()}
             </div>
+            <CustomFlatRateManager pricingConfig={pricingConfig as any} markup={getMarkupPercentage()} gstRate={getGstRate()} onChanged={refetch} />
           </CardContent>
         </Card>
 
