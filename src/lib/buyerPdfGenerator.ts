@@ -553,10 +553,10 @@ export async function generateBuyerPreviewPDF(
       upgradeData.push([totals.pieces.labels.stair || (selections.stairUpgradeType === 'premium_lvp' ? 'Stair Premium LVP Upgrade with Custom Nosings' : 'Stair LVP Upgrade with Custom Nosings'), `$${totals.pieces.stairLvp.toFixed(2)}`]);
     }
     if (totals.pieces.stairCarpet > 0) {
-      upgradeData.push(['Premium Carpet — Stairs to Lower Level', `$${totals.pieces.stairCarpet.toFixed(2)}`]);
+      upgradeData.push([totals.pieces.labels.stairCarpet || 'Premium Carpet — Stairs to Lower Level', `$${totals.pieces.stairCarpet.toFixed(2)}`]);
     }
     if (totals.pieces.stairUnderpad > 0) {
-      upgradeData.push(['Premium Underpad — Stairs to Lower Level', `$${totals.pieces.stairUnderpad.toFixed(2)}`]);
+      upgradeData.push([totals.pieces.labels.stairUnderpad || 'Premium Underpad — Stairs to Lower Level', `$${totals.pieces.stairUnderpad.toFixed(2)}`]);
     }
 
     totals.pieces.flooringUpgrades.forEach(item => {

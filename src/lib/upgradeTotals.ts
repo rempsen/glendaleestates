@@ -67,7 +67,7 @@ export interface UpgradeTotalsInput {
 }
 
 // Office pricing set by sales/admin. Amounts are GST-exclusive, PST included.
-export type OverrideKey = 'stair' | 'grout' | 'bathroomTile' | 'heatedFloor' | 'customShower';
+export type OverrideKey = 'stair' | 'grout' | 'bathroomTile' | 'heatedFloor' | 'customShower' | 'stairCarpet' | 'stairUnderpad';
 export interface PriceOverride { amount?: number | null; label?: string }
 export interface CustomLineItem { id: string; label: string; detail?: string; quantity?: number | null; unit?: string; unitPrice?: number | null; amount?: number | null; catalogKey?: string }
 export interface CustomPricing {
@@ -203,8 +203,8 @@ export function computeUpgradeTotals(
   if (stairLvp > 0) lineItems.push({ group: 'stair', label: labels.stair || (isPremiumStairLvp ? 'Premium LVP with Custom Stair Nosings' : 'LVP with Custom Stair Nosings'), amount: stairLvp });
   const stairUnderpad = input.stairPremiumUnderpadSelected && !isStairLvp
     ? (pricing.getStairUnderpadUpgradePrice?.() || 0) : 0;
-  if (stairCarpet > 0) lineItems.push({ group: 'stair', label: 'Premium Carpet — Stairs to Lower Level', amount: stairCarpet });
-  if (stairUnderpad > 0) lineItems.push({ group: 'stair', label: 'Premium Underpad — Stairs to Lower Level', amount: stairUnderpad });
+  if (stairCarpet > 0) lineItems.push({ group: 'stair', label: labels.stairCarpet || 'Premium Carpet — Stairs to Lower Level', amount: stairCarpet });
+  if (stairUnderpad > 0) lineItems.push({ group: 'stair', label: labels.stairUnderpad || 'Premium Underpad — Stairs to Lower Level', amount: stairUnderpad });
 
   // ---- Grout ----
   const grout = input.backsplashGrout?.enabled ? ov('grout', pricing.getGroutColorFee(), true) : 0;
@@ -251,7 +251,7 @@ export function computeUpgradeTotals(
     areaHeatedFloorSubtotal += heatAmount;
     flooringUpgrades.push({
       areaId: sel.areaId,
-      areaName: areaDef?.name || sel.areaId,
+      areaName: (sel as { areaLabel?: string }).areaLabel?.trim() || areaDef?.name || sel.areaId,
       materialName: matDef?.name || sel.materialType,
       productName: sel.productName,
       productColor: sel.productColor,

@@ -305,7 +305,7 @@ export function computeUpgradeTotalsServer(
     const base = qty * cost;
     const manual = Number(sel.manualPrice) || 0;
     const markedUp = manual > 0 ? manual : base * (1 + pricing.markupPercentage);
-    const areaName = AREA_NAMES[sel.areaId] || sel.areaId;
+    const areaName = (sel as { areaLabel?: string }).areaLabel?.trim() || AREA_NAMES[sel.areaId] || sel.areaId;
     const materialName = MATERIAL_NAMES[sel.materialType] || sel.materialType;
     const hasHeat = !!sel.heatedFloor && sectionHeatedFloorCount === 0 && (sel.materialType === 'tile' || sel.materialType === 'nonstandard_tile');
     const heatAmount = hasHeat ? heatedFloorPerBathroom : 0;
