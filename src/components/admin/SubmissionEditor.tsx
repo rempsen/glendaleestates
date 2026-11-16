@@ -160,6 +160,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
     nonstandard_lvp: 'Non Standard LVP Color',
     nonstandard_lvt: 'Non Standard LVT Color',
     nonstandard_tile: 'Non Standard Tile Color',
+    premium_carpet_underpad: 'Premium Underpad',
   };
 
   const handleChange = <K extends keyof BuyerSelection>(field: K, value: BuyerSelection[K]) => {
