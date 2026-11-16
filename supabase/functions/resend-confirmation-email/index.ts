@@ -250,6 +250,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       bathroomTileGuestSelected: sub.bathroom_tile_guest_selected,
       heatedFloorBathrooms: sub.heated_floor_bathrooms,
       customTiledShower: sub.custom_tiled_shower,
+      customPricing: sub.custom_pricing,
     }, pricing);
 
     if (preview) {

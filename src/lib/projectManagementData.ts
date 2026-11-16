@@ -173,6 +173,7 @@ export async function loadProjectManagementData(): Promise<PMData> {
         bathroomTileGuestSelected: s.bathroom_tile_guest_selected,
         heatedFloorBathrooms: s.heated_floor_bathrooms || 0,
         customTiledShower: !!s.custom_tiled_shower,
+        customPricing: (s as any).custom_pricing,
       },
       pricing,
     );

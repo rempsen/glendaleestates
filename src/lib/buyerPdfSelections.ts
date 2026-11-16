@@ -23,7 +23,7 @@ export function toBuyerPdfSelections(s: Tables<'buyer_selections'>): BuyerSelect
     backsplashGrout: { enabled: !!s.backsplash_grout_enabled, groutColor: s.backsplash_grout_color || '', comments: s.backsplash_grout_comments || '' },
     bathroomTileSelected: !!s.bathroom_tile_selected, bathroomTileEnsuiteSelected: !!s.bathroom_tile_ensuite_selected,
     bathroomTileGuestSelected: !!s.bathroom_tile_guest_selected, heatedFloorBathrooms: s.heated_floor_bathrooms || 0,
-    customTiledShower: !!s.custom_tiled_shower, stairUpgradeType: stairType,
+    customTiledShower: !!s.custom_tiled_shower, customPricing: (s as any).custom_pricing, stairUpgradeType: stairType,
     stairLvpUpgradeSelected: stairType === 'lvp' || stairType === 'premium_lvp' || !!s.stair_lvp_upgrade_selected,
     stairPremiumCarpetSelected: !!s.stair_premium_carpet_selected,
     premiumCarpetBedroom: !!s.premium_carpet_bedroom, premiumUnderpadBedroom: !!s.premium_underpad_bedroom,

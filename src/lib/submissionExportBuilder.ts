@@ -230,6 +230,7 @@ export function computeTotalsForSubmission(s: BuyerSelection, pricing: ExportPri
       heatedFloorBathrooms: s.heated_floor_bathrooms || 0,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       customTiledShower: !!(s as any).custom_tiled_shower,
+      customPricing: (s as any).custom_pricing,
     },
     buildPricingAdapter(pricing),
   );

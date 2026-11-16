@@ -94,6 +94,7 @@ export function DownstreamTrackingPanel({ submissionId, submission }: Props) {
         bathroomTileGuestSelected: submission.bathroom_tile_guest_selected,
         heatedFloorBathrooms: submission.heated_floor_bathrooms || 0,
         customTiledShower: !!submission.custom_tiled_shower,
+        customPricing: (submission as any).custom_pricing,
       },
       {
         markupPercentage: pricing.markupPercentage,

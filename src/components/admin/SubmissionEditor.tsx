@@ -24,6 +24,8 @@ import {
   WashingMachine, LayoutGrid, Flame, User, ClipboardList
 } from 'lucide-react';
 import { DownstreamTrackingPanel } from './DownstreamTrackingPanel';
+import { CustomPricingPanel } from './CustomPricingPanel';
+import { DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { createAuditLog, calculateChanges, generateChangeSummary } from '@/lib/auditLog';
@@ -108,6 +110,7 @@ interface BuyerSelection {
   heated_floor_bathrooms?: number;
   bathroom_tile_selected?: boolean;
   hardwood_upgrade_selected?: boolean;
+  custom_pricing?: unknown;
 }
 
 interface SubmissionEditorProps {
@@ -266,6 +269,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
         area_upgrades: areaUpgradesJson as unknown as import('@/integrations/supabase/types').Json,
         upgrade_floor_selection: editData.upgrade_floor_selection,
         heated_floor_bathrooms: heatedFloorCount,
+        custom_pricing: (editData.custom_pricing ?? {}) as unknown as import('@/integrations/supabase/types').Json,
         
         // Admin
         sales_comments: editData.sales_comments,
@@ -908,6 +912,19 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                 </div>
               )}
             </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Office pricing & custom line items */}
+        <AccordionItem value="custom-pricing" className="border rounded-lg px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-4 h-4" />
+              <span>Office Pricing &amp; Custom Line Items</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="pt-4 pb-6">
+            <CustomPricingPanel value={editData.custom_pricing} onChange={(v) => handleChange('custom_pricing', v)} />
           </AccordionContent>
         </AccordionItem>
 
