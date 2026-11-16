@@ -139,8 +139,11 @@ const SIMPLE_FIELDS: (keyof BuyerSelection)[] = [
   'additional_windows_qty', 'patio_doors_qty', 'window_total', 'window_comments',
   'status', 'sales_comments', 'upgrade_floor_selection', 'backsplash_grout_enabled',
   'backsplash_grout_color', 'backsplash_grout_comments', 'heated_floor_bathrooms',
-  'bathroom_tile_selected', 'hardwood_upgrade_selected'
-];
+  'bathroom_tile_selected', 'hardwood_upgrade_selected',
+  'stair_upgrade_type', 'stair_lvp_upgrade_selected', 'stair_premium_carpet_selected', 'premium_underpad_stairs',
+  'premium_underpad_bedroom', 'premium_carpet_bedroom', 'custom_tiled_shower', 'automated_windows_qty',
+  'bathroom_tile_ensuite_selected', 'bathroom_tile_guest_selected', 'upgrade_comments'
+] as (keyof BuyerSelection)[];
 
 interface Change {
   field: string;
@@ -235,30 +238,38 @@ export function SubmissionComparisonView({ original, current }: SubmissionCompar
     const origUpgrades = original.area_upgrades || [];
     const currUpgrades = current.area_upgrades || [];
     
+    // Match rows by area + occurrence so repeated areas (e.g. two Stairs rows) compare correctly
+    const keyed = (list: typeof currUpgrades) => {
+      const seen: Record<string, number> = {};
+      return list.map(u => { const n = (seen[u.areaId] = (seen[u.areaId] ?? -1) + 1); return { u, key: `${u.areaId}#${n}` }; });
+    };
+    const origKeyed = keyed(origUpgrades);
+    const currKeyed = keyed(currUpgrades);
+    const priceTxt = (u: any) => (Number(u?.manualPrice) > 0 ? ` — office price $${Number(u.manualPrice).toFixed(2)}` : '');
     // Check for added/modified upgrades
-    for (const currUpgrade of currUpgrades) {
-      const origUpgrade = origUpgrades.find(u => u.areaId === currUpgrade.areaId);
+    for (const { u: currUpgrade, key } of currKeyed) {
+      const origUpgrade = origKeyed.find(o => o.key === key)?.u;
       
       if (!origUpgrade) {
         result.push({
-          field: `area_upgrade_${currUpgrade.areaId}`,
+          field: `area_upgrade_${key}`,
           label: `Area Upgrade: ${AREA_NAMES[currUpgrade.areaId] || currUpgrade.areaId}`,
           originalValue: '—',
-          currentValue: `${MATERIAL_NAMES[currUpgrade.materialType] || currUpgrade.materialType} - ${currUpgrade.productColor || 'N/A'}${currUpgrade.heatedFloor ? ' (Heated)' : ''}`,
+          currentValue: `${MATERIAL_NAMES[currUpgrade.materialType] || currUpgrade.materialType} - ${currUpgrade.productColor || 'N/A'}${currUpgrade.heatedFloor ? ' (Heated)' : ''}${priceTxt(currUpgrade)}`,
           type: 'added',
           category: 'upgrades',
         });
       } else {
         // Check if upgrade changed
-        const origStr = `${origUpgrade.materialType}|${origUpgrade.productName}|${origUpgrade.productColor}|${origUpgrade.heatedFloor}`;
-        const currStr = `${currUpgrade.materialType}|${currUpgrade.productName}|${currUpgrade.productColor}|${currUpgrade.heatedFloor}`;
+        const origStr = `${origUpgrade.materialType}|${origUpgrade.productName}|${origUpgrade.productColor}|${origUpgrade.heatedFloor}|${Number((origUpgrade as any).manualPrice) || 0}|${origUpgrade.comments || ''}`;
+        const currStr = `${currUpgrade.materialType}|${currUpgrade.productName}|${currUpgrade.productColor}|${currUpgrade.heatedFloor}|${Number((currUpgrade as any).manualPrice) || 0}|${currUpgrade.comments || ''}`;
         
         if (origStr !== currStr) {
           result.push({
-            field: `area_upgrade_${currUpgrade.areaId}`,
+            field: `area_upgrade_${key}`,
             label: `Area Upgrade: ${AREA_NAMES[currUpgrade.areaId] || currUpgrade.areaId}`,
-            originalValue: `${MATERIAL_NAMES[origUpgrade.materialType] || origUpgrade.materialType} - ${origUpgrade.productColor || 'N/A'}${origUpgrade.heatedFloor ? ' (Heated)' : ''}`,
-            currentValue: `${MATERIAL_NAMES[currUpgrade.materialType] || currUpgrade.materialType} - ${currUpgrade.productColor || 'N/A'}${currUpgrade.heatedFloor ? ' (Heated)' : ''}`,
+            originalValue: `${MATERIAL_NAMES[origUpgrade.materialType] || origUpgrade.materialType} - ${origUpgrade.productColor || 'N/A'}${origUpgrade.heatedFloor ? ' (Heated)' : ''}${priceTxt(origUpgrade)}`,
+            currentValue: `${MATERIAL_NAMES[currUpgrade.materialType] || currUpgrade.materialType} - ${currUpgrade.productColor || 'N/A'}${currUpgrade.heatedFloor ? ' (Heated)' : ''}${priceTxt(currUpgrade)}`,
             type: 'modified',
             category: 'upgrades',
           });
@@ -267,11 +278,11 @@ export function SubmissionComparisonView({ original, current }: SubmissionCompar
     }
     
     // Check for removed upgrades
-    for (const origUpgrade of origUpgrades) {
-      const currUpgrade = currUpgrades.find(u => u.areaId === origUpgrade.areaId);
+    for (const { u: origUpgrade, key } of origKeyed) {
+      const currUpgrade = currKeyed.find(c => c.key === key)?.u;
       if (!currUpgrade) {
         result.push({
-          field: `area_upgrade_${origUpgrade.areaId}`,
+          field: `area_upgrade_${key}`,
           label: `Area Upgrade: ${AREA_NAMES[origUpgrade.areaId] || origUpgrade.areaId}`,
           originalValue: `${MATERIAL_NAMES[origUpgrade.materialType] || origUpgrade.materialType} - ${origUpgrade.productColor || 'N/A'}${origUpgrade.heatedFloor ? ' (Heated)' : ''}`,
           currentValue: '—',

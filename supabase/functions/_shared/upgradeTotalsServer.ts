@@ -297,7 +297,8 @@ export function computeUpgradeTotalsServer(
   let flooringSubtotal = 0;
   let areaHeatedFloorSubtotal = 0;
   for (const sel of input.areaUpgrades || []) {
-    if (sel.areaId === 'stairs') continue;
+    // Stair rows are priced by the stair flat rates; only an office manual price adds to the total here.
+    if (sel.areaId === 'stairs' && !(Number(sel.manualPrice) > 0)) continue;
     const fieldName = AREA_FIELD_MAP[sel.areaId] || sel.areaId;
     const qty = unitData ? Number(unitData[fieldName]) || 0 : 0;
     const cost = pricing.materials[sel.materialType] || 0;
