@@ -99,6 +99,7 @@ interface PricingValues {
   stairLvpUpgradePrice: number;
   stairPremiumLvpUpgradePrice?: number;
   stairCarpetUpgradePrice: number;
+  stairUnderpadUpgradePrice?: number;
   markupPercentage: number;
   gstRate: number;
   getMaterialCost: (materialType: any) => number;

@@ -25,6 +25,7 @@ export interface ExportPricing {
   stairLvpUpgradePrice: number;
   stairPremiumLvpUpgradePrice?: number;
   stairCarpetUpgradePrice: number;
+  stairUnderpadUpgradePrice?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getMaterialCost: (m: any) => number;
   getUnitAreaData: (code: string) => Record<string, number | undefined> | null;

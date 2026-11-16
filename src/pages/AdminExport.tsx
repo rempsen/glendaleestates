@@ -165,7 +165,7 @@ export default function AdminExport() {
     markupPercentage, gstRate, getPatioDoorPrice, getAdditionalWindowPrice,
     getAutomatedMotorPrice, getHeatedFloorPrice, getGroutColorChangePrice,
     getStairLvpUpgradePrice,
-    getStairPremiumLvpUpgradePrice, getStairCarpetUpgradePrice, getMaterialCost,
+    getStairPremiumLvpUpgradePrice, getStairCarpetUpgradePrice, getUnderpadStairsPrice, getMaterialCost,
     unitAreaData,
   ]);
 

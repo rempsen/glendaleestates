@@ -34,6 +34,7 @@ export async function generateSavedSubmissionPdf(id: string, saveToFile = false)
     getStairLvpUpgradePrice: () => fee('stair_lvp_upgrade_price'),
     getStairPremiumLvpUpgradePrice: () => fee('stair_premium_lvp_upgrade_price'),
     getStairCarpetUpgradePrice: () => fee('premium_carpet_stairs_price'),
+    getStairUnderpadUpgradePrice: () => fee('premium_underpad_stairs_price'),
     getUnitAreaData: code => {
       const row = areaRows.find(a => a.unit_type_code.toUpperCase() === code.toUpperCase());
       if (!row) return null;
