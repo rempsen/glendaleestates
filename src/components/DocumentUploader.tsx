@@ -61,7 +61,9 @@ export function DocumentUploader({
   const uploadFile = async (file: File): Promise<UploadedDocument | null> => {
     const timestamp = Date.now();
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const path = `${unitNumber}/${timestamp}-${sanitizedName}`;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Please sign in to upload documents');
+    const path = `${user.id}/${unitNumber}/${timestamp}-${sanitizedName}`;
 
     const { error } = await supabase.storage
       .from('buyer-documents')
