@@ -1029,6 +1029,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      buyer_add_stair_addon: {
+        Args: { _premium_carpet: boolean; _premium_underpad: boolean }
+        Returns: undefined
+      }
+      buyer_get_stair_addon: {
+        Args: never
+        Returns: {
+          id: string
+          premium_underpad_stairs: boolean
+          stair_lvp_upgrade_selected: boolean
+          stair_premium_carpet_selected: boolean
+          stair_upgrade_type: string
+          unit_number: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

@@ -39,3 +39,15 @@ test('an override does not charge for an upgrade that is switched off', () => {
   const t = computeUpgradeTotals({ ...unit31, customTiledShower: false }, pricing);
   expect(t.pieces.customShower).toBe(0);
 });
+
+const stairPricing = { ...pricing, getStairCarpetUpgradePrice: () => 840, getStairUnderpadUpgradePrice: () => 165 };
+const base = { unitTypeCode: 'E', areaUpgrades: [] as never, stairUpgradeType: 'standard' };
+test('premium carpet and underpad for stairs to lower level are both charged ($840 + $165)', () => {
+  const t = computeUpgradeTotals({ ...base, stairPremiumCarpetSelected: true, stairPremiumUnderpadSelected: true }, stairPricing);
+  expect(t.grandSubtotal).toBeCloseTo(1005, 2);
+  expect(t.grandTotal).toBeCloseTo(1055.25, 2);
+});
+test('stair carpet upgrades are not charged when stairs are upgraded to LVP', () => {
+  const t = computeUpgradeTotals({ ...base, stairUpgradeType: 'lvp', stairPremiumCarpetSelected: true, stairPremiumUnderpadSelected: true }, stairPricing);
+  expect(t.pieces.stairCarpet + t.pieces.stairUnderpad).toBe(0);
+});

@@ -47,6 +47,7 @@ export interface PdfPricingConfig {
   getStairLvpUpgradePrice?: () => number;
   getStairPremiumLvpUpgradePrice?: () => number;
   getStairCarpetUpgradePrice?: () => number;
+  getStairUnderpadUpgradePrice?: () => number;
   getUnitAreaData?: (unitTypeCode: string) => UnitAreaDataForPdf | null;
 }
 
@@ -397,7 +398,7 @@ export async function generateBuyerPreviewPDF(
   // Additional selections captured in the wizard / admin editor
   if (selections.premiumCarpetBedroom) standardData.push(['Premium Carpet (Bedrooms)', 'Selected']);
   if (selections.premiumUnderpadBedroom) standardData.push(['Premium Underpad (Bedrooms)', 'Selected']);
-  if (selections.hasStairs && selections.premiumUnderpadStairs) standardData.push(['Premium Underpad (Stairs)', 'Selected']);
+  if (selections.hasStairs && selections.premiumUnderpadStairs) standardData.push(['Premium Underpad (Stairs to Lower Level)', 'Selected']);
   if (selections.hardwoodUpgradeSelected) standardData.push(['Hardwood Upgrade', 'Interested']);
   const docCount = selections.documentCount ?? (Array.isArray(selections.documentUploads) ? selections.documentUploads.length : 0);
   if (docCount > 0) standardData.push(['Documents Uploaded', `${docCount} file${docCount > 1 ? 's' : ''} on record`]);
@@ -450,6 +451,7 @@ export async function generateBuyerPreviewPDF(
       stairLvpUpgradeSelected: selections.stairLvpUpgradeSelected,
       stairUpgradeType: selections.stairUpgradeType,
       stairPremiumCarpetSelected: selections.stairPremiumCarpetSelected,
+      stairPremiumUnderpadSelected: selections.premiumUnderpadStairs,
       additionalWindowsQty: selections.additionalWindowsQty,
       patioDoorsQty: selections.patioDoorsQty,
       automatedWindowsQty: selections.automatedWindowsQty,
@@ -548,7 +550,10 @@ export async function generateBuyerPreviewPDF(
       upgradeData.push([totals.pieces.labels.stair || (selections.stairUpgradeType === 'premium_lvp' ? 'Stair Premium LVP Upgrade with Custom Nosings' : 'Stair LVP Upgrade with Custom Nosings'), `$${totals.pieces.stairLvp.toFixed(2)}`]);
     }
     if (totals.pieces.stairCarpet > 0) {
-      upgradeData.push(['Premium Carpet Stairs Upgrade', `$${totals.pieces.stairCarpet.toFixed(2)}`]);
+      upgradeData.push(['Premium Carpet — Stairs to Lower Level', `$${totals.pieces.stairCarpet.toFixed(2)}`]);
+    }
+    if (totals.pieces.stairUnderpad > 0) {
+      upgradeData.push(['Premium Underpad — Stairs to Lower Level', `$${totals.pieces.stairUnderpad.toFixed(2)}`]);
     }
 
     totals.pieces.flooringUpgrades.forEach(item => {

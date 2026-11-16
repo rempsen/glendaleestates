@@ -287,7 +287,7 @@ async function computeTotalsForSubmission(admin: any, submission: any): Promise<
     backsplashGroutEnabled: submission.backsplash_grout_enabled,
     backsplashGroutColor: submission.backsplash_grout_color,
     stairLvpUpgradeSelected: submission.stair_lvp_upgrade_selected,
-    stairPremiumCarpetSelected: submission.premium_underpad_stairs,
+    stairPremiumCarpetSelected: submission.stair_premium_carpet_selected, stairPremiumUnderpadSelected: submission.premium_underpad_stairs,
     stairUpgradeType: submission.stair_upgrade_type,
     additionalWindowsQty: submission.additional_windows_qty,
     patioDoorsQty: submission.patio_doors_qty,

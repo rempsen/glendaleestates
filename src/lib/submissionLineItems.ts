@@ -29,6 +29,7 @@ export function buildCanonicalLines(
       grout: number;
       stairLvp: number;
       stairCarpet: number;
+      stairUnderpad?: number;
       windowAdditional: number;
       windowPatio: number;
       windowAutomation: number;
@@ -68,6 +69,9 @@ export function buildCanonicalLines(
   });
   push('stair_lvp', 'Stair LVP Upgrade', totals.pieces.stairLvp, {
     material_key: 'stair_lvp', area_type: 'stairs',
+  });
+  push('stair_underpad', 'Stair Premium Underpad', totals.pieces.stairUnderpad || 0, {
+    material_key: 'premium_underpad_stairs', area_type: 'stairs',
   });
   push('stair_carpet', 'Stair Carpet Upgrade', totals.pieces.stairCarpet, {
     material_key: 'stair_carpet', area_type: 'stairs',

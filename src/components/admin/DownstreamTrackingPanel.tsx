@@ -86,6 +86,7 @@ export function DownstreamTrackingPanel({ submissionId, submission }: Props) {
         stairLvpUpgradeSelected: !!submission.stair_lvp_upgrade_selected,
         stairUpgradeType: (submission as any).stair_upgrade_type || null,
         stairPremiumCarpetSelected: !!(submission as any).stair_premium_carpet_selected,
+        stairPremiumUnderpadSelected: !!(submission as any).premium_underpad_stairs,
         additionalWindowsQty: submission.additional_windows_qty || 0,
         patioDoorsQty: submission.patio_doors_qty || 0,
         automatedWindowsQty: submission.automated_windows_qty || 0,
@@ -107,6 +108,7 @@ export function DownstreamTrackingPanel({ submissionId, submission }: Props) {
         getHeatedFloorPrice: () => pricing.getHeatedFloorPrice(),
         getStairLvpUpgradePrice: () => pricing.getStairLvpUpgradePrice(),
         getStairCarpetUpgradePrice: () => pricing.getStairCarpetUpgradePrice(),
+        getStairUnderpadUpgradePrice: () => pricing.getUnderpadStairsPrice(),
         getUnitAreaData: (code: string) => {
           const row = unitAreaData.find((u) => u.unit_type_code?.toUpperCase() === code?.toUpperCase());
           if (!row) return null;

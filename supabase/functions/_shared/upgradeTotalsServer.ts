@@ -59,6 +59,7 @@ export interface ServerTotalsInput {
   backsplashGroutColor?: string | null;
   stairLvpUpgradeSelected?: boolean;
   stairPremiumCarpetSelected?: boolean;
+  stairPremiumUnderpadSelected?: boolean;
   stairUpgradeType?: 'standard' | 'lvp' | 'premium_lvp' | null;
   additionalWindowsQty?: number;
   patioDoorsQty?: number;
@@ -92,6 +93,7 @@ export interface ServerTotalsResult {
   pieces: {
     stairLvp: number;
     stairCarpet: number;
+    stairUnderpad: number;
     grout: number;
     windowAdditional: number;
     windowPatio: number;
@@ -228,6 +230,7 @@ export function computeUpgradeTotalsServer(
   const stairLvpPrice = pricing.config['stair_lvp_upgrade_price'] || 2160.00;
   const stairPremiumLvpPrice = pricing.config['stair_premium_lvp_upgrade_price'] || 3145.00;
   const stairCarpetUpgradePrice = pricing.config['premium_carpet_stairs_price'] || 640.00;
+  const stairUnderpadPrice = pricing.config['premium_underpad_stairs_price'] || 0;
   const groutColorPrice = pricing.config['grout_color_change_price'] || 300.00;
 
   const tileCostPerSqft = pricing.materials['tile'] || 0;
@@ -258,7 +261,9 @@ export function computeUpgradeTotalsServer(
   if (stairLvp > 0) stairLvp = ov('stair', stairLvp, true);
   const stairCarpet = input.stairPremiumCarpetSelected && stairLvp === 0 ? stairCarpetUpgradePrice : 0;
   if (stairLvp > 0) lineItems.push({ group: 'stair', label: lbl('stair', 'LVP with Custom Stair Nosings'), amount: stairLvp });
-  if (stairCarpet > 0) lineItems.push({ group: 'stair', label: 'Premium Carpet Stairs Upgrade', amount: stairCarpet });
+  const stairUnderpad = input.stairPremiumUnderpadSelected && stairLvp === 0 ? stairUnderpadPrice : 0;
+  if (stairCarpet > 0) lineItems.push({ group: 'stair', label: 'Premium Carpet — Stairs to Lower Level', amount: stairCarpet });
+  if (stairUnderpad > 0) lineItems.push({ group: 'stair', label: 'Premium Underpad — Stairs to Lower Level', amount: stairUnderpad });
 
   // ---- Grout ----
   const grout = input.backsplashGroutEnabled ? ov('grout', groutColorPrice, true) : 0;
@@ -376,7 +381,7 @@ export function computeUpgradeTotalsServer(
   }
 
   const upgradesSubtotal =
-    flooringSubtotal + areaHeatedFloorSubtotal + stairLvp + stairCarpet + grout +
+    flooringSubtotal + areaHeatedFloorSubtotal + stairLvp + stairCarpet + stairUnderpad + grout +
     bathroomTile + section4HeatedFloor + customShower + customItemsTotal;
 
   const grandSubtotal = upgradesSubtotal + windowSubtotal;
@@ -395,6 +400,7 @@ export function computeUpgradeTotalsServer(
     pieces: {
       stairLvp,
       stairCarpet,
+      stairUnderpad,
       grout,
       windowAdditional,
       windowPatio,

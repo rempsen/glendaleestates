@@ -99,6 +99,7 @@ interface PricingValues {
   stairLvpUpgradePrice: number;
   stairPremiumLvpUpgradePrice?: number;
   stairCarpetUpgradePrice: number;
+  stairUnderpadUpgradePrice?: number;
   markupPercentage: number;
   gstRate: number;
   getMaterialCost: (materialType: any) => number;
@@ -125,6 +126,8 @@ function calculateSubmissionPricing(submission: BuyerSelection, pricing: Pricing
     } : null,
     stairLvpUpgradeSelected: !!(submission as any).stair_lvp_upgrade_selected,
     stairUpgradeType: (submission as any).stair_upgrade_type || null,
+    stairPremiumCarpetSelected: !!(submission as any).stair_premium_carpet_selected,
+    stairPremiumUnderpadSelected: !!(submission as any).premium_underpad_stairs,
     additionalWindowsQty: submission.additional_windows_qty || 0,
     patioDoorsQty: submission.patio_doors_qty || 0,
     automatedWindowsQty: (submission as any).automated_windows_qty || 0,
@@ -146,6 +149,7 @@ function calculateSubmissionPricing(submission: BuyerSelection, pricing: Pricing
     getStairLvpUpgradePrice: () => pricing.stairLvpUpgradePrice,
     getStairPremiumLvpUpgradePrice: () => (pricing as any).stairPremiumLvpUpgradePrice || 0,
     getStairCarpetUpgradePrice: () => pricing.stairCarpetUpgradePrice,
+    getStairUnderpadUpgradePrice: () => (pricing as any).stairUnderpadUpgradePrice || 0,
     getUnitAreaData: pricing.getUnitAreaData,
   });
 
@@ -253,6 +257,7 @@ export default function AdminSubmissions() {
     getStairLvpUpgradePrice,
     getStairPremiumLvpUpgradePrice,
     getStairCarpetUpgradePrice,
+    getUnderpadStairsPrice,
     getMaterialCost,
     markupPercentage,
     gstRate,
@@ -269,6 +274,7 @@ export default function AdminSubmissions() {
     stairLvpUpgradePrice: getStairLvpUpgradePrice(),
     stairPremiumLvpUpgradePrice: getStairPremiumLvpUpgradePrice(),
     stairCarpetUpgradePrice: getStairCarpetUpgradePrice(),
+    stairUnderpadUpgradePrice: getUnderpadStairsPrice(),
     markupPercentage,
     gstRate,
     getMaterialCost,

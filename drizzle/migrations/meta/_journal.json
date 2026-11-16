@@ -15,6 +15,13 @@
       "when": 1794859320575,
       "tag": "0001_add_custom_pricing",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794859804980,
+      "tag": "0002_buyer_stair_carpet_addon",
+      "breakpoints": true
     }
   ]
 }
