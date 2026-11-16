@@ -1,0 +1,1 @@
+ALTER TABLE public.buyer_selections ADD COLUMN IF NOT EXISTS custom_pricing jsonb NOT NULL DEFAULT '{}'::jsonb;
