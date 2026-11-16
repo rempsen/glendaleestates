@@ -91,6 +91,8 @@ interface BuyerSelection {
   backsplash_orientation: string | null;
   stair_carpet_colour: string | null;
   stair_lvp_upgrade_selected?: boolean;
+  stair_premium_carpet_selected?: boolean;
+  premium_underpad_stairs?: boolean;
   bedroom_flooring_choice: string | null;
   bedroom_carpet_colour: string | null;
   bedroom_lvp_colour: string | null;
@@ -131,6 +133,8 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
     const config = pricingConfig.find(c => c.config_key === 'stair_lvp_upgrade_price');
     return config?.config_value || 2160;
   }, [pricingConfig]);
+  const stairCarpetPrice = pricingConfig.find(c => c.config_key === 'premium_carpet_stairs_price')?.config_value || 0;
+  const stairUnderpadPrice = pricingConfig.find(c => c.config_key === 'premium_underpad_stairs_price')?.config_value || 0;
 
   // Area names for display
   const AREA_NAMES: Record<string, string> = {
@@ -253,6 +257,8 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
         bedroom_lvp_same_as_main: editData.bedroom_lvp_same_as_main,
         stair_carpet_colour: editData.stair_carpet_colour,
         stair_lvp_upgrade_selected: editData.stair_lvp_upgrade_selected || false,
+        stair_premium_carpet_selected: !editData.stair_lvp_upgrade_selected && !!editData.stair_premium_carpet_selected,
+        premium_underpad_stairs: !editData.stair_lvp_upgrade_selected && !!editData.premium_underpad_stairs,
         
         // Backsplash
         backsplash_orientation: editData.backsplash_orientation,
@@ -563,6 +569,25 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                  )}
+                  {!editData.stair_lvp_upgrade_selected && (
+                    <div className="space-y-3 col-span-2">
+                      <Label>Stairs to Lower Level — Carpet Upgrades</Label>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={!!editData.stair_premium_carpet_selected}
+                          onCheckedChange={(checked) => handleChange('stair_premium_carpet_selected', checked)}
+                        />
+                        <span className="text-sm text-muted-foreground">Premium Carpet ({`$${stairCarpetPrice.toLocaleString()}`} + GST)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={!!editData.premium_underpad_stairs}
+                          onCheckedChange={(checked) => handleChange('premium_underpad_stairs', checked)}
+                        />
+                        <span className="text-sm text-muted-foreground">Premium Underpad ({`$${stairUnderpadPrice.toLocaleString()}`} + GST)</span>
+                      </div>
                     </div>
                   )}
                 </>
