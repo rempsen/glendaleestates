@@ -1079,9 +1079,15 @@ export default function SelectionWizard() {
                 </div>
               )
             )}
+            {selections.hasStairs && selections.stairUpgradeType === 'standard' && selections.stairPremiumCarpetSelected && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Premium Carpet (Stairs to Lower Level)</span>
+                <span className="font-medium text-primary">Yes</span>
+              </div>
+            )}
             {selections.hasStairs && selections.stairUpgradeType === 'standard' && selections.premiumUnderpadStairs && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Premium Underpad (Stairs)</span>
+                <span className="text-muted-foreground">Premium Underpad (Stairs to Lower Level)</span>
                 <span className="font-medium text-primary">Yes</span>
               </div>
             )}
