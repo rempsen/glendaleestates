@@ -63,6 +63,9 @@ export function buildCanonicalLines(
     material_key: 'grout', color_name: (s as { backsplash_grout_color?: string }).backsplash_grout_color || null,
     area_type: 'kitchen',
   });
+  totals.pieces.customItems.forEach((ci, idx) => {
+    push(`custom_${idx + 1}`, ci.label, ci.amount, { material_key: 'custom', area_type: 'custom' });
+  });
   push('stair_lvp', 'Stair LVP Upgrade', totals.pieces.stairLvp, {
     material_key: 'stair_lvp', area_type: 'stairs',
   });
