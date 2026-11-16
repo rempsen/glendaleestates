@@ -47,6 +47,7 @@ export interface PdfPricingConfig {
   getStairLvpUpgradePrice?: () => number;
   getStairPremiumLvpUpgradePrice?: () => number;
   getStairCarpetUpgradePrice?: () => number;
+  getStairUnderpadUpgradePrice?: () => number;
   getUnitAreaData?: (unitTypeCode: string) => UnitAreaDataForPdf | null;
 }
 
@@ -450,6 +451,7 @@ export async function generateBuyerPreviewPDF(
       stairLvpUpgradeSelected: selections.stairLvpUpgradeSelected,
       stairUpgradeType: selections.stairUpgradeType,
       stairPremiumCarpetSelected: selections.stairPremiumCarpetSelected,
+      stairPremiumUnderpadSelected: selections.premiumUnderpadStairs,
       additionalWindowsQty: selections.additionalWindowsQty,
       patioDoorsQty: selections.patioDoorsQty,
       automatedWindowsQty: selections.automatedWindowsQty,

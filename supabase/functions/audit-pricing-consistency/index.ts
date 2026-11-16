@@ -127,7 +127,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           backsplashGroutEnabled: sub.backsplash_grout_enabled,
           backsplashGroutColor: sub.backsplash_grout_color,
           stairLvpUpgradeSelected: sub.stair_lvp_upgrade_selected,
-          stairPremiumCarpetSelected: sub.premium_underpad_stairs,
+          stairPremiumCarpetSelected: sub.stair_premium_carpet_selected, stairPremiumUnderpadSelected: sub.premium_underpad_stairs,
           stairUpgradeType: sub.stair_upgrade_type,
           additionalWindowsQty: sub.additional_windows_qty,
           patioDoorsQty: sub.patio_doors_qty,

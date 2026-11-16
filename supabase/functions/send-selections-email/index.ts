@@ -845,6 +845,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       backsplashGroutColor: data.backsplashGroutColor,
       stairLvpUpgradeSelected: data.stairLvpUpgradeSelected,
       stairPremiumCarpetSelected: data.stairPremiumCarpetSelected,
+      stairPremiumUnderpadSelected: data.premiumUnderpadStairs,
       stairUpgradeType: data.stairUpgradeType,
       additionalWindowsQty: data.additionalWindowsQty,
       patioDoorsQty: data.patioDoorsQty,

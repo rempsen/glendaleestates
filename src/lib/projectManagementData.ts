@@ -134,6 +134,7 @@ export async function loadProjectManagementData(): Promise<PMData> {
     getStairLvpUpgradePrice: () => cfg.stair_lvp_upgrade_price ?? 0,
     getStairPremiumLvpUpgradePrice: () => cfg.stair_premium_lvp_upgrade_price ?? 0,
     getStairCarpetUpgradePrice: () => cfg.premium_carpet_stairs_price ?? 0,
+    getStairUnderpadUpgradePrice: () => cfg.premium_underpad_stairs_price ?? 0,
     getUnitAreaData: (code: string) => {
       const row = (areasRes.data || []).find((u) => u.unit_type_code?.toUpperCase() === code?.toUpperCase());
       if (!row) return null;
@@ -165,6 +166,7 @@ export async function loadProjectManagementData(): Promise<PMData> {
         stairLvpUpgradeSelected: !!s.stair_lvp_upgrade_selected,
         stairUpgradeType: s.stair_upgrade_type || null,
         stairPremiumCarpetSelected: !!s.stair_premium_carpet_selected,
+        stairPremiumUnderpadSelected: !!s.premium_underpad_stairs,
         additionalWindowsQty: s.additional_windows_qty || 0,
         patioDoorsQty: s.patio_doors_qty || 0,
         automatedWindowsQty: s.automated_windows_qty || 0,
