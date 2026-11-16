@@ -374,6 +374,8 @@ export function useDynamicPricing() {
     calculateTotalUpgradeCost,
     getUnitAreaData,
     refreshPricing,
+    materials: state.materials,
+    config: state.config,
   };
 }
 

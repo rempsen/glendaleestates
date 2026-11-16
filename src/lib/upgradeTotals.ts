@@ -69,7 +69,7 @@ export interface UpgradeTotalsInput {
 // Office pricing set by sales/admin. Amounts are GST-exclusive, PST included.
 export type OverrideKey = 'stair' | 'grout' | 'bathroomTile' | 'heatedFloor' | 'customShower';
 export interface PriceOverride { amount?: number | null; label?: string }
-export interface CustomLineItem { id: string; label: string; detail?: string; quantity?: number | null; unitPrice?: number | null; amount?: number | null }
+export interface CustomLineItem { id: string; label: string; detail?: string; quantity?: number | null; unit?: string; unitPrice?: number | null; amount?: number | null; catalogKey?: string }
 export interface CustomPricing {
   overrides?: Partial<Record<OverrideKey, PriceOverride>>;
   customItems?: CustomLineItem[];
