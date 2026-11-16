@@ -31,6 +31,7 @@ const MATERIAL_NAMES: Record<string, string> = {
   nonstandard_lvp: 'Non Standard LVP Color',
   nonstandard_lvt: 'Non Standard LVT Color',
   nonstandard_tile: 'Non Standard Tile Color',
+  premium_carpet_underpad: 'Premium Underpad',
 };
 
 function escapeHtml(text: string | undefined | null): string {

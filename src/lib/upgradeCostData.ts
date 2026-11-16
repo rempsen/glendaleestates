@@ -48,7 +48,7 @@ export type UpgradeArea =
 export type AreaCategory = 'living' | 'bedroom' | 'bedroom-carpet' | 'stairs' | 'bathroom' | 'laundry' | 'backsplash';
 
 // Upgrade material type definitions (moved here so AreaInfo can reference it)
-export type MaterialType = 'lvp' | 'hardwood' | 'lvt' | 'carpet' | 'tile' | 'nonstandard_lvp' | 'nonstandard_lvt' | 'nonstandard_tile' | 'premium_lvp';
+export type MaterialType = 'lvp' | 'hardwood' | 'lvt' | 'carpet' | 'tile' | 'nonstandard_lvp' | 'nonstandard_lvt' | 'nonstandard_tile' | 'premium_lvp' | 'premium_carpet_underpad';
 
 export interface AreaInfo {
   id: UpgradeArea;
@@ -413,6 +413,13 @@ export const UPGRADE_MATERIALS: UpgradeMaterial[] = [
     description: 'Select a non-standard color from the tile collection',
     costPerUnit: 3.00,
     unit: 'sqft',
+  },
+  {
+    id: 'premium_carpet_underpad',
+    name: 'Premium Underpad',
+    description: 'Premium carpet underpad upgrade',
+    costPerUnit: 6.00,
+    unit: 'sqyd',
   },
 ];
 
