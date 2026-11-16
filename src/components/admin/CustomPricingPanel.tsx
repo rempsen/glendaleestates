@@ -1,4 +1,3 @@
-import { clientPriceExGst, isCustomFlatKey } from '@/lib/customFlatRate';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -48,7 +47,7 @@ export function CustomPricingPanel({ value, onChange }: { value: unknown; onChan
       unitPrice: Math.round(Number(m.cost_per_unit) * (1 + (markupPercentage || 0)) * 100) / 100,
     }));
     const flats = (config || []).filter(c => c.is_active !== false && !c.is_percentage && /_price$|_per_/.test(c.config_key)).map(c => ({
-      key: `cfg:${c.config_key}`, label: c.description || c.config_key.replace(/_/g, ' '), unit: 'each', unitPrice: isCustomFlatKey(c.config_key) ? clientPriceExGst(Number(c.config_value), markupPercentage || 0) : Number(c.config_value),
+      key: `cfg:${c.config_key}`, label: c.description || c.config_key.replace(/_/g, ' '), unit: 'each', unitPrice: Number(c.config_value),
     }));
     return [...mats, ...flats];
   }, [materials, config, markupPercentage]);
