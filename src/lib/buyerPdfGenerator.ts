@@ -258,6 +258,9 @@ export interface BuyerSelections {
 interface PdfOutputOptions {
   returnBase64?: boolean;
   saveToFile?: boolean;
+  /** Staff-only copy: adds an Office Record section with internal notes. Never set for buyer-facing PDFs. */
+  staffRecord?: { submittedAt?: string | null; status?: string | null; adminNotes?: string | null; salesComments?: string | null };
+  footerLabel?: string;
 }
 
 export async function generateBuyerPreviewPDF(
@@ -266,7 +269,7 @@ export async function generateBuyerPreviewPDF(
   pricingConfig?: PdfPricingConfig,
   outputOptions?: PdfOutputOptions
 ): Promise<string | void> {
-  const { returnBase64 = false, saveToFile = true } = outputOptions || {};
+  const { returnBase64 = false, saveToFile = true, staffRecord, footerLabel } = outputOptions || {};
   // Default pricing config if not provided (fallback to hardcoded values)
   const pricing = pricingConfig || {
     markupPercentage: 0.60,
@@ -758,6 +761,28 @@ export async function generateBuyerPreviewPDF(
     });
   }
 
+  if (staffRecord) {
+    const y0 = (doc as any).lastAutoTable?.finalY ?? yPos;
+    yPos = y0 > pageHeight - 80 ? (doc.addPage(), margin) : y0 + 10;
+    doc.setFontSize(14);
+    doc.setTextColor(...COLORS.primary);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Office Record (Internal — Staff Only)', margin, yPos);
+    yPos += 8;
+    const rows: string[][] = [
+      ['Submitted', staffRecord.submittedAt ? new Date(staffRecord.submittedAt).toLocaleString('en-CA') : '—'],
+      ['Status', staffRecord.status || '—'],
+      ['Admin Notes', staffRecord.salesComments?.trim() || '—'],
+    ];
+    if (staffRecord.adminNotes?.trim()) rows.push(['Internal Notes', staffRecord.adminNotes.trim()]);
+    autoTable(doc, {
+      startY: yPos, body: rows,
+      margin: { left: margin, right: margin, bottom: 30 },
+      bodyStyles: { fontSize: 10, textColor: COLORS.dark },
+      columnStyles: { 0: { cellWidth: 50, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
+    });
+  }
+
   // Footer
   const footerY = pageHeight - 20;
   doc.setDrawColor(...COLORS.secondary);
@@ -767,7 +792,7 @@ export async function generateBuyerPreviewPDF(
   doc.setFontSize(8);
   doc.setTextColor(...COLORS.muted);
   doc.text('BMD Materials | Glendale Estates Selection Portal', margin, footerY);
-  doc.text('PREVIEW — Not a final submission', pageWidth - margin, footerY, { align: 'right' });
+  doc.text(footerLabel || 'PREVIEW — Not a final submission', pageWidth - margin, footerY, { align: 'right' });
 
   // Handle output based on options
   const fileName = `Unit-${selections.unitNumber || 'Preview'}-Selections.pdf`;

@@ -1038,7 +1038,7 @@ export default function AdminSubmissions() {
                         setGeneratingPdf(true);
                         console.log('Generating PDF for submission:', selectedSubmission.id);
                         try {
-                          await generateSavedSubmissionPdf(selectedSubmission.id, true);
+                          await generateSavedSubmissionPdf(selectedSubmission.id, true, true);
                           console.log('PDF generated successfully');
                           toast.success('PDF downloaded successfully');
                         } catch (error) {

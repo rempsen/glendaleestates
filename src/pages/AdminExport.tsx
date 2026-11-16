@@ -291,7 +291,7 @@ export default function AdminExport() {
     setGenerating('pdf-bundle');
     try {
       for (const s of filtered) {
-        await generateSavedSubmissionPdf(s.id, true);
+        await generateSavedSubmissionPdf(s.id, true, true);
         await new Promise((r) => setTimeout(r, 250));
       }
       toast.success(`Generated ${filtered.length} PDFs`);
