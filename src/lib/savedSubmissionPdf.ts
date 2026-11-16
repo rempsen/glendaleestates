@@ -3,7 +3,9 @@ import { generateBuyerPreviewPDF, type PdfPricingConfig } from '@/lib/buyerPdfGe
 import { toBuyerPdfSelections } from '@/lib/buyerPdfSelections';
 import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
 
-export async function generateSavedSubmissionPdf(id: string, saveToFile = false): Promise<string> {
+// `staff` adds the internal Office Record (notes, status, submitted date) for admin downloads only.
+// Buyer-facing paths (email, preview) must leave it false.
+export async function generateSavedSubmissionPdf(id: string, saveToFile = false, staff = false): Promise<string> {
   // Re-read the complete saved row and live prices, not a stale table snapshot.
   const [submission, configs, materials, areas] = await Promise.all([
     supabase.from('buyer_selections').select('*').eq('id', id).single(),
@@ -46,7 +48,11 @@ export async function generateSavedSubmissionPdf(id: string, saveToFile = false)
   };
   const s = submission.data;
   const result = await generateBuyerPreviewPDF(toBuyerPdfSelections(s), s.unit_type ? normalizeUnitTypeCode(s.unit_type) : null,
-    pricing, { saveToFile, returnBase64: true });
+    pricing, {
+      saveToFile, returnBase64: true,
+      footerLabel: staff ? 'STAFF COPY — Contains internal notes' : `Submitted selections — ${s.status || 'submitted'}`,
+      staffRecord: staff ? { submittedAt: s.created_at, status: s.status, adminNotes: (s as any).admin_notes, salesComments: s.sales_comments } : undefined,
+    });
   if (typeof result !== 'string') throw new Error('PDF generation returned no file');
   return result;
 }

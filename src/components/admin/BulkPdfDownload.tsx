@@ -123,7 +123,7 @@ export function BulkPdfDownload({ submissions }: BulkPdfDownloadProps) {
       
       if (selectedIds.size === 1) {
         // Single PDF - download directly
-        await generateSavedSubmissionPdf(selectedSubmissions[0].id, true);
+        await generateSavedSubmissionPdf(selectedSubmissions[0].id, true, true);
         toast.success('PDF downloaded successfully');
       } else {
         // Multiple PDFs - create ZIP file
@@ -134,7 +134,7 @@ export function BulkPdfDownload({ submissions }: BulkPdfDownloadProps) {
           setProgress({ current: i + 1, total: selectedSubmissions.length });
           
           // Generate PDF as blob using a modified approach
-          const pdfBase64 = await generateSavedSubmissionPdf(sub.id);
+          const pdfBase64 = await generateSavedSubmissionPdf(sub.id, false, true);
           const fileName = `Unit_${sub.unit_number}_${sub.last_name}_${sub.first_name}.pdf`;
           zip.file(fileName, pdfBase64, { base64: true });
         }

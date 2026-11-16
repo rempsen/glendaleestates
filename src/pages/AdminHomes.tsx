@@ -111,7 +111,7 @@ export default function AdminHomes() {
   const handleGeneratePDF = async (submission: BuyerSelection) => {
     setGeneratingPDF(submission.id);
     try {
-      await generateSavedSubmissionPdf(submission.id, true);
+      await generateSavedSubmissionPdf(submission.id, true, true);
       toast.success('PDF generated successfully', { description: `${submission.unit_number} selection summary downloaded.` });
     } catch (error) {
       toast.error('Failed to generate PDF');
