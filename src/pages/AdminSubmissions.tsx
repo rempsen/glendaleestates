@@ -51,6 +51,7 @@ import { useUnitAreaData } from '@/hooks/useUnitAreaData';
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
 import { SubmissionComparisonView } from '@/components/admin/SubmissionComparisonView';
 import { SubmissionAuditLog } from '@/components/admin/SubmissionAuditLog';
+import { UpgradeRequestSummary } from '@/components/admin/UpgradeRequestSummary';
 import { EmailPreviewDialog } from '@/components/admin/EmailPreviewDialog';
 import { generateEmailPreviewHtml } from '@/lib/emailPreview';
 
@@ -834,6 +835,7 @@ export default function AdminSubmissions() {
                     
                     <TabsContent value="details" className="mt-4">
               <div className="space-y-6">
+                <UpgradeRequestSummary key={selectedSubmission.id} submissionId={selectedSubmission.id} />
                 {/* Missing-comments warning banner */}
                 {(() => {
                   const sub = selectedSubmission as any;
@@ -847,7 +849,8 @@ export default function AdminSubmissions() {
                     !!sub.stair_lvp_upgrade_selected ||
                     !!sub.premium_carpet_bedroom ||
                     !!sub.premium_underpad_bedroom ||
-                    !!sub.premium_underpad_stairs;
+                    !!sub.premium_underpad_stairs ||
+                    !!sub.stair_premium_carpet_selected;
                   const hasInterests =
                     sub.upgrade_interests &&
                     Object.values(sub.upgrade_interests).some((v) => v);
