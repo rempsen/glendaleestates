@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { clientPriceInclGst, costFromGstInclusive, customFlatKey, gstInclusiveFromCost, isCustomFlatKey } from '@/lib/customFlatRate';
+import { customFlatKey, gstInclusiveFromCost, isCustomFlatKey } from '@/lib/customFlatRate';
 
 type Cfg = { id: string; config_key: string; config_value: number; description: string | null; is_active?: boolean };
 
@@ -21,10 +21,10 @@ export function CustomFlatRateManager({ pricingConfig, markup, gstRate, onChange
 
   const add = async () => {
     const p = parseFloat(price);
-    if (!name.trim() || !(p > 0)) { toast.error('Enter a name and a price including GST'); return; }
+    if (!name.trim() || !(p > 0)) { toast.error('Enter a name and a client price excluding GST'); return; }
     setBusy(true);
     const { error } = await supabase.from('pricing_config').insert({
-      config_key: customFlatKey(name), config_value: costFromGstInclusive(p, gstRate),
+      config_key: customFlatKey(name), config_value: Math.round(p * 100) / 100,
       description: name.trim(), is_percentage: false, is_active: true,
     });
     setBusy(false);
@@ -48,13 +48,13 @@ export function CustomFlatRateManager({ pricingConfig, markup, gstRate, onChange
       <div>
         <h3 className="font-medium">Custom Flat-Rate Items</h3>
         <p className="text-xs text-muted-foreground">
-          Enter the price including GST. The global markup is applied on top. These items appear in "Start from Pricing Control" when adding custom line items to a client.
+          Enter the customer-facing price, already marked up and excluding GST. No further markup is applied; GST is added on top. These items appear in "Start from Pricing Control" when adding custom line items to a client.
         </p>
       </div>
       {items.map(c => {
         const d = drafts[c.id] || {};
         const active = c.is_active !== false;
-        const incl = gstInclusiveFromCost(c.config_value, gstRate);
+        const incl = Number(c.config_value) || 0;
         return (
           <div key={c.id} className={`grid grid-cols-1 md:grid-cols-[1fr_160px_auto_auto] gap-3 items-center p-3 border rounded-lg ${!active ? 'opacity-50' : ''}`}>
             <Input value={d.name ?? c.description ?? ''} onChange={e => setDrafts(s => ({ ...s, [c.id]: { ...d, name: e.target.value } }))}
@@ -63,12 +63,12 @@ export function CustomFlatRateManager({ pricingConfig, markup, gstRate, onChange
               <span className="text-muted-foreground">$</span>
               <Input type="number" min="0" step="0.01" value={d.price ?? String(incl)}
                 onChange={e => setDrafts(s => ({ ...s, [c.id]: { ...d, price: e.target.value } }))}
-                onBlur={() => d.price !== undefined && save(c.id, { config_value: costFromGstInclusive(parseFloat(d.price) || 0, gstRate) })} />
+                onBlur={() => d.price !== undefined && save(c.id, { config_value: Math.round((parseFloat(d.price) || 0) * 100) / 100 })} />
             </div>
             <Switch checked={active} onCheckedChange={v => save(c.id, { is_active: v })} />
             <Button variant="ghost" size="icon" onClick={() => remove(c.id)}><Trash2 className="h-4 w-4" /></Button>
             <p className="text-xs text-muted-foreground md:col-span-4">
-              Entered ${incl.toFixed(2)} incl. GST • Client sees: <span className="font-medium text-primary">${clientPriceInclGst(c.config_value, markup, gstRate).toFixed(2)}</span> incl. GST (with markup)
+              Client price ${incl.toFixed(2)} + GST • Client sees: <span className="font-medium text-primary">${gstInclusiveFromCost(c.config_value, gstRate).toFixed(2)}</span> incl. GST
             </p>
           </div>
         );
@@ -76,7 +76,7 @@ export function CustomFlatRateManager({ pricingConfig, markup, gstRate, onChange
       <div className="grid grid-cols-1 md:grid-cols-[1fr_160px_auto] gap-3 items-end">
         <div className="space-y-1"><Label className="text-xs">Item name</Label>
           <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Closet shelving upgrade" /></div>
-        <div className="space-y-1"><Label className="text-xs">Price (incl. GST)</Label>
+        <div className="space-y-1"><Label className="text-xs">Client price (excl. GST)</Label>
           <Input type="number" min="0" step="0.01" value={price} onChange={e => setPrice(e.target.value)} placeholder="0.00" /></div>
         <Button onClick={add} disabled={busy}><Plus className="h-4 w-4 mr-1" />Add flat-rate item</Button>
       </div>

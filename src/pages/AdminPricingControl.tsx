@@ -245,7 +245,7 @@ export default function AdminPricingControl() {
               Flat Rate Pricing
             </CardTitle>
             <CardDescription>
-              Fixed costs for window coverings, heated floors, and other flat-rate items (pre-GST)
+              Customer-facing prices, already marked up and excluding GST. GST is added on top; no further markup is applied.
             </CardDescription>
           </CardHeader>
           <CardContent>
