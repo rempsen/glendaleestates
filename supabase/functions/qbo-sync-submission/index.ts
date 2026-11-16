@@ -297,6 +297,7 @@ async function computeTotalsForSubmission(admin: any, submission: any): Promise<
     bathroomTileGuestSelected: submission.bathroom_tile_guest_selected,
     heatedFloorBathrooms: submission.heated_floor_bathrooms,
     customTiledShower: submission.custom_tiled_shower,
+    customPricing: submission.custom_pricing,
   }, { materials, config, unitAreas, markupPercentage, gstRate });
 }
 

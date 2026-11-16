@@ -457,6 +457,7 @@ export async function generateBuyerPreviewPDF(
       bathroomTileGuestSelected: selections.bathroomTileGuestSelected,
       heatedFloorBathrooms: selections.heatedFloorBathrooms,
       customTiledShower: selections.customTiledShower,
+      customPricing: selections.customPricing,
     },
     pricing
   );
@@ -472,6 +473,7 @@ export async function generateBuyerPreviewPDF(
       bathroomTileSelected: selections.bathroomTileSelected,
       heatedFloorBathrooms: selections.heatedFloorBathrooms,
       customTiledShower: selections.customTiledShower,
+      customPricing: selections.customPricing,
     },
   });
 

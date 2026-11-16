@@ -133,6 +133,7 @@ function calculateSubmissionPricing(submission: BuyerSelection, pricing: Pricing
     bathroomTileGuestSelected: (submission as any).bathroom_tile_guest_selected ?? undefined,
     heatedFloorBathrooms: submission.heated_floor_bathrooms || 0,
     customTiledShower: !!(submission as any).custom_tiled_shower,
+    customPricing: (submission as any).custom_pricing,
   }, {
     markupPercentage: pricing.markupPercentage,
     gstRate: pricing.gstRate,
