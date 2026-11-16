@@ -257,9 +257,15 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
         bedroom_lvp_colour: editData.bedroom_lvp_colour,
         bedroom_lvp_same_as_main: editData.bedroom_lvp_same_as_main,
         stair_carpet_colour: editData.stair_carpet_colour,
-        stair_lvp_upgrade_selected: editData.stair_lvp_upgrade_selected || false,
-        stair_premium_carpet_selected: !editData.stair_lvp_upgrade_selected && !!editData.stair_premium_carpet_selected,
-        premium_underpad_stairs: !editData.stair_lvp_upgrade_selected && !!editData.premium_underpad_stairs,
+        // No stairs = no stair upgrade charges (LVP nosings, premium carpet, underpad).
+        stair_lvp_upgrade_selected: !!editData.has_stairs && !!editData.stair_lvp_upgrade_selected,
+        stair_upgrade_type: !editData.has_stairs
+          ? 'standard'
+          : editData.stair_lvp_upgrade_selected
+            ? (((editData as any).stair_upgrade_type === 'premium_lvp') ? 'premium_lvp' : 'lvp')
+            : 'standard',
+        stair_premium_carpet_selected: !!editData.has_stairs && !editData.stair_lvp_upgrade_selected && !!editData.stair_premium_carpet_selected,
+        premium_underpad_stairs: !!editData.has_stairs && !editData.stair_lvp_upgrade_selected && !!editData.premium_underpad_stairs,
         
         // Backsplash
         backsplash_orientation: editData.backsplash_orientation,
