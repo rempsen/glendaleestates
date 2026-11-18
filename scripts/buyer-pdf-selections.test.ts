@@ -121,8 +121,8 @@ test('PDF standard rows use base-spec labels for a Type C record', () => {
 });
 test('laundry defaults to the single standard label when no laundry upgrade exists', () => {
   const rows = rowsFor({ ...typeC, area_upgrades: [] } as any);
-  expect(get(rows, 'Laundry Room')).toBe('Luxury Vinyl Plank (standard)');
-  expect(LAUNDRY_STANDARD_LABEL).toBe('Luxury Vinyl Plank (standard)');
+  expect(get(rows, 'Laundry Room')).toBe('Ceratec Dante 2.0 LVT (standard)');
+  expect(LAUNDRY_STANDARD_LABEL).toBe('Ceratec Dante 2.0 LVT (standard)');
 });
 test('upgraded stair carpet keeps the upgrade text', () => {
   const rows = rowsFor({ ...typeC, stair_premium_carpet_selected: true } as any);
@@ -145,7 +145,7 @@ test('toBuyerWording renames Master Bedroom to Primary Bedroom', () => {
 });
 test('email edge function and CSV carry the exact labels and mirror the laundry constant', () => {
   const edge = readFileSync(join(import.meta.dir, '../supabase/functions/send-selections-email/index.ts'), 'utf8');
-  expect(edge).toContain("const LAUNDRY_STANDARD_LABEL = 'Luxury Vinyl Plank (standard)'");
+  expect(edge).toContain("const LAUNDRY_STANDARD_LABEL = 'Ceratec Dante 2.0 LVT (standard)'");
   for (const l of ["'Bathroom Tile'", "'Primary Bedroom Flooring'", "'Primary Bedroom Carpet Colour'", "'Stair Flooring – Carpet'", "'Standard Carpet (Included)'", "'Laundry Room'"]) {
     expect(edge).toContain(l);
   }
@@ -154,7 +154,7 @@ test('email edge function and CSV carry the exact labels and mirror the laundry 
 });
 test('resend-confirmation-email carries the same base-spec labels', () => {
   const edge = readFileSync(join(import.meta.dir, '../supabase/functions/resend-confirmation-email/index.ts'), 'utf8');
-  expect(edge).toContain("const LAUNDRY_STANDARD_LABEL = 'Luxury Vinyl Plank (standard)'");
+  expect(edge).toContain("const LAUNDRY_STANDARD_LABEL = 'Ceratec Dante 2.0 LVT (standard)'");
   for (const l of ["'Bathroom Tile'", "'Primary Bedroom Flooring'", "'Primary Bedroom Carpet Colour'", "'Stair Flooring – Carpet'", "'Standard Carpet (Included)'", "'Laundry Room'"]) expect(edge).toContain(l);
   expect(edge.includes('Bathroom/Laundry') || edge.includes('Master Bedroom')).toBe(false);
 });

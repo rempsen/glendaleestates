@@ -387,7 +387,7 @@ const MATERIAL_NAMES: Record<string, string> = {
 // Buyer-facing wording. MIRRORS src/lib/outputLabels.ts (this function cannot import from src/);
 // scripts/buyer-pdf-selections.test.ts checks the mirror. Change copy in both places together.
 // Base spec: Luxury Vinyl Plank throughout; Dante 2.0 tile in washrooms only (pending Dan's confirmation).
-const LAUNDRY_STANDARD_LABEL = 'Luxury Vinyl Plank (standard)';
+const LAUNDRY_STANDARD_LABEL = 'Ceratec Dante 2.0 LVT (standard)';
 const LAUNDRY_ROW_LABEL = 'Laundry Room';
 const BATHROOM_TILE_LABEL = 'Bathroom Tile';
 const PRIMARY_BEDROOM_FLOORING_LABEL = 'Primary Bedroom Flooring';
