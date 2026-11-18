@@ -1,6 +1,6 @@
 # Glendale Selections Hub — Quote Lines Redesign (Approach B)
 
-**Status:** Approved by Dan 2026-11-18 11:13 CT (answers in §11) — Phase 1 plan follows
+**Status:** Approved by Dan 2026-11-18 11:13 CT (answers in §11); Phase 1 shipped 2026-11-18; §6.16 addendum pending Dan's approval 17:00 CT — Phase 2 plan follows
 **Date:** 2026-11-18
 **Author:** Claude (design), from the 2026-11-18 system review, three code/research audits, and Dan's answers
 **Repo:** `rempsen/glendaleestates` @ `499cb4a` · Lovable project `451d344e…` · Supabase `adtbjnwaxmxhyjkjxqoz`
@@ -203,6 +203,15 @@ All renderers read lines (and, for sent/signed documents, the snapshot). Columns
 - Set `verify_jwt = true` on `sync-hubspot`, `setup-hubspot-properties`, `send-draft-reminder`, `send-user-notification`, `resend-confirmation-email`, `audit-pricing-consistency`; internal invocations use `x-internal-secret` as `qbo-sync-submission` already does.
 - Recipients and webhook URLs in `portal_settings` (admin-only RLS).
 
+### 6.16 Running total and quote workspace (addendum 2026-11-18 17:00 CT, from Noni's feedback)
+
+Noni's feedback after Phase 1: staff must always see a live total of upgrades while with a client — a selection changes the number immediately, with no preview or PDF — and reworking an existing quote months later must not take four clicks through Submissions → View → Edit.
+
+- **`RunningTotal` rail.** One shared component, pinned to the right on desktop (collapses to a bottom sheet with the total always visible on tablet/phone). Contents: every line that counts in the total (location · label · amount), a "Not in total" group (pending / under review / deferred with amount or "Pending"), then Upgrades · Window coverings · Subtotal · GST 5% · Total, and a "Saved ✓ hh:mm:ss" / "Saving…" indicator in the console. It recomputes on every change from in-memory state (unsaved edits included); it is the only place totals are shown on a screen, so the number the buyer sees and the number on the PDF are the same function.
+- **Where it appears.** (a) The meeting console (§6.10) — it replaces that layout's bottom "Totals (live)" strip; (b) the buyer wizard (`/select`) on every step from the first priced step onward, buyer-visible lines only, computed from `generateQuoteLines` over the in-progress selections (the wizard shows the same lines it will submit); (c) the buyer review page (§6.7).
+- **Quotes list.** Route `/admin/quotes`: a search box (unit number, buyer last name, email) with results as you type, a "Recent" strip of the last quotes this user opened, and status chips. Opening a result lands directly in the console (`/admin/quotes/:id`, the console route from §6.10 — `/admin/submissions/:id/console` redirects to it). The console header carries "Edit buyer details" for the legacy `SubmissionEditor` fields. Submissions keeps its list/report role; "Open quote" replaces its View → Edit pair.
+- **Wizard parity.** Because the wizard now shows lines, line generation must run client-side for drafts: `generateQuoteLines` stays pure and dependency-free so the same module runs in the browser, in edge functions and in the harness.
+
 ### 6.15 AI-specific concerns
 
 - **Prompt injection:** buyer-typed text (`window_comments`, `lvp_comments`, line `client_note`, review comments) enters `summarize-upgrade-requests`. Treat as data: wrap in delimiters, instruct the model that it is untrusted, strip URLs/HTML, and never feed `internal_note`/`sales_comments`/`admin_notes` (AGENTS.md rule 3 already). Add a fixture test with an injected instruction in a comment.
@@ -285,8 +294,8 @@ Deploy notes (Phase 1):
 - Until Publish, the old live code hides area comments on regenerated PDFs.
 
 ### Phase 2 — Quote lines + migration + meeting console (weeks 2–4)
-`quote_lines`, `unit_base_spec`, `staff` role, `generateQuoteLines`, parity harness mode, backfill with per-unit sign-off, meeting console, cutover of admin view → Word/PDF; wizard Windows step reshaped to located windows; `pricing_queue` + Teams/Resend notifications + settings page; old engines deleted last.
-Acceptance: all 9 submissions' totals identical pre/post (harness); console passes a scripted Unit 24 meeting walkthrough (the 12 corrections from Mike's email) end to end; Word/PDF show the six columns; a pending line reaches Dan's Teams within 1 minute and the email fallback within the configured window; no code path computes a price outside line generation.
+`quote_lines`, `unit_base_spec`, `staff` role, `generateQuoteLines`, parity harness mode, backfill with per-unit sign-off, meeting console, cutover of admin view → Word/PDF; wizard Windows step reshaped to located windows; `pricing_queue` + Teams/Resend notifications + settings page; old engines deleted last. **Addendum §6.16:** `RunningTotal` rail in console, wizard and review page; `/admin/quotes` search-first list with the console at `/admin/quotes/:id`.
+Acceptance: all 9 submissions' totals identical pre/post (harness); console passes a scripted Unit 24 meeting walkthrough (the 12 corrections from Mike's email) end to end; Word/PDF show the six columns; a pending line reaches Dan's Teams within 1 minute and the email fallback within the configured window; no code path computes a price outside line generation. Noni can find any unit from `/admin/quotes` and be editing it within two clicks; every change she makes moves the running total before she saves; the wizard shows a buyer the running total from the first priced step.
 
 ### Phase 3 — Buyer review, requests, e-sign (weeks 4–6)
 `/my-quote`, `quote_line_reviews`, buyer requests, snapshots, documents, SignWell integration, `esign-webhook`, email cutover, QBO estimate from lines.
