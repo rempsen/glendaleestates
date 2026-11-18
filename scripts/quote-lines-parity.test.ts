@@ -14,6 +14,7 @@ import { toBuyerPdfSelections } from '../src/lib/buyerPdfSelections';
 import { normalizeUnitTypeCode } from '../src/lib/upgradeCostData';
 import { baseSpecFor } from '../src/lib/baseSpec';
 import { generateQuoteLines, sumQuoteLines, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
+import { expectedLines, matchByKey } from './lib/engineLineKeys';
 
 // Copied verbatim from scripts/parity.test.ts (EXPECTED_SUBTOTALS); these pins never change.
 const EXPECTED_SUBTOTALS: Record<string, number> = {
@@ -75,21 +76,7 @@ function engines(row: Row) {
 }
 
 const counted = (lines: QuoteLine[]) => lines.filter((l) => l.status === 'upgrade' && l.amount != null);
-
-/**
- * Bijection between engine line items and counted generated lines by amount (±0.005).
- * Zero-amount counted lines may stay unmatched: the server engine drops $0 area rows and neither engine lists an
- * explicit $0 override, while the generator keeps them as $0 lines (sum unaffected).
- */
-function matchLines(engineAmounts: number[], lines: QuoteLine[]): { unmatchedEngine: number[]; unmatchedLines: QuoteLine[] } {
-  const pool = [...counted(lines)];
-  const unmatchedEngine: number[] = [];
-  for (const amt of engineAmounts) {
-    const i = pool.findIndex((l) => Math.abs((l.amount as number) - amt) < 0.005);
-    if (i < 0) unmatchedEngine.push(amt); else pool.splice(i, 1);
-  }
-  return { unmatchedEngine, unmatchedLines: pool.filter((l) => Math.abs(l.amount as number) >= 0.005) };
-}
+const show = (ls: QuoteLine[]) => ls.map((l) => `${l.wizard_field}:${l.location}/${l.label}=${l.amount}`);
 
 test('fixture holds all nine live submissions', () => {
   expect(rows.length).toBe(9);
@@ -112,44 +99,35 @@ describe('generateQuoteLines parity with both engines', () => {
       expect(sum.total.toFixed(2)).toBe(client.grandTotal.toFixed(2));
     });
 
-    test(`Unit ${unit}: line for line against client lineItems`, () => {
+    test(`Unit ${unit}: line for line against client lineItems (wizard_field + amount + section)`, () => {
       const { client, lines } = engines(row);
-      // Window lineItems are aggregates (qty × price); the generator emits one line per opening, so compare
-      // non-window items one-to-one and window items by group total.
-      const nonWindow = client.lineItems.filter((li) => li.group !== 'window');
-      const linesNonWindow = lines.filter((l) => l.section !== 'window_coverings');
-      const { unmatchedEngine, unmatchedLines } = matchLines(nonWindow.map((li) => li.amount), linesNonWindow);
-      expect(unmatchedEngine).toEqual([]);
-      expect(unmatchedLines.map((l) => `${l.location}/${l.label}=${l.amount}`)).toEqual([]);
-      // Zero-amount client lineItems (an area row priced at $0) must also exist as a counted $0 line.
-      const zeroEngine = nonWindow.filter((li) => li.amount === 0).length;
-      const zeroLines = counted(linesNonWindow).filter((l) => l.amount === 0 && l.pricing_mode !== 'manual').length;
-      expect(zeroLines).toBe(zeroEngine);
+      const exp = expectedLines(client.lineItems, { areaUpgrades: row.area_upgrades as never, customPricing: row.custom_pricing });
+      const { unmatched, wrong, extra } = matchByKey(exp, lines);
+      expect(unmatched).toEqual([]);
+      expect(wrong).toEqual([]);
+      // Strict: every counted line is an engine item (the client lists $0 area rows too).
+      expect(show(extra)).toEqual([]);
     });
 
-    test(`Unit ${unit}: line for line against server lineItems`, () => {
+    test(`Unit ${unit}: line for line against server lineItems (wizard_field + amount + section)`, () => {
       const { server, lines } = engines(row);
-      const nonWindow = server.lineItems.filter((li) => li.group !== 'window');
-      const { unmatchedEngine, unmatchedLines } = matchLines(nonWindow.map((li) => li.amount),
-        lines.filter((l) => l.section !== 'window_coverings'));
-      expect(unmatchedEngine).toEqual([]);
-      expect(unmatchedLines.map((l) => `${l.location}/${l.label}=${l.amount}`)).toEqual([]);
+      const exp = expectedLines(server.lineItems, { areaUpgrades: row.area_upgrades as never, customPricing: row.custom_pricing });
+      const { unmatched, wrong, extra } = matchByKey(exp, lines);
+      expect(unmatched).toEqual([]);
+      expect(wrong).toEqual([]);
+      // The server engine drops $0 area rows; those are the only counted lines it may lack.
+      expect(show(extra.filter((l) => l.amount !== 0))).toEqual([]);
     });
 
-    test(`Unit ${unit}: window lines reproduce each window lineItem (per-opening lines sum to the item)`, () => {
-      const { client, server, lines } = engines(row);
+    test(`Unit ${unit}: one window line per opening at the pricing_config unit price`, () => {
+      const { client, lines } = engines(row);
       const win = counted(lines).filter((l) => l.section === 'window_coverings');
-      const byField = (f: string) => win.filter((l) => l.wizard_field === f).reduce((t, l) => t + (l.amount as number), 0);
-      expect(byField('additional_windows_qty')).toBeCloseTo(client.pieces.windowAdditional, 2);
-      expect(byField('patio_doors_qty')).toBeCloseTo(client.pieces.windowPatio, 2);
-      expect(byField('automated_windows_qty')).toBeCloseTo(client.pieces.windowAutomation, 2);
-      expect(byField('additional_windows_qty')).toBeCloseTo(server.pieces.windowAdditional, 2);
-      expect(byField('patio_doors_qty')).toBeCloseTo(server.pieces.windowPatio, 2);
-      expect(byField('automated_windows_qty')).toBeCloseTo(server.pieces.windowAutomation, 2);
-      // One line per opening, quantity 1, unit 'each'.
-      for (const l of win) { expect(l.quantity).toBe(1); expect(l.unit).toBe('each'); }
+      for (const l of win) { expect(l.quantity).toBe(1); expect(l.unit).toBe('each'); expect(l.amount).toBe(l.unit_price as number); }
+      expect(win.filter((l) => l.wizard_field === 'additional_windows_qty')).toHaveLength(row.additional_windows_qty || 0);
       expect(win.filter((l) => l.wizard_field === 'patio_doors_qty')).toHaveLength(row.patio_doors_qty || 0);
       expect(win.filter((l) => l.wizard_field === 'automated_windows_qty')).toHaveLength(row.automated_windows_qty || 0);
+      const windowItems = client.lineItems.filter((li) => li.group === 'window').length;
+      expect(windowItems).toBe([row.additional_windows_qty, row.patio_doors_qty, row.automated_windows_qty].filter((q) => (q || 0) > 0).length);
     });
 
     test(`Unit ${unit}: office items map one-to-one with engine includedItems and uncommittedItems`, () => {

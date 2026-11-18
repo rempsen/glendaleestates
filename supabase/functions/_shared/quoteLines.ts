@@ -203,6 +203,9 @@ const BEDROOM_CARPET_PRODUCT = 'Luxor I carpet + standard underpad';
 const BEDROOM_LVP_PRODUCT = 'XL Flooring LVP';
 const STAIRS_LOWER = 'Stairs to Lower Level';
 
+/** Most window / patio door / motor lines itemised per quantity column (controller ruling). */
+export const MAX_WINDOW_QTY = 50;
+
 const isTile = (m: string) => m === 'tile' || m === 'nonstandard_tile';
 
 /** Copy of normalizeUnitTypeCode in src/lib/upgradeCostData.ts (the client engine's normaliser). */
@@ -329,7 +332,13 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
     o: { amount: number; overridden: boolean }, key: string,
     d: Partial<Draft> & Pick<Draft, 'section' | 'location' | 'label' | 'unit' | 'pricing_mode'>,
   ) => {
-    if (!(o.amount > 0) && !o.overridden) return; // engines list only amounts > 0; an explicit $0 override is kept
+    if (!(o.amount > 0) && !o.overridden) return; // engines list only amounts > 0
+    if (o.overridden && o.amount === 0) {
+      // Controller ruling: an office $0 override is an inclusion, never a "$0 upgrade"; the ref keeps the audit trail.
+      push({ ...d, label: ovLabel(key) || d.label, amount: 0, unit_price: null, status: 'included',
+        pricing_mode: 'included', price_source_ref: `override:${key}` });
+      return;
+    }
     push({
       ...d,
       label: ovLabel(key) || d.label,
@@ -353,7 +362,7 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
     }
   }
   const unitData = resolvedCode ? areaFor(resolvedCode) : null;
-  const areaUpgrades: QuoteAreaUpgrade[] = Array.isArray(s.areaUpgrades) ? s.areaUpgrades : [];
+  const areaUpgrades: QuoteAreaUpgrade[] = (Array.isArray(s.areaUpgrades) ? s.areaUpgrades : []).filter((a) => a && typeof a === 'object');
   const heatedFloorPrice = cfg('heated_floor_per_bathroom');
   const sectionHeatedFloorCount = Number(s.heatedFloorBathrooms) || 0;
   const bedroomChoice = s.bedroomFlooringChoice || '';
@@ -363,8 +372,10 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
   const officeIncludedShadeRooms = new Set(customItems
     .filter((i) => i && i.status === 'included' && WINDOW_LIKE.test(String(i.label || '')))
     .map((i) => toBuyerWording(String(i.area || '').trim())).filter(Boolean));
-  const mainLivingOptions = input.baseSpec.find((r) => r.location === 'Main Living')?.defaultColourOptions;
-  for (const row of input.baseSpec || []) {
+  const spec: QuoteBaseSpecRow[] = Array.isArray(input.baseSpec) ? input.baseSpec : [];
+  const mainLivingOptions = spec.find((r) => r && r.location === 'Main Living')?.defaultColourOptions;
+  for (const row of spec) {
+    if (!row) continue;
     if (!row.isIncluded) {
       push({ section: (SECTION_ORDER as readonly string[]).includes(row.section) ? row.section as Section : 'other',
         location: row.location, label: row.label, product_name: row.defaultProduct, unit: 'flat',
@@ -462,9 +473,13 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
   const aw = cfg('additional_window_price');
   const pd = cfg('patio_door_price');
   const am = cfg('automated_motor_price');
-  const aq = Number(s.additionalWindowsQty) || 0;
-  const pq = Number(s.patioDoorsQty) || 0;
-  const mq = Number(s.automatedWindowsQty) || 0;
+  // Quantities are clamped (this runs in the buyer's browser); anything above the cap becomes one review line.
+  const rawAq = Number(s.additionalWindowsQty) || 0;
+  const rawPq = Number(s.patioDoorsQty) || 0;
+  const rawMq = Number(s.automatedWindowsQty) || 0;
+  const aq = Math.min(rawAq, MAX_WINDOW_QTY);
+  const pq = Math.min(rawPq, MAX_WINDOW_QTY);
+  const mq = Math.min(rawMq, MAX_WINDOW_QTY);
   const windowLoc = (i: number) => (aq > 1 ? `Additional Window ${i}` : 'Additional Window');
   const patioLoc = (i: number) => (pq > 1 ? `Patio Door ${i}` : 'Patio Door');
   const opening = (location: string, label: string, product: string | null, price: number, key: string, field: string) => push({
@@ -479,6 +494,14 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
       opening(loc, 'Somfy motorization', 'Somfy motor, hub, programming & installation', am, 'automated_motor_price', 'automated_windows_qty');
     }
   }
+  if (rawAq > MAX_WINDOW_QTY || rawPq > MAX_WINDOW_QTY || rawMq > MAX_WINDOW_QTY) {
+    push({
+      section: 'window_coverings', location: 'Window coverings', label: 'Window coverings — quantity needs review',
+      unit: 'each', amount: null, pricing_mode: 'manual', status: 'under_review', client_visible: true,
+      internal_note: `Quantities above ${MAX_WINDOW_QTY} not itemised: additional_windows_qty=${rawAq}, patio_doors_qty=${rawPq}, automated_windows_qty=${rawMq}`,
+      wizard_field: 'window_quantities',
+    });
+  }
 
   // ---- Flooring & tile area upgrades ----
   for (const sel of areaUpgrades) {
@@ -486,29 +509,30 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
     const manual = Number(sel.manualPrice) || 0;
     // Stair rows are priced by the stair flat rates; only an office manual price adds to the total.
     if (sel.areaId === 'stairs' && !(manual > 0)) continue;
+    const mt = String(sel.materialType || '');
     const fieldName = AREA_FIELD_MAP[sel.areaId] || sel.areaId;
     const qty = unitData ? Number(unitData[fieldName]) || 0 : 0;
-    const cost = mat(sel.materialType);
+    const cost = mat(mt);
     const base = qty * cost;
     const amount = manual > 0 ? manual : base * (1 + m);
     const section: Section = sel.areaId === 'stairs' ? 'stairs'
       : sel.areaId === 'backsplash' ? 'backsplash'
-      : sel.areaId === 'guestBathroom' || sel.areaId === 'masterEnsuite' || isTile(sel.materialType) ? 'tile'
+      : sel.areaId === 'guestBathroom' || sel.areaId === 'masterEnsuite' || isTile(mt) ? 'tile'
       : 'flooring';
-    const location = text(sel.areaLabel) || AREA_LOCATIONS[sel.areaId] || sel.areaId;
+    const location = text(sel.areaLabel) || AREA_LOCATIONS[sel.areaId] || text(sel.areaId) || 'General';
     const field = `area_upgrades[${sel.areaId}]`;
     // The client engine lists every area row, $0 included; the server only rows > 0. Lines follow the client.
     push({
-      section, location, label: MATERIAL_NAMES[sel.materialType] || sel.materialType,
-      product_name: text(sel.productName), product_colour: text(sel.productColor), material_key: sel.materialType || null,
+      section, location, label: MATERIAL_NAMES[mt] || mt || 'Upgrade',
+      product_name: text(sel.productName), product_colour: text(sel.productColor), material_key: mt || null,
       quantity: qty > 0 ? qty : null, unit: SQYD_AREAS.has(sel.areaId) ? 'sqyd' : 'sqft',
       unit_price: manual > 0 ? null : cost * (1 + m), amount,
       pricing_mode: manual > 0 ? 'manual' : 'catalog',
-      price_source_ref: manual > 0 ? `manual:${field}` : sel.materialType || null,
+      price_source_ref: manual > 0 ? `manual:${field}` : mt || null,
       status: 'upgrade', client_note: text(sel.clientComment),
       internal_note: joinNotes(sel.comments, sel.manualPriceNote), wizard_field: field,
     });
-    if (!!sel.heatedFloor && sectionHeatedFloorCount === 0 && isTile(sel.materialType) && heatedFloorPrice > 0) {
+    if (!!sel.heatedFloor && sectionHeatedFloorCount === 0 && isTile(mt) && heatedFloorPrice > 0) {
       push({
         section: 'bathroom', location, label: 'Heated floor', quantity: 1, unit: 'each',
         unit_price: heatedFloorPrice, amount: heatedFloorPrice, pricing_mode: 'flat_rate',
@@ -601,6 +625,8 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
     .map(({ d }, i) => ({ ...d, sort_order: (i + 1) * 10 }));
 }
 
+// DB numeric columns (quantity, unit_price, amount) must stay unconstrained: lines keep full precision and
+// renderers round only for display, so these sums equal the engines to the cent.
 /** Mirrors the DB generated column: counted iff status = 'upgrade' and amount is not null. */
 export const countsInTotal = (l: Pick<QuoteLine, 'status' | 'amount'>): boolean => l.status === 'upgrade' && l.amount != null;
 

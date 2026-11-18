@@ -177,11 +177,11 @@ describe('overrides', () => {
     expect(pad.label).toBe('Premium Underpad — Stairs to Upper Level');
   });
 
-  test('override of 0 → counted $0 manual line; total matches the engine', () => {
+  test('override of 0 → included $0 line with the override ref (never a $0 upgrade); total matches the engine', () => {
     const sel = { backsplashGrout: { enabled: true, groutColor: 'black', comments: '' }, customPricing: { overrides: { grout: { amount: 0 } } } };
     const lines = gen('C', sel);
     const [g] = byField(lines, 'backsplash_grout_enabled');
-    expect(g).toMatchObject({ amount: 0, status: 'upgrade', pricing_mode: 'manual', price_source_ref: 'override:grout', section: 'backsplash' });
+    expect(g).toMatchObject({ amount: 0, status: 'included', pricing_mode: 'included', price_source_ref: 'override:grout', section: 'backsplash' });
     const engine = computeUpgradeTotals({ unitTypeCode: 'C', areaUpgrades: [], backsplashGrout: sel.backsplashGrout, customPricing: sel.customPricing }, clientPricing);
     expect(engine.lineItems).toHaveLength(0);
     expect(sumQuoteLines(lines, 0.05).subtotal).toBe(engine.grandSubtotal);
@@ -190,7 +190,7 @@ describe('overrides', () => {
   test('stair override 0 with carpet also selected: LVP still wins, no carpet line', () => {
     const lines = gen('C', { stairUpgradeType: 'lvp', stairPremiumCarpetSelected: true, customPricing: { overrides: { stair: { amount: 0 } } } });
     expect(byField(lines, 'stair_premium_carpet_selected')).toHaveLength(0);
-    expect(byField(lines, 'stair_upgrade_type')[0]).toMatchObject({ amount: 0, pricing_mode: 'manual', price_source_ref: 'override:stair', section: 'stairs' });
+    expect(byField(lines, 'stair_upgrade_type')[0]).toMatchObject({ amount: 0, status: 'included', pricing_mode: 'included', price_source_ref: 'override:stair', section: 'stairs' });
   });
 });
 
@@ -230,5 +230,139 @@ describe('windows, heated floors, ordering', () => {
     const lines = generateQuoteLines({ selections: toBuyerPdfSelections(rowFor('24')), unitTypeCode: 'C', pricing: p2, baseSpec: baseSpecFor('C') });
     expect(byField(lines, 'patio_doors_qty')[0].amount).toBe(1000);
     expect(byField(lines, 'area_upgrades[mainLiving]')[0].amount).toBeCloseTo(2068, 6);
+  });
+});
+
+// ---- Fix round 1: robustness, engine rules pinned against computeUpgradeTotals, window cap ----
+
+/** Client + server pricing from an edited copy of the fixture snapshot. */
+function pricingFrom(edit: (s: PricingSnapshot) => void) {
+  const snap = JSON.parse(JSON.stringify(snapshot)) as PricingSnapshot;
+  edit(snap);
+  return {
+    client: loadFixturePricing(snap),
+    server: serverPricingFromRows({ pricing_config: snap.pricing_config, upgrade_materials: snap.upgrade_materials.filter((m) => m.is_active), unit_area_data: snap.unit_area_data }),
+  };
+}
+/** Runs the generator and the client engine on the same crafted input; returns both. */
+function both(code: string, sel: Partial<Sel>, p = { client: clientPricing, server: pricing }) {
+  const selections = { ...base, ...sel } as Sel;
+  const lines = generateQuoteLines({ selections, unitTypeCode: code, pricing: p.server, baseSpec: baseSpecFor(code) });
+  const engine = computeUpgradeTotals({
+    unitTypeCode: code, upgradeFloorSelection: selections.upgradeFloorSelection as '1' | '2' | null,
+    areaUpgrades: selections.areaUpgrades as never, backsplashGrout: selections.backsplashGrout as never,
+    stairLvpUpgradeSelected: selections.stairLvpUpgradeSelected, stairUpgradeType: selections.stairUpgradeType,
+    stairPremiumCarpetSelected: selections.stairPremiumCarpetSelected, stairPremiumUnderpadSelected: selections.premiumUnderpadStairs,
+    bedroomFlooringChoice: selections.bedroomFlooringChoice, bedroomPremiumCarpetSelected: selections.premiumCarpetBedroom,
+    bedroomPremiumUnderpadSelected: selections.premiumUnderpadBedroom, additionalWindowsQty: selections.additionalWindowsQty,
+    patioDoorsQty: selections.patioDoorsQty, automatedWindowsQty: selections.automatedWindowsQty,
+    bathroomTileSelected: selections.bathroomTileSelected, bathroomTileEnsuiteSelected: selections.bathroomTileEnsuiteSelected,
+    bathroomTileGuestSelected: selections.bathroomTileGuestSelected, heatedFloorBathrooms: selections.heatedFloorBathrooms,
+    customTiledShower: selections.customTiledShower, customPricing: selections.customPricing as never,
+  }, p.client);
+  const sum = sumQuoteLines(lines, 0.05);
+  return { lines, engine, sum };
+}
+
+describe('robustness on real rows', () => {
+  test('area row with a missing materialType → a $0 line, as the engine prices it', () => {
+    const { lines, engine, sum } = both('C', { areaUpgrades: [{ areaId: 'laundry' } as never] });
+    const [l] = byField(lines, 'area_upgrades[laundry]');
+    expect(l).toMatchObject({ amount: 0, status: 'upgrade', label: 'Upgrade', material_key: null, location: 'Laundry Room' });
+    expect(engine.lineItems.map((li) => li.amount)).toEqual([0]);
+    expect(sum.subtotal).toBe(engine.grandSubtotal);
+  });
+
+  test('null baseSpec → no standard rows, no throw', () => {
+    const lines = generateQuoteLines({ selections: base, unitTypeCode: 'C', pricing, baseSpec: null as never });
+    expect(lines.filter((l) => l.section === 'standard')).toHaveLength(0);
+    expect(generateQuoteLines({ selections: toBuyerPdfSelections(rowFor('24')), unitTypeCode: 'C', pricing, baseSpec: undefined as never }).length).toBeGreaterThan(0);
+  });
+
+  test('every fixture row with custom_pricing null / {} / "garbage" runs without throwing', () => {
+    for (const cpValue of [null, {}, 'garbage']) {
+      for (const r of rows) {
+        const row = { ...r, custom_pricing: cpValue } as unknown as Row;
+        const code = normalizeUnitTypeCode(row.unit_type);
+        const lines = generateQuoteLines({ selections: toBuyerPdfSelections(row), unitTypeCode: code, pricing, baseSpec: baseSpecFor(code) });
+        expect(lines.some((l) => l.source === 'office')).toBe(false);
+        expect(Number.isFinite(sumQuoteLines(lines, 0.05).subtotal)).toBe(true);
+      }
+    }
+  });
+});
+
+describe('engine rules (each pinned against computeUpgradeTotals)', () => {
+  test('ov() active gate: an override on an unselected piece is ignored', () => {
+    const { lines, engine, sum } = both('C', { stairPremiumCarpetSelected: false, customPricing: { overrides: { stairCarpet: { amount: 700 }, grout: { amount: 50 } } } });
+    expect(engine.grandSubtotal).toBe(0);
+    expect(sum.subtotal).toBe(0);
+    expect(byField(lines, 'stair_premium_carpet_selected')).toHaveLength(0);
+  });
+
+  test('bathroom tile (Section 4) is not priced when a bathroom area row is already tile', () => {
+    const { lines, engine, sum } = both('C', {
+      bathroomTileSelected: true, bathroomTileEnsuiteSelected: true, bathroomTileGuestSelected: true,
+      areaUpgrades: [{ areaId: 'masterEnsuite', materialType: 'tile', productName: '', productColor: '' }],
+    });
+    expect(engine.pieces.bathroomTile).toBe(0);
+    expect(byField(lines, 'bathroom_tile_selected')).toHaveLength(0);
+    expect(sum.subtotal).toBeCloseTo(engine.grandSubtotal, 6);
+  });
+
+  test('guest bathroom tile only counts a positive guest area', () => {
+    const p = pricingFrom((s) => { s.unit_area_data.find((a) => a.unit_type_code === 'C')!.guest_bathroom = -10; });
+    const { lines, engine, sum } = both('C', { bathroomTileSelected: true, bathroomTileEnsuiteSelected: true, bathroomTileGuestSelected: true }, p);
+    expect(engine.pieces.bathroomTileSqft).toBe(80);
+    const [t] = byField(lines, 'bathroom_tile_selected');
+    expect(t).toMatchObject({ quantity: 80, location: 'Primary Ensuite' });
+    expect(t.amount).toBeCloseTo(engine.pieces.bathroomTile, 6);
+    expect(sum.subtotal).toBeCloseTo(engine.grandSubtotal, 6);
+  });
+
+  test('legacy row: master tile flag without sub-flags tiles both bathrooms', () => {
+    const { lines, engine, sum } = both('C', { bathroomTileSelected: true });
+    expect(engine.pieces.bathroomTileSqft).toBe(140);
+    const [t] = byField(lines, 'bathroom_tile_selected');
+    expect(t).toMatchObject({ quantity: 140, location: 'Main Bathroom & Primary Ensuite' });
+    expect(t.amount).toBeCloseTo(engine.pieces.bathroomTile, 6);
+    expect(sum.subtotal).toBeCloseTo(engine.grandSubtotal, 6);
+  });
+
+  test('stairs area row is skipped unless the office set a manual price', () => {
+    const plain = both('C', { areaUpgrades: [{ areaId: 'stairs', materialType: 'carpet', productName: '', productColor: '' }] });
+    expect(plain.engine.lineItems).toHaveLength(0);
+    expect(byField(plain.lines, 'area_upgrades[stairs]')).toHaveLength(0);
+    const manual = both('C', { areaUpgrades: [{ areaId: 'stairs', materialType: 'carpet', manualPrice: 900, productName: '', productColor: '' }] });
+    expect(manual.engine.grandSubtotal).toBe(900);
+    expect(byField(manual.lines, 'area_upgrades[stairs]')[0]).toMatchObject({ amount: 900, section: 'stairs', pricing_mode: 'manual' });
+    expect(manual.sum.subtotal).toBe(900);
+  });
+
+  test('premium stair LVP falls back to the LVP price when the premium price is 0', () => {
+    const p = pricingFrom((s) => { s.pricing_config.find((c) => c.config_key === 'stair_premium_lvp_upgrade_price')!.config_value = 0; });
+    const { lines, engine, sum } = both('C', { stairUpgradeType: 'premium_lvp', stairLvpUpgradeSelected: true }, p);
+    expect(engine.pieces.stairLvp).toBe(2160);
+    expect(byField(lines, 'stair_upgrade_type')[0]).toMatchObject({ amount: 2160, price_source_ref: 'stair_lvp_upgrade_price' });
+    expect(sum.subtotal).toBe(engine.grandSubtotal);
+  });
+});
+
+describe('window quantity cap', () => {
+  test('quantities above 50 itemise 50 lines and add one under_review line with the raw quantity', () => {
+    const lines = gen('C', { patioDoorsQty: 1e7, additionalWindowsQty: 2 });
+    expect(byField(lines, 'patio_doors_qty')).toHaveLength(50);
+    expect(byField(lines, 'additional_windows_qty')).toHaveLength(2);
+    const review = lines.filter((l) => l.label === 'Window coverings — quantity needs review');
+    expect(review).toHaveLength(1);
+    expect(review[0]).toMatchObject({ status: 'under_review', amount: null, client_visible: true, section: 'window_coverings' });
+    expect(review[0].internal_note).toContain('patio_doors_qty=10000000');
+    expect(lines.length).toBeLessThan(200);
+  });
+
+  test('exactly 50 needs no review line', () => {
+    const lines = gen('C', { additionalWindowsQty: 50 });
+    expect(byField(lines, 'additional_windows_qty')).toHaveLength(50);
+    expect(lines.some((l) => l.status === 'under_review')).toBe(false);
   });
 });
