@@ -23,6 +23,7 @@ export interface BaseSpecRow {
 export const LAUNDRY_DEFAULT_PRODUCT = 'Ceratec Dante 2.0 LVT';
 
 const LVP_COLOURS = ['Cortland', 'Opal', 'Wolf River'];
+export const DANTE_PRODUCT = 'Ceratec Dante 2.0';
 const DANTE_COLOURS = ['Pezzo', 'Piccolo', 'Venatino'];
 const LUXOR_I_COLOURS = ['Winterbrooke 898', 'Midnight Shadow 427', 'Jet Stream 200', 'Sawgrass 701'];
 
@@ -61,14 +62,14 @@ function rowsFor(t: TypeRooms): BaseSpecRow[] {
 
   const rows: BaseSpecRow[] = [
     row('flooring', 'Main Living', 'Main Living Flooring', 'XL Flooring LVP', LVP_COLOURS),
-    row('tile', 'Main Bathroom', 'Bathroom Tile', 'Dante 2.0', DANTE_COLOURS),
+    row('tile', 'Main Bathroom', 'Bathroom Tile', DANTE_PRODUCT, DANTE_COLOURS),
   ];
-  if (t.ensuite) rows.push(row('tile', 'Primary Ensuite', 'Bathroom Tile', 'Dante 2.0', DANTE_COLOURS));
+  if (t.ensuite) rows.push(row('tile', 'Primary Ensuite', 'Bathroom Tile', DANTE_PRODUCT, DANTE_COLOURS));
   if (t.laundry) rows.push(row('flooring', 'Laundry Room', 'Laundry Flooring', LAUNDRY_DEFAULT_PRODUCT, DANTE_COLOURS));
   rows.push(row('flooring', 'Primary Bedroom', 'Primary Bedroom Flooring', BEDROOM_FLOORING_PRODUCT, LUXOR_I_COLOURS));
   if (t.secondBedroom) rows.push(row('flooring', 'Second Bedroom', 'Second Bedroom Flooring', BEDROOM_FLOORING_PRODUCT, LUXOR_I_COLOURS));
-  if (t.stairsToSecondFloor) rows.push(row('stairs', 'Stairs to Second Floor', 'Stair Flooring – Carpet', STAIR_PRODUCT));
-  rows.push(row('stairs', 'Stairs to Lower Level', 'Stair Flooring – Carpet', STAIR_PRODUCT));
+  if (t.stairsToSecondFloor) rows.push(row('stairs', 'Stairs to Second Floor', 'Stair Flooring – Carpet', STAIR_PRODUCT, LUXOR_I_COLOURS));
+  rows.push(row('stairs', 'Stairs to Lower Level', 'Stair Flooring – Carpet', STAIR_PRODUCT, LUXOR_I_COLOURS));
   rows.push(row('backsplash', 'Kitchen', 'Kitchen Backsplash', BACKSPLASH_PRODUCT));
   rows.push(row('window_coverings', 'Primary Bedroom', 'Bedroom Window Covering', SHADE_PRODUCT));
   if (t.secondBedroom) rows.push(row('window_coverings', 'Second Bedroom', 'Bedroom Window Covering', SHADE_PRODUCT));

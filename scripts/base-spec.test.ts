@@ -1,7 +1,7 @@
 import { test, expect, describe } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { BASE_SPEC, baseSpecFor, LAUNDRY_DEFAULT_PRODUCT } from '../src/lib/baseSpec';
+import { BASE_SPEC, baseSpecFor, LAUNDRY_DEFAULT_PRODUCT, DANTE_PRODUCT } from '../src/lib/baseSpec';
 import { LAUNDRY_STANDARD_LABEL } from '../src/lib/outputLabels';
 import { generateBaseSpecSql } from './gen-base-spec-sql';
 
@@ -17,8 +17,7 @@ describe('BASE_SPEC', () => {
   test('every logical unit type in the pricing snapshot has enough rows', () => {
     expect(LOGICAL_TYPES.sort()).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J']);
     for (const t of LOGICAL_TYPES) {
-      const min = t === 'A' || t === 'B' ? 7 : 8;
-      expect(baseSpecFor(t).length, `rows for ${t}`).toBeGreaterThanOrEqual(min);
+      expect(baseSpecFor(t).length, `rows for ${t}`).toBeGreaterThanOrEqual(8);
     }
   });
 
@@ -71,20 +70,32 @@ describe('BASE_SPEC', () => {
     for (const t of ['G', 'H']) expect(baseSpecFor(t).some((r) => r.location === 'Second Bedroom')).toBe(false);
   });
 
-  test('products and colour options match the brief', () => {
-    const c = baseSpecFor('C');
-    const living = c.find((r) => r.location === 'Main Living')!;
-    expect(living.defaultProduct).toBe('XL Flooring LVP');
-    expect(living.defaultColourOptions).toEqual(['Cortland', 'Opal', 'Wolf River']);
-    const bath = c.find((r) => r.location === 'Main Bathroom')!;
-    expect(bath.defaultProduct).toBe('Dante 2.0');
-    expect(bath.defaultColourOptions).toEqual(['Pezzo', 'Piccolo', 'Venatino']);
-    const bed = c.find((r) => r.location === 'Primary Bedroom' && r.section === 'flooring')!;
-    expect(bed.defaultProduct).toBe('LVP or Luxor I carpet + standard underpad');
-    expect(bed.defaultColourOptions).toEqual(['Winterbrooke 898', 'Midnight Shadow 427', 'Jet Stream 200', 'Sawgrass 701']);
-    const laundry = c.find((r) => r.location === 'Laundry Room')!;
-    expect(laundry.defaultProduct).toBe(LAUNDRY_DEFAULT_PRODUCT);
-    expect(laundry.defaultColourOptions).toEqual(['Pezzo', 'Piccolo', 'Venatino']);
+  test('products and colour options match the brief on every row of every type', () => {
+    const LVP = ['Cortland', 'Opal', 'Wolf River'];
+    const DANTE = ['Pezzo', 'Piccolo', 'Venatino'];
+    const LUXOR = ['Winterbrooke 898', 'Midnight Shadow 427', 'Jet Stream 200', 'Sawgrass 701'];
+    const BED = 'LVP or Luxor I carpet + standard underpad';
+    expect(DANTE_PRODUCT).toBe('Ceratec Dante 2.0');
+    const expected: Record<string, [string | null, string[]]> = {
+      'flooring|Main Living': ['XL Flooring LVP', LVP],
+      'tile|Main Bathroom': [DANTE_PRODUCT, DANTE],
+      'tile|Primary Ensuite': [DANTE_PRODUCT, DANTE],
+      'flooring|Laundry Room': [LAUNDRY_DEFAULT_PRODUCT, DANTE],
+      'flooring|Primary Bedroom': [BED, LUXOR],
+      'flooring|Second Bedroom': [BED, LUXOR],
+      'stairs|Stairs to Second Floor': ['Standard carpet + underpad', LUXOR],
+      'stairs|Stairs to Lower Level': ['Standard carpet + underpad', LUXOR],
+      'backsplash|Kitchen': ['3×8 subway tile', []],
+      'window_coverings|Primary Bedroom': ['Graber blackout shade', []],
+      'window_coverings|Second Bedroom': ['Graber blackout shade', []],
+      'basement|Basement': [null, []],
+    };
+    for (const r of BASE_SPEC) {
+      const e = expected[`${r.section}|${r.location}`];
+      expect(e, `${r.unitTypeCode} ${r.section}|${r.location} is a known row`).toBeDefined();
+      expect(r.defaultProduct, `${r.unitTypeCode} ${r.location} product`).toBe(e[0]);
+      expect(r.defaultColourOptions, `${r.unitTypeCode} ${r.location} colours`).toEqual(e[1]);
+    }
   });
 
   test('laundry default product agrees with the buyer-facing standard label', () => {
