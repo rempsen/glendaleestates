@@ -272,6 +272,14 @@ Noni walkthrough checklist (use a draft/test unit, never a real buyer; target un
 Deploy notes (Phase 1):
 - Apply migration `drizzle/migrations/0005_portal_settings.sql` before Publish. Lovable applies drizzle migrations on sync; verify with `select * from portal_settings`.
 - Publish the frontend and the edge functions together. The new `send-selections-email` rejects the old anon-key wizard, so an unpublished frontend cannot submit.
+- Merge-to-Publish gap: merging to `main` deploys the edge functions at once, but the frontend waits for a human Publish in Lovable. Between merge and Publish the live wizard (anon key) gets 401 on every submission. Merge at a quiet time and click Publish immediately after the merge.
+- Before merge, confirm `SUPABASE_SERVICE_ROLE_KEY` is a legacy `eyJ…` JWT. `sync-hubspot` now has `verify_jwt = true` and is called with `Bearer <service key>`; an `sb_secret_…` key would be rejected at the gateway.
+- Drafts saved before deploy hold the buyer's area note in `buyer_selection_drafts.areaUpgrades[].comments`. This is handled in code: on draft resume the wizard moves `comments` to `clientComment` and clears `comments` (`src/lib/draftClientComments.ts`, test `scripts/draft-client-comments.test.ts`). No data migration is needed for drafts.
+- Open sign-offs for Dan before Publish:
+  - Unit 7 total rises by $451.20 (+ GST): the premium bedroom underpad flag was never priced before. Waive it with the "Primary Bedroom premium underpad" override at $0 if that was the intent.
+  - The `window_total_db` export column is removed.
+  - Flat-export headers are renamed; any saved spreadsheet formulas that reference the old headers need updating.
+  - "Itemize windows by location" moves those dollars from the Windows subtotal to the Upgrades subtotal (grand total unchanged).
 - Whatever schedules `send-draft-reminder` must send header `x-internal-secret` set to the service-role key, or the function returns 401.
 - Set Lovable project knowledge to: "Follow AGENTS.md. Pricing engines (`src/lib/upgradeTotals.ts`, `supabase/functions/_shared/upgradeTotalsServer.ts`) and renderers are frozen pending the quote-lines migration; make UI-only changes unless Dan asks otherwise. Run `bun test` before committing."
 - Until Publish, the old live code hides area comments on regenerated PDFs.

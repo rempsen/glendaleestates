@@ -18,3 +18,5 @@
 - `src/lib/areaNotes.ts`: `clientAreaNotes` (printed for the buyer) vs `internalAreaNotes` (staff only); area `comments` are internal, `clientComment` is buyer-visible.
 - `src/lib/pricingFromDynamic.ts` and `src/hooks/useWindowSubtotal.ts`: build engine pricing from `useDynamicPricing()` and return the engine's window subtotal for a row.
 - `portal_settings` table (migration `drizzle/migrations/0005_portal_settings.sql`): admin-editable notification recipients, read by `send-selections-email` at request time.
+- `supabase/functions/_shared/loadServerPricing.ts`: the only edge loader for `ServerPricing` (divides `markup_percentage` / `gst_rate` by 100); every edge engine caller uses it.
+- `supabase/functions/_shared/sanitizeChangesForAi.ts`: strips `sales_comments`, `admin_notes` and area `comments` from audit-log `changes` before any AI prompt.
