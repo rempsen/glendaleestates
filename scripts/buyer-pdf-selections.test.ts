@@ -171,3 +171,11 @@ test('edge buyerWording mirrors src toBuyerWording and is applied to engine labe
     expect(src).toContain('toBuyerWording(item.detail)');
   }
 });
+
+test('both email edge functions render $0 included custom lines in the standard selections (source assertion; edge code is Deno-only)', () => {
+  for (const fn of ['send-selections-email', 'resend-confirmation-email']) {
+    const edge = readFileSync(join(import.meta.dir, `../supabase/functions/${fn}/index.ts`), 'utf8');
+    expect(edge).toContain('includedItems');
+    expect(edge).toContain("'Included — $0.00'");
+  }
+});

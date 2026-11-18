@@ -611,6 +611,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
   }
 
+  // Set once the buyer_selections insert succeeds; lets the outer catch tell a
+  // post-save failure (row exists, do not resubmit) from a pre-save one.
+  let insertedSubmissionId: string | undefined;
+
   try {
     const rawData = await req.json().catch(() => null);
     if (!rawData || typeof rawData !== 'object') {
@@ -811,6 +815,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse(500, { error: 'save_failed' });
     }
 
+    insertedSubmissionId = String(savedSelection.id);
     console.log("Saved selection to database:", savedSelection.id);
     
     // Sync to HubSpot in background
@@ -1305,8 +1310,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   } catch (error: unknown) {
     console.error("Error in send-selections-email function:", error);
+    // After the insert the record exists: tell the client so it does not invite a duplicate resubmit.
+    const body = insertedSubmissionId
+      ? { error: 'post_save_failed', submission_id: insertedSubmissionId }
+      : { error: 'internal_error' };
     return new Response(
-      JSON.stringify({ error: "An error occurred processing your submission. Please try again." }),
+      JSON.stringify(body),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -1405,6 +1414,10 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
   if (data.hasStairs) {
     standardSelections.push(stairFlooringRow(data, pricing));
   }
+
+  // $0 office-added lines (status 'included') belong with the standard selections, matching the buyer PDF.
+  (pricing.totals?.pieces?.includedItems || []).forEach(i =>
+    standardSelections.push({ label: toBuyerWording([i.area, i.label].filter(Boolean).join(' — ')), value: 'Included — $0.00' }));
 
   // Build standard selections HTML (no comments - those are internal)
   const standardSelectionsHtml = standardSelections.length > 0 ? `

@@ -101,6 +101,10 @@ function buildBuyerHtml(sub: Record<string, any>, totals: ReturnType<typeof comp
     else std.push({ label: STAIR_CARPET_LABEL, value: sub.stair_carpet_colour ? `${STAIR_STANDARD_VALUE} — ${sub.stair_carpet_colour}` : STAIR_STANDARD_VALUE });
   }
 
+  // $0 office-added lines (status 'included') belong with the standard selections, matching the buyer PDF.
+  (totals.pieces.includedItems || []).forEach(i =>
+    std.push({ label: toBuyerWording([i.area, i.label].filter(Boolean).join(' — ')), value: 'Included — $0.00' }));
+
   const stdHtml = std.length ? `
     <h2 style="${styles.h2}">Your Standard Selections</h2>
     <table style="${styles.table}">

@@ -58,6 +58,7 @@ import bedroomLvpPreviewImg from '@/assets/bedroom-lvp-preview.jpg';
 import customTiledShowerNicheImg from '@/assets/custom-tiled-shower-niche.jpg';
 import { DocumentUploader } from '@/components/DocumentUploader';
 import { StairCarpetAddOn } from '@/components/buyer/StairCarpetAddOn';
+import { submitErrorMessage } from '@/lib/submitErrorMessage';
 
 // Dynamic step configuration based on unit
 const getSteps = (hasStairs: boolean) => {
@@ -123,7 +124,8 @@ interface SelectionState {
   documentUploads: UploadedDocument[];
 }
 
-// Thrown when send-selections-email answers non-2xx (e.g. 500 save_failed, 401, 403).
+// Thrown when send-selections-email answers non-2xx; `code` is the parsed body `error`
+// (e.g. save_failed, post_save_failed, internal_error).
 class SubmitError extends Error {
   constructor(public status: number, public code?: string) {
     super(code || `submit failed (${status})`);
@@ -595,13 +597,15 @@ export default function SelectionWizard() {
     } catch (error) {
       console.error('Error submitting selections:', error);
       const status = error instanceof SubmitError ? error.status : 0;
-      toast.error('Failed to submit selections', {
-        description:
-          status === 500 ? 'We could not save your selections. Nothing was sent. Your draft is kept, please try again.'
-          : status === 403 ? 'The email on this form must match the email you signed in with.'
-          : status === 401 ? 'Your session has expired. Please sign in again, your draft is kept.'
-          : 'Please try again or contact support. Your draft is kept.',
-      });
+      const code = error instanceof SubmitError ? error.code : undefined;
+      if (status === 500 && code === 'post_save_failed') {
+        // The record exists. Drop the draft so the buyer is not invited to submit a duplicate.
+        await deleteDraft().catch(() => undefined);
+        toast.warning('Selections saved', { description: submitErrorMessage(status, code), duration: 15000 });
+        navigate('/');
+        return;
+      }
+      toast.error('Failed to submit selections', { description: submitErrorMessage(status, code) });
     } finally {
       setIsSubmitting(false);
     }
