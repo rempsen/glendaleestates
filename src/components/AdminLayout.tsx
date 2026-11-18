@@ -20,7 +20,8 @@ import {
   Download,
   Mail,
   ClipboardList,
-  Receipt
+  Receipt,
+  Bell
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -42,6 +43,7 @@ const navItems = [
   { icon: Users, label: 'User Management', path: '/admin/users' },
   { icon: Mail, label: 'Email Preview', path: '/admin/email-preview' },
   { icon: Receipt, label: 'QuickBooks', path: '/admin/settings/quickbooks' },
+  { icon: Bell, label: 'Notifications', path: '/admin/settings/notifications' },
 ];
 
 export function AdminLayout({ children }: AdminLayoutProps) {
