@@ -122,6 +122,13 @@ interface SelectionState {
   documentUploads: UploadedDocument[];
 }
 
+// Thrown when send-selections-email answers non-2xx (e.g. 500 save_failed, 401, 403).
+class SubmitError extends Error {
+  constructor(public status: number, public code?: string) {
+    super(code || `submit failed (${status})`);
+  }
+}
+
 export default function SelectionWizard() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
@@ -531,11 +538,17 @@ export default function SelectionWizard() {
       await new Promise(resolve => setTimeout(resolve, 300)); // Brief pause for UX
       
       setSubmissionStep('sending');
+      // The function requires the buyer's own session token; the anon key alone is rejected (401).
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not signed in');
+      }
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-selections-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           ...selections,
@@ -560,7 +573,9 @@ export default function SelectionWizard() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to send email');
+        // Non-2xx: keep the draft and wizard state untouched so the buyer can retry.
+        const err = await response.json().catch(() => ({} as { error?: string }));
+        throw new SubmitError(response.status, err?.error);
       }
 
       // Step 3: Finalize
@@ -577,8 +592,13 @@ export default function SelectionWizard() {
       navigate('/');
     } catch (error) {
       console.error('Error submitting selections:', error);
+      const status = error instanceof SubmitError ? error.status : 0;
       toast.error('Failed to submit selections', {
-        description: 'Please try again or contact support.',
+        description:
+          status === 500 ? 'We could not save your selections. Nothing was sent. Your draft is kept, please try again.'
+          : status === 403 ? 'The email on this form must match the email you signed in with.'
+          : status === 401 ? 'Your session has expired. Please sign in again, your draft is kept.'
+          : 'Please try again or contact support. Your draft is kept.',
       });
     } finally {
       setIsSubmitting(false);

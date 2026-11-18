@@ -1,5 +1,12 @@
 import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
 import { computeUpgradeTotalsServer, ServerTotalsResult } from "../_shared/upgradeTotalsServer.ts";
+import {
+  authorizeAdmin,
+  authorizeSubmission,
+  parseRecipients,
+  SEED_NOTIFICATION_RECIPIENTS,
+  type AuthedUser,
+} from "../_shared/authorizeSubmission.ts";
 
 // Dynamic CORS headers will be used for responses
 
@@ -236,6 +243,59 @@ async function supabaseInsert(table: string, data: Record<string, unknown>): Pro
 
   const result = await response.json();
   return { data: Array.isArray(result) ? result[0] : result, error: null };
+}
+
+// Resolve a user JWT to { email, isAdmin } via GoTrue + user_roles (same role source as
+// ProtectedRoute and qbo-sync-submission). Returns null for an invalid JWT, including the
+// anon key, which carries no user.
+async function getUserFromJwt(jwt: string): Promise<AuthedUser | null> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: { apikey: serviceKey, Authorization: `Bearer ${jwt}` },
+  });
+  if (!userRes.ok) return null;
+  const user = await userRes.json();
+  if (!user?.id || typeof user.email !== "string" || !user.email) return null;
+
+  const roleRes = await fetch(
+    `${supabaseUrl}/rest/v1/user_roles?select=role&user_id=eq.${encodeURIComponent(user.id)}&role=eq.admin&limit=1`,
+    { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+  );
+  const roles = roleRes.ok ? await roleRes.json() : [];
+  return { email: user.email, isAdmin: Array.isArray(roles) && roles.length > 0 };
+}
+
+// Internal notification recipients live in portal_settings (admin-editable). Read at request
+// time with the service role; fall back to the seed list only if the row is missing/malformed.
+async function loadInternalRecipients(): Promise<string[]> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  try {
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/portal_settings?select=value&key=eq.internal_notification_recipients&limit=1`,
+      { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+    );
+    if (res.ok) {
+      const rows = await res.json();
+      const parsed = Array.isArray(rows) && rows.length > 0 ? parseRecipients(rows[0]?.value) : null;
+      if (parsed) return parsed;
+      console.warn("portal_settings.internal_notification_recipients missing or malformed; using seed recipients");
+    } else {
+      console.warn(`portal_settings lookup failed (${res.status}); using seed recipients`);
+    }
+  } catch (err) {
+    console.warn("portal_settings lookup error; using seed recipients:", err);
+  }
+  return [...SEED_NOTIFICATION_RECIPIENTS];
+}
+
+function jsonResponse(status: number, payload: Record<string, unknown>): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeaders },
+  });
 }
 
 // Area upgrade selection interface
@@ -550,6 +610,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const url = new URL(req.url);
   const action = url.searchParams.get('action');
   if (action === 'preview' || action === 'test') {
+    const adminAuth = await authorizeAdmin(req.headers.get('Authorization'), getUserFromJwt);
+    if (!adminAuth.ok) {
+      return jsonResponse(adminAuth.status, { error: adminAuth.status === 401 ? 'unauthorized' : 'forbidden' });
+    }
     try {
       const isPost = req.method === 'POST';
       const body: Record<string, unknown> = isPost ? await req.json().catch(() => ({})) : {};
@@ -591,7 +655,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const rawData = await req.json();
+    const rawData = await req.json().catch(() => null);
+    if (!rawData || typeof rawData !== 'object') {
+      // Auth first so an unauthenticated caller learns nothing about body validation.
+      const early = await authorizeSubmission(req.headers.get('Authorization'), '', getUserFromJwt);
+      if (!early.ok && early.status === 401) return jsonResponse(401, { error: 'unauthorized' });
+      return jsonResponse(400, { error: 'Invalid submission data. Please check your inputs and try again.' });
+    }
+
+    // Buyer JWT required; the body email must match the JWT email unless the caller is an admin.
+    const auth = await authorizeSubmission(
+      req.headers.get('Authorization'),
+      typeof rawData.email === 'string' ? rawData.email : '',
+      getUserFromJwt,
+    );
+    if (!auth.ok) {
+      return jsonResponse(auth.status, { error: auth.status === 401 ? 'unauthorized' : 'forbidden' });
+    }
 
     // Validate input data
     const validation = validateInput(rawData);
@@ -651,7 +731,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
             ...(upgrade.manualPriceNote ? { manualPriceNote: String(upgrade.manualPriceNote).slice(0, 500) } : {}),
           } as AreaUpgrade;
         })
-        .filter((u): u is AreaUpgrade => u !== null);
+        .filter((u: AreaUpgrade | null): u is AreaUpgrade => u !== null);
 
       const droppedEmpty = (rawData.areaUpgrades as unknown[]).length - areaUpgrades.length;
       if (droppedEmpty > 0) {
@@ -768,75 +848,78 @@ Deno.serve(async (req: Request): Promise<Response> => {
       status: "submitted",
     });
 
-    if (dbError) {
-      console.error("Database error:", dbError);
-    } else {
-      console.log("Saved selection to database:", savedSelection?.id);
-      
-      // Sync to HubSpot in background
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const supabaseFunctionsUrl = `${supabaseUrl}/functions/v1/sync-hubspot`;
-      fetch(supabaseFunctionsUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-        },
-        body: JSON.stringify({
-          id: savedSelection?.id,
-          unit_number: data.unitNumber,
-          unit_type: data.unitType,
-          first_name: data.firstName,
-          last_name: data.lastName,
-          email: data.email,
-          phone_number: data.phoneNumber,
-          estimated_possession_date: data.estimatedPossessionDate,
-          has_stairs: data.hasStairs,
-          lvp_colour: data.lvpColour,
-          lvp_comments: data.lvpComments,
-          spc_tile_colour: data.spcTileColour,
-          spc_tile_comments: data.spcTileComments,
-          backsplash_orientation: data.backsplashOrientation,
-          bedroom_flooring_choice: data.bedroomFlooringChoice,
-          bedroom_carpet_colour: data.bedroomCarpetColour,
-          bedroom_lvp_colour: data.bedroomLvpColour,
-          bedroom_lvp_same_as_main: data.bedroomLvpSameAsMain,
-          stair_carpet_colour: data.stairCarpetColour,
-          additional_windows_qty: data.additionalWindowsQty,
-          patio_doors_qty: data.patioDoorsQty,
-          automated_windows_qty: data.automatedWindowsQty || 0,
-          premium_carpet_bedroom: data.premiumCarpetBedroom || false,
-          premium_underpad_bedroom: data.premiumUnderpadBedroom || false,
-          window_comments: data.windowComments,
-          hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
-          bathroom_tile_selected: data.bathroomTileSelected,
-          bathroom_tile_ensuite_selected: data.bathroomTileEnsuiteSelected ?? data.bathroomTileSelected,
-          bathroom_tile_guest_selected: data.bathroomTileGuestSelected ?? data.bathroomTileSelected,
-          heated_floor_bathrooms: data.heatedFloorBathrooms,
-          custom_tiled_shower: data.customTiledShower,
-          backsplash_grout_enabled: data.backsplashGroutEnabled,
-          backsplash_grout_color: data.backsplashGroutColor,
-          backsplash_grout_comments: data.backsplashGroutComments,
-          area_upgrades: data.areaUpgrades,
-          upgrade_floor_selection: data.upgradeFloorSelection,
-          upgrade_interests: data.upgradeInterests,
-          sales_comments: data.salesComments,
-          upgrade_comments: data.upgradeComments,
-          upgrade_interests_notes: data.upgradeInterestsNotes,
-          status: 'submitted',
-          created_at: savedSelection?.created_at,
-          pdf_base64: data.pdfBase64 || null,
-        }),
-      }).then(res => {
-        if (res.ok) {
-          console.log('HubSpot sync triggered successfully');
-        } else {
-          res.text().then(text => console.error('HubSpot sync failed:', text));
-        }
-      }).catch(err => console.error('HubSpot sync error:', err));
+    if (dbError || !savedSelection?.id) {
+      // Nothing is emailed unless the selection is safely stored.
+      console.error("Database error (no emails sent):", dbError);
+      return jsonResponse(500, { error: 'save_failed' });
     }
+
+    console.log("Saved selection to database:", savedSelection.id);
     
+    // Sync to HubSpot in background
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseFunctionsUrl = `${supabaseUrl}/functions/v1/sync-hubspot`;
+    fetch(supabaseFunctionsUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+      },
+      body: JSON.stringify({
+        id: savedSelection?.id,
+        unit_number: data.unitNumber,
+        unit_type: data.unitType,
+        first_name: data.firstName,
+        last_name: data.lastName,
+        email: data.email,
+        phone_number: data.phoneNumber,
+        estimated_possession_date: data.estimatedPossessionDate,
+        has_stairs: data.hasStairs,
+        lvp_colour: data.lvpColour,
+        lvp_comments: data.lvpComments,
+        spc_tile_colour: data.spcTileColour,
+        spc_tile_comments: data.spcTileComments,
+        backsplash_orientation: data.backsplashOrientation,
+        bedroom_flooring_choice: data.bedroomFlooringChoice,
+        bedroom_carpet_colour: data.bedroomCarpetColour,
+        bedroom_lvp_colour: data.bedroomLvpColour,
+        bedroom_lvp_same_as_main: data.bedroomLvpSameAsMain,
+        stair_carpet_colour: data.stairCarpetColour,
+        additional_windows_qty: data.additionalWindowsQty,
+        patio_doors_qty: data.patioDoorsQty,
+        automated_windows_qty: data.automatedWindowsQty || 0,
+        premium_carpet_bedroom: data.premiumCarpetBedroom || false,
+        premium_underpad_bedroom: data.premiumUnderpadBedroom || false,
+        window_comments: data.windowComments,
+        hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
+        bathroom_tile_selected: data.bathroomTileSelected,
+        bathroom_tile_ensuite_selected: data.bathroomTileEnsuiteSelected ?? data.bathroomTileSelected,
+        bathroom_tile_guest_selected: data.bathroomTileGuestSelected ?? data.bathroomTileSelected,
+        heated_floor_bathrooms: data.heatedFloorBathrooms,
+        custom_tiled_shower: data.customTiledShower,
+        backsplash_grout_enabled: data.backsplashGroutEnabled,
+        backsplash_grout_color: data.backsplashGroutColor,
+        backsplash_grout_comments: data.backsplashGroutComments,
+        area_upgrades: data.areaUpgrades,
+        upgrade_floor_selection: data.upgradeFloorSelection,
+        upgrade_interests: data.upgradeInterests,
+        sales_comments: data.salesComments,
+        upgrade_comments: data.upgradeComments,
+        upgrade_interests_notes: data.upgradeInterestsNotes,
+        status: 'submitted',
+        created_at: savedSelection?.created_at,
+        pdf_base64: data.pdfBase64 || null,
+      }),
+    }).then(res => {
+      if (res.ok) {
+        console.log('HubSpot sync triggered successfully');
+      } else {
+        res.text().then(text => console.error('HubSpot sync failed:', text));
+      }
+    }).catch(err => console.error('HubSpot sync error:', err));
+  
+
     // Fetch dynamic pricing for accurate cost calculations
     const pricing = await fetchDynamicPricing();
 
@@ -1194,10 +1277,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // Send to BMD team (internal email with CSV) — isolated so DB save survives email failures
     let adminEmailResponse: { id?: string; error?: string } = {};
+    const internalRecipients = await loadInternalRecipients();
     try {
       adminEmailResponse = await sendEmailWithAttachment({
         from: "BMD Materials Portal <selections@bmdmaterials.com>",
-        to: ["dan@bmdmaterials.com", "noni@bmdmaterials.com", "brian@bmdmaterials.com", "office@bmdmaterials.com", "gregor.mckenzie@nvc360.com"],
+        to: internalRecipients,
         subject: `New Selection Submission - Unit ${escapeHtml(data.unitNumber) || 'Unknown'}${data.unitType ? ` (${escapeHtml(data.unitType)})` : ''} - ${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}`,
         html: htmlContent,
         attachments: [
@@ -2003,7 +2087,7 @@ function buildPreviewBuyerPricing(totals: ServerTotalsResult): BuyerEmailPricing
     bathroomEnsuiteSqft: totals.context.bathroomEnsuiteSqft,
     tileCostPerSqft: totals.context.tileCostPerSqft,
     section4HeatedFloorSubtotal: totals.pieces.section4HeatedFloor,
-    heatedFloorBathroomCount: data => 0, // unused fallback; real value below
+    heatedFloorBathroomCount: 0, // placeholder; real value assigned below
     customTiledShowerSubtotal: totals.pieces.customShower,
     showerBaseCost: totals.context.showerBaseCost,
     markupPercentage: totals.markupPercentage,

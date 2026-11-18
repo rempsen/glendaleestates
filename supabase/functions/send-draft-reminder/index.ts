@@ -1,4 +1,12 @@
-import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
+import { getCorsHeaders, corsHeaders as baseCorsHeaders } from "../_shared/cors.ts";
+
+// Same internal-call guard as qbo-sync-submission: the scheduler (not a browser) calls this
+// function with `x-internal-secret` = SUPABASE_SERVICE_ROLE_KEY. verify_jwt stays false because
+// the scheduler is not known to send a user JWT.
+const corsHeaders = {
+  ...baseCorsHeaders,
+  'Access-Control-Allow-Headers': `${baseCorsHeaders['Access-Control-Allow-Headers']}, x-internal-secret`,
+};
 
 // HTML escape function to prevent XSS
 function escapeHtml(text: string | undefined | null): string {
@@ -316,6 +324,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const internalSecret = req.headers.get("x-internal-secret");
+    if (!internalSecret || internalSecret !== supabaseServiceKey) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
 
     // Parse request body for optional filters
     let targetEmail: string | null = null;
