@@ -54,7 +54,7 @@ const AREA_NAMES: Record<string, string> = {
   laundry: 'Laundry Room', backsplash: 'Kitchen Backsplash', allLvp: 'Entire Unit LVP',
 };
 // Buyer-facing wording. MIRRORS src/lib/outputLabels.ts (cannot import from src/); change in both places together.
-const LAUNDRY_STANDARD_LABEL = 'Luxury Vinyl Plank (standard)';
+const LAUNDRY_STANDARD_LABEL = 'Ceratec Dante 2.0 LVT (standard)';
 const STAIR_CARPET_LABEL = 'Stair Flooring – Carpet';
 const STAIR_STANDARD_VALUE = 'Standard Carpet (Included)';
 const MATERIAL_NAMES: Record<string, string> = {
