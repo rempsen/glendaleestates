@@ -1,7 +1,6 @@
 // Shared upgrade pricing calculator — single source of truth used by:
 //   - On-screen UpgradePricingSummary
 //   - buyerPdfGenerator (buyer-facing PDF)
-//   - submissionPdfGenerator (admin PDF)
 //   - send-selections-email edge function (CSV summary)
 //
 // All consumers MUST go through computeUpgradeTotals() so the buyer total

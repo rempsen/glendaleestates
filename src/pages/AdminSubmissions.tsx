@@ -203,7 +203,6 @@ interface BuyerSelection {
   bedroom_lvp_same_as_main: boolean;
   additional_windows_qty: number;
   patio_doors_qty: number;
-  window_total: number;
   window_comments?: string | null;
   upgrade_interests: Record<string, boolean>;
   status: string;
@@ -439,7 +438,7 @@ export default function AdminSubmissions() {
       console.error('Preview failed:', err);
       toast.error('Failed to load email preview', { description: err?.message || 'Unknown error' });
       // Fallback to legacy local preview so admin still sees something
-      setEmailPreviewHtml(generateEmailPreviewHtml(selectedSubmission));
+      setEmailPreviewHtml(generateEmailPreviewHtml(selectedSubmission, calculateSubmissionPricing(selectedSubmission, pricingValues).windowCoverings.subtotal));
     }
   };
 
@@ -1205,8 +1204,8 @@ export default function AdminSubmissions() {
                         <span className="ml-2">{selectedSubmission.patio_doors_qty}</span>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Total:</span>
-                        <span className="ml-2 font-medium">${selectedSubmission.window_total?.toFixed(2)}</span>
+                        <span className="text-muted-foreground">Total (before GST):</span>
+                        <span className="ml-2 font-medium">${calculateSubmissionPricing(selectedSubmission, pricingValues).windowCoverings.subtotal.toFixed(2)}</span>
                       </div>
                     </div>
                     {selectedSubmission.window_comments && (

@@ -104,7 +104,7 @@ export default function AdminDashboard() {
                     ['Total Revenue', `$${stats.pipelineStats.totalRevenue}`],
                     ['Contracts Signed', stats.pipelineStats.contractsSigned],
                     ['Conversion Rate', `${stats.conversionRate.toFixed(1)}%`],
-                    ['Window Revenue', `$${stats.selectionStats.windowRevenue}`],
+                    ['Window Revenue (pre-GST)', `$${stats.selectionStats.windowRevenue.toFixed(2)}`],
                     ['Hardwood Upgrades', stats.selectionStats.hardwoodUpgrades],
                     ['Tile Upgrades', stats.selectionStats.tileUpgrades],
                     ['Heated Floors', stats.selectionStats.heatedFloors],

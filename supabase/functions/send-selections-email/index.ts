@@ -36,6 +36,7 @@ function validateInput(data: Record<string, unknown>): { valid: boolean; errors:
 
 // Pricing breakdown for CSV — kept loose to avoid forward-decl issues
 interface CsvPricingBreakdown {
+  windowSubtotal: number;
   lineItems: Array<{ label: string; cost: number }>;
   bedroomCarpet?: number;
   bedroomUnderpad?: number;
@@ -86,7 +87,7 @@ function generateCSV(data: SelectionData, savedId: string | undefined, pricingBr
   rows.push(['--- WINDOW COVERINGS ---', '']);
   rows.push(['Additional Windows Qty', String(data.additionalWindowsQty)]);
   rows.push(['Patio Doors Qty', String(data.patioDoorsQty)]);
-  rows.push(['Window Total (incl. GST)', `$${data.windowTotal.toFixed(2)}`]);
+  if (pricingBreakdown) rows.push(['Window Subtotal (before GST)', `$${pricingBreakdown.windowSubtotal.toFixed(2)}`]);
   rows.push(['Window Comments', data.windowComments || '']);
   
   // Area Upgrades
@@ -804,7 +805,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
           stair_carpet_colour: data.stairCarpetColour,
           additional_windows_qty: data.additionalWindowsQty,
           patio_doors_qty: data.patioDoorsQty,
-          window_total: data.windowTotal,
           window_comments: data.windowComments,
           hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
           bathroom_tile_selected: data.bathroomTileSelected,
@@ -1178,6 +1178,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }));
 
     const csvContent = generateCSV(data, savedSelection?.id as string | undefined, {
+      windowSubtotal,
       lineItems: csvLineItems,
       bedroomCarpet: totals.pieces.bedroomCarpet,
       bedroomUnderpad: totals.pieces.bedroomUnderpad,
@@ -1211,6 +1212,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // Send styled confirmation email to buyer with pricing data
     const buyerConfirmationHtml = generateBuyerConfirmationEmail(data, savedSelection?.id as string | undefined, {
+      windowSubtotal,
       additionalWindowPrice,
       patioDoorPrice,
       automatedMotorPrice,
@@ -1270,6 +1272,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
 // Pricing parameters for buyer confirmation email
 interface BuyerEmailPricing {
+  windowSubtotal: number; // engine windowSubtotal (pre-GST)
   additionalWindowPrice: number;
   patioDoorPrice: number;
   automatedMotorPrice: number;
@@ -1419,8 +1422,8 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
               </tr>
             `).join('')}
             <tr style="background: #f9fafb;">
-              <td style="padding: 14px 16px; color: #000000; font-size: 15px; font-weight: 600;">Total (incl. GST)</td>
-              <td style="padding: 14px 16px; color: #047857; font-size: 18px; text-align: center; font-weight: 700;">$${data.windowTotal.toFixed(2)}</td>
+              <td style="padding: 14px 16px; color: #000000; font-size: 15px; font-weight: 600;">Total (before GST)</td>
+              <td style="padding: 14px 16px; color: #047857; font-size: 18px; text-align: center; font-weight: 700;">$${pricing.windowSubtotal.toFixed(2)}</td>
             </tr>
           </table>
         </td>
@@ -1969,6 +1972,7 @@ function buildPreviewBuyerPricing(totals: ServerTotalsResult): BuyerEmailPricing
   // Adapter so generateBuyerConfirmationEmail (which still consumes the
   // legacy BuyerEmailPricing shape) renders entirely from `totals`.
   return {
+    windowSubtotal: totals.windowSubtotal,
     additionalWindowPrice: totals.context.additionalWindowPrice,
     patioDoorPrice: totals.context.patioDoorPrice,
     automatedMotorPrice: totals.context.automatedMotorPrice,

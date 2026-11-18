@@ -1,4 +1,6 @@
 import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { computeUpgradeTotalsServer, normalizeUnitTypeCode, type ServerPricing } from "../_shared/upgradeTotalsServer.ts";
 
 interface AreaUpgradeSelection {
   areaId: string;
@@ -32,7 +34,8 @@ interface BuyerSelection {
   additional_windows_qty: number;
   patio_doors_qty: number;
   automated_windows_qty?: number;
-  window_total: number;
+  premium_carpet_bedroom?: boolean;
+  premium_underpad_bedroom?: boolean;
   window_comments: string | null;
   hardwood_upgrade_selected: boolean;
   bathroom_tile_selected: boolean;
@@ -189,6 +192,49 @@ function calculateUpgradePricing(submission: BuyerSelection): {
   };
 }
 
+// Window figure for the CRM: the engine's pre-GST windowSubtotal at CURRENT prices, never the stale
+// submit-time total column on buyer_selections (written once at submit, GST-inclusive). Same pricing load as qbo-sync-submission.
+async function computeWindowSubtotal(submission: BuyerSelection): Promise<number> {
+  const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  const [pcRes, umRes, uaRes] = await Promise.all([
+    admin.from('pricing_config').select('config_key, config_value, is_percentage').eq('is_active', true),
+    admin.from('upgrade_materials').select('material_key, cost_per_unit').eq('is_active', true),
+    admin.from('unit_area_data').select('*'),
+  ]);
+  const config: Record<string, number> = {};
+  let markupPercentage = 0;
+  let gstRate = 0.05;
+  for (const r of (pcRes.data ?? [])) {
+    config[r.config_key] = Number(r.config_value);
+    if (r.config_key === 'markup_percentage') markupPercentage = Number(r.config_value);
+    if (r.config_key === 'gst_rate') gstRate = Number(r.config_value);
+  }
+  const materials: Record<string, number> = {};
+  for (const r of (umRes.data ?? [])) materials[r.material_key] = Number(r.cost_per_unit);
+  const unitAreas: ServerPricing['unitAreas'] = {};
+  for (const r of (uaRes.data ?? [])) {
+    unitAreas[r.unit_type_code] = {
+      allLvp: Number(r.all_lvp), mainLiving: Number(r.main_living),
+      secondBedroom: Number(r.second_bedroom), masterBedroomLvp: Number(r.master_bedroom_lvp),
+      masterBedroom: Number(r.master_bedroom), secondBedroomCarpet: Number(r.second_bedroom_carpet),
+      guestBathroom: Number(r.guest_bathroom), masterEnsuite: Number(r.master_ensuite),
+      laundry: Number(r.laundry), backsplash: Number(r.backsplash),
+    };
+  }
+  const totals = computeUpgradeTotalsServer({
+    unitTypeCode: normalizeUnitTypeCode(submission.unit_type),
+    areaUpgrades: [],
+    additionalWindowsQty: submission.additional_windows_qty,
+    patioDoorsQty: submission.patio_doors_qty,
+    automatedWindowsQty: submission.automated_windows_qty,
+    // Window subtotal does not depend on these; threaded so every engine caller feeds the same inputs.
+    bedroomFlooringChoice: submission.bedroom_flooring_choice,
+    bedroomPremiumCarpetSelected: !!submission.premium_carpet_bedroom,
+    bedroomPremiumUnderpadSelected: !!submission.premium_underpad_bedroom,
+  }, { materials, config, unitAreas, markupPercentage, gstRate });
+  return totals.windowSubtotal;
+}
+
 // Upload PDF to HubSpot Files and return URL
 async function uploadPdfToHubSpot(pdfBase64: string, fileName: string, hubspotApiKey: string): Promise<string | null> {
   try {
@@ -311,6 +357,7 @@ Deno.serve(async (req) => {
 
     // Calculate upgrade pricing
     const pricing = calculateUpgradePricing(submission);
+    const windowSubtotal = await computeWindowSubtotal(submission);
     console.log('Calculated upgrade pricing:', pricing);
 
     // Upload PDF if provided
@@ -374,7 +421,7 @@ Deno.serve(async (req) => {
       bmd_additional_windows: String(submission.additional_windows_qty || 0),
       bmd_patio_doors: String(submission.patio_doors_qty || 0),
       bmd_automated_windows: String(submission.automated_windows_qty || 0),
-      bmd_window_total: String(submission.window_total || 0),
+      bmd_window_total: windowSubtotal.toFixed(2), // property name unchanged for CRM history; value is now pre-GST engine windowSubtotal
       bmd_window_comments: submission.window_comments || '',
       bmd_hardwood_upgrade: submission.hardwood_upgrade_selected ? 'Yes' : 'No',
       bmd_tile_upgrade: submission.bathroom_tile_selected ? 'Yes' : 'No',

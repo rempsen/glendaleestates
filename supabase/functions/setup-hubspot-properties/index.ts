@@ -144,7 +144,7 @@ const customProperties = [
     type: "number",
     fieldType: "number",
     groupName: "contactinformation",
-    description: "Total cost for window covering add-ons"
+    description: "Window covering add-ons subtotal (before GST)"
   },
   {
     name: "bmd_window_comments",

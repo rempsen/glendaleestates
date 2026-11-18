@@ -123,7 +123,7 @@ export const EXPORT_SECTIONS: SectionDef[] = [
       'submission_id', 'unit_number',
       'additional_windows_qty', 'patio_doors_qty',
       'additional_window_charge', 'patio_door_charge', 'window_automation_charge',
-      'window_subtotal', 'window_total_db', 'window_comments',
+      'window_subtotal', 'window_comments',
     ],
   },
   {
@@ -351,7 +351,6 @@ export function buildSubmissionSectionRows(
     patio_door_charge: fmtMoney(totals.pieces.windowPatio),
     window_automation_charge: fmtMoney(totals.pieces.windowAutomation),
     window_subtotal: fmtMoney(totals.windowSubtotal),
-    window_total_db: s.window_total ?? 0,
     window_comments: s.window_comments ?? '',
   }];
 

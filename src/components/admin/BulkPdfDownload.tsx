@@ -49,7 +49,6 @@ interface BuyerSubmission {
   bedroom_lvp_same_as_main: boolean;
   additional_windows_qty: number;
   patio_doors_qty: number;
-  window_total: number;
   window_comments?: string | null;
   upgrade_interests: Record<string, boolean>;
   area_upgrades?: any[];

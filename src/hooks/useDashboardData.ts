@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { DateRange } from '@/components/dashboard/types';
 import { isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
+import type { Tables } from '@/integrations/supabase/types';
+import { useWindowSubtotal } from '@/hooks/useWindowSubtotal';
 
 interface BuyerSelection {
   id: string;
@@ -11,7 +13,6 @@ interface BuyerSelection {
   last_name: string;
   email: string;
   status: string | null;
-  window_total: number | null;
   additional_windows_qty: number | null;
   patio_doors_qty: number | null;
   upgrade_interests: Record<string, boolean> | null;
@@ -46,6 +47,7 @@ interface PipelineRecord {
 const TOTAL_UNITS = 70;
 
 export function useDashboardData(dateRange: DateRange) {
+  const windowSubtotalOf = useWindowSubtotal();
   const [submissions, setSubmissions] = useState<BuyerSelection[]>([]);
   const [pipeline, setPipeline] = useState<PipelineRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,7 +148,8 @@ export function useDashboardData(dateRange: DateRange) {
     // Selection stats
     const selectionStats = {
       total: filteredSubmissions.length,
-      windowRevenue: filteredSubmissions.reduce((sum, s) => sum + (s.window_total || 0), 0),
+      // pre-GST, engine-computed (the submit-time total column is stale)
+      windowRevenue: filteredSubmissions.reduce((sum, s) => sum + windowSubtotalOf(s as unknown as Tables<'buyer_selections'>), 0),
       hardwoodUpgrades: filteredSubmissions.filter(s => s.hardwood_upgrade_selected).length,
       tileUpgrades: filteredSubmissions.filter(s => s.bathroom_tile_selected).length,
       heatedFloors: filteredSubmissions.filter(s => (s.heated_floor_bathrooms || 0) > 0).length,
@@ -186,9 +189,9 @@ export function useDashboardData(dateRange: DateRange) {
       selectionStats,
       lvpColorData,
       carpetColorData,
-      recentSubmissions: filteredSubmissions.slice(0, 5),
+      recentSubmissions: filteredSubmissions.slice(0, 5).map(s => ({ ...s, window_subtotal: windowSubtotalOf(s as unknown as Tables<'buyer_selections'>) })),
     };
-  }, [filteredSubmissions, filteredPipeline]);
+  }, [filteredSubmissions, filteredPipeline, windowSubtotalOf]);
 
   const refetch = useCallback(() => fetchData(true), [fetchData]);
 

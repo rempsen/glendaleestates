@@ -62,7 +62,6 @@ interface BuyerSubmission {
   stair_lvp_upgrade_selected?: boolean;
   additional_windows_qty: number;
   patio_doors_qty: number;
-  window_total: number;
   area_upgrades?: AreaUpgrade[];
   upgrade_floor_selection?: string | null;
   backsplash_grout_enabled?: boolean;
@@ -71,7 +70,8 @@ interface BuyerSubmission {
   upgrade_interests: Record<string, boolean>;
 }
 
-export function generateEmailPreviewHtml(submission: BuyerSubmission): string {
+/** `windowSubtotal` is the engine's pre-GST window figure (never the stale submit-time total column). */
+export function generateEmailPreviewHtml(submission: BuyerSubmission, windowSubtotal: number): string {
   const firstName = submission.first_name;
   const lastName = submission.last_name;
   const unitNumber = submission.unit_number;
@@ -87,7 +87,7 @@ export function generateEmailPreviewHtml(submission: BuyerSubmission): string {
   const stairCarpetColour = submission.stair_carpet_colour;
   const additionalWindowsQty = submission.additional_windows_qty || 0;
   const patioDoorsQty = submission.patio_doors_qty || 0;
-  const windowTotal = submission.window_total || 0;
+  const windowTotal = windowSubtotal;
   const areaUpgrades = submission.area_upgrades || [];
   const upgradeFloorSelection = submission.upgrade_floor_selection;
   const backsplashGroutEnabled = submission.backsplash_grout_enabled;
@@ -178,7 +178,7 @@ export function generateEmailPreviewHtml(submission: BuyerSubmission): string {
               </tr>
             `).join('')}
             <tr style="background: #0369a1;">
-              <td style="padding: 14px 16px; color: white; font-size: 15px; font-weight: 600;">Total (incl. GST)</td>
+              <td style="padding: 14px 16px; color: white; font-size: 15px; font-weight: 600;">Total (before GST)</td>
               <td style="padding: 14px 16px; color: #fbbf24; font-size: 18px; text-align: center; font-weight: 700;">$${windowTotal.toFixed(2)}</td>
             </tr>
           </table>

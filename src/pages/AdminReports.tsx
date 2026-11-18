@@ -6,6 +6,7 @@ import { lvpOptions, spcTileOptions, carpetOptions, windowPricing } from '@/lib/
 import { Download, FileText, FileSpreadsheet, Printer, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Tables } from '@/integrations/supabase/types';
+import { useWindowSubtotal } from '@/hooks/useWindowSubtotal';
 
 type BuyerSelection = Tables<'buyer_selections'>;
 
@@ -19,6 +20,7 @@ interface ReportStats {
 }
 
 export default function AdminReports() {
+  const windowSubtotalOf = useWindowSubtotal();
   const [generating, setGenerating] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submissions, setSubmissions] = useState<BuyerSelection[]>([]);
@@ -101,7 +103,7 @@ export default function AdminReports() {
       'Bedroom Carpet',
       'Add. Windows',
       'Patio Doors',
-      'Window Total',
+      'Window Subtotal (pre-GST)',
       'Status',
       'Submitted Date',
       'Sales Comments'
@@ -122,7 +124,7 @@ export default function AdminReports() {
       s.bedroom_carpet_colour || '',
       s.additional_windows_qty || 0,
       s.patio_doors_qty || 0,
-      s.window_total || 0,
+      windowSubtotalOf(s).toFixed(2),
       s.status || '',
       s.created_at ? new Date(s.created_at).toLocaleDateString() : '',
       (s.sales_comments || '').replace(/,/g, ';').replace(/\n/g, ' ')
@@ -174,7 +176,7 @@ export default function AdminReports() {
         lines.push(`   Bedroom: ${s.bedroom_flooring_choice || 'Not selected'}`);
         if ((s.additional_windows_qty || 0) > 0 || (s.patio_doors_qty || 0) > 0) {
           lines.push(`   Window Add-ons: ${s.additional_windows_qty || 0} windows, ${s.patio_doors_qty || 0} patio doors`);
-          lines.push(`   Window Total: $${(s.window_total || 0).toFixed(2)}`);
+          lines.push(`   Window Subtotal (before GST): $${windowSubtotalOf(s).toFixed(2)}`);
         }
         if (s.sales_comments) {
           lines.push(`   Sales Notes: ${s.sales_comments}`);
