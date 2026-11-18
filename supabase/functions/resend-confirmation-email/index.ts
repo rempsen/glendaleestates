@@ -2,6 +2,7 @@
 // EMAIL_THEME so the buyer's email pricing matches the on-screen summary,
 // the buyer PDF, the admin email, and the CSV attachment exactly.
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { authorizeInternalOrAdmin, makeGetUserFromJwt } from "../_shared/internalAuth.ts";
 import {
   computeUpgradeTotalsServer,
   normalizeUnitTypeCode,
@@ -217,6 +218,18 @@ function buildAdminHtml(sub: Record<string, any>, totals: ReturnType<typeof comp
 Deno.serve(async (req: Request): Promise<Response> => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+
+  const gate = await authorizeInternalOrAdmin(
+    req,
+    { serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") },
+    makeGetUserFromJwt(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!),
+  );
+  if (!gate.ok) {
+    return new Response(JSON.stringify({ error: "unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json", ...cors },
+    });
+  }
 
   try {
     const { submissionId, sendToBuyer = true, editedBy = 'Admin', preview = false, previewType = 'buyer' } = await req.json();

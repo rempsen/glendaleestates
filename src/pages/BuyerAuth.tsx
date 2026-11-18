@@ -184,7 +184,7 @@ export default function BuyerAuth() {
 
     try {
       if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({
+        const { data: signUpData, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -206,9 +206,16 @@ export default function BuyerAuth() {
             description: 'You can now continue with your selections.',
           });
           // Notify admins of new client signup (fire and forget)
-          supabase.functions.invoke('send-user-notification', {
-            body: { type: 'client_signup', userEmail: email }
-          }).catch(err => console.error('Failed to send signup notification:', err));
+          // The function only accepts this from a signed-in user about themselves (or an admin),
+          // so it needs the new session. When email confirmation is required there is no session yet.
+          if (signUpData?.session?.access_token) {
+            supabase.functions.invoke('send-user-notification', {
+              body: { type: 'client_signup', userEmail: email },
+              headers: { Authorization: `Bearer ${signUpData.session.access_token}` },
+            }).catch(err => console.error('Failed to send signup notification:', err));
+          } else {
+            console.warn('Signup notification skipped: no session yet (email confirmation pending)');
+          }
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({

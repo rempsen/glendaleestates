@@ -1,12 +1,8 @@
-import { getCorsHeaders, corsHeaders as baseCorsHeaders } from "../_shared/cors.ts";
+import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
 
-// Same internal-call guard as qbo-sync-submission: the scheduler (not a browser) calls this
-// function with `x-internal-secret` = SUPABASE_SERVICE_ROLE_KEY. verify_jwt stays false because
+// Internal-call guard (below) mirrors qbo-sync-submission: the scheduler sends `x-internal-secret`
+// = SUPABASE_SERVICE_ROLE_KEY (allowed by the shared CORS headers). verify_jwt stays false because
 // the scheduler is not known to send a user JWT.
-const corsHeaders = {
-  ...baseCorsHeaders,
-  'Access-Control-Allow-Headers': `${baseCorsHeaders['Access-Control-Allow-Headers']}, x-internal-secret`,
-};
 
 // HTML escape function to prevent XSS
 function escapeHtml(text: string | undefined | null): string {

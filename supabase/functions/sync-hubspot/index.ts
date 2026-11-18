@@ -1,4 +1,5 @@
 import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
+import { authorizeInternalOrAdmin, makeGetUserFromJwt } from "../_shared/internalAuth.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { computeUpgradeTotalsServer, normalizeUnitTypeCode, type ServerPricing } from "../_shared/upgradeTotalsServer.ts";
 
@@ -339,6 +340,18 @@ function filterToKnownProperties(
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  const gate = await authorizeInternalOrAdmin(
+    req,
+    { serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") },
+    makeGetUserFromJwt(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!),
+  );
+  if (!gate.ok) {
+    return new Response(JSON.stringify({ error: "unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
   }
 
   const hubspotApiKey = Deno.env.get('HUBSPOT_API_KEY');

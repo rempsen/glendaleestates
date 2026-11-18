@@ -5,8 +5,8 @@ import {
   authorizeSubmission,
   parseRecipients,
   SEED_NOTIFICATION_RECIPIENTS,
-  type AuthedUser,
 } from "../_shared/authorizeSubmission.ts";
+import { makeGetUserFromJwt } from "../_shared/internalAuth.ts";
 
 // Dynamic CORS headers will be used for responses
 
@@ -245,27 +245,8 @@ async function supabaseInsert(table: string, data: Record<string, unknown>): Pro
   return { data: Array.isArray(result) ? result[0] : result, error: null };
 }
 
-// Resolve a user JWT to { email, isAdmin } via GoTrue + user_roles (same role source as
-// ProtectedRoute and qbo-sync-submission). Returns null for an invalid JWT, including the
-// anon key, which carries no user.
-async function getUserFromJwt(jwt: string): Promise<AuthedUser | null> {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-  const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    headers: { apikey: serviceKey, Authorization: `Bearer ${jwt}` },
-  });
-  if (!userRes.ok) return null;
-  const user = await userRes.json();
-  if (!user?.id || typeof user.email !== "string" || !user.email) return null;
-
-  const roleRes = await fetch(
-    `${supabaseUrl}/rest/v1/user_roles?select=role&user_id=eq.${encodeURIComponent(user.id)}&role=eq.admin&limit=1`,
-    { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
-  );
-  const roles = roleRes.ok ? await roleRes.json() : [];
-  return { email: user.email, isAdmin: Array.isArray(roles) && roles.length > 0 };
-}
+// Resolve a user JWT to { email, isAdmin } (anon key resolves to null).
+const getUserFromJwt = makeGetUserFromJwt(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
 // Internal notification recipients live in portal_settings (admin-editable). Read at request
 // time with the service role; fall back to the seed list only if the row is missing/malformed.

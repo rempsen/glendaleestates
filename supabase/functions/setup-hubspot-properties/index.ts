@@ -1,4 +1,5 @@
 import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
+import { authorizeInternalOrAdmin, makeGetUserFromJwt } from "../_shared/internalAuth.ts";
 
 // Define all custom properties needed for BMD Materials sync
 const customProperties = [
@@ -289,6 +290,18 @@ const customProperties = [
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  const gate = await authorizeInternalOrAdmin(
+    req,
+    { serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") },
+    makeGetUserFromJwt(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!),
+  );
+  if (!gate.ok) {
+    return new Response(JSON.stringify({ error: "unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
   }
 
   const hubspotApiKey = Deno.env.get('HUBSPOT_API_KEY');
