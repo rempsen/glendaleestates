@@ -80,7 +80,7 @@ function RailBody({ model, saveState, onRetry }: { model: RunningTotalModel; sav
           )}
         </div>
       </ScrollArea>
-      <div className="border-t border-border bg-muted/40 p-4" aria-live="polite" aria-label="Totals">
+      <div className="border-t border-border bg-muted/40 p-4" aria-live="polite" aria-label="Quote totals">
         <dl className="space-y-1 text-sm">
           {model.rows.map((r) => (
             <div
@@ -123,7 +123,7 @@ export function RunningTotal({
   const mobile = (
     <div className={variant === 'auto' ? 'lg:hidden' : undefined}>
       <Sheet open={open} onOpenChange={setOpen}>
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background shadow-lg">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background pb-[env(safe-area-inset-bottom)] shadow-lg">
           <SheetTrigger asChild>
             <button
               type="button"
@@ -135,7 +135,7 @@ export function RunningTotal({
             </button>
           </SheetTrigger>
         </div>
-        <SheetContent side="bottom" className="flex max-h-[85vh] flex-col p-0">
+        <SheetContent side="bottom" className="flex h-[85vh] flex-col p-0">
           <SheetHeader className="p-4 pb-0 text-left">
             <SheetTitle>Running total</SheetTitle>
             <SheetDescription className="sr-only">Selections that count toward the total, and those that do not.</SheetDescription>

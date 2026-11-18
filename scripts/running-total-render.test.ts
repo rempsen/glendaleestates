@@ -25,6 +25,8 @@ describe('RunningTotal render', () => {
       expect(html).toContain(s);
     }
     expect(html).toContain('aria-live="polite"');
+    expect(html).toContain('<dt>Total</dt>');
+    expect(html).toContain('aria-label="Quote totals"');
     expect(html).toContain('<aside');
     expect(html).not.toContain('$0.00');
   });
