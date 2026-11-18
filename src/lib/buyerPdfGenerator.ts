@@ -364,6 +364,9 @@ export async function generateBuyerPreviewPDF(
   doc.line(margin, yPos, margin + 50, yPos);
   yPos += 10;
 
+  // Single source of truth for upgrade totals — matches on-screen UI 1:1
+  const totals = computeUpgradeTotals(totalsInputFromSelections(selections, unitTypeCode), pricing);
+
   // Selections table
   const cpInfo = parseCustomPricing(selections.customPricing);
   const prov = (field: string) => (cpInfo.provisional?.[field] || '').trim();
@@ -376,6 +379,8 @@ export async function generateBuyerPreviewPDF(
     ...(selections.upgradeFloorSelection ? [['Upgrade Floor', `Floor ${selections.upgradeFloorSelection}`]] : []),
     ['Primary Bedroom Flooring', selections.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : (selections.bedroomFlooringChoice === 'carpet' ? 'Carpet' : 'Not selected')],
   ];
+
+  (totals.pieces.includedItems || []).forEach(i => standardData.push([[i.area, i.label].filter(Boolean).join(' — '), 'Included — $0.00']));
 
   if (selections.hasStairs) {
     if (selections.stairUpgradeType === 'lvp' || selections.stairUpgradeType === 'premium_lvp' || selections.stairLvpUpgradeSelected) {
@@ -447,7 +452,6 @@ export async function generateBuyerPreviewPDF(
   // ====================================================================
   // Single source of truth for upgrade totals — matches on-screen UI 1:1
   // ====================================================================
-  const totals = computeUpgradeTotals(totalsInputFromSelections(selections, unitTypeCode), pricing);
 
   console.log('[buyerPdfGenerator] computed totals:', {
     windowSubtotal: totals.windowSubtotal,

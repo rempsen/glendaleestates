@@ -117,6 +117,7 @@ export interface ServerTotalsResult {
     section4HeatedFloor: number;
     customShower: number;
     customItemsTotal: number;
+    includedItems: Array<{ label: string; detail?: string; area?: string }>;
   };
   // Raw quantities used for transparency labels (server-side only — kept
   // out of the UI counterpart because the UI never displays sq ft).
@@ -398,6 +399,9 @@ export function computeUpgradeTotalsServer(
   }
   if (customShower > 0) lineItems.push({ group: 'bathroom', label: lbl('customShower', 'Custom Tiled Shower'), amount: customShower });
 
+  const includedItems = (Array.isArray(cp.customItems) ? cp.customItems : [])
+    .filter((i: any) => i?.status === 'included')
+    .map((i: any) => ({ label: String(i.label || '').trim() || 'Custom Item', detail: String(i.detail || '').trim() || undefined, area: String(i.area || '').trim() || undefined }));
   let customItemsTotal = 0;
   for (const i of (Array.isArray(cp.customItems) ? cp.customItems : [])) {
     // Only 'upgrade' lines (default) are committed; included/pending/disputed/deferred are not charged.
@@ -442,6 +446,7 @@ export function computeUpgradeTotalsServer(
       section4HeatedFloor,
       customShower,
       customItemsTotal,
+      includedItems,
     },
     context: {
       bathroomGuestSqft: baths.guest,

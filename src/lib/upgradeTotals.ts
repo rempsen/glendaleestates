@@ -139,6 +139,8 @@ export interface UpgradeTotalsResult {
     customItemsTotal: number;
     /** Office lines shown but not counted: included, pending (amount null), under review, deferred. */
     uncommittedItems: Array<{ label: string; detail?: string; area?: string; status: LineStatus; amount: number | null }>;
+    /** Office lines marked Included (standard): shown in Standard Selections at $0, never under Not Included. */
+    includedItems: Array<{ label: string; detail?: string; area?: string }>;
     labels: Partial<Record<OverrideKey, string>>;
   };
 }
@@ -361,7 +363,9 @@ export function computeUpgradeTotals(
   if (customShower > 0) lineItems.push({ group: 'bathroom', label: labels.customShower || 'Custom Tiled Shower', amount: customShower });
 
   // ---- Custom office line items ----
-  const uncommittedItems = (cp.customItems || []).filter(i => !isCommitted(i)).map(i => {
+  const includedItems = (cp.customItems || []).filter(i => i.status === 'included')
+    .map(i => ({ label: (i.label || '').trim() || 'Custom Item', detail: i.detail?.trim() || undefined, area: i.area?.trim() || undefined }));
+  const uncommittedItems = (cp.customItems || []).filter(i => !isCommitted(i) && i.status !== 'included').map(i => {
     const hasPrice = (Number(i.quantity) > 0 && i.unitPrice !== null && i.unitPrice !== undefined && String(i.unitPrice) !== '') || (i.amount !== null && i.amount !== undefined && String(i.amount) !== '');
     return { label: (i.label || '').trim() || 'Custom Item', detail: i.detail?.trim() || undefined, area: i.area?.trim() || undefined, status: i.status as LineStatus,
       amount: i.status === 'pending' || !hasPrice ? (i.status === 'included' ? 0 : null) : customItemAmount(i) };
@@ -406,6 +410,7 @@ export function computeUpgradeTotals(
       customItems,
       customItemsTotal,
       uncommittedItems,
+      includedItems,
       labels,
     },
   };

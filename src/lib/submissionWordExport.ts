@@ -37,6 +37,7 @@ export async function downloadSubmissionWord(id: string, staff = true): Promise<
     ...(s.bedroom_carpet_colour ? [['Primary Bedroom Carpet Colour', s.bedroom_carpet_colour]] : []),
     ['Kitchen Backsplash', s.backsplash_orientation || 'Not selected'],
   ];
+  (totals.pieces.includedItems || []).forEach(i => selRows.push([[i.area, i.label].filter(Boolean).join(' — '), 'Included — $0.00']));
   (sel.areaUpgrades || []).forEach(u => selRows.push([`Upgrade — ${u.areaId}`, [u.productName, u.productColor, u.clientComment?.trim()].filter(Boolean).join(' — ')]));
 
   const quoteRows = totals.lineItems.map(li => [li.group, [li.label, li.detail].filter(Boolean).join(' — '), money(li.amount)]);
