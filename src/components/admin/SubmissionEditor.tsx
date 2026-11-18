@@ -1,5 +1,5 @@
 import { lvpOptions, spcTileOptions, carpetOptions, toOptionId } from '@/lib/mockData';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,6 +25,9 @@ import {
 } from 'lucide-react';
 import { DownstreamTrackingPanel } from './DownstreamTrackingPanel';
 import { CustomPricingPanel } from './CustomPricingPanel';
+import { toBuyerPdfSelections } from '@/lib/buyerPdfSelections';
+import { pricingFromDynamic } from '@/lib/pricingFromDynamic';
+import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
 import { DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -82,7 +85,8 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
     return config?.config_value || 2160;
   }, [pricingConfig]);
   // Bedroom premium rates (per sq yd, marked up) for the switch copy; totals come from the engine.
-  const { getMaterialCost: getDynMaterialCost, markupPercentage: dynMarkup } = useDynamicPricing();
+  const dynamicPricing = useDynamicPricing();
+  const { getMaterialCost: getDynMaterialCost, markupPercentage: dynMarkup } = dynamicPricing;
   const bedroomCarpetRate = getDynMaterialCost('carpet' as any) * (1 + dynMarkup);
   const bedroomUnderpadRate = getDynMaterialCost('premium_carpet_underpad' as any) * (1 + dynMarkup);
   const stairCarpetPrice = pricingConfig.find(c => c.config_key === 'premium_carpet_stairs_price')?.config_value || 0;
@@ -160,63 +164,79 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
     return null;
   };
 
-  const handleSave = async () => {
-    // Validate stair flooring selection
+  // Last row we know is in the database; audit diffs compare against it so a mid-edit save (saveNow) is not re-logged.
+  const savedRef = useRef<BuyerSelection | null>(null);
+
+  /** Writes the current edits and the audit entry. Throws on validation or database failure; never closes the editor. */
+  const persist = async (): Promise<BuyerSelection> => {
     const stairValidationError = validateStairFlooring();
-    if (stairValidationError) {
-      toast.error('Validation Error', {
-        description: stairValidationError,
+    if (stairValidationError) throw Object.assign(new Error(stairValidationError), { isValidation: true });
+
+    const updatePayload = buildSubmissionUpdatePayload(editData);
+    const { error } = await supabase
+      .from('buyer_selections')
+      .update(updatePayload)
+      .eq('id', submission.id);
+    if (error) throw error;
+
+    // Calculate changes for audit log
+    const originalData = (savedRef.current ?? submission) as unknown as Record<string, unknown>;
+    const newData = { ...updatePayload, area_upgrades: editData.area_upgrades } as unknown as Record<string, unknown>;
+    const { changes, changedFields } = calculateChanges(originalData, newData);
+
+    if (changedFields.length > 0) {
+      const changeSummary = generateChangeSummary(changedFields);
+      await createAuditLog({
+        submission_id: submission.id,
+        action_type: 'update',
+        changes,
+        previous_values: originalData,
+        new_values: newData,
+        change_summary: changeSummary,
       });
-      return;
     }
 
+    const updatedSubmission: BuyerSelection = {
+      ...submission,
+      ...updatePayload,
+      area_upgrades: editData.area_upgrades,
+      upgrade_interests: editData.upgrade_interests,
+    };
+    savedRef.current = updatedSubmission;
+    return updatedSubmission;
+  };
+
+  const handleSave = async () => {
     setSaving(true);
     try {
-      const updatePayload = buildSubmissionUpdatePayload(editData);
-
-      const { error } = await supabase
-        .from('buyer_selections')
-        .update(updatePayload)
-        .eq('id', submission.id);
-
-      if (error) throw error;
-
-      // Calculate changes for audit log
-      const originalData = submission as unknown as Record<string, unknown>;
-      const newData = { ...updatePayload, area_upgrades: editData.area_upgrades } as unknown as Record<string, unknown>;
-      const { changes, changedFields } = calculateChanges(originalData, newData);
-
-      // Create audit log if there were changes
-      if (changedFields.length > 0) {
-        const changeSummary = generateChangeSummary(changedFields);
-        await createAuditLog({
-          submission_id: submission.id,
-          action_type: 'update',
-          changes,
-          previous_values: originalData,
-          new_values: newData,
-          change_summary: changeSummary,
-        });
-      }
-
-      // Update local state with new values
-      const updatedSubmission: BuyerSelection = {
-        ...submission,
-        ...updatePayload,
-        area_upgrades: editData.area_upgrades,
-        upgrade_interests: editData.upgrade_interests,
-      };
-
+      const updatedSubmission = await persist();
       toast.success('Submission updated successfully');
       onSave(updatedSubmission);
     } catch (error: any) {
-      toast.error('Failed to save changes', {
+      toast.error(error?.isValidation ? 'Validation Error' : 'Failed to save changes', {
         description: error.message,
       });
     } finally {
       setSaving(false);
     }
   };
+
+  /** Save in place (editor stays open) so previews and exports, which read the database, show current edits. */
+  const saveNow = async () => {
+    setSaving(true);
+    try {
+      await persist();
+    } catch (error: any) {
+      toast.error('Could not save before preview', { description: error.message });
+      throw error;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const panelSelections = useMemo(() => toBuyerPdfSelections({ ...submission, ...editData } as never), [submission, editData]);
+  const panelPricing = useMemo(() => pricingFromDynamic(dynamicPricing as never), [dynamicPricing]);
+  const panelUnitCode = editData.unit_type ? normalizeUnitTypeCode(editData.unit_type) : null;
 
   return (
     <div className="space-y-6">
@@ -918,7 +938,16 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
             </div>
           </AccordionTrigger>
           <AccordionContent className="pt-4 pb-6">
-            <CustomPricingPanel value={editData.custom_pricing} onChange={(v) => handleChange('custom_pricing', v)} submissionId={submission.id} />
+            <CustomPricingPanel
+              value={editData.custom_pricing}
+              onChange={(v) => handleChange('custom_pricing', v)}
+              submissionId={submission.id}
+              selections={panelSelections}
+              unitCode={panelUnitCode}
+              pricing={panelPricing}
+              onSaveFirst={saveNow}
+              onPatchSelections={(patch) => setEditData(prev => ({ ...prev, ...patch }))}
+            />
           </AccordionContent>
         </AccordionItem>
 
