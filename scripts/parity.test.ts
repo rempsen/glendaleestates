@@ -16,7 +16,7 @@ import { normalizeUnitTypeCode } from '../src/lib/upgradeCostData';
 const EXPECTED_SUBTOTALS: Record<string, number> = {
   '2': 2460,
   '4': 14334,
-  '7': 2845.5,
+  '7': 3296.7, // 2026-11-18: +451.20 premium underpad (flag was never priced); reported to Dan by the controller, no override written
   '24': 10388.4,
   '27': 0,
   // Engine subtotal 27,263.00 vs. the staff note of 2026-11-16 "$27,204.50 plus GST" (gap $58.50, origin unknown).

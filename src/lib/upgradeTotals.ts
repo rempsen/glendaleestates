@@ -55,6 +55,9 @@ export interface UpgradeTotalsInput {
   stairUpgradeType?: 'standard' | 'lvp' | 'premium_lvp' | string | null;
   stairPremiumCarpetSelected?: boolean;
   stairPremiumUnderpadSelected?: boolean;
+  bedroomFlooringChoice?: 'carpet' | 'lvp' | string | null;
+  bedroomPremiumCarpetSelected?: boolean;
+  bedroomPremiumUnderpadSelected?: boolean;
   additionalWindowsQty?: number;
   patioDoorsQty?: number;
   automatedWindowsQty?: number;
@@ -67,7 +70,7 @@ export interface UpgradeTotalsInput {
 }
 
 // Office pricing set by sales/admin. Amounts are GST-exclusive, PST included.
-export type OverrideKey = 'stair' | 'grout' | 'bathroomTile' | 'heatedFloor' | 'customShower' | 'stairCarpet' | 'stairUnderpad';
+export type OverrideKey = 'stair' | 'grout' | 'bathroomTile' | 'heatedFloor' | 'customShower' | 'stairCarpet' | 'stairUnderpad' | 'bedroomCarpet' | 'bedroomUnderpad';
 export interface PriceOverride { amount?: number | null; label?: string }
 export type LineStatus = 'upgrade' | 'included' | 'pending' | 'disputed' | 'deferred';
 export const LINE_STATUS_LABELS: Record<LineStatus, string> = {
@@ -120,6 +123,9 @@ export interface UpgradeTotalsResult {
     stairLvp: number;
     stairCarpet: number;
     stairUnderpad: number;
+    bedroomCarpet: number;
+    bedroomUnderpad: number;
+    bedroomCarpetSqyd: number;
     grout: number;
     windowAdditional: number;
     windowPatio: number;
@@ -223,6 +229,20 @@ export function computeUpgradeTotals(
     !!input.stairPremiumUnderpadSelected && !isStairLvp);
   if (stairCarpet > 0) lineItems.push({ group: 'stair', label: labels.stairCarpet || 'Premium Carpet — Stairs to Lower Level', amount: stairCarpet });
   if (stairUnderpad > 0) lineItems.push({ group: 'stair', label: labels.stairUnderpad || 'Premium Underpad — Stairs to Lower Level', amount: stairUnderpad });
+
+  // ---- Bedroom premium carpet / underpad (carpet bedrooms only; a hard-surface second bedroom is excluded) ----
+  const secondBedroomIsHard = (input.areaUpgrades || []).some(a => a.areaId === 'secondBedroom' && /lvp|lvt|laminate|hardwood|tile/i.test(String(a.materialType)));
+  const bedroomIsCarpet = input.bedroomFlooringChoice === 'carpet';
+  const bedroomCarpetSqyd = bedroomIsCarpet ? (unitData?.masterBedroom || 0) + (secondBedroomIsHard ? 0 : (unitData?.secondBedroomCarpet || 0)) : 0;
+  const bedroomWord = secondBedroomIsHard ? 'Primary Bedroom' : 'Bedrooms';
+  const bedroomCarpet = ov('bedroomCarpet',
+    bedroomIsCarpet && input.bedroomPremiumCarpetSelected ? bedroomCarpetSqyd * pricing.getMaterialCost('carpet') * (1 + pricing.markupPercentage) : 0,
+    bedroomIsCarpet && !!input.bedroomPremiumCarpetSelected);
+  const bedroomUnderpad = ov('bedroomUnderpad',
+    bedroomIsCarpet && input.bedroomPremiumUnderpadSelected ? bedroomCarpetSqyd * pricing.getMaterialCost('premium_carpet_underpad') * (1 + pricing.markupPercentage) : 0,
+    bedroomIsCarpet && !!input.bedroomPremiumUnderpadSelected);
+  if (bedroomCarpet > 0) lineItems.push({ group: 'flooring', label: labels.bedroomCarpet || `Premium Carpet — ${bedroomWord} (${bedroomCarpetSqyd} sq yd)`, amount: bedroomCarpet });
+  if (bedroomUnderpad > 0) lineItems.push({ group: 'flooring', label: labels.bedroomUnderpad || `Premium Underpad — ${bedroomWord} (${bedroomCarpetSqyd} sq yd)`, amount: bedroomUnderpad });
 
   // ---- Grout ----
   const grout = input.backsplashGrout?.enabled ? ov('grout', pricing.getGroutColorFee(), true) : 0;
@@ -348,7 +368,7 @@ export function computeUpgradeTotals(
   customItems.forEach(i => lineItems.push({ group: 'custom', label: i.label, detail: i.detail, amount: i.amount }));
 
   const upgradesSubtotal =
-    flooringSubtotal + areaHeatedFloorSubtotal + stairLvp + stairCarpet + stairUnderpad + grout +
+    flooringSubtotal + areaHeatedFloorSubtotal + stairLvp + stairCarpet + stairUnderpad + bedroomCarpet + bedroomUnderpad + grout +
     bathroomTile + section4HeatedFloor + customShower + customItemsTotal;
 
   const grandSubtotal = upgradesSubtotal + windowSubtotal;
@@ -366,6 +386,9 @@ export function computeUpgradeTotals(
       stairLvp,
       stairCarpet,
       stairUnderpad,
+      bedroomCarpet,
+      bedroomUnderpad,
+      bedroomCarpetSqyd,
       grout,
       windowAdditional,
       windowPatio,
