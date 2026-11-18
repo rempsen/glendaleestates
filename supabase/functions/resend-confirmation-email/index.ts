@@ -1,6 +1,7 @@
 // Resend confirmation email — uses the SHARED upgradeTotalsServer +
 // EMAIL_THEME so the buyer's email pricing matches the on-screen summary,
 // the buyer PDF, the admin email, and the CSV attachment exactly.
+import { toBuyerWording } from "../_shared/buyerWording.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { authorizeInternalOrAdmin, makeGetUserFromJwt } from "../_shared/internalAuth.ts";
 import {
@@ -136,8 +137,8 @@ function buildBuyerHtml(sub: Record<string, any>, totals: ReturnType<typeof comp
   let summaryHtml = '';
   if (totals.grandSubtotal > 0) {
     const rows = totals.lineItems.map(item => {
-      const detail = item.detail ? `<div style="color:${EMAIL_THEME.colors.textMuted}; font-size:12px; margin-top:2px;">${escapeHtml(item.detail)}</div>` : '';
-      return `<tr><td style="${styles.td}">${escapeHtml(item.label)}${detail}</td><td style="${styles.tdRight}">$${item.amount.toFixed(2)}</td></tr>`;
+      const detail = item.detail ? `<div style="color:${EMAIL_THEME.colors.textMuted}; font-size:12px; margin-top:2px;">${escapeHtml(toBuyerWording(item.detail))}</div>` : '';
+      return `<tr><td style="${styles.td}">${escapeHtml(toBuyerWording(item.label))}${detail}</td><td style="${styles.tdRight}">$${item.amount.toFixed(2)}</td></tr>`;
     }).join('');
     summaryHtml = `
       <h2 style="${styles.h2}">Complete Upgrade Summary</h2>
@@ -198,8 +199,8 @@ function buildBuyerHtml(sub: Record<string, any>, totals: ReturnType<typeof comp
 
 function buildAdminHtml(sub: Record<string, any>, totals: ReturnType<typeof computeUpgradeTotalsServer>, editedBy: string): string {
   const rows = totals.lineItems.map(item => {
-    const detail = item.detail ? `<div style="color:${EMAIL_THEME.colors.textMuted}; font-size:12px;">${escapeHtml(item.detail)}</div>` : '';
-    return `<tr><td style="${styles.td}">${escapeHtml(item.label)}${detail}</td><td style="${styles.tdRight}">$${item.amount.toFixed(2)}</td></tr>`;
+    const detail = item.detail ? `<div style="color:${EMAIL_THEME.colors.textMuted}; font-size:12px;">${escapeHtml(toBuyerWording(item.detail))}</div>` : '';
+    return `<tr><td style="${styles.td}">${escapeHtml(toBuyerWording(item.label))}${detail}</td><td style="${styles.tdRight}">$${item.amount.toFixed(2)}</td></tr>`;
   }).join('');
   const summary = totals.grandSubtotal > 0 ? `
     <h2 style="${styles.h2}">Complete Upgrade Summary</h2>

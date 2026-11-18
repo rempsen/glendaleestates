@@ -1,4 +1,5 @@
 import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
+import { toBuyerWording } from "../_shared/buyerWording.ts";
 import { computeUpgradeTotalsServer, ServerTotalsResult } from "../_shared/upgradeTotalsServer.ts";
 import {
   authorizeAdmin,
@@ -143,7 +144,7 @@ function generateCSV(data: SelectionData, savedId: string | undefined, pricingBr
   if (pricingBreakdown) {
     rows.push(['--- PRICING BREAKDOWN ---', '']);
     for (const item of pricingBreakdown.lineItems) {
-      rows.push([item.label, `$${item.cost.toFixed(2)}`]);
+      rows.push([toBuyerWording(item.label), `$${item.cost.toFixed(2)}`]);
     }
     rows.push(['Subtotal (pre-GST)', `$${pricingBreakdown.subtotal.toFixed(2)}`]);
     rows.push([`GST (${(pricingBreakdown.gstRate * 100).toFixed(0)}%)`, `$${pricingBreakdown.gst.toFixed(2)}`]);
@@ -1115,10 +1116,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (totals.grandSubtotal > 0) {
       const summaryItems = totals.lineItems.map(item => {
         const detail = item.detail
-          ? `<div style="color:#374151; font-size:12px; margin-top:2px;">${escapeHtml(item.detail)}</div>`
+          ? `<div style="color:#374151; font-size:12px; margin-top:2px;">${escapeHtml(toBuyerWording(item.detail))}</div>`
           : '';
         return `<tr>
-          <td style="padding:10px 8px; color:#000000; border-bottom:1px solid #e5e7eb;">${escapeHtml(item.label)}${detail}</td>
+          <td style="padding:10px 8px; color:#000000; border-bottom:1px solid #e5e7eb;">${escapeHtml(toBuyerWording(item.label))}${detail}</td>
           <td style="padding:10px 8px; color:#000000; text-align:right; font-weight:bold; border-bottom:1px solid #e5e7eb;">$${item.amount.toFixed(2)}</td>
         </tr>`;
       }).join('');
@@ -1197,7 +1198,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
               <tr><td class="label">Main Floor LVP:</td><td class="value">${escapeHtml(data.lvpColour) || 'Not selected'}</td></tr>
               <tr><td class="label">${BATHROOM_TILE_LABEL}:</td><td class="value">${escapeHtml(data.spcTileColour) || 'Not selected'}</td></tr>
               <tr><td class="label">${LAUNDRY_ROW_LABEL}:</td><td class="value">${escapeHtml(laundryValue(data.areaUpgrades))}</td></tr>
-              ${data.hasStairs ? `<tr><td class="label">${STAIR_CARPET_LABEL}:</td><td class="value">${escapeHtml(data.stairCarpetColour) || 'Not selected'}</td></tr>` : ''}
+              ${data.hasStairs ? `<tr><td class="label">${STAIR_CARPET_LABEL}:</td><td class="value">${escapeHtml(stairFlooringRow(data).value)}</td></tr>` : ''}
               <tr><td class="label">${PRIMARY_BEDROOM_FLOORING_LABEL}:</td><td class="value">${data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : escapeHtml(data.bedroomFlooringChoice) || 'Not selected'}</td></tr>
             </table>
             ${data.lvpComments ? `<div class="comments"><strong>LVP Comments:</strong> ${escapeHtml(data.lvpComments)}</div>` : ''}
@@ -1280,7 +1281,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // CSV pricing breakdown — same line items, subtotal, GST, and grand total
     // as the admin HTML, the buyer email, and the buyer/admin PDFs.
     const csvLineItems = totals.lineItems.map(item => ({
-      label: item.detail ? `${item.label} — ${item.detail}` : item.label,
+      label: toBuyerWording(item.detail ? `${item.label} — ${item.detail}` : item.label),
       cost: item.amount,
     }));
 
@@ -1701,10 +1702,10 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
   if (t && t.grandSubtotal > 0) {
     const lineItemsHtml = t.lineItems.map(item => {
       const detail = item.detail
-        ? `<div style="color:#374151; font-size:12px; margin-top:2px;">${escapeHtml(item.detail)}</div>`
+        ? `<div style="color:#374151; font-size:12px; margin-top:2px;">${escapeHtml(toBuyerWording(item.detail))}</div>`
         : '';
       return `<tr>
-        <td style="padding: 10px 0; color: #1a1a2e; font-size: 14px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(item.label)}${detail}</td>
+        <td style="padding: 10px 0; color: #1a1a2e; font-size: 14px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(toBuyerWording(item.label))}${detail}</td>
         <td style="padding: 10px 0; color: #1a1a2e; font-size: 14px; text-align: right; font-weight: 500; border-bottom: 1px solid #e5e7eb;">$${item.amount.toFixed(2)}</td>
       </tr>`;
     }).join('');
@@ -2126,7 +2127,7 @@ function renderPreviewAdminHtml(data: SelectionData): string {
   // exactly what staff will receive.
   const totals = buildPreviewTotals(data);
   const rows = totals.lineItems.map(item =>
-    `<tr><td style="padding:10px 8px; color:#000000; border-bottom:1px solid #e5e7eb;">${escapeHtml(item.label)}${item.detail ? ` <span style="color:#4b5563;">— ${escapeHtml(item.detail)}</span>` : ''}</td><td style="padding:10px 8px; color:#000000; text-align:right; font-weight:600; border-bottom:1px solid #e5e7eb;">$${item.amount.toFixed(2)}</td></tr>`
+    `<tr><td style="padding:10px 8px; color:#000000; border-bottom:1px solid #e5e7eb;">${escapeHtml(toBuyerWording(item.label))}${item.detail ? ` <span style="color:#4b5563;">— ${escapeHtml(toBuyerWording(item.detail))}</span>` : ''}</td><td style="padding:10px 8px; color:#000000; text-align:right; font-weight:600; border-bottom:1px solid #e5e7eb;">$${item.amount.toFixed(2)}</td></tr>`
   ).join('');
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Admin Email Preview</title></head>
 <body style="margin:0; padding:24px; background:#f9fafb; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif; color:#000000;">

@@ -158,3 +158,16 @@ test('resend-confirmation-email carries the same base-spec labels', () => {
   for (const l of ["'Bathroom Tile'", "'Primary Bedroom Flooring'", "'Primary Bedroom Carpet Colour'", "'Stair Flooring – Carpet'", "'Standard Carpet (Included)'", "'Laundry Room'"]) expect(edge).toContain(l);
   expect(edge.includes('Bathroom/Laundry') || edge.includes('Master Bedroom')).toBe(false);
 });
+test('standard stairs with a chosen colour pin the format', () => {
+  expect(get(rowsFor({ ...typeC, stair_carpet_colour: 'Wolf River' } as any), 'Stair Flooring – Carpet')).toBe('Standard Carpet (Included) — Wolf River');
+});
+test('edge buyerWording mirrors src toBuyerWording and is applied to engine labels', async () => {
+  const shared = await import('../supabase/functions/_shared/buyerWording');
+  for (const s of ['Master Bedroom (Carpet) (Premium Carpet)', 'Heated Floor (Master Bedroom)', 'Guest Bathroom', '']) expect(shared.toBuyerWording(s)).toBe(toBuyerWording(s));
+  expect(shared.toBuyerWording('Master Bedroom (Carpet) (Premium Carpet)')).toBe('Primary Bedroom (Carpet) (Premium Carpet)');
+  for (const f of ['send-selections-email', 'resend-confirmation-email']) {
+    const src = readFileSync(join(import.meta.dir, `../supabase/functions/${f}/index.ts`), 'utf8');
+    expect(src).toContain('toBuyerWording(item.label)');
+    expect(src).toContain('toBuyerWording(item.detail)');
+  }
+});
