@@ -1,7 +1,8 @@
 import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
 import { authorizeInternalOrAdmin, makeGetUserFromJwt } from "../_shared/internalAuth.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { computeUpgradeTotalsServer, normalizeUnitTypeCode, type ServerPricing } from "../_shared/upgradeTotalsServer.ts";
+import { computeUpgradeTotalsServer, normalizeUnitTypeCode } from "../_shared/upgradeTotalsServer.ts";
+import { clientPricingFetcher, loadServerPricing } from "../_shared/loadServerPricing.ts";
 
 interface AreaUpgradeSelection {
   areaId: string;
@@ -197,31 +198,7 @@ function calculateUpgradePricing(submission: BuyerSelection): {
 // submit-time total column on buyer_selections (written once at submit, GST-inclusive). Same pricing load as qbo-sync-submission.
 async function computeWindowSubtotal(submission: BuyerSelection): Promise<number> {
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-  const [pcRes, umRes, uaRes] = await Promise.all([
-    admin.from('pricing_config').select('config_key, config_value, is_percentage').eq('is_active', true),
-    admin.from('upgrade_materials').select('material_key, cost_per_unit').eq('is_active', true),
-    admin.from('unit_area_data').select('*'),
-  ]);
-  const config: Record<string, number> = {};
-  let markupPercentage = 0;
-  let gstRate = 0.05;
-  for (const r of (pcRes.data ?? [])) {
-    config[r.config_key] = Number(r.config_value);
-    if (r.config_key === 'markup_percentage') markupPercentage = Number(r.config_value);
-    if (r.config_key === 'gst_rate') gstRate = Number(r.config_value);
-  }
-  const materials: Record<string, number> = {};
-  for (const r of (umRes.data ?? [])) materials[r.material_key] = Number(r.cost_per_unit);
-  const unitAreas: ServerPricing['unitAreas'] = {};
-  for (const r of (uaRes.data ?? [])) {
-    unitAreas[r.unit_type_code] = {
-      allLvp: Number(r.all_lvp), mainLiving: Number(r.main_living),
-      secondBedroom: Number(r.second_bedroom), masterBedroomLvp: Number(r.master_bedroom_lvp),
-      masterBedroom: Number(r.master_bedroom), secondBedroomCarpet: Number(r.second_bedroom_carpet),
-      guestBathroom: Number(r.guest_bathroom), masterEnsuite: Number(r.master_ensuite),
-      laundry: Number(r.laundry), backsplash: Number(r.backsplash),
-    };
-  }
+  const pricing = await loadServerPricing(clientPricingFetcher(admin));
   const totals = computeUpgradeTotalsServer({
     unitTypeCode: normalizeUnitTypeCode(submission.unit_type),
     areaUpgrades: [],
@@ -232,7 +209,7 @@ async function computeWindowSubtotal(submission: BuyerSelection): Promise<number
     bedroomFlooringChoice: submission.bedroom_flooring_choice,
     bedroomPremiumCarpetSelected: !!submission.premium_carpet_bedroom,
     bedroomPremiumUnderpadSelected: !!submission.premium_underpad_bedroom,
-  }, { materials, config, unitAreas, markupPercentage, gstRate });
+  }, pricing);
   return totals.windowSubtotal;
 }
 

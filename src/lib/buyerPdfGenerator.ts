@@ -323,6 +323,80 @@ export function buildStandardSelectionRows(
   return standardData;
 }
 
+/**
+ * Premium Upgrades table rows (label/amount) for the buyer PDF, without the subtotal row.
+ * Every priced engine piece in `upgradesSubtotal` must have a row here (guarded by scripts/buyer-pdf-upgrade-rows.test.ts).
+ */
+export function buildPremiumUpgradeRows(
+  selections: BuyerSelections,
+  pricing: PdfPricingConfig,
+  totals: ReturnType<typeof computeUpgradeTotals>,
+): string[][] {
+  const upgradeData: string[][] = [];
+
+  if (totals.pieces.stairLvp > 0) {
+    upgradeData.push([totals.pieces.labels.stair || (selections.stairUpgradeType === 'premium_lvp' ? 'Stair Premium LVP Upgrade with Custom Nosings' : 'Stair LVP Upgrade with Custom Nosings'), `$${totals.pieces.stairLvp.toFixed(2)}`]);
+  }
+  if (totals.pieces.stairCarpet > 0) {
+    upgradeData.push([totals.pieces.labels.stairCarpet || 'Premium Carpet — Stairs to Lower Level', `$${totals.pieces.stairCarpet.toFixed(2)}`]);
+  }
+  if (totals.pieces.stairUnderpad > 0) {
+    upgradeData.push([totals.pieces.labels.stairUnderpad || 'Premium Underpad — Stairs to Lower Level', `$${totals.pieces.stairUnderpad.toFixed(2)}`]);
+  }
+
+  // Primary Bedroom premium carpet / underpad: engine line label (custom override label or default), buyer wording.
+  const engineLabel = (prefix: string) =>
+    totals.lineItems.find(li => li.group === 'flooring' && li.label.startsWith(prefix) && /Bedroom/.test(li.label))?.label;
+  if (totals.pieces.bedroomCarpet > 0) {
+    upgradeData.push([toBuyerWording(totals.pieces.labels.bedroomCarpet || engineLabel('Premium Carpet — ') || 'Premium Carpet — Primary Bedroom'), `$${totals.pieces.bedroomCarpet.toFixed(2)}`]);
+  }
+  if (totals.pieces.bedroomUnderpad > 0) {
+    upgradeData.push([toBuyerWording(totals.pieces.labels.bedroomUnderpad || engineLabel('Premium Underpad — ') || 'Premium Underpad — Primary Bedroom'), `$${totals.pieces.bedroomUnderpad.toFixed(2)}`]);
+  }
+
+  totals.pieces.flooringUpgrades.forEach(item => {
+    const productLine = [item.materialName, item.productName, item.productColor]
+      .filter(Boolean)
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .join(' — ');
+    upgradeData.push([toBuyerWording(`${item.areaName} — ${productLine}`), `$${item.amount.toFixed(2)}`]);
+    if (item.heatedFloorAmount > 0) {
+      upgradeData.push([toBuyerWording(`  └ Heated Floor (${item.areaName})`), `$${item.heatedFloorAmount.toFixed(2)}`]);
+    }
+  });
+
+  if (totals.pieces.bathroomTile > 0) {
+    const bathrooms = [
+      selections.bathroomTileEnsuiteSelected && 'Ensuite',
+      selections.bathroomTileGuestSelected && 'Guest Bathroom',
+    ].filter(Boolean).join(', ');
+    upgradeData.push([totals.pieces.labels.bathroomTile || `Porcelain Tile Floor Upgrade${bathrooms ? ` — ${bathrooms}` : ''}`, `$${totals.pieces.bathroomTile.toFixed(2)}`]);
+  }
+  if (totals.pieces.section4HeatedFloor > 0) {
+    const n = selections.heatedFloorBathrooms || 0;
+    const heatedFloorPerBathroom = pricing.getHeatedFloorPrice();
+    upgradeData.push([
+      totals.pieces.labels.heatedFloor || `Heated Tile Floor (${n} bathroom${n > 1 ? 's' : ''} × $${heatedFloorPerBathroom.toLocaleString()})`,
+      `$${totals.pieces.section4HeatedFloor.toFixed(2)}`,
+    ]);
+  }
+  if (totals.pieces.customShower > 0) {
+    upgradeData.push([totals.pieces.labels.customShower || 'Custom Tiled Shower', `$${totals.pieces.customShower.toFixed(2)}`]);
+  }
+
+  if (totals.pieces.grout > 0) {
+    upgradeData.push([
+      totals.pieces.labels.grout || `Backsplash Grout Color Change${selections.backsplashGrout?.groutColor ? ` — ${selections.backsplashGrout.groutColor}` : ''}`,
+      `$${totals.pieces.grout.toFixed(2)}`,
+    ]);
+  }
+
+  totals.pieces.customItems.forEach(item => {
+    upgradeData.push([item.detail ? `${item.label} — ${item.detail}` : item.label, `$${item.amount.toFixed(2)}`]);
+  });
+  return upgradeData;
+}
+
 export async function generateBuyerPreviewPDF(
   selections: BuyerSelections,
   unitTypeCode: string | null,
@@ -549,58 +623,7 @@ export async function generateBuyerPreviewPDF(
     doc.line(margin, yPos, margin + 40, yPos);
     yPos += 10;
 
-    const upgradeData: string[][] = [];
-
-    if (totals.pieces.stairLvp > 0) {
-      upgradeData.push([totals.pieces.labels.stair || (selections.stairUpgradeType === 'premium_lvp' ? 'Stair Premium LVP Upgrade with Custom Nosings' : 'Stair LVP Upgrade with Custom Nosings'), `$${totals.pieces.stairLvp.toFixed(2)}`]);
-    }
-    if (totals.pieces.stairCarpet > 0) {
-      upgradeData.push([totals.pieces.labels.stairCarpet || 'Premium Carpet — Stairs to Lower Level', `$${totals.pieces.stairCarpet.toFixed(2)}`]);
-    }
-    if (totals.pieces.stairUnderpad > 0) {
-      upgradeData.push([totals.pieces.labels.stairUnderpad || 'Premium Underpad — Stairs to Lower Level', `$${totals.pieces.stairUnderpad.toFixed(2)}`]);
-    }
-
-    totals.pieces.flooringUpgrades.forEach(item => {
-      const productLine = [item.materialName, item.productName, item.productColor]
-        .filter(Boolean)
-        .filter((v, i, a) => a.indexOf(v) === i)
-        .join(' — ');
-      upgradeData.push([toBuyerWording(`${item.areaName} — ${productLine}`), `$${item.amount.toFixed(2)}`]);
-      if (item.heatedFloorAmount > 0) {
-        upgradeData.push([toBuyerWording(`  └ Heated Floor (${item.areaName})`), `$${item.heatedFloorAmount.toFixed(2)}`]);
-      }
-    });
-
-    if (totals.pieces.bathroomTile > 0) {
-      const bathrooms = [
-        selections.bathroomTileEnsuiteSelected && 'Ensuite',
-        selections.bathroomTileGuestSelected && 'Guest Bathroom',
-      ].filter(Boolean).join(', ');
-      upgradeData.push([totals.pieces.labels.bathroomTile || `Porcelain Tile Floor Upgrade${bathrooms ? ` — ${bathrooms}` : ''}`, `$${totals.pieces.bathroomTile.toFixed(2)}`]);
-    }
-    if (totals.pieces.section4HeatedFloor > 0) {
-      const n = selections.heatedFloorBathrooms || 0;
-      const heatedFloorPerBathroom = pricing.getHeatedFloorPrice();
-      upgradeData.push([
-        totals.pieces.labels.heatedFloor || `Heated Tile Floor (${n} bathroom${n > 1 ? 's' : ''} × $${heatedFloorPerBathroom.toLocaleString()})`,
-        `$${totals.pieces.section4HeatedFloor.toFixed(2)}`,
-      ]);
-    }
-    if (totals.pieces.customShower > 0) {
-      upgradeData.push([totals.pieces.labels.customShower || 'Custom Tiled Shower', `$${totals.pieces.customShower.toFixed(2)}`]);
-    }
-
-    if (totals.pieces.grout > 0) {
-      upgradeData.push([
-        totals.pieces.labels.grout || `Backsplash Grout Color Change${selections.backsplashGrout?.groutColor ? ` — ${selections.backsplashGrout.groutColor}` : ''}`,
-        `$${totals.pieces.grout.toFixed(2)}`,
-      ]);
-    }
-
-    totals.pieces.customItems.forEach(item => {
-      upgradeData.push([item.detail ? `${item.label} — ${item.detail}` : item.label, `$${item.amount.toFixed(2)}`]);
-    });
+    const upgradeData: string[][] = buildPremiumUpgradeRows(selections, pricing, totals);
 
     upgradeData.push(['Section Subtotal:', `$${totals.upgradesSubtotal.toFixed(2)}`]);
 

@@ -1,6 +1,7 @@
 import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
 import { toBuyerWording } from "../_shared/buyerWording.ts";
-import { computeUpgradeTotalsServer, ServerTotalsResult } from "../_shared/upgradeTotalsServer.ts";
+import { computeUpgradeTotalsServer, type ServerPricing, ServerTotalsResult } from "../_shared/upgradeTotalsServer.ts";
+import { loadServerPricing, restPricingFetcher } from "../_shared/loadServerPricing.ts";
 import {
   authorizeAdmin,
   authorizeSubmission,
@@ -486,74 +487,9 @@ function resolveFloorSpecificUnitCode(
   return upper;
 }
 
-// Fetch dynamic pricing from database
-async function fetchDynamicPricing(): Promise<{
-  materials: Record<string, number>;
-  config: Record<string, number>;
-  unitAreas: Record<string, Record<string, number>>;
-  markupPercentage: number;
-  gstRate: number;
-}> {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-  const headers = {
-    "apikey": supabaseServiceKey,
-    "Authorization": `Bearer ${supabaseServiceKey}`,
-    "Content-Type": "application/json",
-  };
-
-  // Fetch materials, config, and unit areas in parallel
-  const [materialsRes, configRes, unitAreasRes] = await Promise.all([
-    fetch(`${supabaseUrl}/rest/v1/upgrade_materials?is_active=eq.true`, { headers }),
-    fetch(`${supabaseUrl}/rest/v1/pricing_config`, { headers }),
-    fetch(`${supabaseUrl}/rest/v1/unit_area_data`, { headers }),
-  ]);
-
-  const materials: Record<string, number> = {};
-  const config: Record<string, number> = {};
-  const unitAreas: Record<string, Record<string, number>> = {};
-
-  // Parse materials
-  if (materialsRes.ok) {
-    const data = await materialsRes.json();
-    for (const m of data) {
-      materials[m.material_key] = Number(m.cost_per_unit);
-    }
-  }
-
-  // Parse config
-  let markupPercentage = 0.60;
-  let gstRate = 0.05;
-  if (configRes.ok) {
-    const data = await configRes.json();
-    for (const c of data) {
-      config[c.config_key] = Number(c.config_value);
-      if (c.config_key === 'markup_percentage') markupPercentage = Number(c.config_value) / 100;
-      if (c.config_key === 'gst_rate') gstRate = Number(c.config_value) / 100;
-    }
-  }
-
-  // Parse unit areas
-  if (unitAreasRes.ok) {
-    const data = await unitAreasRes.json();
-    for (const u of data) {
-      unitAreas[u.unit_type_code] = {
-        allLvp: Number(u.all_lvp),
-        mainLiving: Number(u.main_living),
-        secondBedroom: Number(u.second_bedroom),
-        masterBedroomLvp: Number(u.master_bedroom_lvp || 0),
-        masterBedroom: Number(u.master_bedroom),
-        secondBedroomCarpet: Number(u.second_bedroom_carpet),
-        guestBathroom: Number(u.guest_bathroom),
-        masterEnsuite: Number(u.master_ensuite),
-        laundry: Number(u.laundry),
-        backsplash: Number(u.backsplash),
-      };
-    }
-  }
-
-  return { materials, config, unitAreas, markupPercentage, gstRate };
+// Fetch dynamic pricing from database (shared loader; markup/GST divided by 100)
+async function fetchDynamicPricing(): Promise<ServerPricing> {
+  return await loadServerPricing(restPricingFetcher(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!));
 }
 
 // Calculate area upgrade costs

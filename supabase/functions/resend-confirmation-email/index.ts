@@ -10,6 +10,7 @@ import {
   ServerAreaUpgrade,
   ServerPricing,
 } from "../_shared/upgradeTotalsServer.ts";
+import { loadServerPricing, restPricingFetcher } from "../_shared/loadServerPricing.ts";
 import { EMAIL_THEME, styles, wrapEmailShell } from "../_shared/emailTheme.ts";
 
 function escapeHtml(text: string | undefined | null): string {
@@ -64,34 +65,7 @@ const MATERIAL_NAMES: Record<string, string> = {
 };
 
 async function fetchDynamicPricing(): Promise<ServerPricing> {
-  const url = Deno.env.get("SUPABASE_URL")!;
-  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const headers = { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
-  const [mRes, cRes, uRes] = await Promise.all([
-    fetch(`${url}/rest/v1/upgrade_materials?is_active=eq.true`, { headers }),
-    fetch(`${url}/rest/v1/pricing_config`, { headers }),
-    fetch(`${url}/rest/v1/unit_area_data`, { headers }),
-  ]);
-  const materials: Record<string, number> = {};
-  const config: Record<string, number> = {};
-  const unitAreas: Record<string, any> = {};
-  let markupPercentage = 0.6, gstRate = 0.05;
-  if (mRes.ok) for (const m of await mRes.json()) materials[m.material_key] = Number(m.cost_per_unit);
-  if (cRes.ok) for (const c of await cRes.json()) {
-    config[c.config_key] = Number(c.config_value);
-    if (c.config_key === 'markup_percentage') markupPercentage = Number(c.config_value) / 100;
-    if (c.config_key === 'gst_rate') gstRate = Number(c.config_value) / 100;
-  }
-  if (uRes.ok) for (const u of await uRes.json()) unitAreas[u.unit_type_code] = {
-    allLvp: Number(u.all_lvp), mainLiving: Number(u.main_living),
-    secondBedroom: Number(u.second_bedroom),
-    masterBedroomLvp: Number(u.master_bedroom_lvp || 0),
-    masterBedroom: Number(u.master_bedroom),
-    secondBedroomCarpet: Number(u.second_bedroom_carpet),
-    guestBathroom: Number(u.guest_bathroom), masterEnsuite: Number(u.master_ensuite),
-    laundry: Number(u.laundry), backsplash: Number(u.backsplash),
-  };
-  return { materials, config, unitAreas, markupPercentage, gstRate };
+  return await loadServerPricing(restPricingFetcher(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!));
 }
 
 function buildBuyerHtml(sub: Record<string, any>, totals: ReturnType<typeof computeUpgradeTotalsServer>): string {
