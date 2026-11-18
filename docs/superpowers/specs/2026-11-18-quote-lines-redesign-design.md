@@ -1,6 +1,6 @@
 # Glendale Selections Hub — Quote Lines Redesign (Approach B)
 
-**Status:** Approved by Dan 2026-11-18 11:13 CT (answers in §11); Phase 1 shipped 2026-11-18; §6.16 addendum pending Dan's approval 17:00 CT — Phase 2 plan follows
+**Status:** Approved by Dan 2026-11-18 11:13 CT (answers in §11); Phase 1 shipped 2026-11-18; §6.16 addendum approved by Dan 16:59 CT — Phase 2 plan follows
 **Date:** 2026-11-18
 **Author:** Claude (design), from the 2026-11-18 system review, three code/research audits, and Dan's answers
 **Repo:** `rempsen/glendaleestates` @ `499cb4a` · Lovable project `451d344e…` · Supabase `adtbjnwaxmxhyjkjxqoz`
