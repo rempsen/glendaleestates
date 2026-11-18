@@ -67,7 +67,7 @@
         "comments": "2x2 Tile for shower floor. No tile on ceiling. Amazonia Jade 24x48",
         "heatedFloor": false,
         "manualPrice": 8820,
-        "manualPriceNote": "As ber Brian & Ceratec",
+        "manualPriceNote": "As per staff & the supplier",
         "materialType": "tile",
         "productColor": "Cenere",
         "productName": "Inizio"
@@ -237,7 +237,7 @@
     "completed_at": null,
     "created_at": "2026-04-21T19:14:19.275233+00:00",
     "custom_pricing": {
-      "basementNotes": "Stairs to lower level: premium carpet + underpad ($1,005) under review against the standard carpet specification; excluded from total until resolved. Basement underpad deferred pending Karma's estimate. Basement bathroom: Piccolo LVT. Basement bedroom roller blinds (3 window wells) — pricing to be obtained.",
+      "basementNotes": "Stairs to lower level: premium carpet + underpad ($1,005) under review against the standard carpet specification; excluded from total until resolved. Basement underpad deferred pending the estimator's estimate. Basement bathroom: Piccolo LVT. Basement bedroom roller blinds (3 window wells) — pricing to be obtained.",
       "customItems": [
         {
           "amount": null,
@@ -313,7 +313,7 @@
           "area": "Basement",
           "id": "37c0a38e-574f-4aeb-8b7b-b004f3b0afbf",
           "label": "Premium Underpad — Basement",
-          "note": "Deferred pending Karma's estimate",
+          "note": "Deferred pending the estimator's estimate",
           "quantity": null,
           "status": "deferred",
           "unit": "each",
@@ -344,17 +344,17 @@
         {
           "clientVisible": true,
           "id": "129bceb7-9c54-47eb-bccd-9f1f74e32f00",
-          "text": "Basement pricing pending Karma's estimate"
+          "text": "Basement pricing pending the estimator's estimate"
         },
         {
           "clientVisible": false,
           "id": "ef1111b2-6309-47ee-83ca-3ce7b2d600db",
-          "text": "Reconcile (internal): April quote $9,966 incl. motorization. Nov 16 quote $9,681 = 9,966 − 1,290 motorization (lost when automated_windows_qty column was added) + 1,005 stairs. Nov 18 corrected: motorization restored ($1,290), stairs $1,005 moved to Under review (excluded), Primary Bedroom underpad added ($422.40). '2 × $637.50' in Mike's email is a transposition of $673.50; 2 × 673.50 = 1,347 is correct."
+          "text": "internal reconciliation note (redacted)"
         }
       ],
       "overrides": {},
       "provisional": {
-        "lvp_colour": "To be chosen by Deb at the Nov 26 meeting"
+        "lvp_colour": "To be chosen by the buyer at the Nov 26 meeting"
       }
     },
     "custom_tiled_shower": false,

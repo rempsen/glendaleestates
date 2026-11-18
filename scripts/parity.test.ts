@@ -19,6 +19,8 @@ const EXPECTED_SUBTOTALS: Record<string, number> = {
   '7': 2845.5,
   '24': 10388.4,
   '27': 0,
+  // Engine subtotal 27,263.00 vs. the staff note of 2026-11-16 "$27,204.50 plus GST" (gap $58.50, origin unknown).
+  // Pinned at the engine value on 2026-11-18; to be investigated in Phase 2 parity work.
   '31': 27263,
   '37': 10488.5,
   '38': 2680.5,
