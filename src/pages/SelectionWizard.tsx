@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useDraftSave } from '@/hooks/useDraftSave';
+import { migrateDraftClientComments } from '@/lib/draftClientComments';
 import { 
   lvpOptions, 
   lvpSpecs,
@@ -322,7 +323,8 @@ export default function SelectionWizard() {
 
   const resumeDraft = useCallback(() => {
     if (pendingDraft) {
-      setSelections(pendingDraft.selections as unknown as SelectionState);
+      // Pre-split drafts carry the buyer's area note in `comments`; move it to `clientComment`.
+      setSelections(migrateDraftClientComments(pendingDraft.selections as unknown as SelectionState));
       setCurrentStep(pendingDraft.currentStep);
       setHighestStepReached(pendingDraft.highestStepReached);
       toast.success('Draft restored');

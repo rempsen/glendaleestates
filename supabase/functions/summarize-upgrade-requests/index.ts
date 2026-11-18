@@ -1,6 +1,7 @@
 // Admin-only: AI summary of a buyer's upgrade requests and recent changes
 // (incl. lower-level stair carpet/underpad add-ons) for quick staff review.
 import { generateResponse, GatewayError } from 'npm:@lovable.dev/ai-gateway@0.1.13';
+import { sanitizeAuditLogsForAi } from '../_shared/sanitizeChangesForAi.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -56,6 +57,8 @@ Deno.serve(async (req) => {
         ? rows[0].area_upgrades.map(({ comments: _internal, ...keep }: Record<string, unknown>) => keep)
         : rows[0].area_upgrades,
     };
+    // Change log entries carry Admin Notes (sales_comments) and full area_upgrades diffs; strip the internal text.
+    const logsForModel = sanitizeAuditLogsForAi(logs);
 
     const prompt = `You help condo finishing staff review buyer upgrade requests.
 Summarize for staff in plain, concise English (no emojis):
@@ -68,7 +71,7 @@ SELECTION RECORD:
 ${JSON.stringify(selectionForModel)}
 
 CHANGE LOG (newest first):
-${JSON.stringify(logs)}`;
+${JSON.stringify(logsForModel)}`;
 
     const res = await generateResponse({
       model: 'openai/gpt-6-astra',

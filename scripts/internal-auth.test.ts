@@ -42,3 +42,10 @@ test('allowUser: non-admin JWT returns kind user; self-email vs other-email', as
 test('allowUser still rejects anon key', async () => {
   expect(await authorizeInternalOrAdmin(req({ Authorization: 'Bearer anon-key' }), env, getUser, { allowUser: true })).toEqual({ ok: false, status: 401 });
 });
+// Final-review MINOR: send-draft-reminder compares x-internal-secret with the exported constant-time safeEqual.
+import { safeEqual } from '../supabase/functions/_shared/internalAuth';
+test('safeEqual: equal, different, different length', () => {
+  expect(safeEqual('service-role-key', 'service-role-key')).toBe(true);
+  expect(safeEqual('service-role-key', 'service-role-kez')).toBe(false);
+  expect(safeEqual('short', 'service-role-key')).toBe(false);
+});
