@@ -1,17 +1,30 @@
 // Phase 2 Task 5 (spec §6.4): backfill `quote_lines` for the live submissions in `buyer_selections`.
 //
-//   bun scripts/backfill-quote-lines.ts                 # DRY RUN: per-unit parity report, no writes
-//   bun scripts/backfill-quote-lines.ts --unit 24       # one unit
-//   bun scripts/backfill-quote-lines.ts --json          # report as JSON
-//   CONFIRM_BACKFILL=yes bun scripts/backfill-quote-lines.ts --write
+//   bun scripts/backfill-quote-lines.ts --json > dryrun.json            # DRY RUN: parity report, no writes
+//   bun scripts/backfill-quote-lines.ts --unit 24                       # one unit (table)
+//   CONFIRM_BACKFILL=yes bun scripts/backfill-quote-lines.ts --write --expect dryrun.json
 //
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (service role; reads in a dry run, inserts with --write).
 //
 // A row is `ok` only when the generated lines equal BOTH Phase 1 engines to the cent (subtotal and window
-// coverings) and match the client engine's lineItems line for line. `--write` inserts source='migration' lines
-// only for `ok` rows with zero existing quote_lines, one batch per submission; on any insert error the
-// submission's migration lines are deleted and the row is reported FAIL. Draft submissions live in a separate
-// table and are never read. Inputs come only from ./lib/generateInputFromRow (the mapping the parity test proves).
+// coverings) and match the client engine's lineItems line for line. `--write` needs CONFIRM_BACKFILL=yes AND
+// `--expect <file>`, the `--json` output of the dry run Dan signed off: the run is refused if the file is missing,
+// is not a dry-run report, or lists a different set of submission ids (restricted to `--unit` when given), and any
+// row whose lines_subtotal / windows_lines / counted_lines / not_in_total differ from it, or that was not `ok` in
+// it, is FAIL and not written (prices can change between sign-off and write). Writes go only to `ok` rows with
+// zero existing quote_lines, one batch per submission; on any insert error the submission's migration lines are
+// deleted and the row is FAIL. If that rollback itself fails the run stops at once: no further inserts, the
+// remaining rows are `skipped: aborted`. Each finished row is streamed to stderr; the full (possibly partial)
+// report is always printed to stdout at the end. Draft submissions live in a separate table and are never read.
+// Inputs come only from ./lib/generateInputFromRow (the mapping the parity test proves).
+//
+// Exit codes:
+//   0  every row ok or skipped
+//   1  parity FAIL on at least one row (including "differs from signed-off report"); nothing wrong was written
+//   2  usage / refusal / connection or runtime error (a row that errored is FAIL and was not left written)
+//   3  ROLLBACK FAILED: a submission may hold a partial set of source='migration' lines; manual cleanup needed
+//      (DELETE FROM quote_lines WHERE submission_id = '<id>' AND source = 'migration'), then re-run the dry run.
+import { readFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
 import { generateQuoteLines, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
 import { compareEngineToLines } from '../supabase/functions/_shared/compareEngineToLines.ts';
@@ -37,13 +50,21 @@ export interface BackfillDb {
   loadPricingRows(): Promise<PricingSnapshot>;
 }
 
-export interface BackfillOptions { write: boolean; unit?: string; confirm?: string }
+export interface BackfillOptions {
+  write: boolean;
+  unit?: string;
+  confirm?: string;
+  /** Parsed `--json` output of the signed-off dry run. Required with `write`. */
+  expect?: unknown;
+  /** Called as each row finishes (the CLI streams it to stderr). */
+  onRow?: (row: ReportRow) => void;
+}
 export interface BackfillDeps {
   /** Test hook: alter generated lines before the parity check (proves FAIL rows are never written). */
   transformLines?: (lines: QuoteLine[], row: SubmissionRow) => QuoteLine[];
 }
 
-export type RowStatus = 'ok' | 'FAIL' | 'skipped: has lines';
+export type RowStatus = 'ok' | 'FAIL' | 'skipped: has lines' | 'skipped: aborted';
 export interface ReportRow {
   unit: string;
   submission_id: string;
@@ -57,13 +78,24 @@ export interface ReportRow {
   existing_lines: number;
   status: RowStatus;
   written: number;
+  /** An exception (DB or runtime), as opposed to a parity difference. */
+  errored: boolean;
   reasons: string[];
 }
-export interface BackfillReport { mode: 'dry-run' | 'write'; rows: ReportRow[]; writes: number }
+export interface BackfillReport {
+  mode: 'dry-run' | 'write';
+  rows: ReportRow[];
+  writes: number;
+  /** True when a rollback failed and the run stopped (exit 3). */
+  aborted: boolean;
+  /** Run-level error (e.g. pricing or submissions could not be read); rows may be partial. */
+  error: string | null;
+}
 
 export class BackfillRefused extends Error {}
 
 const money = (n: number) => n.toFixed(2);
+const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const unitSort = (a: SubmissionRow, b: SubmissionRow) =>
   (Number(a.unit_number) - Number(b.unit_number)) || String(a.unit_number).localeCompare(String(b.unit_number));
 
@@ -93,53 +125,135 @@ function checkRow(row: SubmissionRow, lines: QuoteLine[], pricing: ReturnType<ty
   return { vsClient, reasons };
 }
 
+interface SignedOffRow {
+  submission_id: string; status: string; lines_subtotal: number; windows_lines: number;
+  counted_lines: number; not_in_total: number;
+}
+
+/** Validates the signed-off dry-run report and returns its rows by submission id (restricted to `unit`). */
+function signedOffRows(expect: unknown, unit: string | undefined): Map<string, SignedOffRow> {
+  const e = expect as { mode?: unknown; rows?: unknown } | null;
+  if (!e || typeof e !== 'object' || e.mode !== 'dry-run' || !Array.isArray(e.rows)) {
+    throw new BackfillRefused('--expect file is not the --json output of a dry run.');
+  }
+  const out = new Map<string, SignedOffRow>();
+  for (const r of e.rows as Array<Record<string, unknown>>) {
+    if (!r || typeof r.submission_id !== 'string' || typeof r.unit !== 'string') {
+      throw new BackfillRefused('--expect file has a row without unit / submission_id.');
+    }
+    if (out.has(r.submission_id)) throw new BackfillRefused(`--expect file lists ${r.submission_id} twice.`);
+    if (unit != null && r.unit !== String(unit)) continue;
+    out.set(r.submission_id, r as unknown as SignedOffRow);
+  }
+  return out;
+}
+
+function diffFromSignedOff(r: ReportRow, s: SignedOffRow): string[] {
+  const out: string[] = [];
+  if (money(Number(s.lines_subtotal)) !== money(r.lines_subtotal)) out.push(`lines_subtotal ${money(Number(s.lines_subtotal))} → ${money(r.lines_subtotal)}`);
+  if (money(Number(s.windows_lines)) !== money(r.windows_lines)) out.push(`windows_lines ${money(Number(s.windows_lines))} → ${money(r.windows_lines)}`);
+  if (Number(s.counted_lines) !== r.counted_lines) out.push(`counted_lines ${s.counted_lines} → ${r.counted_lines}`);
+  if (Number(s.not_in_total) !== r.not_in_total) out.push(`not_in_total ${s.not_in_total} → ${r.not_in_total}`);
+  return out;
+}
+
+const blankRow = (row: SubmissionRow, status: RowStatus): ReportRow => ({
+  unit: String(row.unit_number), submission_id: row.id, engine_subtotal: 0, lines_subtotal: 0, windows_engine: 0,
+  windows_lines: 0, counted_lines: 0, not_in_total: 0, line_count: 0, existing_lines: 0, status, written: 0,
+  errored: false, reasons: [],
+});
+
 export async function runBackfill(db: BackfillDb, opts: BackfillOptions, deps: BackfillDeps = {}): Promise<BackfillReport> {
   if (opts.write && opts.confirm !== 'yes') {
     throw new BackfillRefused('--write refused: set CONFIRM_BACKFILL=yes as well (run the dry run first and get sign-off).');
   }
-  const pricing = enginePricingFromRows(await db.loadPricingRows());
-  const subs = (await db.listSubmissions())
-    .filter((r) => opts.unit == null || String(r.unit_number) === String(opts.unit))
-    .sort(unitSort);
+  if (opts.write && opts.expect == null) {
+    throw new BackfillRefused('--write refused: pass --expect <dryrun.json>, the --json output of the signed-off dry run.');
+  }
+  const signedOff = opts.expect != null ? signedOffRows(opts.expect, opts.unit) : null;
+  const report: BackfillReport = { mode: opts.write ? 'write' : 'dry-run', rows: [], writes: 0, aborted: false, error: null };
+  const finish = (r: ReportRow) => { report.rows.push(r); opts.onRow?.(r); };
 
-  const rows: ReportRow[] = [];
-  let writes = 0;
-  for (const row of subs) {
-    const generated = generateQuoteLines(buildGenerateInputFromRow(row, pricing.serverPricing, { source: 'migration' }));
-    const lines = deps.transformLines ? deps.transformLines(generated, row) : generated;
-    const { vsClient, reasons } = checkRow(row, lines, pricing);
-    const existing = await db.countLines(row.id);
-    const report: ReportRow = {
-      unit: String(row.unit_number), submission_id: row.id,
-      engine_subtotal: vsClient.engine_subtotal, lines_subtotal: vsClient.lines_subtotal,
-      windows_engine: vsClient.windows_engine, windows_lines: vsClient.windows_lines,
-      counted_lines: vsClient.counted_lines, not_in_total: vsClient.not_in_total, line_count: lines.length,
-      existing_lines: existing,
-      status: existing > 0 ? 'skipped: has lines' : reasons.length ? 'FAIL' : 'ok',
-      written: 0, reasons,
-    };
-    if (opts.write && report.status === 'ok' && lines.length > 0) {
-      const batch = toInsertRows(lines, row.id);
-      try {
-        await db.insertLines(batch);
-        const after = await db.countLines(row.id);
-        if (after !== batch.length) throw new Error(`expected ${batch.length} lines after insert, found ${after}`);
-        report.written = batch.length;
-        writes++;
-      } catch (e) {
-        report.status = 'FAIL';
-        report.reasons.push(`insert failed: ${e instanceof Error ? e.message : String(e)}`);
+  let pricing: ReturnType<typeof enginePricingFromRows>;
+  let subs: SubmissionRow[];
+  try {
+    pricing = enginePricingFromRows(await db.loadPricingRows());
+    subs = (await db.listSubmissions())
+      .filter((r) => opts.unit == null || String(r.unit_number) === String(opts.unit))
+      .sort(unitSort);
+  } catch (e) {
+    report.error = `could not read pricing / submissions: ${msg(e)}`;
+    return report;
+  }
+  if (signedOff) {
+    const ids = new Set(subs.map((r) => r.id));
+    const missing = subs.filter((r) => !signedOff.has(r.id)).map((r) => r.unit_number);
+    const extra = [...signedOff.keys()].filter((id) => !ids.has(id));
+    if (missing.length || extra.length) {
+      throw new BackfillRefused(`--expect file lists a different set of submissions (not signed off: units ${missing.join(', ') || '-'}; `
+        + `signed off but not found: ${extra.join(', ') || '-'}).`);
+    }
+  }
+
+  for (let i = 0; i < subs.length; i++) {
+    const row = subs[i];
+    const r = blankRow(row, 'FAIL');
+    try {
+      const generated = generateQuoteLines(buildGenerateInputFromRow(row, pricing.serverPricing, { source: 'migration' }));
+      const lines = deps.transformLines ? deps.transformLines(generated, row) : generated;
+      const { vsClient, reasons } = checkRow(row, lines, pricing);
+      Object.assign(r, {
+        engine_subtotal: vsClient.engine_subtotal, lines_subtotal: vsClient.lines_subtotal,
+        windows_engine: vsClient.windows_engine, windows_lines: vsClient.windows_lines,
+        counted_lines: vsClient.counted_lines, not_in_total: vsClient.not_in_total, line_count: lines.length,
+      });
+      r.reasons.push(...reasons);
+      const s = signedOff?.get(row.id);
+      if (s) {
+        const d = diffFromSignedOff(r, s);
+        if (d.length) r.reasons.push(`differs from signed-off report: ${d.join(', ')}`);
+        else if (s.status !== 'ok') r.reasons.push(`not ok in signed-off report (was "${s.status}")`);
+      }
+      r.existing_lines = await db.countLines(row.id);
+      r.status = r.existing_lines > 0 ? 'skipped: has lines' : r.reasons.length ? 'FAIL' : 'ok';
+
+      if (opts.write && r.status === 'ok' && lines.length > 0) {
+        const batch = toInsertRows(lines, row.id);
         try {
-          await db.deleteMigrationLines(row.id);
-          report.reasons.push('rolled back');
-        } catch (e2) {
-          report.reasons.push(`ROLLBACK FAILED, check quote_lines for this submission: ${e2 instanceof Error ? e2.message : String(e2)}`);
+          await db.insertLines(batch);
+          const after = await db.countLines(row.id);
+          if (after !== batch.length) throw new Error(`expected ${batch.length} lines after insert, found ${after}`);
+          r.written = batch.length;
+          report.writes++;
+        } catch (e) {
+          r.status = 'FAIL';
+          r.errored = true;
+          r.reasons.push(`insert failed: ${msg(e)}`);
+          try {
+            await db.deleteMigrationLines(row.id);
+            r.reasons.push('rolled back');
+          } catch (e2) {
+            r.reasons.push(`ROLLBACK FAILED (manual cleanup needed for submission ${row.id}): ${msg(e2)}`);
+            report.aborted = true;
+          }
         }
       }
+    } catch (e) {
+      r.status = 'FAIL';
+      r.errored = true;
+      r.reasons.push(`error: ${msg(e)}`);
     }
-    rows.push(report);
+    finish(r);
+    if (report.aborted) {
+      for (const rest of subs.slice(i + 1)) {
+        const a = blankRow(rest, 'skipped: aborted');
+        a.reasons.push('run stopped after a failed rollback');
+        finish(a);
+      }
+      break;
+    }
   }
-  return { mode: opts.write ? 'write' : 'dry-run', rows, writes };
+  return report;
 }
 
 const COLUMNS = ['unit', 'submission_id', 'engine_subtotal', 'lines_subtotal', 'windows_engine', 'windows_lines',
@@ -155,8 +269,10 @@ export function formatTable(report: BackfillReport): string {
   const count = (s: RowStatus) => report.rows.filter((r) => r.status === s).length;
   const out = [fmt(COLUMNS), widths.map((w) => '-'.repeat(w)).join('-|-'), ...cells.map(fmt), ''];
   out.push(`${report.mode}: ${report.rows.length} submissions · ok ${count('ok')} · FAIL ${count('FAIL')} · `
-    + `skipped ${count('skipped: has lines')} · writes ${report.writes}`);
+    + `skipped ${count('skipped: has lines')} · aborted ${count('skipped: aborted')} · writes ${report.writes}`);
   for (const r of report.rows) if (r.status === 'FAIL') out.push(`FAIL Unit ${r.unit}: ${r.reasons.join('; ')}`);
+  if (report.aborted) out.push('ABORTED: a rollback failed; see the ROLLBACK FAILED row and clean up by hand (exit 3).');
+  if (report.error) out.push(`ERROR: ${report.error}`);
   return out.join('\n');
 }
 
@@ -168,21 +284,27 @@ export function expectedShapeFromReport(report: BackfillReport) {
   }]));
 }
 
-export function parseArgs(argv: string[]): { write: boolean; json: boolean; unit: string | undefined } {
-  const out = { write: false, json: false, unit: undefined as string | undefined };
+export interface CliArgs { write: boolean; json: boolean; unit: string | undefined; expect?: string }
+
+export function parseArgs(argv: string[]): CliArgs {
+  const out: CliArgs = { write: false, json: false, unit: undefined };
+  const value = (i: number, flag: string) => {
+    const v = argv[i];
+    if (!v || v.startsWith('--')) throw new Error(`${flag} needs a value`);
+    return v;
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--write') out.write = true;
     else if (a === '--json') out.json = true;
-    else if (a === '--unit') {
-      const v = argv[++i];
-      if (!v || v.startsWith('--')) throw new Error('--unit needs a unit number');
-      out.unit = v;
-    } else if (a.startsWith('--unit=')) {
-      out.unit = a.slice('--unit='.length);
-      if (!out.unit) throw new Error('--unit needs a unit number');
-    } else throw new Error(`unknown argument: ${a}`);
+    else if (a === '--unit') out.unit = value(++i, '--unit');
+    else if (a.startsWith('--unit=')) out.unit = a.slice('--unit='.length);
+    else if (a === '--expect') out.expect = value(++i, '--expect');
+    else if (a.startsWith('--expect=')) out.expect = a.slice('--expect='.length);
+    else throw new Error(`unknown argument: ${a}`);
   }
+  if (out.unit === '') throw new Error('--unit needs a value');
+  if (out.expect === '') throw new Error('--expect needs a value');
   return out;
 }
 
@@ -225,27 +347,58 @@ export function supabaseBackfillDb(url: string, serviceKey: string): BackfillDb 
 
 interface Io { log(s: string): void; error(s: string): void }
 
-/** CLI entry: 0 = all rows ok/skipped, 1 = any FAIL, 2 = refused / bad usage / error. */
+/** Exit code for a finished report (see the header). */
+export function exitCodeFor(report: BackfillReport): 0 | 1 | 2 | 3 {
+  if (report.aborted) return 3;
+  if (report.error || report.rows.some((r) => r.errored)) return 2;
+  if (report.rows.some((r) => r.status === 'FAIL')) return 1;
+  return 0;
+}
+
+const progressLine = (r: ReportRow) => `[backfill] Unit ${r.unit} ${r.submission_id} ${r.status}`
+  + (r.written ? ` written=${r.written}` : '') + (r.reasons.length ? ` | ${r.reasons.join('; ')}` : '');
+
+/** CLI entry. Exit codes: 0 ok, 1 parity FAIL, 2 usage / refusal / connection error, 3 rollback failure. */
 export async function main(
   argv: string[], env: Record<string, string | undefined>, io: Io = console,
   makeDb: (url: string, key: string) => BackfillDb = supabaseBackfillDb,
+  readFile: (path: string) => string = (p) => readFileSync(p, 'utf8'),
 ): Promise<number> {
-  let args: ReturnType<typeof parseArgs>;
-  try { args = parseArgs(argv); } catch (e) { io.error(String(e instanceof Error ? e.message : e)); return 2; }
+  let args: CliArgs;
+  try { args = parseArgs(argv); } catch (e) { io.error(msg(e)); return 2; }
   if (args.write && env.CONFIRM_BACKFILL !== 'yes') {
     io.error('--write refused: set CONFIRM_BACKFILL=yes as well (run the dry run first and get sign-off).');
     return 2;
   }
-  const url = env.SUPABASE_URL; const key = env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) { io.error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.'); return 2; }
-  try {
-    const report = await runBackfill(makeDb(url, key), { write: args.write, unit: args.unit, confirm: env.CONFIRM_BACKFILL });
-    io.log(args.json ? JSON.stringify(report, null, 2) : formatTable(report));
-    return report.rows.some((r) => r.status === 'FAIL') ? 1 : 0;
-  } catch (e) {
-    io.error(e instanceof Error ? e.message : String(e));
+  if (args.write && !args.expect) {
+    io.error('--write refused: pass --expect <dryrun.json>, the --json output of the signed-off dry run.');
     return 2;
   }
+  let expect: unknown;
+  if (args.expect) {
+    try { expect = JSON.parse(readFile(args.expect)); } catch (e) {
+      io.error(`--expect ${args.expect}: cannot read signed-off report: ${msg(e)}`);
+      return 2;
+    }
+  }
+  const url = env.SUPABASE_URL; const key = env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) { io.error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.'); return 2; }
+
+  let report: BackfillReport;
+  try {
+    report = await runBackfill(makeDb(url, key), {
+      write: args.write, unit: args.unit, confirm: env.CONFIRM_BACKFILL, expect,
+      onRow: (r) => io.error(progressLine(r)),
+    });
+  } catch (e) {
+    // Only refusals and client construction reach here; both happen before any insert.
+    io.error(msg(e));
+    return 2;
+  }
+  io.log(args.json ? JSON.stringify(report, null, 2) : formatTable(report));
+  if (report.error) io.error(`ERROR: ${report.error}`);
+  if (report.aborted) io.error('ABORTED after a failed rollback: manual cleanup needed (exit 3).');
+  return exitCodeFor(report);
 }
 
 if (import.meta.main) {
