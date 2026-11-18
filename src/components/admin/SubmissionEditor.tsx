@@ -39,6 +39,10 @@ import {
 import { useUpgradePricing } from '@/hooks/useUpgradePricing';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { getUnitInfo } from '@/lib/unitData';
+import { buildSubmissionUpdatePayload, type SubmissionEditState, type AreaUpgrade } from '@/lib/submissionUpdatePayload';
+
+type BuyerSelection = SubmissionEditState;
+
 
 // Colour options — single source of truth shared with the buyer wizard.
 // Values saved are the wizard ids (e.g. 'wolf-river') so every PDF/email resolves them.
@@ -58,65 +62,6 @@ const UNIT_TYPES = [
   'Unit Type A', 'Unit Type B', 'Unit Type C', 'Unit Type D',
   'Unit Type E', 'Unit Type F', 'Unit Type G', 'Unit Type H', 'Unit Type J',
 ];
-
-// Area upgrade interface
-interface AreaUpgrade {
-  areaId: string;
-  materialType: string;
-  productName: string;
-  productColor: string;
-  comments: string;
-  heatedFloor?: boolean;
-  manualPrice?: number | null;
-  manualPriceNote?: string;
-}
-
-
-// Submission interface matching the database schema
-interface BuyerSelection {
-  id: string;
-  created_at: string;
-  updated_at: string;
-  unit_number: string;
-  unit_type: string | null;
-  first_name: string;
-  last_name: string;
-  phone_number: string | null;
-  email: string;
-  estimated_possession_date: string | null;
-  has_stairs: boolean;
-  lvp_colour: string | null;
-  lvp_comments: string | null;
-  spc_tile_colour: string | null;
-  spc_tile_comments: string | null;
-  backsplash_orientation: string | null;
-  stair_carpet_colour: string | null;
-  stair_lvp_upgrade_selected?: boolean;
-  stair_premium_carpet_selected?: boolean;
-  premium_underpad_stairs?: boolean;
-  premium_carpet_bedroom?: boolean;
-  premium_underpad_bedroom?: boolean;
-  bedroom_flooring_choice: string | null;
-  bedroom_carpet_colour: string | null;
-  bedroom_lvp_colour: string | null;
-  bedroom_lvp_same_as_main: boolean;
-  additional_windows_qty: number;
-  patio_doors_qty: number;
-  window_total: number;
-  window_comments?: string | null;
-  upgrade_interests: Record<string, boolean>;
-  status: string;
-  sales_comments: string | null;
-  area_upgrades?: AreaUpgrade[];
-  upgrade_floor_selection?: string | null;
-  backsplash_grout_enabled?: boolean;
-  backsplash_grout_color?: string | null;
-  backsplash_grout_comments?: string | null;
-  heated_floor_bathrooms?: number;
-  bathroom_tile_selected?: boolean;
-  hardwood_upgrade_selected?: boolean;
-  custom_pricing?: unknown;
-}
 
 interface SubmissionEditorProps {
   submission: BuyerSelection;
@@ -226,78 +171,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
 
     setSaving(true);
     try {
-      // Calculate heated floor count from area upgrades
-      const heatedFloorCount = calculateHeatedFloorCount();
-
-      // Cast area_upgrades to Json-compatible format
-      const areaUpgradesJson = (editData.area_upgrades || []).map(upgrade => ({
-        areaId: upgrade.areaId,
-        materialType: upgrade.materialType,
-        productName: upgrade.productName,
-        productColor: upgrade.productColor,
-        comments: upgrade.comments,
-        heatedFloor: upgrade.heatedFloor || false,
-        manualPrice: Number(upgrade.manualPrice) > 0 ? Number(upgrade.manualPrice) : null,
-        manualPriceNote: upgrade.manualPriceNote || '',
-      }));
-
-      const updatePayload = {
-        // Buyer Info
-        first_name: editData.first_name,
-        last_name: editData.last_name,
-        email: editData.email,
-        phone_number: editData.phone_number,
-        unit_number: editData.unit_number,
-        unit_type: editData.unit_type,
-        estimated_possession_date: editData.estimated_possession_date,
-        has_stairs: editData.has_stairs,
-        
-        // Flooring Selections
-        lvp_colour: editData.lvp_colour,
-        lvp_comments: editData.lvp_comments,
-        spc_tile_colour: editData.spc_tile_colour,
-        spc_tile_comments: editData.spc_tile_comments,
-        
-        // Bedroom Flooring
-        bedroom_flooring_choice: editData.bedroom_flooring_choice,
-        bedroom_carpet_colour: editData.bedroom_carpet_colour,
-        bedroom_lvp_colour: editData.bedroom_lvp_colour,
-        bedroom_lvp_same_as_main: editData.bedroom_lvp_same_as_main,
-        // Bedroom premiums only apply to carpet bedrooms; clear both flags otherwise.
-        premium_carpet_bedroom: editData.bedroom_flooring_choice === 'carpet' && !!editData.premium_carpet_bedroom,
-        premium_underpad_bedroom: editData.bedroom_flooring_choice === 'carpet' && !!editData.premium_underpad_bedroom,
-        stair_carpet_colour: editData.stair_carpet_colour,
-        // No stairs = no stair upgrade charges (LVP nosings, premium carpet, underpad).
-        stair_lvp_upgrade_selected: !!editData.has_stairs && !!editData.stair_lvp_upgrade_selected,
-        stair_upgrade_type: !editData.has_stairs
-          ? 'standard'
-          : editData.stair_lvp_upgrade_selected
-            ? (((editData as any).stair_upgrade_type === 'premium_lvp') ? 'premium_lvp' : 'lvp')
-            : 'standard',
-        stair_premium_carpet_selected: !!editData.has_stairs && !editData.stair_lvp_upgrade_selected && !!editData.stair_premium_carpet_selected,
-        premium_underpad_stairs: !!editData.has_stairs && !editData.stair_lvp_upgrade_selected && !!editData.premium_underpad_stairs,
-        
-        // Backsplash
-        backsplash_orientation: editData.backsplash_orientation,
-        backsplash_grout_enabled: editData.backsplash_grout_enabled,
-        backsplash_grout_color: editData.backsplash_grout_color,
-        backsplash_grout_comments: editData.backsplash_grout_comments,
-        
-        // Window Coverings
-        additional_windows_qty: editData.additional_windows_qty,
-        patio_doors_qty: editData.patio_doors_qty,
-        window_comments: editData.window_comments,
-        
-        // Area Upgrades - cast to Json type
-        area_upgrades: areaUpgradesJson as unknown as import('@/integrations/supabase/types').Json,
-        upgrade_floor_selection: editData.upgrade_floor_selection,
-        heated_floor_bathrooms: heatedFloorCount,
-        custom_pricing: (editData.custom_pricing ?? {}) as unknown as import('@/integrations/supabase/types').Json,
-        
-        // Admin
-        sales_comments: editData.sales_comments,
-        upgrade_interests: editData.upgrade_interests as unknown as import('@/integrations/supabase/types').Json,
-      };
+      const updatePayload = buildSubmissionUpdatePayload(editData);
 
       const { error } = await supabase
         .from('buyer_selections')
@@ -330,7 +204,6 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
         ...updatePayload,
         area_upgrades: editData.area_upgrades,
         upgrade_interests: editData.upgrade_interests,
-        heated_floor_bathrooms: heatedFloorCount,
       };
 
       toast.success('Submission updated successfully');
