@@ -36,7 +36,7 @@ for (const [stored, mapped] of [
 test('grout and area comments survive mapping', () => {
   const mapped = toBuyerPdfSelections(record);
   expect(mapped.backsplashGrout.comments).toBe('Use selected grout');
-  expect(mapped.areaUpgrades[0].comments).toBe('Shower tile specifications');
+  expect(mapped.areaUpgrades[0].comments).toBe(''); // internal text stripped at the buyer-safe boundary
   expect(mapped.areaUpgrades[0].manualPrice).toBe(8400);
 });
 test('internal office and sales notes cannot reach buyer PDF inputs', () => {
@@ -55,6 +55,13 @@ const bothFields = {
   ],
 } as unknown as Tables<'buyer_selections'>;
 
+test('toBuyerPdfSelections strips internal comments and keeps clientComment', () => {
+  const rows = toBuyerPdfSelections(bothFields).areaUpgrades;
+  expect(JSON.stringify(rows).includes('INTERNAL')).toBe(false);
+  expect(JSON.stringify(rows).includes('legacy internal only')).toBe(false);
+  expect(rows[0].clientComment).toBe('Please use matte finish');
+  expect(rows[0].manualPrice).toBe(8400);
+});
 test('buyer notes mapper returns clientComment text and not comments text', () => {
   const upgrades = toBuyerPdfSelections(bothFields).areaUpgrades;
   const notes = clientAreaNotes(upgrades);
@@ -63,8 +70,12 @@ test('buyer notes mapper returns clientComment text and not comments text', () =
   expect(JSON.stringify(notes).includes('legacy internal only')).toBe(false);
 });
 test('internal notes mapper returns comments only, for staff outputs', () => {
-  const notes = internalAreaNotes(toBuyerPdfSelections(bothFields).areaUpgrades);
+  const notes = internalAreaNotes(bothFields.area_upgrades as any[]);
   expect(notes.map(n => n.text)).toEqual(['INTERNAL: buyer is price sensitive', 'legacy internal only']);
+});
+test('internal notes come from the raw row, not the mapped buyer selections', () => {
+  expect(internalAreaNotes((bothFields.area_upgrades as any[])).length).toBe(2);
+  expect(internalAreaNotes(toBuyerPdfSelections(bothFields).areaUpgrades)).toEqual([]);
 });
 test('notes mappers keep the original row index and ignore blank text', () => {
   const notes = clientAreaNotes([{ areaId: 'a', clientComment: '  ' }, { areaId: 'b', clientComment: 'x' }] as any);

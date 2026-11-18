@@ -66,12 +66,15 @@ const lit = (v: unknown) => `'${JSON.stringify(v).replace(/'/g, "''")}'::jsonb`;
 
 /** Guarded on the old value, so re-running or racing an admin edit is a no-op. */
 export function toSql(u: Update): string {
-  return `UPDATE buyer_selections SET area_upgrades = ${lit(u.after)} WHERE id = '${u.id}' AND area_upgrades = ${lit(u.before)};`;
+  return `UPDATE buyer_selections SET area_upgrades = ${lit(u.after)} WHERE id = '${u.id.replace(/'/g, "''")}' AND area_upgrades = ${lit(u.before)};`;
 }
 
 if (import.meta.main) {
   const path = process.argv[2] ?? new URL('./fixtures/live-submissions.json', import.meta.url).pathname;
-  const rows = JSON.parse(readFileSync(path, 'utf8')) as SubmissionRow[];
+  // Input is either a bare array of submissions or { submissions: [...], drafts?: [...] }.
+  const input = JSON.parse(readFileSync(path, 'utf8')) as SubmissionRow[] | { submissions: SubmissionRow[]; drafts?: unknown[] };
+  const rows = Array.isArray(input) ? input : input.submissions;
+  const drafts = Array.isArray(input) ? undefined : input.drafts;
   const { updates, skipped } = planBackfill(rows);
 
   console.log(`-- (a) SQL: ${updates.length} submission(s), ${updates.reduce((n, u) => n + u.migrated, 0)} area row(s). Cutoff created_at < '${CUTOFF}'.`);
@@ -84,6 +87,9 @@ if (import.meta.main) {
   console.log(`-- (b) NOT migrated: ${skipped.length} area row(s)`);
   skipped.forEach(k => console.log(`--   unit ${k.unit} ${k.id} area[${k.index}] ${k.areaId}: ${k.reason}`));
   const late = rows.filter(r => r.created_at.slice(0, 10) >= CUTOFF).map(r => `${r.id} (unit ${r.unit_number})`);
+  console.log(drafts
+    ? `--   NOTE: ${drafts.length} wizard draft(s) in the input (buyer_selection_drafts.selections) may still hold buyer text in areaUpgrades[].comments; they are NOT migrated by this SQL.`
+    : '--   NOTE: wizard drafts (buyer_selection_drafts.selections) created before deploy may still hold buyer text in areaUpgrades[].comments; no drafts array in the input, so they are not counted or migrated.');
   console.log(`--   submissions on/after ${CUTOFF}: ${late.join(', ') || '(none)'}\n`);
 
   console.log('-- (c) Parity check (comments do not price)');

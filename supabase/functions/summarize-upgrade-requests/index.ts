@@ -49,6 +49,14 @@ Deno.serve(async (req) => {
     ]);
     if (!rows.length) return json({ error: 'Not found' }, 404);
 
+    // Staff-typed internal `comments` on area rows are not sent to the model; clientComment is.
+    const selectionForModel = {
+      ...rows[0],
+      area_upgrades: Array.isArray(rows[0].area_upgrades)
+        ? rows[0].area_upgrades.map(({ comments: _internal, ...keep }: Record<string, unknown>) => keep)
+        : rows[0].area_upgrades,
+    };
+
     const prompt = `You help condo finishing staff review buyer upgrade requests.
 Summarize for staff in plain, concise English (no emojis):
 1. "New / recent requests" — changes from the change log, newest first, with dates. Clearly call out any buyer-added lower-level stair carpet or underpad upgrade (stairs from main level to basement/lower level).
@@ -57,7 +65,7 @@ Summarize for staff in plain, concise English (no emojis):
 Do not invent prices; only mention prices that appear in the data (office prices are GST-exclusive). Use short bullets under each heading.
 
 SELECTION RECORD:
-${JSON.stringify(rows[0])}
+${JSON.stringify(selectionForModel)}
 
 CHANGE LOG (newest first):
 ${JSON.stringify(logs)}`;

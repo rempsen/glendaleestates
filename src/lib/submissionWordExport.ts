@@ -47,7 +47,7 @@ export async function downloadSubmissionWord(id: string, staff = true): Promise<
     ['Flooring', s.lvp_comments], ['Tile', s.spc_tile_comments], ['Windows', s.window_comments], ['Upgrades', s.upgrade_comments],
   ].filter(([, v]) => v) as string[][];
   // Buyer copy prints clientComment only (in the Selections table); staff also get the internal `comments`, labelled.
-  if (staff) internalAreaNotes(sel.areaUpgrades).forEach(n => notes.push([`Upgrade — ${n.areaId} (internal note)`, n.text]));
+  if (staff) internalAreaNotes(Array.isArray(s.area_upgrades) ? (s.area_upgrades as never[]) : []).forEach(n => notes.push([`Upgrade — ${n.areaId} (internal note)`, n.text]));
 
   const doc = new Document({ sections: [{ children: [
     new Paragraph({ text: `Glendale Estates — Unit ${s.unit_number} Selections & Quote`, heading: HeadingLevel.HEADING_1 }),

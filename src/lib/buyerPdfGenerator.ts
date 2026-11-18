@@ -17,7 +17,7 @@ import {
   UPGRADE_MATERIALS,
   MaterialType,
 } from '@/lib/upgradeCostData';
-import { clientAreaNotes, internalAreaNotes } from '@/lib/areaNotes';
+import { clientAreaNotes, type AreaNote } from '@/lib/areaNotes';
 import { computeUpgradeTotals, parseCustomPricing, LINE_STATUS_LABELS, type CustomPricing } from '@/lib/upgradeTotals';
 
 // Unit area data structure (camelCase for internal use)
@@ -260,7 +260,7 @@ interface PdfOutputOptions {
   returnBase64?: boolean;
   saveToFile?: boolean;
   /** Staff-only copy: adds an Office Record section with internal notes. Never set for buyer-facing PDFs. */
-  staffRecord?: { submittedAt?: string | null; status?: string | null; adminNotes?: string | null; salesComments?: string | null };
+  staffRecord?: { submittedAt?: string | null; status?: string | null; adminNotes?: string | null; salesComments?: string | null; areaInternalNotes?: AreaNote[] };
   footerLabel?: string;
 }
 
@@ -784,7 +784,7 @@ export async function generateBuyerPreviewPDF(
     ];
     if (staffRecord.adminNotes?.trim()) rows.push(['Internal Notes', staffRecord.adminNotes.trim()]);
     // Internal area notes (legacy `comments`): staff outputs only, labelled.
-    internalAreaNotes(selections.areaUpgrades).forEach(n =>
+    (staffRecord.areaInternalNotes || []).forEach(n =>
       rows.push([`${areaNoteLabel(n, n.index).replace('Area Upgrade — ', '')} (internal note)`, n.text]));
     autoTable(doc, {
       startY: yPos, body: rows,

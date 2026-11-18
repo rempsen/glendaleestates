@@ -63,6 +63,7 @@ interface AreaUpgrade {
   productName: string;
   productColor: string;
   comments: string;
+  clientComment?: string;
   heatedFloor?: boolean;
 }
 
