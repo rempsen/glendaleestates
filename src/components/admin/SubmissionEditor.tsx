@@ -39,7 +39,7 @@ import {
 import { useUpgradePricing } from '@/hooks/useUpgradePricing';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { getUnitInfo } from '@/lib/unitData';
-import { buildSubmissionUpdatePayload, type SubmissionEditState, type AreaUpgrade } from '@/lib/submissionUpdatePayload';
+import { buildSubmissionUpdatePayload, countHeatedTileRows, type SubmissionEditState, type AreaUpgrade } from '@/lib/submissionUpdatePayload';
 
 type BuyerSelection = SubmissionEditState;
 
@@ -145,8 +145,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
 
   // Heated floor bathrooms as saved: max(staff input, area rows flagged heatedFloor).
   const calculateHeatedFloorCount = () => {
-    const rows = (editData.area_upgrades || []).filter(u => u.heatedFloor).length;
-    return Math.max(Number(editData.heated_floor_bathrooms) || 0, rows);
+    return Math.max(Number(editData.heated_floor_bathrooms) || 0, countHeatedTileRows(editData.area_upgrades));
   };
 
   // Validation helper for stair flooring
@@ -859,6 +858,9 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                     value={editData.heated_floor_bathrooms ?? 0}
                     onChange={(e) => handleChange('heated_floor_bathrooms', parseInt(e.target.value) || 0)}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Saved as max(count, heated tile areas) = {calculateHeatedFloorCount()}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Switch

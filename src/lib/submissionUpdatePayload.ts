@@ -67,6 +67,13 @@ export interface SubmissionEditState {
 }
 
 
+/** Heated floors are only charged on tile rows (see upgradeTotals hasHeat). */
+export function countHeatedTileRows(areaUpgrades: AreaUpgrade[] | undefined): number {
+  return (areaUpgrades || []).filter(
+    u => !!u.heatedFloor && /^(tile|nonstandard_tile)$/.test(String(u.materialType))
+  ).length;
+}
+
 /**
  * Pure builder for the staff editor's buyer_selections update. No React, no Supabase.
  * - heated_floor_bathrooms = max(staff input, count of area rows flagged heatedFloor), so the
@@ -83,7 +90,7 @@ export function buildSubmissionUpdatePayload(editData: SubmissionEditState): Tab
     manualPriceNote: upgrade.manualPriceNote || '',
   }));
 
-  const heatedAreaCount = areaUpgradesJson.filter(u => u.heatedFloor).length;
+  const heatedAreaCount = countHeatedTileRows(editData.area_upgrades);
 
   return {
     // Buyer Info

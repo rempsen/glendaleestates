@@ -813,11 +813,11 @@ export default function AdminSubmissions() {
                         completed_at: selectedSubmission.completed_at ?? null,
                       }}
                       onStatusChange={(newStatus, timestamps) => {
-                        const patch = { status: newStatus, ...timestamps };
+                        const patch: Partial<BuyerSelection> = { status: newStatus, ...timestamps };
                         setSubmissions(prev =>
-                          prev.map(s => s.id === selectedSubmission.id ? ({ ...s, ...patch } as any) : s)
+                          prev.map(s => s.id === selectedSubmission.id ? { ...s, ...patch } : s)
                         );
-                        setSelectedSubmission(prev => prev ? ({ ...prev, ...patch } as any) : null);
+                        setSelectedSubmission(prev => prev ? { ...prev, ...patch } : null);
                       }}
                     />
                   </DialogHeader>

@@ -72,3 +72,11 @@ test('heated_floor_bathrooms = max(input, count of heated area rows)', () => {
   })).heated_floor_bathrooms).toBe(3);
   expect(buildSubmissionUpdatePayload(base({})).heated_floor_bathrooms).toBe(0);
 });
+
+test('heated count ignores non-tile rows (stale heatedFloor on LVP)', () => {
+  const r = (materialType: string) => ({ areaId: 'a', materialType, productName: '', productColor: '', comments: '', heatedFloor: true });
+  const p = buildSubmissionUpdatePayload(base({
+    heated_floor_bathrooms: 0, area_upgrades: [r('nonstandard_lvp'), r('tile')],
+  }));
+  expect(p.heated_floor_bathrooms).toBe(1);
+});
