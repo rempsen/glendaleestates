@@ -5,14 +5,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import liveSubmissions from './fixtures/live-submissions.json';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
-import { loadFixturePricing, type PricingSnapshot } from './lib/fixturePricing';
-import { computeUpgradeTotals } from '../src/lib/upgradeTotals';
-import { computeUpgradeTotalsServer, type ServerAreaUpgrade } from '../supabase/functions/_shared/upgradeTotalsServer';
-import { serverPricingFromRows } from '../supabase/functions/_shared/loadServerPricing';
-import { totalsInputFromSelections } from '../src/lib/buyerPdfGenerator';
-import { toBuyerPdfSelections } from '../src/lib/buyerPdfSelections';
-import { normalizeUnitTypeCode } from '../src/lib/upgradeCostData';
-import { baseSpecFor } from '../src/lib/baseSpec';
+import type { PricingSnapshot } from './lib/fixturePricing';
+import {
+  buildGenerateInputFromRow, enginePricingFromRows, engineTotalsForRow, type SubmissionRow,
+} from './lib/generateInputFromRow';
 import { generateQuoteLines, sumQuoteLines, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
 import { expectedLines, matchByKey } from './lib/engineLineKeys';
 
@@ -32,46 +28,13 @@ const EXPECTED_SUBTOTALS: Record<string, number> = {
 };
 
 const snapshot = pricingSnapshot as unknown as PricingSnapshot;
-const clientPricing = loadFixturePricing(snapshot);
-// Same rows the edge loader reads (restPricingFetcher filters upgrade_materials to is_active).
-const serverPricing = serverPricingFromRows({
-  pricing_config: snapshot.pricing_config,
-  upgrade_materials: snapshot.upgrade_materials.filter((m) => m.is_active),
-  unit_area_data: snapshot.unit_area_data,
-});
-type Row = Parameters<typeof toBuyerPdfSelections>[0];
-const rows = liveSubmissions as unknown as Row[];
+// Shared with scripts/backfill-quote-lines.ts: the backfill builds its inputs with exactly these functions.
+const pricing = enginePricingFromRows(snapshot);
+const rows = liveSubmissions as unknown as SubmissionRow[];
 
-function engines(row: Row) {
-  const code = row.unit_type ? normalizeUnitTypeCode(row.unit_type) : null;
-  const selections = toBuyerPdfSelections(row);
-  const client = computeUpgradeTotals(totalsInputFromSelections(selections, code), clientPricing);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sub = row as any;
-  // Same mapping as audit-pricing-consistency / qbo-sync-submission (raw row → ServerTotalsInput).
-  const server = computeUpgradeTotalsServer({
-    unitTypeCode: code,
-    upgradeFloorSelection: sub.upgrade_floor_selection,
-    areaUpgrades: (sub.area_upgrades as ServerAreaUpgrade[]) || [],
-    backsplashGroutEnabled: sub.backsplash_grout_enabled,
-    backsplashGroutColor: sub.backsplash_grout_color,
-    stairLvpUpgradeSelected: sub.stair_lvp_upgrade_selected,
-    stairPremiumCarpetSelected: sub.stair_premium_carpet_selected, stairPremiumUnderpadSelected: sub.premium_underpad_stairs,
-    stairUpgradeType: sub.stair_upgrade_type,
-    additionalWindowsQty: sub.additional_windows_qty,
-    patioDoorsQty: sub.patio_doors_qty,
-    automatedWindowsQty: sub.automated_windows_qty,
-    bathroomTileSelected: sub.bathroom_tile_selected,
-    bathroomTileEnsuiteSelected: sub.bathroom_tile_ensuite_selected,
-    bathroomTileGuestSelected: sub.bathroom_tile_guest_selected,
-    heatedFloorBathrooms: sub.heated_floor_bathrooms,
-    customTiledShower: sub.custom_tiled_shower,
-    bedroomFlooringChoice: sub.bedroom_flooring_choice,
-    bedroomPremiumCarpetSelected: !!sub.premium_carpet_bedroom,
-    bedroomPremiumUnderpadSelected: !!sub.premium_underpad_bedroom,
-    customPricing: sub.custom_pricing,
-  }, serverPricing);
-  const lines = generateQuoteLines({ selections, unitTypeCode: code, pricing: serverPricing, baseSpec: baseSpecFor(code) });
+function engines(row: SubmissionRow) {
+  const { client, server } = engineTotalsForRow(row, pricing);
+  const lines = generateQuoteLines(buildGenerateInputFromRow(row, pricing.serverPricing));
   return { client, server, lines };
 }
 
