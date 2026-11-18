@@ -1364,6 +1364,10 @@ export type Database = {
         Args: { _premium_carpet: boolean; _premium_underpad: boolean }
         Returns: undefined
       }
+      buyer_can_see_line: {
+        Args: { _line_id: string }
+        Returns: boolean
+      }
       buyer_get_stair_addon: {
         Args: never
         Returns: {
@@ -1373,6 +1377,26 @@ export type Database = {
           stair_premium_carpet_selected: boolean
           stair_upgrade_type: string
           unit_number: string
+        }[]
+      }
+      get_my_quote_lines: {
+        Args: never
+        Returns: {
+          amount: number | null
+          client_note: string | null
+          id: string
+          label: string
+          location: string | null
+          product_colour: string | null
+          product_name: string | null
+          provisional: boolean
+          quantity: number | null
+          section: string
+          sort_order: number
+          status: string
+          submission_id: string
+          unit: string | null
+          unit_price: number | null
         }[]
       }
       has_role: {

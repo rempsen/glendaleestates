@@ -11,11 +11,12 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
     WHERE user_id = _user_id AND role::text IN ('admin', 'staff')
   )
 $$;
+ALTER FUNCTION public.is_staff(uuid) OWNER TO postgres;
 
 -- §6.1 quote_lines: one row per thing on the quote.
 CREATE TABLE IF NOT EXISTS public.quote_lines (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  submission_id uuid NOT NULL REFERENCES public.buyer_selections(id) ON DELETE CASCADE,
+  submission_id uuid NOT NULL REFERENCES public.buyer_selections(id) ON DELETE RESTRICT,
   sort_order integer NOT NULL DEFAULT 0,
   section text NOT NULL,
   location text,
@@ -74,7 +75,7 @@ CREATE INDEX IF NOT EXISTS unit_base_spec_unit_type_idx ON public.unit_base_spec
 -- §6.7 quote_line_reviews: buyer Accept / Question / Comment per line.
 CREATE TABLE IF NOT EXISTS public.quote_line_reviews (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  line_id uuid NOT NULL REFERENCES public.quote_lines(id) ON DELETE CASCADE,
+  line_id uuid NOT NULL REFERENCES public.quote_lines(id) ON DELETE RESTRICT,
   buyer_user_id uuid NOT NULL,
   response text NOT NULL,
   comment text,
@@ -84,11 +85,11 @@ CREATE TABLE IF NOT EXISTS public.quote_line_reviews (
 
 CREATE INDEX IF NOT EXISTS quote_line_reviews_line_idx ON public.quote_line_reviews (line_id, created_at DESC);
 
--- §6.8 quote_snapshots: immutable copy of what was shown or signed. Deleting a
--- submission that has snapshots is refused (no cascade) to protect signed records.
+-- §6.8 quote_snapshots: immutable copy of what was shown or signed (trigger below).
+-- Every FK in this migration is ON DELETE RESTRICT: lines are retired with status = 'removed', not deleted.
 CREATE TABLE IF NOT EXISTS public.quote_snapshots (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  submission_id uuid NOT NULL REFERENCES public.buyer_selections(id),
+  submission_id uuid NOT NULL REFERENCES public.buyer_selections(id) ON DELETE RESTRICT,
   version integer NOT NULL,
   lines jsonb NOT NULL,
   subtotal numeric NOT NULL,
@@ -104,8 +105,8 @@ CREATE TABLE IF NOT EXISTS public.quote_snapshots (
 -- §6.8 documents: files in private bucket unit-documents/{unit_number}/{document_id}.pdf.
 CREATE TABLE IF NOT EXISTS public.documents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  submission_id uuid NOT NULL REFERENCES public.buyer_selections(id),
-  snapshot_id uuid REFERENCES public.quote_snapshots(id),
+  submission_id uuid NOT NULL REFERENCES public.buyer_selections(id) ON DELETE RESTRICT,
+  snapshot_id uuid REFERENCES public.quote_snapshots(id) ON DELETE RESTRICT,
   kind text NOT NULL,
   storage_path text,
   provider text,
@@ -122,6 +123,18 @@ CREATE TABLE IF NOT EXISTS public.documents (
 
 CREATE INDEX IF NOT EXISTS documents_submission_idx ON public.documents (submission_id);
 
+-- §6.8 snapshots are immutable for everyone (no admin escape hatch).
+CREATE OR REPLACE FUNCTION public.quote_snapshots_immutable()
+RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  RAISE EXCEPTION 'quote_snapshots are immutable';
+END;
+$$;
+
+DROP TRIGGER IF EXISTS quote_snapshots_immutable ON public.quote_snapshots;
+CREATE TRIGGER quote_snapshots_immutable BEFORE UPDATE OR DELETE ON public.quote_snapshots
+FOR EACH ROW EXECUTE FUNCTION public.quote_snapshots_immutable();
+
 -- updated_at maintenance (reuses the project's existing update_updated_at_column()).
 DROP TRIGGER IF EXISTS set_updated_at ON public.quote_lines;
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.quote_lines
@@ -132,10 +145,43 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.documents
 FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 -- §6.5 audit: every quote_lines change writes one submission_audit_logs row.
--- SECURITY DEFINER because submission_audit_logs only accepts admin inserts under RLS.
+-- SECURITY DEFINER (owner postgres) because submission_audit_logs only accepts admin inserts under RLS,
+-- and staff edits must still be audited. internal_note never enters `changes` (it feeds AI prompts);
+-- only internal_note_changed is recorded. UPDATE logs only the keys that changed (updated_at ignored)
+-- and logs nothing when nothing changed.
 CREATE OR REPLACE FUNCTION public.quote_lines_audit()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  o jsonb;
+  n jsonb;
+  d_old jsonb := '{}'::jsonb;
+  d_new jsonb := '{}'::jsonb;
+  k text;
+  note_changed boolean;
 BEGIN
+  IF TG_OP = 'INSERT' THEN
+    d_old := NULL;
+    d_new := to_jsonb(NEW) - 'internal_note';
+    note_changed := NEW.internal_note IS NOT NULL;
+  ELSIF TG_OP = 'DELETE' THEN
+    d_old := to_jsonb(OLD) - 'internal_note';
+    d_new := NULL;
+    note_changed := OLD.internal_note IS NOT NULL;
+  ELSE
+    o := to_jsonb(OLD) - 'internal_note';
+    n := to_jsonb(NEW) - 'internal_note';
+    note_changed := OLD.internal_note IS DISTINCT FROM NEW.internal_note;
+    FOR k IN SELECT jsonb_object_keys(n) LOOP
+      IF k <> 'updated_at' AND (o -> k) IS DISTINCT FROM (n -> k) THEN
+        d_old := d_old || jsonb_build_object(k, o -> k);
+        d_new := d_new || jsonb_build_object(k, n -> k);
+      END IF;
+    END LOOP;
+    IF d_new = '{}'::jsonb AND NOT note_changed THEN
+      RETURN NULL;
+    END IF;
+  END IF;
+
   INSERT INTO public.submission_audit_logs (submission_id, changed_by_user_id, changed_by_email, action_type, changes, change_summary)
   VALUES (
     CASE WHEN TG_OP = 'DELETE' THEN OLD.submission_id ELSE NEW.submission_id END,
@@ -144,14 +190,16 @@ BEGIN
     CASE TG_OP WHEN 'INSERT' THEN 'quote_line_insert' WHEN 'UPDATE' THEN 'quote_line_update' ELSE 'quote_line_delete' END,
     jsonb_build_object(
       'line_id', CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END,
-      'old', CASE WHEN TG_OP = 'INSERT' THEN NULL ELSE to_jsonb(OLD) END,
-      'new', CASE WHEN TG_OP = 'DELETE' THEN NULL ELSE to_jsonb(NEW) END
+      'old', d_old,
+      'new', d_new,
+      'internal_note_changed', note_changed
     ),
     'Quote line ' || lower(TG_OP)
   );
   RETURN NULL;
 END;
 $$;
+ALTER FUNCTION public.quote_lines_audit() OWNER TO postgres;
 
 DROP TRIGGER IF EXISTS quote_lines_audit ON public.quote_lines;
 CREATE TRIGGER quote_lines_audit AFTER INSERT OR UPDATE OR DELETE ON public.quote_lines
@@ -171,7 +219,8 @@ BEGIN
 END;
 $$;
 
--- §6.5 pricing_queue: open pending lines with an assignee. RLS of the base tables applies.
+-- §6.5 pricing_queue: open pending lines with an assignee, staff only. RLS of the base tables applies
+-- (staff SELECT on buyer_selections and profiles is added below).
 CREATE OR REPLACE VIEW public.pricing_queue WITH (security_invoker = true) AS
 SELECT
   ql.id AS line_id,
@@ -193,9 +242,40 @@ SELECT
 FROM public.quote_lines ql
 JOIN public.buyer_selections bs ON bs.id = ql.submission_id
 LEFT JOIN public.profiles p ON p.user_id = ql.flagged_to
-WHERE ql.status = 'pending' AND ql.flagged_to IS NOT NULL;
+WHERE ql.status = 'pending' AND ql.flagged_to IS NOT NULL AND public.is_staff(auth.uid());
 
 GRANT SELECT ON public.pricing_queue TO authenticated;
+
+-- §6.7 buyer access goes through definer functions that expose buyer-safe columns only;
+-- buyers have no SELECT policy on the quote_lines base table.
+CREATE OR REPLACE FUNCTION public.get_my_quote_lines()
+RETURNS TABLE (id uuid, submission_id uuid, section text, location text, label text, product_name text, product_colour text, quantity numeric, unit text, unit_price numeric, amount numeric, status text, client_note text, provisional boolean, sort_order integer)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT ql.id, ql.submission_id, ql.section, ql.location, ql.label, ql.product_name, ql.product_colour,
+         ql.quantity, ql.unit, ql.unit_price, ql.amount, ql.status, ql.client_note, ql.provisional, ql.sort_order
+  FROM public.quote_lines ql
+  JOIN public.buyer_selections bs ON bs.id = ql.submission_id
+  WHERE ql.client_visible
+    AND ql.status <> 'removed'
+    AND lower(bs.email) = lower(auth.jwt() ->> 'email')
+  ORDER BY ql.submission_id, ql.sort_order, ql.id
+$$;
+ALTER FUNCTION public.get_my_quote_lines() OWNER TO postgres;
+REVOKE ALL ON FUNCTION public.get_my_quote_lines() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_my_quote_lines() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.buyer_can_see_line(_line_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.quote_lines ql
+    JOIN public.buyer_selections bs ON bs.id = ql.submission_id
+    WHERE ql.id = _line_id
+      AND ql.client_visible
+      AND ql.status <> 'removed'
+      AND lower(bs.email) = lower(auth.jwt() ->> 'email')
+  )
+$$;
+ALTER FUNCTION public.buyer_can_see_line(uuid) OWNER TO postgres;
 
 -- RLS
 ALTER TABLE public.quote_lines ENABLE ROW LEVEL SECURITY;
@@ -204,24 +284,32 @@ ALTER TABLE public.quote_line_reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quote_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;
 
+-- Superseded policy names from earlier drafts of this migration.
 DROP POLICY IF EXISTS "Staff manage quote lines" ON public.quote_lines;
-CREATE POLICY "Staff manage quote lines" ON public.quote_lines
-  FOR ALL TO authenticated
+DROP POLICY IF EXISTS "Buyers view own visible quote lines" ON public.quote_lines;
+DROP POLICY IF EXISTS "Staff manage quote snapshots" ON public.quote_snapshots;
+
+DROP POLICY IF EXISTS "Staff view quote lines" ON public.quote_lines;
+CREATE POLICY "Staff view quote lines" ON public.quote_lines
+  FOR SELECT TO authenticated
+  USING (public.is_staff(auth.uid()));
+
+DROP POLICY IF EXISTS "Staff add quote lines" ON public.quote_lines;
+CREATE POLICY "Staff add quote lines" ON public.quote_lines
+  FOR INSERT TO authenticated
+  WITH CHECK (public.is_staff(auth.uid()));
+
+DROP POLICY IF EXISTS "Staff update quote lines" ON public.quote_lines;
+CREATE POLICY "Staff update quote lines" ON public.quote_lines
+  FOR UPDATE TO authenticated
   USING (public.is_staff(auth.uid()))
   WITH CHECK (public.is_staff(auth.uid()));
 
-DROP POLICY IF EXISTS "Buyers view own visible quote lines" ON public.quote_lines;
-CREATE POLICY "Buyers view own visible quote lines" ON public.quote_lines
-  FOR SELECT TO authenticated
-  USING (
-    client_visible
-    AND status <> 'removed'
-    AND EXISTS (
-      SELECT 1 FROM public.buyer_selections bs
-      WHERE bs.id = quote_lines.submission_id
-        AND lower(bs.email) = lower(auth.jwt() ->> 'email')
-    )
-  );
+-- Hard deletes are admin-only; staff retire a line with status = 'removed' (spec §6.1).
+DROP POLICY IF EXISTS "Admins delete quote lines" ON public.quote_lines;
+CREATE POLICY "Admins delete quote lines" ON public.quote_lines
+  FOR DELETE TO authenticated
+  USING (public.has_role(auth.uid(), 'admin'));
 
 DROP POLICY IF EXISTS "Authenticated view unit base spec" ON public.unit_base_spec;
 CREATE POLICY "Authenticated view unit base spec" ON public.unit_base_spec
@@ -243,37 +331,21 @@ CREATE POLICY "Staff manage quote line reviews" ON public.quote_line_reviews
 DROP POLICY IF EXISTS "Buyers view own quote line reviews" ON public.quote_line_reviews;
 CREATE POLICY "Buyers view own quote line reviews" ON public.quote_line_reviews
   FOR SELECT TO authenticated
-  USING (
-    buyer_user_id = auth.uid()
-    AND EXISTS (
-      SELECT 1 FROM public.quote_lines ql
-      JOIN public.buyer_selections bs ON bs.id = ql.submission_id
-      WHERE ql.id = quote_line_reviews.line_id
-        AND ql.client_visible
-        AND ql.status <> 'removed'
-        AND lower(bs.email) = lower(auth.jwt() ->> 'email')
-    )
-  );
+  USING (buyer_user_id = auth.uid() AND public.buyer_can_see_line(line_id));
 
 DROP POLICY IF EXISTS "Buyers add own quote line reviews" ON public.quote_line_reviews;
 CREATE POLICY "Buyers add own quote line reviews" ON public.quote_line_reviews
   FOR INSERT TO authenticated
-  WITH CHECK (
-    buyer_user_id = auth.uid()
-    AND EXISTS (
-      SELECT 1 FROM public.quote_lines ql
-      JOIN public.buyer_selections bs ON bs.id = ql.submission_id
-      WHERE ql.id = quote_line_reviews.line_id
-        AND ql.client_visible
-        AND ql.status <> 'removed'
-        AND lower(bs.email) = lower(auth.jwt() ->> 'email')
-    )
-  );
+  WITH CHECK (buyer_user_id = auth.uid() AND public.buyer_can_see_line(line_id));
 
-DROP POLICY IF EXISTS "Staff manage quote snapshots" ON public.quote_snapshots;
-CREATE POLICY "Staff manage quote snapshots" ON public.quote_snapshots
-  FOR ALL TO authenticated
-  USING (public.is_staff(auth.uid()))
+DROP POLICY IF EXISTS "Staff view quote snapshots" ON public.quote_snapshots;
+CREATE POLICY "Staff view quote snapshots" ON public.quote_snapshots
+  FOR SELECT TO authenticated
+  USING (public.is_staff(auth.uid()));
+
+DROP POLICY IF EXISTS "Staff add quote snapshots" ON public.quote_snapshots;
+CREATE POLICY "Staff add quote snapshots" ON public.quote_snapshots
+  FOR INSERT TO authenticated
   WITH CHECK (public.is_staff(auth.uid()));
 
 DROP POLICY IF EXISTS "Staff manage documents" ON public.documents;
@@ -281,6 +353,23 @@ CREATE POLICY "Staff manage documents" ON public.documents
   FOR ALL TO authenticated
   USING (public.is_staff(auth.uid()))
   WITH CHECK (public.is_staff(auth.uid()));
+
+-- §6.9 staff read all submissions and profiles (pricing_queue joins them) and edit submissions.
+DROP POLICY IF EXISTS "Staff view all submissions" ON public.buyer_selections;
+CREATE POLICY "Staff view all submissions" ON public.buyer_selections
+  FOR SELECT TO authenticated
+  USING (public.is_staff(auth.uid()));
+
+DROP POLICY IF EXISTS "Staff update submissions" ON public.buyer_selections;
+CREATE POLICY "Staff update submissions" ON public.buyer_selections
+  FOR UPDATE TO authenticated
+  USING (public.is_staff(auth.uid()))
+  WITH CHECK (public.is_staff(auth.uid()));
+
+DROP POLICY IF EXISTS "Staff view all profiles" ON public.profiles;
+CREATE POLICY "Staff view all profiles" ON public.profiles
+  FOR SELECT TO authenticated
+  USING (public.is_staff(auth.uid()));
 
 -- Private bucket for unit documents; staff only for now (no buyer access).
 insert into storage.buckets (id, name, public) values ('unit-documents', 'unit-documents', false) on conflict do nothing;

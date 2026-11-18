@@ -27,4 +27,16 @@ if (denoTest) {
     eq((sanitizeChangesForAi(changes) as any).lvp_colour, { old: 'oak', new: 'ash' });
     eq(sanitizeChangesForAi(null), null);
   });
+  const quoteLineUpdate = {
+    line_id: 'l1',
+    internal_note_changed: true,
+    internal_note: 'TOP-SECRET top-level note',
+    old: { status: 'pending', amount: null, internal_note: 'SECRET old note' },
+    new: { status: 'upgrade', amount: 450, internal_note: 'SECRET new note' },
+  };
+  denoTest('quote_line_update: internal_note stripped at top level and inside old/new', () => {
+    const s = sanitizeChangesForAi(quoteLineUpdate) as Record<string, any>;
+    eq(JSON.stringify(s).includes('SECRET'), false);
+    eq(s, { line_id: 'l1', internal_note_changed: true, old: { status: 'pending', amount: null }, new: { status: 'upgrade', amount: 450 } });
+  });
 }

@@ -27,6 +27,8 @@ function hasColumn(body: string, col: string, type?: RegExp): boolean {
   return type ? type.test(line) : true;
 }
 
+const BUYER_COLUMNS = ['id', 'submission_id', 'section', 'location', 'label', 'product_name', 'product_colour', 'quantity', 'unit', 'unit_price', 'amount', 'status', 'client_note', 'provisional', 'sort_order'];
+
 const NEW_TABLES = ['quote_lines', 'unit_base_spec', 'quote_line_reviews', 'quote_snapshots', 'documents'];
 
 describe('migration 0006 quote_lines', () => {
@@ -140,26 +142,116 @@ describe('migration 0006 quote_lines', () => {
     expect(/has_role\([^)]*'staff'/.test(sql), "no has_role(…'staff')").toBe(false);
   });
 
-  test('buyer policies are scoped to client_visible lines of their own submission', () => {
-    const sql = loadSql();
-    const pol = splitSqlStatements(sql).map(stripLeadingComments).find((s) => s.startsWith('CREATE POLICY "Buyers view own visible quote lines"'));
-    expect(pol).toBeDefined();
-    expect(pol!).toMatch(/FOR SELECT TO authenticated/);
-    expect(pol!).toContain('client_visible');
-    expect(pol!).toContain("lower(bs.email) = lower(auth.jwt() ->> 'email')");
-    const reviews = splitSqlStatements(sql).map(stripLeadingComments).filter((s) => /^CREATE POLICY "Buyers [^"]+" ON public\.quote_line_reviews/.test(s));
-    expect(reviews.length).toBe(2);
-    for (const r of reviews) {
-      expect(r).toContain('buyer_user_id = auth.uid()');
-      expect(r).toContain('ql.client_visible');
+  test('named policies: exact set with table, command and clauses', () => {
+    const pols = splitSqlStatements(loadSql()).map(stripLeadingComments).filter((x) => x.startsWith('CREATE POLICY'));
+    const actual = Object.fromEntries(pols.map((p) => {
+      const m = /^CREATE POLICY "([^"]+)" ON (\S+)\s+FOR (\w+)/.exec(p)!;
+      return [m[1], { table: m[2], cmd: m[3], using: /\bUSING\s*\(/.test(p), withCheck: /\bWITH CHECK\s*\(/.test(p) }];
+    }));
+    const P = (table: string, cmd: string, using: boolean, withCheck: boolean) => ({ table, cmd, using, withCheck });
+    expect(actual).toEqual({
+      'Staff view quote lines': P('public.quote_lines', 'SELECT', true, false),
+      'Staff add quote lines': P('public.quote_lines', 'INSERT', false, true),
+      'Staff update quote lines': P('public.quote_lines', 'UPDATE', true, true),
+      'Admins delete quote lines': P('public.quote_lines', 'DELETE', true, false),
+      'Authenticated view unit base spec': P('public.unit_base_spec', 'SELECT', true, false),
+      'Admins manage unit base spec': P('public.unit_base_spec', 'ALL', true, true),
+      'Staff manage quote line reviews': P('public.quote_line_reviews', 'ALL', true, true),
+      'Buyers view own quote line reviews': P('public.quote_line_reviews', 'SELECT', true, false),
+      'Buyers add own quote line reviews': P('public.quote_line_reviews', 'INSERT', false, true),
+      'Staff view quote snapshots': P('public.quote_snapshots', 'SELECT', true, false),
+      'Staff add quote snapshots': P('public.quote_snapshots', 'INSERT', false, true),
+      'Staff manage documents': P('public.documents', 'ALL', true, true),
+      'Staff view all submissions': P('public.buyer_selections', 'SELECT', true, false),
+      'Staff update submissions': P('public.buyer_selections', 'UPDATE', true, true),
+      'Staff view all profiles': P('public.profiles', 'SELECT', true, false),
+      'Staff manage unit documents': P('storage.objects', 'ALL', true, true),
+    });
+    const byName = Object.fromEntries(pols.map((p) => [/^CREATE POLICY "([^"]+)"/.exec(p)![1], p]));
+    expect(byName['Admins delete quote lines']).toContain("public.has_role(auth.uid(), 'admin')");
+    for (const n of ['Staff view quote lines', 'Staff add quote lines', 'Staff update quote lines', 'Staff view all submissions', 'Staff update submissions', 'Staff view all profiles', 'Staff view quote snapshots', 'Staff add quote snapshots'])
+      expect(byName[n], n).toContain('public.is_staff(auth.uid())');
+    for (const n of ['Buyers view own quote line reviews', 'Buyers add own quote line reviews']) {
+      expect(byName[n], n).toContain('buyer_user_id = auth.uid()');
+      expect(byName[n], n).toContain('public.buyer_can_see_line(line_id)');
     }
+    // Superseded names are dropped so a re-run removes them.
+    const sql = loadSql();
+    for (const n of ['Buyers view own visible quote lines', 'Staff manage quote lines', 'Staff manage quote snapshots'])
+      expect(sql, n).toMatch(new RegExp(`DROP POLICY IF EXISTS "${n}" ON public\\.`));
+  });
+
+  test('buyer RPC get_my_quote_lines returns only buyer-safe columns', () => {
+    const stmts = splitSqlStatements(loadSql()).map(stripLeadingComments);
+    const fn = stmts.find((x) => x.startsWith('CREATE OR REPLACE FUNCTION public.get_my_quote_lines()'));
+    expect(fn).toBeDefined();
+    const cols = /RETURNS TABLE \(([\s\S]*?)\)\s*LANGUAGE/.exec(fn!)![1].split(',').map((c) => c.trim().split(/\s+/)[0]);
+    expect(cols).toEqual(BUYER_COLUMNS);
+    expect(fn!).toMatch(/LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS/);
+    expect(fn!).toContain('ql.client_visible');
+    expect(fn!).toContain("ql.status <> 'removed'");
+    expect(fn!).toContain("lower(bs.email) = lower(auth.jwt() ->> 'email')");
+    const body = /\$\$([\s\S]*)\$\$/.exec(fn!)![1];
+    for (const secret of ['internal_note', 'flagged_to', 'price_source_ref', 'answered_by', 'created_by', 'updated_by'])
+      expect(body.includes(secret), secret).toBe(false);
+    expect(stmts).toContain('ALTER FUNCTION public.get_my_quote_lines() OWNER TO postgres');
+    expect(stmts).toContain('REVOKE ALL ON FUNCTION public.get_my_quote_lines() FROM PUBLIC, anon');
+    expect(stmts).toContain('GRANT EXECUTE ON FUNCTION public.get_my_quote_lines() TO authenticated');
+    const helper = stmts.find((x) => x.startsWith('CREATE OR REPLACE FUNCTION public.buyer_can_see_line(_line_id uuid)'));
+    expect(helper).toBeDefined();
+    expect(helper!).toMatch(/RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS/);
+    expect(helper!).toContain("lower(bs.email) = lower(auth.jwt() ->> 'email')");
+    expect(helper!).toContain('ql.client_visible');
+    expect(stmts).toContain('ALTER FUNCTION public.buyer_can_see_line(uuid) OWNER TO postgres');
+  });
+
+  test('audit trigger keeps internal_note out of changes and logs only real diffs', () => {
+    const stmts = splitSqlStatements(loadSql()).map(stripLeadingComments);
+    const fn = stmts.find((x) => x.startsWith('CREATE OR REPLACE FUNCTION public.quote_lines_audit()'))!;
+    expect(fn).toMatch(/LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS/);
+    expect(stmts).toContain('ALTER FUNCTION public.quote_lines_audit() OWNER TO postgres');
+    expect(fn).toContain("to_jsonb(OLD) - 'internal_note'");
+    expect(fn).toContain("to_jsonb(NEW) - 'internal_note'");
+    expect(fn).toContain("'internal_note_changed', note_changed");
+    expect(fn).toContain('OLD.internal_note IS DISTINCT FROM NEW.internal_note');
+    expect(fn).toContain("k <> 'updated_at'");
+    expect(fn).toContain('(o -> k) IS DISTINCT FROM (n -> k)');
+    expect(fn).toMatch(/IF d_new = '\{\}'::jsonb AND NOT note_changed THEN\s+RETURN NULL;/);
+    // No raw row image may reach changes.
+    expect(/'(old|new)', to_jsonb\((OLD|NEW)\)\s*[,)]/.test(fn)).toBe(false);
+    // Every column the trigger writes exists on submission_audit_logs.
+    const cols = /INSERT INTO public\.submission_audit_logs \(([^)]*)\)/.exec(fn)![1].split(',').map((c) => c.trim());
+    const types = readFileSync(join(root, 'src/integrations/supabase/types.ts'), 'utf8');
+    const row = /submission_audit_logs: \{\n\s+Row: \{([\s\S]*?)\n\s+\}/.exec(types)![1];
+    const known = row.split('\n').map((l) => l.trim().split(':')[0]).filter(Boolean);
+    for (const c of cols) expect(known, c).toContain(c);
+  });
+
+  test('quote_snapshots are immutable and every FK is explicit ON DELETE RESTRICT', () => {
+    const sql = loadSql();
+    expect(sql).toMatch(/CREATE TRIGGER quote_snapshots_immutable BEFORE UPDATE OR DELETE ON public\.quote_snapshots/);
+    const fn = splitSqlStatements(sql).map(stripLeadingComments).find((x) => x.startsWith('CREATE OR REPLACE FUNCTION public.quote_snapshots_immutable()'))!;
+    expect(fn).toContain("RAISE EXCEPTION 'quote_snapshots are immutable'");
+    expect(/has_role|is_staff/.test(fn), 'no escape hatch').toBe(false);
+    const fks: Array<[string, string, string]> = [
+      ['quote_lines', 'submission_id', 'public.buyer_selections(id)'],
+      ['quote_line_reviews', 'line_id', 'public.quote_lines(id)'],
+      ['quote_snapshots', 'submission_id', 'public.buyer_selections(id)'],
+      ['documents', 'submission_id', 'public.buyer_selections(id)'],
+      ['documents', 'snapshot_id', 'public.quote_snapshots(id)'],
+    ];
+    for (const [t, c, ref] of fks) {
+      const line = tableBody(sql, t).split('\n').find((l) => l.trim().startsWith(`${c} `))!;
+      expect(line, `${t}.${c}`).toContain(`REFERENCES ${ref} ON DELETE RESTRICT`);
+    }
+    expect(/ON DELETE CASCADE/.test(sql), 'no cascades').toBe(false);
   });
 
   test('pricing_queue view, triggers, guard and bucket', () => {
     const sql = loadSql();
     expect(sql).toMatch(/CREATE OR REPLACE VIEW public\.pricing_queue\s+WITH \(security_invoker = true\) AS/);
     expect(sql).toMatch(/ql\.status = 'pending'/);
-    expect(sql).toMatch(/ql\.flagged_to IS NOT NULL/);
+    expect(sql).toMatch(/ql\.flagged_to IS NOT NULL AND public\.is_staff\(auth\.uid\(\)\)/);
     expect(sql).toContain('AS age_hours');
     expect(sql).toContain('GRANT SELECT ON public.pricing_queue TO authenticated;');
     expect(sql).toMatch(/CREATE TRIGGER quote_lines_audit AFTER INSERT OR UPDATE OR DELETE ON public\.quote_lines/);
@@ -193,13 +285,15 @@ describe('migration 0006 quote_lines', () => {
     // Statement kinds pgsql-ast-parser 12 cannot model, with their exact counts.
     const SKIP: Array<[RegExp, number]> = [
       [/^ALTER TYPE \S+ ADD VALUE/i, 1],
-      [/^CREATE OR REPLACE FUNCTION /i, 3],
-      [/^DROP TRIGGER /i, 3],
-      [/^CREATE TRIGGER /i, 3],
-      [/^GRANT /i, 1],
+      [/^CREATE OR REPLACE FUNCTION /i, 6],
+      [/^ALTER FUNCTION \S+ OWNER TO postgres$/i, 4],
+      [/^DROP TRIGGER /i, 4],
+      [/^CREATE TRIGGER /i, 4],
+      [/^GRANT /i, 2],
+      [/^REVOKE /i, 1],
       [/^ALTER TABLE \S+ ENABLE ROW LEVEL SECURITY$/i, 5],
-      [/^DROP POLICY /i, 10],
-      [/^CREATE POLICY /i, 10],
+      [/^DROP POLICY /i, 19],
+      [/^CREATE POLICY /i, 16],
       [/^CREATE OR REPLACE VIEW \S+ WITH \(/i, 1],
     ];
     for (const [re, n] of SKIP) expect(stmts.filter((s) => re.test(s)).length, String(re)).toBe(n);
@@ -215,15 +309,16 @@ describe('migration 0006 quote_lines', () => {
     // The view body without its WITH (security_invoker) option.
     const view = stmts.find((s) => s.startsWith('CREATE OR REPLACE VIEW'))!;
     extra.push(view.replace(/ WITH \(security_invoker = true\)/, ''));
-    // The is_staff SQL body.
-    const isStaff = stmts.find((s) => /FUNCTION public\.is_staff\(/.test(s))!;
-    extra.push(/\$\$([\s\S]*)\$\$/.exec(isStaff)![1]);
+    // Every LANGUAGE sql function body (is_staff, buyer_can_see_line, get_my_quote_lines).
+    const sqlFns = stmts.filter((s) => s.startsWith('CREATE OR REPLACE FUNCTION') && /LANGUAGE sql/.test(s));
+    expect(sqlFns.length).toBe(3);
+    for (const f of sqlFns) extra.push(/\$\$([\s\S]*)\$\$/.exec(f)![1]);
     // Every policy USING / WITH CHECK predicate, as SELECT <expr>.
     for (const pol of stmts.filter((s) => s.startsWith('CREATE POLICY'))) {
       for (const expr of policyPredicates(pol)) extra.push(`SELECT ${expr}`);
     }
-    // 1 view + 1 function body + 16 predicates from 10 policies.
-    expect(extra.length).toBe(18);
+    // 1 view + 3 function bodies + 22 predicates from 16 policies.
+    expect(extra.length).toBe(26);
     expect(extra.map(tryParse).filter((r) => !r.ok)).toEqual([]);
   });
 
@@ -235,6 +330,11 @@ describe('migration 0006 quote_lines', () => {
     expect(types.includes('app_role: "admin" | "user" | "staff"'), 'Enums.app_role').toBe(true);
     expect(types.includes('app_role: ["admin", "user", "staff"]'), 'Constants.app_role').toBe(true);
     expect(/is_staff: \{\n\s+Args: \{ _user_id: string \}\n\s+Returns: boolean/.test(types), 'is_staff fn').toBe(true);
+    expect(/buyer_can_see_line: \{\n\s+Args: \{ _line_id: string \}\n\s+Returns: boolean/.test(types), 'buyer_can_see_line fn').toBe(true);
+    const rpc = /get_my_quote_lines: \{\n\s+Args: never\n\s+Returns: \{\n([\s\S]*?)\n\s+\}\[\]/.exec(types);
+    expect(rpc !== null, 'get_my_quote_lines fn').toBe(true);
+    const rpcCols = rpc![1].split('\n').map((l) => l.trim().split(':')[0]);
+    expect([...rpcCols].sort()).toEqual([...BUYER_COLUMNS].sort());
   });
 });
 

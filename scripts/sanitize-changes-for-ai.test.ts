@@ -39,3 +39,26 @@ test('log list helper keeps other log fields and does not mutate input', () => {
   expect(JSON.stringify(out)).not.toContain('Private');
   expect(logs[0].changes.sales_comments.new).toBe('Private sales note');
 });
+
+// quote_line_update shape written by the quote_lines_audit trigger (migration 0006).
+const quoteLineUpdate = {
+  line_id: 'l1',
+  internal_note_changed: true,
+  internal_note: 'TOP-SECRET top-level note',
+  old: { status: 'pending', amount: null, internal_note: 'SECRET old note' },
+  new: { status: 'upgrade', amount: 450, internal_note: 'SECRET new note' },
+};
+test('quote_line_update: internal_note stripped at top level and inside old/new', () => {
+  const s = sanitizeChangesForAi(quoteLineUpdate) as any;
+  expect(JSON.stringify(s)).not.toContain('SECRET');
+  expect('internal_note' in s).toBe(false);
+  expect(s.old).toEqual({ status: 'pending', amount: null });
+  expect(s.new).toEqual({ status: 'upgrade', amount: 450 });
+  expect(s.line_id).toBe('l1');
+  expect(s.internal_note_changed).toBe(true);
+  expect(quoteLineUpdate.old.internal_note).toBe('SECRET old note');
+});
+test('quote_line_update via log list helper', () => {
+  const out = sanitizeAuditLogsForAi([{ change_summary: 'Quote line update', changes: quoteLineUpdate }]);
+  expect(JSON.stringify(out)).not.toContain('SECRET');
+});
