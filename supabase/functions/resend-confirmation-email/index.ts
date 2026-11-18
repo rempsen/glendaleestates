@@ -47,10 +47,14 @@ async function supabaseSelect(table: string, id: string) {
 
 const AREA_NAMES: Record<string, string> = {
   mainLiving: 'Main Living Area', secondBedroom: 'Second Bedroom',
-  masterBedroom: 'Master Bedroom', secondBedroomCarpet: 'Second Bedroom Carpet',
+  masterBedroom: 'Primary Bedroom', secondBedroomCarpet: 'Second Bedroom Carpet',
   guestBathroom: 'Guest Bathroom', masterEnsuite: 'Master Ensuite',
   laundry: 'Laundry Room', backsplash: 'Kitchen Backsplash', allLvp: 'Entire Unit LVP',
 };
+// Buyer-facing wording. MIRRORS src/lib/outputLabels.ts (cannot import from src/); change in both places together.
+const LAUNDRY_STANDARD_LABEL = 'Luxury Vinyl Plank (standard)';
+const STAIR_CARPET_LABEL = 'Stair Flooring – Carpet';
+const STAIR_STANDARD_VALUE = 'Standard Carpet (Included)';
 const MATERIAL_NAMES: Record<string, string> = {
   lvp: 'Premium LVP', hardwood: 'Hardwood', lvt: 'Premium LVT',
   carpet: 'Premium Carpet', tile: 'Porcelain Tile',
@@ -100,17 +104,27 @@ function buildBuyerHtml(sub: Record<string, any>, totals: ReturnType<typeof comp
   // Standard selections
   const std: { label: string; value: string }[] = [];
   if (sub.lvp_colour) std.push({ label: 'Main Floor LVP', value: sub.lvp_colour });
-  if (sub.spc_tile_colour) std.push({ label: 'Bathroom/Laundry Tile', value: sub.spc_tile_colour });
+  if (sub.spc_tile_colour) std.push({ label: 'Bathroom Tile', value: sub.spc_tile_colour });
+  const laundryUp = (Array.isArray(sub.area_upgrades) ? sub.area_upgrades : []).find((u: { areaId?: string }) => u?.areaId === 'laundry');
+  const laundryText = laundryUp
+    ? [MATERIAL_NAMES[laundryUp.materialType] || laundryUp.materialType, laundryUp.productName, laundryUp.productColor].filter(Boolean).filter((v: string, i: number, a: string[]) => a.indexOf(v) === i).join(' — ')
+    : '';
+  std.push({ label: 'Laundry Room', value: laundryText || LAUNDRY_STANDARD_LABEL });
   if (sub.backsplash_orientation) std.push({ label: 'Kitchen Backsplash Orientation', value: sub.backsplash_orientation });
   if (sub.bedroom_flooring_choice) {
-    let v = sub.bedroom_flooring_choice === 'lvp' ? 'Luxury Vinyl Plank' :
+    const v = sub.bedroom_flooring_choice === 'lvp' ? 'Luxury Vinyl Plank' :
             sub.bedroom_flooring_choice === 'carpet' ? 'Carpet' : sub.bedroom_flooring_choice;
-    if (sub.bedroom_flooring_choice === 'carpet' && sub.bedroom_carpet_colour) v += ` - ${sub.bedroom_carpet_colour}`;
-    else if (sub.bedroom_flooring_choice === 'lvp' && !sub.bedroom_lvp_same_as_main && sub.bedroom_lvp_colour) v += ` - ${sub.bedroom_lvp_colour}`;
-    else if (sub.bedroom_flooring_choice === 'lvp' && sub.bedroom_lvp_same_as_main) v += ' (Same as Main Floor)';
-    std.push({ label: 'Bedroom Flooring', value: v });
+    std.push({ label: 'Primary Bedroom Flooring', value: v });
+    if (sub.bedroom_flooring_choice === 'carpet' && sub.bedroom_carpet_colour) std.push({ label: 'Primary Bedroom Carpet Colour', value: sub.bedroom_carpet_colour });
+    else if (sub.bedroom_flooring_choice === 'lvp') std.push({ label: 'Primary Bedroom LVP Colour', value: sub.bedroom_lvp_same_as_main ? `${sub.lvp_colour || 'Not selected'} (Same as Main Floor)` : (sub.bedroom_lvp_colour || 'Not selected') });
   }
-  if (sub.has_stairs && sub.stair_carpet_colour) std.push({ label: 'Stair Carpet', value: sub.stair_carpet_colour });
+  if (sub.has_stairs) {
+    const stairLvp = sub.stair_lvp_upgrade_selected || sub.stair_upgrade_type === 'lvp' || sub.stair_upgrade_type === 'premium_lvp';
+    if (stairLvp) std.push({ label: 'Stair Flooring', value: `${sub.stair_upgrade_type === 'premium_lvp' ? 'Premium ' : ''}LVP Upgrade with Custom Nosings` });
+    else if (sub.stair_premium_carpet_selected) std.push({ label: STAIR_CARPET_LABEL, value: `Premium Carpet Upgrade${sub.stair_carpet_colour ? ` (${sub.stair_carpet_colour})` : ''}` });
+    else if (sub.premium_underpad_stairs) std.push({ label: STAIR_CARPET_LABEL, value: sub.stair_carpet_colour || STAIR_STANDARD_VALUE });
+    else std.push({ label: STAIR_CARPET_LABEL, value: sub.stair_carpet_colour ? `${STAIR_STANDARD_VALUE} — ${sub.stair_carpet_colour}` : STAIR_STANDARD_VALUE });
+  }
 
   const stdHtml = std.length ? `
     <h2 style="${styles.h2}">Your Standard Selections</h2>

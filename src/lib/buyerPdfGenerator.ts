@@ -17,6 +17,7 @@ import {
   UPGRADE_MATERIALS,
   MaterialType,
 } from '@/lib/upgradeCostData';
+import { BATHROOM_TILE_LABEL, LAUNDRY_ROW_LABEL, laundryValue, PRIMARY_BEDROOM_FLOORING_LABEL, PRIMARY_BEDROOM_CARPET_COLOUR_LABEL, STAIR_CARPET_LABEL, STAIR_STANDARD_VALUE, toBuyerWording } from '@/lib/outputLabels';
 import { clientAreaNotes, type AreaNote } from '@/lib/areaNotes';
 import { computeUpgradeTotals, parseCustomPricing, LINE_STATUS_LABELS, type CustomPricing } from '@/lib/upgradeTotals';
 
@@ -264,6 +265,64 @@ interface PdfOutputOptions {
   footerLabel?: string;
 }
 
+/**
+ * Standard Selections table rows (label/value pairs) shared by the buyer PDF and the Word export.
+ * Buyer-facing wording follows the base specification; see src/lib/outputLabels.ts.
+ */
+export function buildStandardSelectionRows(
+  selections: BuyerSelections,
+  pricing: PdfPricingConfig,
+  totals: ReturnType<typeof computeUpgradeTotals>,
+): string[][] {
+  const cpInfo = parseCustomPricing(selections.customPricing);
+  const prov = (field: string) => (cpInfo.provisional?.[field] || '').trim();
+  const standardData: string[][] = [
+    ['Main Floor LVP', `${resolveOptionName(lvpOptions, selections.lvpColour) || 'Not selected'}${prov('lvp_colour') ? ` (PROVISIONAL — ${prov('lvp_colour')})` : ''}`],
+    [BATHROOM_TILE_LABEL, resolveOptionName(spcTileOptions, selections.spcTileColour) || 'Not selected'],
+    [LAUNDRY_ROW_LABEL, laundryValue(selections.areaUpgrades)],
+    ['Kitchen Backsplash', `${backsplashProduct.name} — ${resolveOptionName(backsplashOrientations, selections.backsplashOrientation) || 'Orientation not selected'}`],
+    ['Phone', selections.phoneNumber || 'Not provided'],
+    ...(selections.upgradeFloorSelection ? [['Upgrade Floor', `Floor ${selections.upgradeFloorSelection}`]] : []),
+    [PRIMARY_BEDROOM_FLOORING_LABEL, selections.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : (selections.bedroomFlooringChoice === 'carpet' ? 'Carpet' : 'Not selected')],
+  ];
+
+  (totals.pieces.includedItems || []).forEach(i => standardData.push([toBuyerWording([i.area, i.label].filter(Boolean).join(' — ')), 'Included — $0.00']));
+
+  if (selections.hasStairs) {
+    const stairColour = selections.stairCarpetColour ? resolveOptionName(carpetOptions, selections.stairCarpetColour) : '';
+    if (selections.stairUpgradeType === 'lvp' || selections.stairUpgradeType === 'premium_lvp' || selections.stairLvpUpgradeSelected) {
+      const stairLvpPrice = (selections.stairUpgradeType === 'premium_lvp' ? pricing.getStairPremiumLvpUpgradePrice?.() : undefined) || pricing.getStairLvpUpgradePrice?.() || 2160;
+      standardData.push(['Stair Flooring', `${selections.stairUpgradeType === 'premium_lvp' ? 'Premium ' : ''}LVP Upgrade with Custom Nosings — $${stairLvpPrice.toLocaleString()} + GST`]);
+    } else if (selections.stairPremiumCarpetSelected) {
+      const stairCarpetPrice = pricing.getStairCarpetUpgradePrice?.() || 640;
+      standardData.push([STAIR_CARPET_LABEL, `Premium Carpet Upgrade${stairColour ? ` (${stairColour})` : ''} — $${stairCarpetPrice.toLocaleString()} + GST`]);
+    } else if (selections.premiumUnderpadStairs) {
+      // Underpad upgrade on standard carpet: keep the chosen colour as the carpet value; the underpad has its own row.
+      standardData.push([STAIR_CARPET_LABEL, stairColour || STAIR_STANDARD_VALUE]);
+    } else {
+      standardData.push([STAIR_CARPET_LABEL, stairColour ? `${STAIR_STANDARD_VALUE} — ${stairColour}` : STAIR_STANDARD_VALUE]);
+    }
+  }
+
+  if (selections.bedroomFlooringChoice === 'carpet' && selections.bedroomCarpetColour) {
+    standardData.push([PRIMARY_BEDROOM_CARPET_COLOUR_LABEL, resolveOptionName(carpetOptions, selections.bedroomCarpetColour) || 'Not selected']);
+  }
+
+  if (selections.bedroomFlooringChoice === 'lvp') {
+    const lvpColor = selections.bedroomLvpSameAsMain 
+      ? `${resolveOptionName(lvpOptions, selections.lvpColour) || 'Not selected'} (Same as Main)`
+      : resolveOptionName(lvpOptions, selections.bedroomLvpColour) || 'Not selected';
+    standardData.push(['Primary Bedroom LVP Colour', lvpColor]);
+  }
+
+  // Additional selections captured in the wizard / admin editor
+  if (selections.hasStairs && selections.premiumUnderpadStairs) standardData.push(['Premium Underpad (Stairs)', 'Selected']);
+  if (selections.hardwoodUpgradeSelected) standardData.push(['Hardwood Upgrade', 'Interested']);
+  const docCount = selections.documentCount ?? (Array.isArray(selections.documentUploads) ? selections.documentUploads.length : 0);
+  if (docCount > 0) standardData.push(['Documents Uploaded', `${docCount} file${docCount > 1 ? 's' : ''} on record`]);
+  return standardData;
+}
+
 export async function generateBuyerPreviewPDF(
   selections: BuyerSelections,
   unitTypeCode: string | null,
@@ -369,49 +428,7 @@ export async function generateBuyerPreviewPDF(
 
   // Selections table
   const cpInfo = parseCustomPricing(selections.customPricing);
-  const prov = (field: string) => (cpInfo.provisional?.[field] || '').trim();
-  const laundryIsPlank = (selections.areaUpgrades || []).some(u => u.areaId === 'laundry' && /lvp|lvt|plank/i.test(String(u.materialType || '')));
-  const standardData: string[][] = [
-    ['Main Floor LVP', `${resolveOptionName(lvpOptions, selections.lvpColour) || 'Not selected'}${prov('lvp_colour') ? ` (PROVISIONAL — ${prov('lvp_colour')})` : ''}`],
-    [laundryIsPlank ? 'Bathroom Tile' : 'Bathroom/Laundry Tile', resolveOptionName(spcTileOptions, selections.spcTileColour) || 'Not selected'],
-    ['Kitchen Backsplash', `${backsplashProduct.name} — ${resolveOptionName(backsplashOrientations, selections.backsplashOrientation) || 'Orientation not selected'}`],
-    ['Phone', selections.phoneNumber || 'Not provided'],
-    ...(selections.upgradeFloorSelection ? [['Upgrade Floor', `Floor ${selections.upgradeFloorSelection}`]] : []),
-    ['Primary Bedroom Flooring', selections.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : (selections.bedroomFlooringChoice === 'carpet' ? 'Carpet' : 'Not selected')],
-  ];
-
-  (totals.pieces.includedItems || []).forEach(i => standardData.push([[i.area, i.label].filter(Boolean).join(' — '), 'Included — $0.00']));
-
-  if (selections.hasStairs) {
-    if (selections.stairUpgradeType === 'lvp' || selections.stairUpgradeType === 'premium_lvp' || selections.stairLvpUpgradeSelected) {
-      const stairLvpPrice = (selections.stairUpgradeType === 'premium_lvp' ? pricing.getStairPremiumLvpUpgradePrice?.() : undefined) || pricing.getStairLvpUpgradePrice?.() || 2160;
-      standardData.push(['Stair Flooring', `${selections.stairUpgradeType === 'premium_lvp' ? 'Premium ' : ''}LVP Upgrade with Custom Nosings — $${stairLvpPrice.toLocaleString()} + GST`]);
-    } else if (selections.stairPremiumCarpetSelected) {
-      const stairCarpetPrice = pricing.getStairCarpetUpgradePrice?.() || 640;
-      standardData.push(['Stair Flooring – Carpet', `Premium Carpet Upgrade${selections.stairCarpetColour ? ` (${resolveOptionName(carpetOptions, selections.stairCarpetColour)})` : ''} — $${stairCarpetPrice.toLocaleString()} + GST`]);
-    } else {
-      standardData.push(['Stair Flooring – Carpet', selections.stairCarpetColour 
-        ? resolveOptionName(carpetOptions, selections.stairCarpetColour) || 'Standard Carpet (Included)'
-        : 'Standard Carpet (Included)']);
-    }
-  }
-
-  if (selections.bedroomFlooringChoice === 'carpet' && selections.bedroomCarpetColour) {
-    standardData.push(['Primary Bedroom Carpet Colour', resolveOptionName(carpetOptions, selections.bedroomCarpetColour) || 'Not selected']);
-  }
-
-  if (selections.bedroomFlooringChoice === 'lvp') {
-    const lvpColor = selections.bedroomLvpSameAsMain 
-      ? `${resolveOptionName(lvpOptions, selections.lvpColour) || 'Not selected'} (Same as Main)`
-      : resolveOptionName(lvpOptions, selections.bedroomLvpColour) || 'Not selected';
-    standardData.push(['Primary Bedroom LVP Colour', lvpColor]);
-  }
-
-  // Additional selections captured in the wizard / admin editor
-  if (selections.hasStairs && selections.premiumUnderpadStairs) standardData.push(['Premium Underpad (Stairs)', 'Selected']);
-  if (selections.hardwoodUpgradeSelected) standardData.push(['Hardwood Upgrade', 'Interested']);
-  const docCount = selections.documentCount ?? (Array.isArray(selections.documentUploads) ? selections.documentUploads.length : 0);
-  if (docCount > 0) standardData.push(['Documents Uploaded', `${docCount} file${docCount > 1 ? 's' : ''} on record`]);
+  const standardData = buildStandardSelectionRows(selections, pricing, totals);
 
   autoTable(doc, {
     startY: yPos,
@@ -549,9 +566,9 @@ export async function generateBuyerPreviewPDF(
         .filter(Boolean)
         .filter((v, i, a) => a.indexOf(v) === i)
         .join(' — ');
-      upgradeData.push([`${item.areaName} — ${productLine}`, `$${item.amount.toFixed(2)}`]);
+      upgradeData.push([toBuyerWording(`${item.areaName} — ${productLine}`), `$${item.amount.toFixed(2)}`]);
       if (item.heatedFloorAmount > 0) {
-        upgradeData.push([`  └ Heated Floor (${item.areaName})`, `$${item.heatedFloorAmount.toFixed(2)}`]);
+        upgradeData.push([toBuyerWording(`  └ Heated Floor (${item.areaName})`), `$${item.heatedFloorAmount.toFixed(2)}`]);
       }
     });
 
@@ -732,7 +749,7 @@ export async function generateBuyerPreviewPDF(
     const areaDef = AREA_DEFINITIONS.find(a => a.id === u.areaId);
     let label: string;
     if (areaDef) {
-      label = `Area Upgrade — ${areaDef.name}`;
+      label = `Area Upgrade — ${toBuyerWording(areaDef.name)}`;
     } else if (!u.areaId || u.areaId.startsWith('unspecified_area')) {
       label = `Area Upgrade — Unspecified Area #${idx + 1}`;
     } else {

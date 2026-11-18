@@ -4,6 +4,7 @@
 // =====================================================================
 
 import { format } from 'date-fns';
+import { LAUNDRY_ROW_LABEL, laundryValue, STAIR_CARPET_LABEL, STAIR_STANDARD_VALUE } from './outputLabels';
 import {
   buildSubmissionSectionRows,
   computeTotalsForSubmission,
@@ -108,8 +109,9 @@ const STATIC_GROUPS: GroupDef[] = [
       { label: 'Ensuite Tile', get: ({ s }) => yesNo((s as any).bathroom_tile_ensuite_selected) },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { label: 'Guest Tile', get: ({ s }) => yesNo((s as any).bathroom_tile_guest_selected) },
-      { label: 'SPC Tile Colour', get: ({ s }) => s.spc_tile_colour ?? '' },
-      { label: 'SPC Tile Comments', get: ({ s }) => s.spc_tile_comments ?? '' },
+      { label: 'Bathroom Tile', get: ({ s }) => s.spc_tile_colour ?? '' },
+      { label: LAUNDRY_ROW_LABEL, get: ({ s }) => laundryValue(Array.isArray(s.area_upgrades) ? (s.area_upgrades as never[]) : []) },
+      { label: 'Bathroom Tile Comments', get: ({ s }) => s.spc_tile_comments ?? '' },
       { label: 'Heated Floor Bathrooms', get: ({ s }) => s.heated_floor_bathrooms ?? 0 },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { label: 'Custom Tiled Shower', get: ({ s }) => yesNo((s as any).custom_tiled_shower) },
@@ -133,7 +135,12 @@ const STATIC_GROUPS: GroupDef[] = [
     cols: [
       { label: 'Stair Upgrade Type', get: ({ s }) => s.stair_upgrade_type ?? '' },
       { label: 'Stair LVP Upgrade', get: ({ s }) => yesNo(s.stair_lvp_upgrade_selected) },
-      { label: 'Stair Carpet Colour', get: ({ s }) => s.stair_carpet_colour ?? '' },
+      { label: STAIR_CARPET_LABEL, get: ({ s }) => {
+        const upgraded = s.stair_lvp_upgrade_selected || s.stair_premium_carpet_selected || s.premium_underpad_stairs
+          || s.stair_upgrade_type === 'lvp' || s.stair_upgrade_type === 'premium_lvp';
+        if (!s.has_stairs || upgraded) return s.stair_carpet_colour ?? '';
+        return s.stair_carpet_colour ? `${STAIR_STANDARD_VALUE} — ${s.stair_carpet_colour}` : STAIR_STANDARD_VALUE;
+      } },
       { label: 'Premium Underpad (Stairs)', get: ({ s }) => yesNo(s.premium_underpad_stairs) },
       { label: 'Stair LVP $', get: ({ totals }) => money(totals.pieces.stairLvp) },
       { label: 'Stair Carpet $', get: ({ totals }) => money(totals.pieces.stairCarpet) },
@@ -143,12 +150,12 @@ const STATIC_GROUPS: GroupDef[] = [
   {
     name: 'Bedroom Flooring',
     cols: [
-      { label: 'Bedroom Flooring Choice', get: ({ s }) => s.bedroom_flooring_choice ?? '' },
-      { label: 'Bedroom LVP Same as Main', get: ({ s }) => yesNo(s.bedroom_lvp_same_as_main) },
-      { label: 'Bedroom LVP Colour', get: ({ s }) => s.bedroom_lvp_colour ?? '' },
-      { label: 'Bedroom Carpet Colour', get: ({ s }) => s.bedroom_carpet_colour ?? '' },
-      { label: 'Premium Carpet (Bedroom)', get: ({ s }) => yesNo(s.premium_carpet_bedroom) },
-      { label: 'Premium Underpad (Bedroom)', get: ({ s }) => yesNo(s.premium_underpad_bedroom) },
+      { label: 'Primary Bedroom Flooring', get: ({ s }) => s.bedroom_flooring_choice ?? '' },
+      { label: 'Primary Bedroom LVP Same as Main', get: ({ s }) => yesNo(s.bedroom_lvp_same_as_main) },
+      { label: 'Primary Bedroom LVP Colour', get: ({ s }) => s.bedroom_lvp_colour ?? '' },
+      { label: 'Primary Bedroom Carpet Colour', get: ({ s }) => s.bedroom_carpet_colour ?? '' },
+      { label: 'Premium Carpet (Primary Bedroom)', get: ({ s }) => yesNo(s.premium_carpet_bedroom) },
+      { label: 'Premium Underpad (Primary Bedroom)', get: ({ s }) => yesNo(s.premium_underpad_bedroom) },
     ],
   },
   {

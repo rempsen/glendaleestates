@@ -3,6 +3,7 @@ import { computeUpgradeTotals, parseCustomPricing, LINE_STATUS_LABELS } from '@/
 import { totalsInputFromSelections } from '@/lib/buyerPdfGenerator';
 import { toBuyerPdfSelections } from '@/lib/buyerPdfSelections';
 import { internalAreaNotes } from '@/lib/areaNotes';
+import { buildWordSelectionRows } from '@/lib/submissionWordRows';
 import { loadSavedSubmissionContext } from '@/lib/savedSubmissionPdf';
 
 const money = (n: number) => `$${n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -28,18 +29,8 @@ export async function downloadSubmissionWord(id: string, staff = true): Promise<
   const sel = toBuyerPdfSelections(s);
   const totals = computeUpgradeTotals(totalsInputFromSelections(sel, unitCode), pricing);
   const cp = parseCustomPricing((s as any).custom_pricing);
-  const prov = cp.provisional || {};
 
-  const selRows: string[][] = [
-    ['Main Floor LVP', `${s.lvp_colour || 'Not selected'}${prov.lvp_colour ? ` (PROVISIONAL — ${prov.lvp_colour})` : ''}`],
-    ['Bathroom Tile', s.spc_tile_colour || 'Not selected'],
-    ['Primary Bedroom Flooring', s.bedroom_flooring_choice || 'Not selected'],
-    ...(s.bedroom_carpet_colour ? [['Primary Bedroom Carpet Colour', s.bedroom_carpet_colour]] : []),
-    ['Kitchen Backsplash', s.backsplash_orientation || 'Not selected'],
-  ];
-  (totals.pieces.includedItems || []).forEach(i => selRows.push([[i.area, i.label].filter(Boolean).join(' — '), 'Included — $0.00']));
-  (sel.areaUpgrades || []).forEach(u => selRows.push([`Upgrade — ${u.areaId}`, [u.productName, u.productColor, u.clientComment?.trim()].filter(Boolean).join(' — ')]));
-
+  const selRows = buildWordSelectionRows(s, pricing, unitCode);
   const quoteRows = totals.lineItems.map(li => [li.group, [li.label, li.detail].filter(Boolean).join(' — '), money(li.amount)]);
   const notIn = (totals.pieces.uncommittedItems || []).map(u => [[u.area, u.label, u.detail].filter(Boolean).join(' — '), LINE_STATUS_LABELS[u.status], u.amount === null ? 'Pending' : money(u.amount)]);
   const followUps = (cp.followUps || []).filter(f => !f.done && (staff || f.clientVisible));

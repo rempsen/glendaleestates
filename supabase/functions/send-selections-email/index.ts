@@ -75,13 +75,14 @@ function generateCSV(data: SelectionData, savedId: string | undefined, pricingBr
   rows.push(['--- FLOORING SELECTIONS ---', '']);
   rows.push(['Main Floor LVP', data.lvpColour || 'Not selected']);
   rows.push(['LVP Comments', data.lvpComments || '']);
-  rows.push(['Bathroom/Laundry SPC Tile', data.spcTileColour || 'Not selected']);
+  rows.push([BATHROOM_TILE_LABEL, data.spcTileColour || 'Not selected']);
+  rows.push([LAUNDRY_ROW_LABEL, laundryValue(data.areaUpgrades)]);
   rows.push(['SPC Tile Comments', data.spcTileComments || '']);
-  rows.push(['Stair Carpet Colour', data.stairCarpetColour || 'N/A']);
-  rows.push(['Bedroom Flooring Choice', data.bedroomFlooringChoice || 'Not selected']);
-  rows.push(['Bedroom Carpet Colour', data.bedroomCarpetColour || 'N/A']);
-  rows.push(['Bedroom LVP Colour', data.bedroomLvpColour || 'N/A']);
-  rows.push(['Bedroom LVP Same as Main', data.bedroomLvpSameAsMain ? 'Yes' : 'No']);
+  rows.push([STAIR_CARPET_LABEL, data.hasStairs ? stairFlooringRow(data).value : 'N/A']);
+  rows.push([PRIMARY_BEDROOM_FLOORING_LABEL, data.bedroomFlooringChoice || 'Not selected']);
+  rows.push([PRIMARY_BEDROOM_CARPET_COLOUR_LABEL, data.bedroomCarpetColour || 'N/A']);
+  rows.push(['Primary Bedroom LVP Colour', data.bedroomLvpColour || 'N/A']);
+  rows.push(['Primary Bedroom LVP Same as Main', data.bedroomLvpSameAsMain ? 'Yes' : 'No']);
   
   // Backsplash
   rows.push(['--- BACKSPLASH ---', '']);
@@ -358,8 +359,8 @@ interface SelectionData {
 const AREA_NAMES: Record<string, string> = {
   mainLiving: 'Main Living Area',
   secondBedroom: 'Second Bedroom',
-  masterBedroomLvp: 'Master Bedroom (LVP)',
-  masterBedroom: 'Master Bedroom (Carpet)',
+  masterBedroomLvp: 'Primary Bedroom (LVP)',
+  masterBedroom: 'Primary Bedroom (Carpet)',
   secondBedroomCarpet: 'Second Bedroom Carpet',
   guestBathroom: 'Guest Bathroom',
   masterEnsuite: 'Master Ensuite',
@@ -380,6 +381,44 @@ const MATERIAL_NAMES: Record<string, string> = {
   nonstandard_lvt: 'Non Standard LVT Color',
   nonstandard_tile: 'Non Standard Tile Color',
 };
+
+// Buyer-facing wording. MIRRORS src/lib/outputLabels.ts (this function cannot import from src/);
+// scripts/buyer-pdf-selections.test.ts checks the mirror. Change copy in both places together.
+// Base spec: Luxury Vinyl Plank throughout; Dante 2.0 tile in washrooms only (pending Dan's confirmation).
+const LAUNDRY_STANDARD_LABEL = 'Luxury Vinyl Plank (standard)';
+const LAUNDRY_ROW_LABEL = 'Laundry Room';
+const BATHROOM_TILE_LABEL = 'Bathroom Tile';
+const PRIMARY_BEDROOM_FLOORING_LABEL = 'Primary Bedroom Flooring';
+const PRIMARY_BEDROOM_CARPET_COLOUR_LABEL = 'Primary Bedroom Carpet Colour';
+const STAIR_CARPET_LABEL = 'Stair Flooring – Carpet'; // en dash
+const STAIR_STANDARD_VALUE = 'Standard Carpet (Included)';
+
+// Laundry value: the upgraded material when an area_upgrades row for laundry exists, else the standard label.
+function laundryValue(areaUpgrades: AreaUpgrade[] | undefined): string {
+  const up = (areaUpgrades || []).find(u => u.areaId === 'laundry');
+  if (!up) return LAUNDRY_STANDARD_LABEL;
+  const text = [MATERIAL_NAMES[up.materialType] || up.materialType, up.productName, up.productColor]
+    .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(' — ');
+  return text || LAUNDRY_STANDARD_LABEL;
+}
+
+// Stair flooring row shared by the confirmation email and CSV (same rules as the buyer PDF).
+function stairFlooringRow(
+  data: SelectionData,
+  prices?: { stairLvpPrice: number; stairCarpetUpgradePrice: number },
+): { label: string; value: string } {
+  const price = (n: number | undefined) => (prices && n !== undefined ? ` ($${n.toFixed(0)} + GST)` : '');
+  if (data.stairLvpUpgradeSelected || data.stairUpgradeType === 'lvp' || data.stairUpgradeType === 'premium_lvp') {
+    return { label: 'Stair Flooring', value: `${data.stairUpgradeType === 'premium_lvp' ? 'Premium ' : ''}LVP Upgrade with Custom Nosings${price(prices?.stairLvpPrice)}` };
+  }
+  if (data.stairPremiumCarpetSelected) {
+    return { label: STAIR_CARPET_LABEL, value: `Premium Carpet Upgrade${data.stairCarpetColour ? ` (${data.stairCarpetColour})` : ''}${price(prices?.stairCarpetUpgradePrice)}` };
+  }
+  if (data.premiumUnderpadStairs) {
+    return { label: STAIR_CARPET_LABEL, value: data.stairCarpetColour || STAIR_STANDARD_VALUE };
+  }
+  return { label: STAIR_CARPET_LABEL, value: data.stairCarpetColour ? `${STAIR_STANDARD_VALUE} — ${data.stairCarpetColour}` : STAIR_STANDARD_VALUE };
+}
 
 // Normalize unit type label to unit type code
 // e.g., "Corner Unit G" -> "G", "Unit Type A" -> "A"
@@ -1156,9 +1195,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
             <h2>Flooring Selections</h2>
             <table>
               <tr><td class="label">Main Floor LVP:</td><td class="value">${escapeHtml(data.lvpColour) || 'Not selected'}</td></tr>
-              <tr><td class="label">Bathroom/Laundry SPC:</td><td class="value">${escapeHtml(data.spcTileColour) || 'Not selected'}</td></tr>
-              ${data.hasStairs ? `<tr><td class="label">Stairs Carpet:</td><td class="value">${escapeHtml(data.stairCarpetColour) || 'Not selected'}</td></tr>` : ''}
-              <tr><td class="label">Bedroom Flooring:</td><td class="value">${data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : escapeHtml(data.bedroomFlooringChoice) || 'Not selected'}</td></tr>
+              <tr><td class="label">${BATHROOM_TILE_LABEL}:</td><td class="value">${escapeHtml(data.spcTileColour) || 'Not selected'}</td></tr>
+              <tr><td class="label">${LAUNDRY_ROW_LABEL}:</td><td class="value">${escapeHtml(laundryValue(data.areaUpgrades))}</td></tr>
+              ${data.hasStairs ? `<tr><td class="label">${STAIR_CARPET_LABEL}:</td><td class="value">${escapeHtml(data.stairCarpetColour) || 'Not selected'}</td></tr>` : ''}
+              <tr><td class="label">${PRIMARY_BEDROOM_FLOORING_LABEL}:</td><td class="value">${data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : escapeHtml(data.bedroomFlooringChoice) || 'Not selected'}</td></tr>
             </table>
             ${data.lvpComments ? `<div class="comments"><strong>LVP Comments:</strong> ${escapeHtml(data.lvpComments)}</div>` : ''}
           </div>
@@ -1389,14 +1429,17 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     });
   }
   
-  // Bathroom/Laundry Tile
+  // Bathroom Tile (laundry is its own row below)
   if (data.spcTileColour) {
     standardSelections.push({ 
-      label: 'Bathroom/Laundry Tile', 
+      label: BATHROOM_TILE_LABEL, 
       value: data.spcTileColour,
       detail: data.spcTileComments || undefined
     });
   }
+
+  // Laundry Room: standard LVP unless the buyer upgraded it
+  standardSelections.push({ label: LAUNDRY_ROW_LABEL, value: laundryValue(data.areaUpgrades) });
   
   // Kitchen Backsplash
   if (data.backsplashOrientation) {
@@ -1406,31 +1449,24 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     });
   }
   
-  // Bedroom Flooring
+  // Primary Bedroom Flooring (+ colour on its own row, as in the buyer PDF)
   if (data.bedroomFlooringChoice) {
-    let bedroomValue = data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : 
-                       data.bedroomFlooringChoice === 'carpet' ? 'Carpet' : data.bedroomFlooringChoice;
+    const bedroomValue = data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' :
+                         data.bedroomFlooringChoice === 'carpet' ? 'Carpet' : data.bedroomFlooringChoice;
+    standardSelections.push({ label: PRIMARY_BEDROOM_FLOORING_LABEL, value: bedroomValue });
     if (data.bedroomFlooringChoice === 'carpet' && data.bedroomCarpetColour) {
-      bedroomValue += ` - ${data.bedroomCarpetColour}`;
-    } else if (data.bedroomFlooringChoice === 'lvp' && !data.bedroomLvpSameAsMain && data.bedroomLvpColour) {
-      bedroomValue += ` - ${data.bedroomLvpColour}`;
-    } else if (data.bedroomFlooringChoice === 'lvp' && data.bedroomLvpSameAsMain) {
-      bedroomValue += ' (Same as Main Floor)';
+      standardSelections.push({ label: PRIMARY_BEDROOM_CARPET_COLOUR_LABEL, value: data.bedroomCarpetColour });
+    } else if (data.bedroomFlooringChoice === 'lvp') {
+      standardSelections.push({
+        label: 'Primary Bedroom LVP Colour',
+        value: data.bedroomLvpSameAsMain ? `${data.lvpColour || 'Not selected'} (Same as Main Floor)` : (data.bedroomLvpColour || 'Not selected'),
+      });
     }
-    standardSelections.push({ label: 'Bedroom Flooring', value: bedroomValue });
   }
-  
+
   // Stair Flooring (if applicable) - use dynamic pricing
   if (data.hasStairs) {
-    if (data.stairLvpUpgradeSelected) {
-      standardSelections.push({ label: 'Stair Flooring', value: `LVP Upgrade with Custom Nosings ($${pricing.stairLvpPrice.toFixed(0)} + GST)` });
-    } else if (data.stairPremiumCarpetSelected) {
-      standardSelections.push({ label: 'Stair Flooring', value: `Premium Carpet Upgrade ($${pricing.stairCarpetUpgradePrice.toFixed(0)} + GST)` });
-    } else if (data.stairCarpetColour) {
-      standardSelections.push({ label: 'Stair Carpet', value: data.stairCarpetColour });
-    } else {
-      standardSelections.push({ label: 'Stair Flooring', value: 'Standard Carpet (Included)' });
-    }
+    standardSelections.push(stairFlooringRow(data, pricing));
   }
 
   // Build standard selections HTML (no comments - those are internal)
