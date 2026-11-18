@@ -72,7 +72,7 @@ export interface ServerTotalsInput {
   customPricing?: any;
 }
 
-type OvKey = 'stair' | 'grout' | 'bathroomTile' | 'heatedFloor' | 'customShower';
+type OvKey = 'stair' | 'grout' | 'bathroomTile' | 'heatedFloor' | 'customShower' | 'stairCarpet' | 'stairUnderpad';
 
 export interface ServerLineItem {
   group: 'stair' | 'grout' | 'window' | 'flooring' | 'bathroom' | 'custom';
@@ -260,9 +260,9 @@ export function computeUpgradeTotalsServer(
     stairLvp = stairLvpPrice;
   }
   if (stairLvp > 0) stairLvp = ov('stair', stairLvp, true);
-  const stairCarpet = input.stairPremiumCarpetSelected && stairLvp === 0 ? stairCarpetUpgradePrice : 0;
+  const stairCarpet = ov('stairCarpet', input.stairPremiumCarpetSelected && stairLvp === 0 ? stairCarpetUpgradePrice : 0, !!input.stairPremiumCarpetSelected && stairLvp === 0);
   if (stairLvp > 0) lineItems.push({ group: 'stair', label: lbl('stair', 'LVP with Custom Stair Nosings'), amount: stairLvp });
-  const stairUnderpad = input.stairPremiumUnderpadSelected && stairLvp === 0 ? stairUnderpadPrice : 0;
+  const stairUnderpad = ov('stairUnderpad', input.stairPremiumUnderpadSelected && stairLvp === 0 ? stairUnderpadPrice : 0, !!input.stairPremiumUnderpadSelected && stairLvp === 0);
   if (stairCarpet > 0) lineItems.push({ group: 'stair', label: overrides.stairCarpet?.label?.trim() || 'Premium Carpet — Stairs to Lower Level', amount: stairCarpet });
   if (stairUnderpad > 0) lineItems.push({ group: 'stair', label: overrides.stairUnderpad?.label?.trim() || 'Premium Underpad — Stairs to Lower Level', amount: stairUnderpad });
 

@@ -214,11 +214,13 @@ export function computeUpgradeTotals(
   const stairLvp = !isStairLvp ? 0 : ov('stair', isPremiumStairLvp
     ? (pricing.getStairPremiumLvpUpgradePrice?.() || pricing.getStairLvpUpgradePrice?.() || 0)
     : (pricing.getStairLvpUpgradePrice?.() || 0), true);
-  const stairCarpet = input.stairPremiumCarpetSelected && !isStairLvp
-    ? (pricing.getStairCarpetUpgradePrice?.() || 0) : 0;
+  const stairCarpet = ov('stairCarpet',
+    input.stairPremiumCarpetSelected && !isStairLvp ? (pricing.getStairCarpetUpgradePrice?.() || 0) : 0,
+    !!input.stairPremiumCarpetSelected && !isStairLvp);
   if (stairLvp > 0) lineItems.push({ group: 'stair', label: labels.stair || (isPremiumStairLvp ? 'Premium LVP with Custom Stair Nosings' : 'LVP with Custom Stair Nosings'), amount: stairLvp });
-  const stairUnderpad = input.stairPremiumUnderpadSelected && !isStairLvp
-    ? (pricing.getStairUnderpadUpgradePrice?.() || 0) : 0;
+  const stairUnderpad = ov('stairUnderpad',
+    input.stairPremiumUnderpadSelected && !isStairLvp ? (pricing.getStairUnderpadUpgradePrice?.() || 0) : 0,
+    !!input.stairPremiumUnderpadSelected && !isStairLvp);
   if (stairCarpet > 0) lineItems.push({ group: 'stair', label: labels.stairCarpet || 'Premium Carpet — Stairs to Lower Level', amount: stairCarpet });
   if (stairUnderpad > 0) lineItems.push({ group: 'stair', label: labels.stairUnderpad || 'Premium Underpad — Stairs to Lower Level', amount: stairUnderpad });
 
