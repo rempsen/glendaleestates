@@ -17,6 +17,7 @@ import {
   UPGRADE_MATERIALS,
   MaterialType,
 } from '@/lib/upgradeCostData';
+import { clientAreaNotes, internalAreaNotes } from '@/lib/areaNotes';
 import { computeUpgradeTotals, parseCustomPricing, LINE_STATUS_LABELS, type CustomPricing } from '@/lib/upgradeTotals';
 
 // Unit area data structure (camelCase for internal use)
@@ -723,8 +724,7 @@ export async function generateBuyerPreviewPDF(
   if (selections.upgradeComments) commentEntries.push({ label: 'Upgrade Pricing Summary', text: selections.upgradeComments });
   // Per-area upgrade comments — render every comment, even when the area
   // identifier is missing or a placeholder, so the buyer's note is preserved.
-  (selections.areaUpgrades || []).forEach((u, idx) => {
-    if (!u.comments) return;
+  const areaNoteLabel = (u: { areaId: string }, idx: number) => {
     const areaDef = AREA_DEFINITIONS.find(a => a.id === u.areaId);
     let label: string;
     if (areaDef) {
@@ -734,7 +734,10 @@ export async function generateBuyerPreviewPDF(
     } else {
       label = `Area Upgrade — ${u.areaId}`;
     }
-    commentEntries.push({ label, text: u.comments });
+    return label;
+  };
+  clientAreaNotes(selections.areaUpgrades).forEach(n => {
+    commentEntries.push({ label: areaNoteLabel(n, n.index), text: n.text });
   });
 
   if (commentEntries.length > 0) {
@@ -780,6 +783,9 @@ export async function generateBuyerPreviewPDF(
       ['Admin Notes', staffRecord.salesComments?.trim() || '—'],
     ];
     if (staffRecord.adminNotes?.trim()) rows.push(['Internal Notes', staffRecord.adminNotes.trim()]);
+    // Internal area notes (legacy `comments`): staff outputs only, labelled.
+    internalAreaNotes(selections.areaUpgrades).forEach(n =>
+      rows.push([`${areaNoteLabel(n, n.index).replace('Area Upgrade — ', '')} (internal note)`, n.text]));
     autoTable(doc, {
       startY: yPos, body: rows,
       margin: { left: margin, right: margin, bottom: 30 },

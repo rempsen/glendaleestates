@@ -517,7 +517,7 @@ export default function AdminSubmissions() {
       if (sub.spc_tile_comments) labels.push('Bathroom Tile comments');
       if (sub.window_comments) labels.push('Window Coverings comments');
       if (sub.backsplash_grout_comments) labels.push('Backsplash Grout comments');
-      if ((sub.area_upgrades || []).some(u => u.comments)) labels.push('Per-area upgrade comments');
+      if ((sub.area_upgrades || []).some(u => u.comments || u.clientComment)) labels.push('Per-area upgrade comments');
       if ((sub as any).upgrade_comments) labels.push('Upgrade Pricing Summary comments');
       if ((sub as any).upgrade_interests_notes) labels.push('Upgrade Interests notes');
 
@@ -1066,7 +1066,7 @@ export default function AdminSubmissions() {
                         !!s.backsplash_grout_comments ||
                         !!(s as any).upgrade_comments ||
                         !!(s as any).upgrade_interests_notes ||
-                        (s.area_upgrades || []).some(u => u.comments);
+                        (s.area_upgrades || []).some(u => u.comments || u.clientComment);
                       if (!hasCaptured || !s.email) return null;
                       return (
                         <Button
@@ -1248,8 +1248,11 @@ export default function AdminSubmissions() {
                               </div>
                             )}
                           </div>
+                          {upgrade.clientComment && (
+                            <p className="mt-2 text-xs text-muted-foreground italic">Client note: {upgrade.clientComment}</p>
+                          )}
                           {upgrade.comments && (
-                            <p className="mt-2 text-xs text-muted-foreground italic">Comments: {upgrade.comments}</p>
+                            <p className="mt-2 text-xs text-muted-foreground italic">Internal note: {upgrade.comments}</p>
                           )}
                         </div>
                       ))}

@@ -6,7 +6,8 @@ export interface AreaUpgrade {
   materialType: string;
   productName: string;
   productColor: string;
-  comments: string;
+  comments: string; // internal
+  clientComment?: string; // printed on buyer outputs
   heatedFloor?: boolean;
   areaLabel?: string;
   manualPrice?: number | null;

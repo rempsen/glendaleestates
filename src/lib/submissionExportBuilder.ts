@@ -135,7 +135,7 @@ export const EXPORT_SECTIONS: SectionDef[] = [
     columns: [
       'submission_id', 'unit_number', 'first_name', 'last_name',
       'area_id', 'area_name', 'material_type', 'material_name',
-      'product_name', 'product_color', 'comments',
+      'product_name', 'product_color', 'client_comment', 'comments',
       'heated_floor', 'amount', 'heated_floor_amount',
     ],
   },
@@ -367,6 +367,7 @@ export function buildSubmissionSectionRows(
     material_name: u.materialName,
     product_name: u.productName ?? '',
     product_color: u.productColor ?? '',
+    client_comment: '',
     comments: '',
     heated_floor: u.heatedFloorAmount > 0,
     amount: fmtMoney(u.amount),
@@ -381,7 +382,8 @@ export function buildSubmissionSectionRows(
     const raw = rawAreaUpgrades[i];
     if (raw) {
       row.material_type = raw.materialType ?? row.material_type;
-      row.comments = raw.comments ?? '';
+      row.client_comment = raw.clientComment ?? '';
+      row.comments = raw.comments ?? ''; // internal
     }
   });
 

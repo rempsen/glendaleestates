@@ -252,14 +252,14 @@ export default function SelectionWizard() {
   const lvpRelatedAreaComments = useMemo(
     () =>
       (selections.areaUpgrades || []).filter(
-        (u) => u && u.comments && u.comments.trim() && LVP_RELATED_AREA_IDS.has(u.areaId),
+        (u) => u && u.clientComment && u.clientComment.trim() && LVP_RELATED_AREA_IDS.has(u.areaId),
       ),
     [selections.areaUpgrades, LVP_RELATED_AREA_IDS],
   );
   const tileRelatedAreaComments = useMemo(
     () =>
       (selections.areaUpgrades || []).filter(
-        (u) => u && u.comments && u.comments.trim() && TILE_RELATED_AREA_IDS.has(u.areaId),
+        (u) => u && u.clientComment && u.clientComment.trim() && TILE_RELATED_AREA_IDS.has(u.areaId),
       ),
     [selections.areaUpgrades, TILE_RELATED_AREA_IDS],
   );
@@ -1555,7 +1555,7 @@ export default function SelectionWizard() {
                             <span className="font-medium">
                               {AREA_DEFINITIONS.find((a) => a.id === u.areaId)?.name || u.areaId}:
                             </span>{' '}
-                            {u.comments}
+                            {u.clientComment}
                           </li>
                         ))}
                       </ul>
@@ -1889,7 +1889,7 @@ export default function SelectionWizard() {
                             <span className="font-medium">
                               {AREA_DEFINITIONS.find((a) => a.id === u.areaId)?.name || u.areaId}:
                             </span>{' '}
-                            {u.comments}
+                            {u.clientComment}
                           </li>
                         ))}
                       </ul>

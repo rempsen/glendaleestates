@@ -2,6 +2,7 @@ import { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, Headi
 import { computeUpgradeTotals, parseCustomPricing, LINE_STATUS_LABELS } from '@/lib/upgradeTotals';
 import { totalsInputFromSelections } from '@/lib/buyerPdfGenerator';
 import { toBuyerPdfSelections } from '@/lib/buyerPdfSelections';
+import { internalAreaNotes } from '@/lib/areaNotes';
 import { loadSavedSubmissionContext } from '@/lib/savedSubmissionPdf';
 
 const money = (n: number) => `$${n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -36,7 +37,7 @@ export async function downloadSubmissionWord(id: string, staff = true): Promise<
     ...(s.bedroom_carpet_colour ? [['Primary Bedroom Carpet Colour', s.bedroom_carpet_colour]] : []),
     ['Kitchen Backsplash', s.backsplash_orientation || 'Not selected'],
   ];
-  (sel.areaUpgrades || []).forEach(u => selRows.push([`Upgrade — ${u.areaId}`, [u.productName, u.productColor, u.comments].filter(Boolean).join(' — ')]));
+  (sel.areaUpgrades || []).forEach(u => selRows.push([`Upgrade — ${u.areaId}`, [u.productName, u.productColor, u.clientComment?.trim()].filter(Boolean).join(' — ')]));
 
   const quoteRows = totals.lineItems.map(li => [li.group, [li.label, li.detail].filter(Boolean).join(' — '), money(li.amount)]);
   const notIn = (totals.pieces.uncommittedItems || []).map(u => [[u.area, u.label, u.detail].filter(Boolean).join(' — '), LINE_STATUS_LABELS[u.status], u.amount === null ? 'Pending' : money(u.amount)]);
@@ -45,6 +46,8 @@ export async function downloadSubmissionWord(id: string, staff = true): Promise<
   const notes = [
     ['Flooring', s.lvp_comments], ['Tile', s.spc_tile_comments], ['Windows', s.window_comments], ['Upgrades', s.upgrade_comments],
   ].filter(([, v]) => v) as string[][];
+  // Buyer copy prints clientComment only (in the Selections table); staff also get the internal `comments`, labelled.
+  if (staff) internalAreaNotes(sel.areaUpgrades).forEach(n => notes.push([`Upgrade — ${n.areaId} (internal note)`, n.text]));
 
   const doc = new Document({ sections: [{ children: [
     new Paragraph({ text: `Glendale Estates — Unit ${s.unit_number} Selections & Quote`, heading: HeadingLevel.HEADING_1 }),

@@ -100,7 +100,8 @@ function generateCSV(data: SelectionData, savedId: string | undefined, pricingBr
       rows.push([`Upgrade ${index + 1} - Product Name`, upgrade.productName || '']);
       rows.push([`Upgrade ${index + 1} - Product Color`, upgrade.productColor || '']);
       rows.push([`Upgrade ${index + 1} - Heated Floor`, upgrade.heatedFloor ? 'Yes' : 'No']);
-      rows.push([`Upgrade ${index + 1} - Comments`, upgrade.comments || '']);
+      rows.push([`Upgrade ${index + 1} - Client Note`, upgrade.clientComment || '']);
+      rows.push([`Upgrade ${index + 1} - Internal Note`, upgrade.comments || '']);
     });
   } else {
     rows.push(['No area upgrades selected', '']);
@@ -242,7 +243,8 @@ interface AreaUpgrade {
   materialType: string;
   productName: string;
   productColor: string;
-  comments: string;
+  comments: string; // internal (staff only)
+  clientComment?: string; // buyer-visible
   heatedFloor?: boolean;
   manualPrice?: number;
   manualPriceNote?: string;
@@ -621,6 +623,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           const productName = String(upgrade.productName || '').trim().slice(0, 200);
           const productColor = String(upgrade.productColor || '').trim().slice(0, 100);
           const comments = String(upgrade.comments || '').trim().slice(0, 2000);
+          const clientComment = String(upgrade.clientComment || '').trim().slice(0, 2000);
           const heatedFloor = Boolean(upgrade.heatedFloor);
 
           const hasAnyMeaningfulData =
@@ -629,6 +632,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
             productName !== '' ||
             productColor !== '' ||
             comments !== '' ||
+            clientComment !== '' ||
             heatedFloor === true;
 
           if (!hasAnyMeaningfulData) return null;
@@ -639,6 +643,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
             productName,
             productColor,
             comments,
+            ...(clientComment ? { clientComment } : {}),
             heatedFloor,
             ...(upgrade.manualPrice !== undefined && upgrade.manualPrice !== null && upgrade.manualPrice !== '' && Number.isFinite(Number(upgrade.manualPrice))
               ? { manualPrice: Number(upgrade.manualPrice) } : {}),
@@ -942,7 +947,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
                 <td style="padding: 10px 8px; color: #000000;">${u.heatedFloor ? '<strong style="color: #000000;">Yes (+$' + heatedFloorPrice.toFixed(0) + ')</strong>' : 'No'}</td>
                 <td style="padding: 10px 8px; color: #000000; text-align: right; font-weight: bold;">$${(materialCost + heatedCost).toFixed(2)}</td>
               </tr>
-              ${u.comments ? `<tr><td colspan="6" style="padding: 4px 8px 12px; color: #374151; font-size: 12px; font-style: italic;">Comments: ${escapeHtml(u.comments)}</td></tr>` : ''}
+              ${u.clientComment ? `<tr><td colspan="6" style="padding: 4px 8px 12px; color: #374151; font-size: 12px; font-style: italic;">Client note: ${escapeHtml(u.clientComment)}</td></tr>` : ''}
+              ${u.comments ? `<tr><td colspan="6" style="padding: 4px 8px 12px; color: #92400e; font-size: 12px; font-style: italic;">Internal note: ${escapeHtml(u.comments)}</td></tr>` : ''}
             `}).join('')}
             <tr style="border-top: 2px solid #1a1a2e; background: #f9fafb;">
               <td colspan="5" style="padding: 12px 8px 0; color: #000000; font-weight: bold;">Area Upgrades Subtotal:</td>
@@ -1560,13 +1566,18 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
 
   // Sales Comments Section
   let salesCommentsHtml = '';
-  if (data.salesComments) {
+  // Buyer-facing: per-area notes print clientComment only; the internal `comments` field never appears here.
+  const clientAreaNoteLines = (data.areaUpgrades || [])
+    .filter(u => u.clientComment)
+    .map(u => `${AREA_NAMES[u.areaId] || u.areaId}: ${u.clientComment}`);
+  if (data.salesComments || clientAreaNoteLines.length > 0) {
     salesCommentsHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
           <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Your Comments</h2>
           <div style="background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 12px; padding: 16px 20px;">
-            <p style="margin: 0; color: #1a1a2e; font-size: 14px; line-height: 1.6;">${escapeHtml(data.salesComments)}</p>
+            ${data.salesComments ? `<p style="margin: 0; color: #1a1a2e; font-size: 14px; line-height: 1.6;">${escapeHtml(data.salesComments)}</p>` : ''}
+            ${clientAreaNoteLines.map(l => `<p style="margin: 8px 0 0; color: #1a1a2e; font-size: 14px; line-height: 1.6;">${escapeHtml(l)}</p>`).join('')}
           </div>
         </td>
       </tr>

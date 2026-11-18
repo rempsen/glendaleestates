@@ -49,7 +49,8 @@ interface AreaUpgrade {
   materialType: string;
   productName: string;
   productColor: string;
-  comments: string;
+  comments: string; // internal
+  clientComment?: string;
 }
 
 // Area name mapping for display
@@ -215,8 +216,11 @@ export async function generateSubmissionPDF(submission: BuyerSubmission): Promis
   const TILE_AREA_IDS = new Set(['guestBathroom', 'masterEnsuite', 'laundry']);
   const collectAreaComments = (ids: Set<string>) =>
     (submission.area_upgrades || [])
-      .filter((u) => u && u.comments && ids.has(u.areaId))
-      .map((u) => `[Upgrade — ${AREA_NAMES[u.areaId] || u.areaId}] ${u.comments}`)
+      .filter((u) => u && (u.comments || u.clientComment) && ids.has(u.areaId))
+      .map((u) => [
+        u.clientComment ? `[Upgrade — ${AREA_NAMES[u.areaId] || u.areaId}] ${u.clientComment}` : '',
+        u.comments ? `[Upgrade — ${AREA_NAMES[u.areaId] || u.areaId} (internal note)] ${u.comments}` : '',
+      ].filter(Boolean).join('\n'))
       .join('\n');
   const lvpAreaNotes = collectAreaComments(LVP_AREA_IDS);
   const tileAreaNotes = collectAreaComments(TILE_AREA_IDS);
@@ -436,8 +440,8 @@ export async function generateSubmissionPDF(submission: BuyerSubmission): Promis
     const upgradeData: string[][] = submission.area_upgrades.map(u => [
       formatAreaLabel(u.areaId),
       formatMaterialLabel(u.materialType),
-      u.productName || (u.comments ? '— (see comment)' : 'N/A'),
-      u.productColor || (u.comments ? '— (see comment)' : 'N/A'),
+      u.productName || (u.comments || u.clientComment ? '— (see comment)' : 'N/A'),
+      u.productColor || (u.comments || u.clientComment ? '— (see comment)' : 'N/A'),
     ]);
 
     autoTable(doc, {
@@ -464,13 +468,14 @@ export async function generateSubmissionPDF(submission: BuyerSubmission): Promis
 
     // Add upgrade comments — render every non-empty comment, even when the area
     // is a placeholder, so admins can recover and re-classify the note.
-    const upgradesWithComments = submission.area_upgrades.filter(u => u.comments);
+    const upgradesWithComments = submission.area_upgrades.filter(u => u.comments || u.clientComment);
     if (upgradesWithComments.length > 0) {
       doc.setFontSize(9);
       doc.setTextColor(...COLORS.muted);
       upgradesWithComments.forEach(u => {
         const label = formatAreaLabel(u.areaId);
-        const lines = doc.splitTextToSize(`${label}: ${u.comments}`, pageWidth - margin * 2);
+        const noteText = [u.clientComment ? `${label}: ${u.clientComment}` : '', u.comments ? `${label} (internal note): ${u.comments}` : ''].filter(Boolean).join('\n');
+        const lines = doc.splitTextToSize(noteText, pageWidth - margin * 2);
         if (yPos + lines.length * 5 > pageHeight - 25) {
           doc.addPage();
           yPos = margin;

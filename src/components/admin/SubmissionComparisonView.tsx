@@ -21,6 +21,7 @@ interface AreaUpgrade {
   productName: string;
   productColor: string;
   comments: string;
+  clientComment?: string;
   heatedFloor?: boolean;
 }
 
@@ -261,8 +262,8 @@ export function SubmissionComparisonView({ original, current }: SubmissionCompar
         });
       } else {
         // Check if upgrade changed
-        const origStr = `${origUpgrade.materialType}|${origUpgrade.productName}|${origUpgrade.productColor}|${origUpgrade.heatedFloor}|${Number((origUpgrade as any).manualPrice) || 0}|${origUpgrade.comments || ''}`;
-        const currStr = `${currUpgrade.materialType}|${currUpgrade.productName}|${currUpgrade.productColor}|${currUpgrade.heatedFloor}|${Number((currUpgrade as any).manualPrice) || 0}|${currUpgrade.comments || ''}`;
+        const origStr = `${origUpgrade.materialType}|${origUpgrade.productName}|${origUpgrade.productColor}|${origUpgrade.heatedFloor}|${Number((origUpgrade as any).manualPrice) || 0}|${origUpgrade.comments || ''}|${origUpgrade.clientComment || ''}`;
+        const currStr = `${currUpgrade.materialType}|${currUpgrade.productName}|${currUpgrade.productColor}|${currUpgrade.heatedFloor}|${Number((currUpgrade as any).manualPrice) || 0}|${currUpgrade.comments || ''}|${currUpgrade.clientComment || ''}`;
         
         if (origStr !== currStr) {
           result.push({

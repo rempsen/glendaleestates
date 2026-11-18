@@ -44,3 +44,29 @@ test('internal office and sales notes cannot reach buyer PDF inputs', () => {
   expect(mapped.includes('Private sales note')).toBe(false);
   expect(mapped.includes('Private office note')).toBe(false);
 });
+// ---- Task 7: client-visible vs internal area notes ----
+import { clientAreaNotes, internalAreaNotes } from '../src/lib/areaNotes';
+
+const bothFields = {
+  ...record,
+  area_upgrades: [
+    { areaId: 'masterEnsuite', materialType: 'tile', clientComment: 'Please use matte finish', comments: 'INTERNAL: buyer is price sensitive', manualPrice: 8400 },
+    { areaId: 'laundry', materialType: 'lvp', comments: 'legacy internal only' },
+  ],
+} as unknown as Tables<'buyer_selections'>;
+
+test('buyer notes mapper returns clientComment text and not comments text', () => {
+  const upgrades = toBuyerPdfSelections(bothFields).areaUpgrades;
+  const notes = clientAreaNotes(upgrades);
+  expect(notes.map(n => n.text)).toEqual(['Please use matte finish']);
+  expect(JSON.stringify(notes).includes('INTERNAL')).toBe(false);
+  expect(JSON.stringify(notes).includes('legacy internal only')).toBe(false);
+});
+test('internal notes mapper returns comments only, for staff outputs', () => {
+  const notes = internalAreaNotes(toBuyerPdfSelections(bothFields).areaUpgrades);
+  expect(notes.map(n => n.text)).toEqual(['INTERNAL: buyer is price sensitive', 'legacy internal only']);
+});
+test('notes mappers keep the original row index and ignore blank text', () => {
+  const notes = clientAreaNotes([{ areaId: 'a', clientComment: '  ' }, { areaId: 'b', clientComment: 'x' }] as any);
+  expect(notes).toEqual([{ areaId: 'b', index: 1, text: 'x' }]);
+});

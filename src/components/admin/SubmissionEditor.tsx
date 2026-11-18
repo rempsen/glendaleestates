@@ -127,6 +127,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
       productName: '',
       productColor: '',
       comments: '',
+      clientComment: '',
     };
     handleChange('area_upgrades', [...(editData.area_upgrades || []), newUpgrade]);
   };
@@ -772,11 +773,19 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                     </div>
                     
                     <div className="space-y-1 col-span-2">
-                      <Label className="text-xs">Comments</Label>
+                      <Label className="text-xs">Client note (printed)</Label>
+                      <Input
+                        value={upgrade.clientComment ?? ''}
+                        onChange={(e) => updateAreaUpgrade(index, 'clientComment', e.target.value)}
+                        placeholder="Shown to the buyer on their PDF, Word copy and email"
+                      />
+                    </div>
+                    <div className="space-y-1 col-span-2">
+                      <Label className="text-xs">Internal note</Label>
                       <Input
                         value={upgrade.comments}
                         onChange={(e) => updateAreaUpgrade(index, 'comments', e.target.value)}
-                        placeholder="Any notes..."
+                        placeholder="Staff only - never printed for the buyer"
                       />
                     </div>
 
