@@ -206,6 +206,9 @@ interface BuyerSelection {
   window_comments?: string | null;
   upgrade_interests: Record<string, boolean>;
   status: string;
+  reviewed_at?: string | null;
+  quoted_at?: string | null;
+  completed_at?: string | null;
   sales_comments: string | null;
   upgrade_comments?: string | null;
   upgrade_interests_notes?: string | null;
@@ -333,31 +336,6 @@ export default function AdminSubmissions() {
   useEffect(() => {
     fetchSubmissions();
   }, []);
-
-  const updateStatus = async (id: string, newStatus: string) => {
-    try {
-      const { error } = await supabase
-        .from('buyer_selections')
-        .update({ status: newStatus })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      setSubmissions(prev => 
-        prev.map(s => s.id === id ? { ...s, status: newStatus } : s)
-      );
-      
-      if (selectedSubmission?.id === id) {
-        setSelectedSubmission(prev => prev ? { ...prev, status: newStatus } : null);
-      }
-
-      toast.success('Status updated');
-    } catch (error: any) {
-      toast.error('Failed to update status', {
-        description: error.message,
-      });
-    }
-  };
 
   const filteredSubmissions = submissions.filter(s => {
     const matchesSearch = 
@@ -830,9 +808,9 @@ export default function AdminSubmissions() {
                       currentStatus={selectedSubmission.status}
                       createdAt={selectedSubmission.created_at}
                       timestamps={{
-                        reviewed_at: (selectedSubmission as any).reviewed_at ?? null,
-                        quoted_at: (selectedSubmission as any).quoted_at ?? null,
-                        completed_at: (selectedSubmission as any).completed_at ?? null,
+                        reviewed_at: selectedSubmission.reviewed_at ?? null,
+                        quoted_at: selectedSubmission.quoted_at ?? null,
+                        completed_at: selectedSubmission.completed_at ?? null,
                       }}
                       onStatusChange={(newStatus, timestamps) => {
                         const patch = { status: newStatus, ...timestamps };
@@ -1107,19 +1085,6 @@ export default function AdminSubmissions() {
                         </Button>
                       );
                     })()}
-                    <Select 
-                      value={selectedSubmission.status} 
-                      onValueChange={(value) => updateStatus(selectedSubmission.id, value)}
-                    >
-                      <SelectTrigger className="w-[140px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="submitted">Submitted</SelectItem>
-                        <SelectItem value="reviewed">Reviewed</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </div>
                 </div>
 
