@@ -578,25 +578,6 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                       </Select>
                     </div>
                   )}
-                  {!editData.stair_lvp_upgrade_selected && (
-                    <div className="space-y-3 col-span-2">
-                      <Label>Stairs to Lower Level — Carpet Upgrades</Label>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={!!editData.stair_premium_carpet_selected}
-                          onCheckedChange={(checked) => handleChange('stair_premium_carpet_selected', checked)}
-                        />
-                        <span className="text-sm text-muted-foreground">Premium Carpet ({`$${stairCarpetPrice.toLocaleString()}`} + GST)</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={!!editData.premium_underpad_stairs}
-                          onCheckedChange={(checked) => handleChange('premium_underpad_stairs', checked)}
-                        />
-                        <span className="text-sm text-muted-foreground">Premium Underpad ({`$${stairUnderpadPrice.toLocaleString()}`} + GST)</span>
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
 
@@ -641,6 +622,28 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                  )}
+
+                  {/* Stairs to lower level carpet upgrades — available for ANY bedroom flooring choice.
+                      Previously nested under bedroom_flooring_choice === 'lvp', which hid them for carpet-bedroom buyers. */}
+                  {!editData.stair_lvp_upgrade_selected && (
+                    <div className="space-y-3 col-span-2">
+                      <Label>Stairs to Lower Level — Carpet Upgrades</Label>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={!!editData.stair_premium_carpet_selected}
+                          onCheckedChange={(checked) => handleChange('stair_premium_carpet_selected', checked)}
+                        />
+                        <span className="text-sm text-muted-foreground">Premium Carpet ({`$${stairCarpetPrice.toLocaleString()}`} + GST)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={!!editData.premium_underpad_stairs}
+                          onCheckedChange={(checked) => handleChange('premium_underpad_stairs', checked)}
+                        />
+                        <span className="text-sm text-muted-foreground">Premium Underpad ({`$${stairUnderpadPrice.toLocaleString()}`} + GST)</span>
+                      </div>
                     </div>
                   )}
                 </>
