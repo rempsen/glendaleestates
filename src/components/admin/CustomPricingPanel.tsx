@@ -1,13 +1,18 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Trash2, Copy, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Trash2, Copy, ArrowUp, ArrowDown, Eye, FileText } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { toast } from 'sonner';
+import { generateSavedSubmissionPdf } from '@/lib/savedSubmissionPdf';
+import { downloadSubmissionWord } from '@/lib/submissionWordExport';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { useMemo } from 'react';
 import {
-  customItemAmount, parseCustomPricing,
-  type CustomPricing, type CustomLineItem, type OverrideKey,
+  customItemAmount, parseCustomPricing, isCommitted, LINE_STATUS_LABELS,
+  type CustomPricing, type LineStatus, type FollowUp, type CustomLineItem, type OverrideKey,
 } from '@/lib/upgradeTotals';
 
 const OVERRIDES: Array<{ key: OverrideKey; title: string; hint: string }> = [
@@ -22,7 +27,18 @@ const GST = 0.05;
 const fmt = (n: number) => `$${n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const num = (v: string) => (v === '' ? null : Number(v));
 
-export function CustomPricingPanel({ value, onChange }: { value: unknown; onChange: (v: CustomPricing) => void }) {
+const AREAS = ['Main Living', 'Kitchen', 'Laundry', 'Primary Bedroom', 'Second Bedroom', 'Primary Ensuite', 'Guest Bathroom', 'Stairs to Upper Level', 'Stairs to Lower Level', 'Basement', 'Windows', 'Other'];
+
+async function openClientPreview(id: string) {
+  try {
+    const b64 = await generateSavedSubmissionPdf(id, false, false);
+    const raw = b64.includes(',') ? b64.split(',')[1] : b64;
+    const bytes = Uint8Array.from(atob(raw), c => c.charCodeAt(0));
+    window.open(URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })), '_blank');
+  } catch (e) { toast.error('Could not build the client preview', { description: (e as Error).message }); }
+}
+
+export function CustomPricingPanel({ value, onChange, submissionId }: { value: unknown; onChange: (v: CustomPricing) => void; submissionId?: string }) {
   const cp = parseCustomPricing(value);
   const overrides = cp.overrides || {};
   const items = cp.customItems || [];
@@ -33,7 +49,11 @@ export function CustomPricingPanel({ value, onChange }: { value: unknown; onChan
   const updateItem = (i: number, patch: Partial<CustomLineItem>) =>
     setItems(items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
 
-  const itemsTotal = items.reduce((t, i) => t + customItemAmount(i), 0);
+  const itemsTotal = items.filter(isCommitted).reduce((t, i) => t + customItemAmount(i), 0);
+  const notCounted = items.filter(i => !isCommitted(i));
+  const followUps = cp.followUps || [];
+  const setFollowUps = (next: FollowUp[]) => onChange({ ...cp, followUps: next });
+  const provisional = cp.provisional || {};
 
   // Catalog from Pricing Control: materials (marked up to client price) and flat-rate items
   const { materials, config, markupPercentage } = useDynamicPricing() as unknown as {
@@ -124,6 +144,31 @@ export function CustomPricingPanel({ value, onChange }: { value: unknown; onChan
                 <Input value={it.detail ?? ''} onChange={e => updateItem(i, { detail: e.target.value })} placeholder="Product, colour, area" />
               </div>
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-[12rem_12rem_1fr] gap-2">
+              <div>
+                <Label className="text-xs">Room / location</Label>
+                <Select value={it.area || 'none'} onValueChange={v => updateItem(i, { area: v === 'none' ? undefined : v })}>
+                  <SelectTrigger><SelectValue placeholder="Not set" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Not set</SelectItem>
+                    {AREAS.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Status</Label>
+                <Select value={it.status || 'upgrade'} onValueChange={v => updateItem(i, { status: v as LineStatus })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(LINE_STATUS_LABELS) as LineStatus[]).map(k => <SelectItem key={k} value={k}>{LINE_STATUS_LABELS[k]}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Staff note (internal)</Label>
+                <Input value={it.note ?? ''} onChange={e => updateItem(i, { note: e.target.value })} placeholder="Why, who decided, what to verify" />
+              </div>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-[7rem_7rem_9rem_10rem_auto] gap-2 items-end">
               <div>
                 <Label className="text-xs">Qty</Label>
@@ -155,7 +200,8 @@ export function CustomPricingPanel({ value, onChange }: { value: unknown; onChan
               </div>
             </div>
             <p className="text-xs text-muted-foreground text-right">
-              {computed ? `${it.quantity} ${it.unit || 'each'} × $${Number(it.unitPrice).toFixed(2)} = ` : ''}{fmt(customItemAmount(it))} + GST = {fmt(customItemAmount(it) * (1 + GST))}
+              {!isCommitted(it) && <span className="font-medium text-foreground">{LINE_STATUS_LABELS[it.status as LineStatus]} — not in total. </span>}
+              {it.status === 'pending' ? 'Price: Pending' : <>{computed ? `${it.quantity} ${it.unit || 'each'} × $${Number(it.unitPrice).toFixed(2)} = ` : ''}{fmt(customItemAmount(it))} + GST = {fmt(customItemAmount(it) * (1 + GST))}</>}
             </p>
           </div>
           );
@@ -164,9 +210,47 @@ export function CustomPricingPanel({ value, onChange }: { value: unknown; onChan
           <Plus className="w-4 h-4 mr-2" /> Add line item
         </Button>
         {items.length > 0 && (
-          <p className="text-sm text-right">Custom items: <strong>{fmt(itemsTotal)}</strong> + GST {fmt(itemsTotal * GST)} = <strong>{fmt(itemsTotal * (1 + GST))}</strong></p>
+          <p className="text-sm text-right">Custom items counted in total: <strong>{fmt(itemsTotal)}</strong> + GST {fmt(itemsTotal * GST)} = <strong>{fmt(itemsTotal * (1 + GST))}</strong></p>
+        )}
+        {notCounted.length > 0 && (
+          <p className="text-sm text-right text-muted-foreground">{notCounted.length} line{notCounted.length > 1 ? 's' : ''} shown to the client as not included (pending, under review, deferred or standard).</p>
         )}
       </div>
+
+      <div className="space-y-2">
+        <h4 className="font-medium">Provisional selections</h4>
+        <Label className="text-xs">Main floor LVP colour — provisional note shown to client (leave blank when final)</Label>
+        <Input value={provisional.lvp_colour ?? ''} onChange={e => onChange({ ...cp, provisional: { ...provisional, lvp_colour: e.target.value } })} placeholder="e.g. To be chosen by client at Nov 26 meeting" />
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="font-medium">Basement</h4>
+        <p className="text-xs text-muted-foreground">Scope, decisions and notes (staff only). Add basement prices as line items above with room "Basement".</p>
+        <Textarea rows={3} value={cp.basementNotes ?? ''} onChange={e => onChange({ ...cp, basementNotes: e.target.value })} />
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="font-medium">Follow-ups &amp; open questions</h4>
+        {followUps.map((f, i) => (
+          <div key={f.id} className="flex items-center gap-2">
+            <Checkbox checked={!!f.done} onCheckedChange={c => setFollowUps(followUps.map((x, j) => j === i ? { ...x, done: !!c } : x))} aria-label="Done" />
+            <Input value={f.text} onChange={e => setFollowUps(followUps.map((x, j) => j === i ? { ...x, text: e.target.value } : x))} className={f.done ? 'line-through' : ''} />
+            <label className="flex items-center gap-1 text-xs whitespace-nowrap">
+              <Checkbox checked={!!f.clientVisible} onCheckedChange={c => setFollowUps(followUps.map((x, j) => j === i ? { ...x, clientVisible: !!c } : x))} /> Show client
+            </label>
+            <Button variant="ghost" size="icon" onClick={() => setFollowUps(followUps.filter((_, j) => j !== i))} aria-label="Remove follow-up"><Trash2 className="w-4 h-4" /></Button>
+          </div>
+        ))}
+        <Button variant="outline" size="sm" onClick={() => setFollowUps([...followUps, { id: crypto.randomUUID(), text: '' }])}><Plus className="w-4 h-4 mr-2" /> Add follow-up</Button>
+      </div>
+
+      {submissionId && (
+        <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
+          <p className="text-xs text-muted-foreground w-full">Preview and Word use the last saved version — save first to include new edits.</p>
+          <Button variant="outline" size="sm" onClick={() => openClientPreview(submissionId)}><Eye className="w-4 h-4 mr-2" /> Client preview (PDF)</Button>
+          <Button variant="outline" size="sm" onClick={() => downloadSubmissionWord(submissionId, true).catch(e => toast.error('Word export failed', { description: (e as Error).message }))}><FileText className="w-4 h-4 mr-2" /> Word export</Button>
+        </div>
+      )}
     </div>
   );
 }

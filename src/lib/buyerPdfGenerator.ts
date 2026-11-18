@@ -17,7 +17,7 @@ import {
   UPGRADE_MATERIALS,
   MaterialType,
 } from '@/lib/upgradeCostData';
-import { computeUpgradeTotals, type CustomPricing } from '@/lib/upgradeTotals';
+import { computeUpgradeTotals, parseCustomPricing, LINE_STATUS_LABELS, type CustomPricing } from '@/lib/upgradeTotals';
 
 // Unit area data structure (camelCase for internal use)
 export interface UnitAreaDataForPdf {
@@ -364,13 +364,16 @@ export async function generateBuyerPreviewPDF(
   yPos += 10;
 
   // Selections table
+  const cpInfo = parseCustomPricing(selections.customPricing);
+  const prov = (field: string) => (cpInfo.provisional?.[field] || '').trim();
+  const laundryIsPlank = (selections.areaUpgrades || []).some(u => u.areaId === 'laundry' && /lvp|lvt|plank/i.test(String(u.materialType || '')));
   const standardData: string[][] = [
-    ['Main Floor LVP', resolveOptionName(lvpOptions, selections.lvpColour) || 'Not selected'],
-    ['Bathroom/Laundry Tile', resolveOptionName(spcTileOptions, selections.spcTileColour) || 'Not selected'],
+    ['Main Floor LVP', `${resolveOptionName(lvpOptions, selections.lvpColour) || 'Not selected'}${prov('lvp_colour') ? ` (PROVISIONAL — ${prov('lvp_colour')})` : ''}`],
+    [laundryIsPlank ? 'Bathroom Tile' : 'Bathroom/Laundry Tile', resolveOptionName(spcTileOptions, selections.spcTileColour) || 'Not selected'],
     ['Kitchen Backsplash', `${backsplashProduct.name} — ${resolveOptionName(backsplashOrientations, selections.backsplashOrientation) || 'Orientation not selected'}`],
     ['Phone', selections.phoneNumber || 'Not provided'],
     ...(selections.upgradeFloorSelection ? [['Upgrade Floor', `Floor ${selections.upgradeFloorSelection}`]] : []),
-    ['Bedroom Flooring', selections.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : (selections.bedroomFlooringChoice === 'carpet' ? 'Carpet' : 'Not selected')],
+    ['Primary Bedroom Flooring', selections.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : (selections.bedroomFlooringChoice === 'carpet' ? 'Carpet' : 'Not selected')],
   ];
 
   if (selections.hasStairs) {
@@ -379,23 +382,23 @@ export async function generateBuyerPreviewPDF(
       standardData.push(['Stair Flooring', `${selections.stairUpgradeType === 'premium_lvp' ? 'Premium ' : ''}LVP Upgrade with Custom Nosings — $${stairLvpPrice.toLocaleString()} + GST`]);
     } else if (selections.stairPremiumCarpetSelected) {
       const stairCarpetPrice = pricing.getStairCarpetUpgradePrice?.() || 640;
-      standardData.push(['Stair Flooring', `Premium Carpet Upgrade${selections.stairCarpetColour ? ` (${resolveOptionName(carpetOptions, selections.stairCarpetColour)})` : ''} — $${stairCarpetPrice.toLocaleString()} + GST`]);
+      standardData.push(['Stair Flooring – Carpet', `Premium Carpet Upgrade${selections.stairCarpetColour ? ` (${resolveOptionName(carpetOptions, selections.stairCarpetColour)})` : ''} — $${stairCarpetPrice.toLocaleString()} + GST`]);
     } else {
-      standardData.push(['Stair Flooring', selections.stairCarpetColour 
+      standardData.push(['Stair Flooring – Carpet', selections.stairCarpetColour 
         ? resolveOptionName(carpetOptions, selections.stairCarpetColour) || 'Standard Carpet (Included)'
         : 'Standard Carpet (Included)']);
     }
   }
 
   if (selections.bedroomFlooringChoice === 'carpet' && selections.bedroomCarpetColour) {
-    standardData.push(['Bedroom Carpet Colour', resolveOptionName(carpetOptions, selections.bedroomCarpetColour) || 'Not selected']);
+    standardData.push(['Primary Bedroom Carpet Colour', resolveOptionName(carpetOptions, selections.bedroomCarpetColour) || 'Not selected']);
   }
 
   if (selections.bedroomFlooringChoice === 'lvp') {
     const lvpColor = selections.bedroomLvpSameAsMain 
       ? `${resolveOptionName(lvpOptions, selections.lvpColour) || 'Not selected'} (Same as Main)`
       : resolveOptionName(lvpOptions, selections.bedroomLvpColour) || 'Not selected';
-    standardData.push(['Bedroom LVP Colour', lvpColor]);
+    standardData.push(['Primary Bedroom LVP Colour', lvpColor]);
   }
 
   // Additional selections captured in the wizard / admin editor
@@ -445,28 +448,7 @@ export async function generateBuyerPreviewPDF(
   // ====================================================================
   // Single source of truth for upgrade totals — matches on-screen UI 1:1
   // ====================================================================
-  const totals = computeUpgradeTotals(
-    {
-      unitTypeCode,
-      upgradeFloorSelection: selections.upgradeFloorSelection,
-      areaUpgrades: selections.areaUpgrades || [],
-      backsplashGrout: selections.backsplashGrout,
-      stairLvpUpgradeSelected: selections.stairLvpUpgradeSelected,
-      stairUpgradeType: selections.stairUpgradeType,
-      stairPremiumCarpetSelected: selections.stairPremiumCarpetSelected,
-      stairPremiumUnderpadSelected: selections.premiumUnderpadStairs,
-      additionalWindowsQty: selections.additionalWindowsQty,
-      patioDoorsQty: selections.patioDoorsQty,
-      automatedWindowsQty: selections.automatedWindowsQty,
-      bathroomTileSelected: selections.bathroomTileSelected,
-      bathroomTileEnsuiteSelected: selections.bathroomTileEnsuiteSelected,
-      bathroomTileGuestSelected: selections.bathroomTileGuestSelected,
-      heatedFloorBathrooms: selections.heatedFloorBathrooms,
-      customTiledShower: selections.customTiledShower,
-      customPricing: selections.customPricing,
-    },
-    pricing
-  );
+  const totals = computeUpgradeTotals(totalsInputFromSelections(selections, unitTypeCode), pricing);
 
   console.log('[buyerPdfGenerator] computed totals:', {
     windowSubtotal: totals.windowSubtotal,
@@ -617,6 +599,31 @@ export async function generateBuyerPreviewPDF(
     });
 
     yPos = (doc as any).lastAutoTable.finalY + 15;
+  }
+
+  // Office lines not in the total: included, pending price, under review, deferred
+  const uncommitted = totals.pieces.uncommittedItems || [];
+  const openItems = (cpInfo.followUps || []).filter(f => f.clientVisible && !f.done && f.text?.trim());
+  if (uncommitted.length > 0 || openItems.length > 0) {
+    if (yPos > pageHeight - 70) { doc.addPage(); yPos = 25; }
+    doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.setTextColor(...COLORS.dark);
+    doc.text('Not Included in Total', margin, yPos);
+    yPos += 6;
+    const rows: string[][] = uncommitted.map(u => [
+      [u.area, u.label, u.detail].filter(Boolean).join(' — '),
+      LINE_STATUS_LABELS[u.status] || u.status,
+      u.amount === null ? 'Pending' : `$${u.amount.toFixed(2)}`,
+    ]);
+    openItems.forEach(f => rows.push([f.text.trim(), 'Open question', '—']));
+    autoTable(doc, {
+      startY: yPos, body: rows, margin: { left: margin, right: margin },
+      bodyStyles: { fontSize: 9, textColor: COLORS.dark },
+      columnStyles: { 0: { cellWidth: 105 }, 1: { cellWidth: 35 }, 2: { cellWidth: 30, halign: 'right' } },
+    });
+    yPos = (doc as any).lastAutoTable.finalY + 4;
+    doc.setFontSize(8); doc.setFont('helvetica', 'italic');
+    doc.text('Items marked Pending, Under review or Deferred are not yet priced or approved and are not part of the total above.', margin, yPos + 4);
+    yPos += 14;
   }
 
   // Upgrade Interests
@@ -808,4 +815,27 @@ export async function generateBuyerPreviewPDF(
     const base64 = pdfOutput.split(',')[1];
     return base64;
   }
+}
+
+/** Shared by PDF and Word exports so their totals always match. */
+export function totalsInputFromSelections(selections: BuyerSelections, unitTypeCode: string | null) {
+  return {
+    unitTypeCode,
+    upgradeFloorSelection: selections.upgradeFloorSelection,
+    areaUpgrades: selections.areaUpgrades || [],
+    backsplashGrout: selections.backsplashGrout,
+    stairLvpUpgradeSelected: selections.stairLvpUpgradeSelected,
+    stairUpgradeType: selections.stairUpgradeType,
+    stairPremiumCarpetSelected: selections.stairPremiumCarpetSelected,
+    stairPremiumUnderpadSelected: selections.premiumUnderpadStairs,
+    additionalWindowsQty: selections.additionalWindowsQty,
+    patioDoorsQty: selections.patioDoorsQty,
+    automatedWindowsQty: selections.automatedWindowsQty,
+    bathroomTileSelected: selections.bathroomTileSelected,
+    bathroomTileEnsuiteSelected: selections.bathroomTileEnsuiteSelected,
+    bathroomTileGuestSelected: selections.bathroomTileGuestSelected,
+    heatedFloorBathrooms: selections.heatedFloorBathrooms,
+    customTiledShower: selections.customTiledShower,
+    customPricing: selections.customPricing,
+    };
 }

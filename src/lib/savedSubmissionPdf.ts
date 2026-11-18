@@ -5,7 +5,7 @@ import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
 
 // `staff` adds the internal Office Record (notes, status, submitted date) for admin downloads only.
 // Buyer-facing paths (email, preview) must leave it false.
-export async function generateSavedSubmissionPdf(id: string, saveToFile = false, staff = false): Promise<string> {
+export async function loadSavedSubmissionContext(id: string) {
   // Re-read the complete saved row and live prices, not a stale table snapshot.
   const [submission, configs, materials, areas] = await Promise.all([
     supabase.from('buyer_selections').select('*').eq('id', id).single(),
@@ -46,7 +46,11 @@ export async function generateSavedSubmissionPdf(id: string, saveToFile = false,
         masterEnsuite: Number(row.master_ensuite), laundry: Number(row.laundry), backsplash: Number(row.backsplash) };
     },
   };
-  const s = submission.data;
+  return { s: submission.data, pricing, unitCode: submission.data.unit_type ? normalizeUnitTypeCode(submission.data.unit_type) : null };
+}
+
+export async function generateSavedSubmissionPdf(id: string, saveToFile = false, staff = false): Promise<string> {
+  const { s, pricing } = await loadSavedSubmissionContext(id);
   const result = await generateBuyerPreviewPDF(toBuyerPdfSelections(s), s.unit_type ? normalizeUnitTypeCode(s.unit_type) : null,
     pricing, {
       saveToFile, returnBase64: true,

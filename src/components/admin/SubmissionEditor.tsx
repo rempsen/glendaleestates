@@ -956,7 +956,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
             </div>
           </AccordionTrigger>
           <AccordionContent className="pt-4 pb-6">
-            <CustomPricingPanel value={editData.custom_pricing} onChange={(v) => handleChange('custom_pricing', v)} />
+            <CustomPricingPanel value={editData.custom_pricing} onChange={(v) => handleChange('custom_pricing', v)} submissionId={submission.id} />
           </AccordionContent>
         </AccordionItem>
 

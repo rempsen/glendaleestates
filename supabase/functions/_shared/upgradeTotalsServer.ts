@@ -375,6 +375,8 @@ export function computeUpgradeTotalsServer(
 
   let customItemsTotal = 0;
   for (const i of (Array.isArray(cp.customItems) ? cp.customItems : [])) {
+    // Only 'upgrade' lines (default) are committed; included/pending/disputed/deferred are not charged.
+    if (i?.status && i.status !== 'upgrade') continue;
     const q = Number(i?.quantity); const u = Number(i?.unitPrice);
     const amt = q > 0 && u ? q * u : (Number(i?.amount) || 0);
     if (!amt) continue;

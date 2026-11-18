@@ -69,10 +69,24 @@ export interface UpgradeTotalsInput {
 // Office pricing set by sales/admin. Amounts are GST-exclusive, PST included.
 export type OverrideKey = 'stair' | 'grout' | 'bathroomTile' | 'heatedFloor' | 'customShower' | 'stairCarpet' | 'stairUnderpad';
 export interface PriceOverride { amount?: number | null; label?: string }
-export interface CustomLineItem { id: string; label: string; detail?: string; quantity?: number | null; unit?: string; unitPrice?: number | null; amount?: number | null; catalogKey?: string }
+export type LineStatus = 'upgrade' | 'included' | 'pending' | 'disputed' | 'deferred';
+export const LINE_STATUS_LABELS: Record<LineStatus, string> = {
+  upgrade: 'Upgrade', included: 'Included (standard)', pending: 'Pending price', disputed: 'Under review', deferred: 'Deferred',
+};
+export interface CustomLineItem { id: string; label: string; detail?: string; quantity?: number | null; unit?: string; unitPrice?: number | null; amount?: number | null; catalogKey?: string; status?: LineStatus; area?: string; note?: string }
+export interface FollowUp { id: string; text: string; done?: boolean; clientVisible?: boolean }
 export interface CustomPricing {
   overrides?: Partial<Record<OverrideKey, PriceOverride>>;
   customItems?: CustomLineItem[];
+  followUps?: FollowUp[];
+  /** Selection fields that are provisional, with a note shown to the client (e.g. lvp_colour). */
+  provisional?: Record<string, string>;
+  basementNotes?: string;
+}
+
+/** Only 'upgrade' lines (the default) count toward committed totals. */
+export function isCommitted(i: CustomLineItem): boolean {
+  return !i.status || i.status === 'upgrade';
 }
 
 export function customItemAmount(i: CustomLineItem): number {
@@ -84,7 +98,7 @@ export function customItemAmount(i: CustomLineItem): number {
 export function parseCustomPricing(raw: unknown): CustomPricing {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
   const r = raw as CustomPricing;
-  return { overrides: r.overrides || {}, customItems: Array.isArray(r.customItems) ? r.customItems : [] };
+  return { ...r, overrides: r.overrides || {}, customItems: Array.isArray(r.customItems) ? r.customItems : [], followUps: Array.isArray(r.followUps) ? r.followUps : [], provisional: r.provisional && typeof r.provisional === 'object' ? r.provisional : {} };
 }
 
 export interface UpgradeLineItem {
@@ -115,8 +129,10 @@ export interface UpgradeTotalsResult {
     bathroomTileSqft: number;
     section4HeatedFloor: number;
     customShower: number;
-    customItems: Array<{ label: string; detail?: string; amount: number }>;
+    customItems: Array<{ label: string; detail?: string; amount: number; area?: string }>;
     customItemsTotal: number;
+    /** Office lines shown but not counted: included, pending (amount null), under review, deferred. */
+    uncommittedItems: Array<{ label: string; detail?: string; area?: string; status: LineStatus; amount: number | null }>;
     labels: Partial<Record<OverrideKey, string>>;
   };
 }
@@ -318,8 +334,13 @@ export function computeUpgradeTotals(
   if (customShower > 0) lineItems.push({ group: 'bathroom', label: labels.customShower || 'Custom Tiled Shower', amount: customShower });
 
   // ---- Custom office line items ----
-  const customItems = (cp.customItems || [])
-    .map(i => ({ label: (i.label || '').trim() || 'Custom Item', detail: i.detail?.trim() || undefined, amount: customItemAmount(i) }))
+  const uncommittedItems = (cp.customItems || []).filter(i => !isCommitted(i)).map(i => {
+    const hasPrice = (Number(i.quantity) > 0 && i.unitPrice !== null && i.unitPrice !== undefined && String(i.unitPrice) !== '') || (i.amount !== null && i.amount !== undefined && String(i.amount) !== '');
+    return { label: (i.label || '').trim() || 'Custom Item', detail: i.detail?.trim() || undefined, area: i.area?.trim() || undefined, status: i.status as LineStatus,
+      amount: i.status === 'pending' || !hasPrice ? (i.status === 'included' ? 0 : null) : customItemAmount(i) };
+  });
+  const customItems = (cp.customItems || []).filter(isCommitted)
+    .map(i => ({ label: (i.label || '').trim() || 'Custom Item', detail: i.detail?.trim() || undefined, area: i.area?.trim() || undefined, amount: customItemAmount(i) }))
     .filter(i => i.amount !== 0);
   const customItemsTotal = customItems.reduce((t, i) => t + i.amount, 0);
   customItems.forEach(i => lineItems.push({ group: 'custom', label: i.label, detail: i.detail, amount: i.amount }));
@@ -354,6 +375,7 @@ export function computeUpgradeTotals(
       customShower,
       customItems,
       customItemsTotal,
+      uncommittedItems,
       labels,
     },
   };
