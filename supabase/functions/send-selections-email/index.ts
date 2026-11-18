@@ -37,6 +37,8 @@ function validateInput(data: Record<string, unknown>): { valid: boolean; errors:
 // Pricing breakdown for CSV — kept loose to avoid forward-decl issues
 interface CsvPricingBreakdown {
   lineItems: Array<{ label: string; cost: number }>;
+  bedroomCarpet?: number;
+  bedroomUnderpad?: number;
   subtotal: number;
   gst: number;
   grandTotal: number;
@@ -109,8 +111,8 @@ function generateCSV(data: SelectionData, savedId: string | undefined, pricingBr
   rows.push(['Hardwood Upgrade Selected', data.hardwoodUpgradeSelected ? 'Yes' : 'No']);
   rows.push(['Bathroom Tile Selected', data.bathroomTileSelected ? 'Yes' : 'No']);
   rows.push(['Heated Floor Bathrooms', String(data.heatedFloorBathrooms)]);
-  rows.push(['Premium Carpet (Bedrooms)', data.premiumCarpetBedroom ? 'Yes' : 'No']);
-  rows.push(['Premium Underpad (Bedrooms)', data.premiumUnderpadBedroom ? 'Yes' : 'No']);
+  rows.push(['Premium Carpet (Bedrooms)', data.premiumCarpetBedroom ? `$${(pricingBreakdown?.bedroomCarpet ?? 0).toFixed(2)}` : 'No']);
+  rows.push(['Premium Underpad (Bedrooms)', data.premiumUnderpadBedroom ? `$${(pricingBreakdown?.bedroomUnderpad ?? 0).toFixed(2)}` : 'No']);
   rows.push(['Premium Underpad (Stairs)', data.premiumUnderpadStairs ? 'Yes' : 'No']);
   rows.push(['Custom Tiled Shower', data.customTiledShower ? 'Yes' : 'No']);
   
@@ -834,9 +836,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // computeUpgradeTotalsServer() is the byte-for-byte mirror of the UI's
     // src/lib/upgradeTotals.ts. The admin HTML, buyer HTML, and CSV attachment
     // all derive their pricing rows and grand total from this one result so
-    // they can never diverge. Informational-only flags (Premium Carpet/Underpad
-    // Bedrooms/Stairs) are intentionally NOT charged here — they remain on
-    // the SelectionData object as Yes/No flags for non-pricing display.
+    // they can never diverge. Bedroom premium carpet/underpad are priced by
+    // the engine (carpet bedrooms only) like every other line.
     const totals = computeUpgradeTotalsServer({
       unitTypeCode: data.unitType || null,
       upgradeFloorSelection: data.upgradeFloorSelection,
@@ -847,6 +848,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       stairPremiumCarpetSelected: data.stairPremiumCarpetSelected,
       stairPremiumUnderpadSelected: data.premiumUnderpadStairs,
       stairUpgradeType: data.stairUpgradeType,
+      bedroomFlooringChoice: data.bedroomFlooringChoice,
+      bedroomPremiumCarpetSelected: !!data.premiumCarpetBedroom,
+      bedroomPremiumUnderpadSelected: !!data.premiumUnderpadBedroom,
       additionalWindowsQty: data.additionalWindowsQty,
       patioDoorsQty: data.patioDoorsQty,
       automatedWindowsQty: data.automatedWindowsQty,
@@ -1162,9 +1166,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // CSV pricing breakdown — same line items, subtotal, GST, and grand total
     // as the admin HTML, the buyer email, and the buyer/admin PDFs.
-    // Informational-only flags (Premium Carpet/Underpad Bedrooms/Stairs) are
-    // intentionally omitted from these pricing rows; they remain in the CSV
-    // above as Yes/No selection rows.
     const csvLineItems = totals.lineItems.map(item => ({
       label: item.detail ? `${item.label} — ${item.detail}` : item.label,
       cost: item.amount,
@@ -1172,6 +1173,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const csvContent = generateCSV(data, savedSelection?.id as string | undefined, {
       lineItems: csvLineItems,
+      bedroomCarpet: totals.pieces.bedroomCarpet,
+      bedroomUnderpad: totals.pieces.bedroomUnderpad,
       subtotal: totals.grandSubtotal,
       gst: totals.gst,
       grandTotal: totals.grandTotal,
@@ -1211,8 +1214,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       groutColorPrice,
       gstRate,
       areaUpgradeCosts,
-      premiumCarpetBedroomSubtotal: 0,
-      underpadBedroomSubtotal: 0,
+      premiumCarpetBedroomSubtotal: totals.pieces.bedroomCarpet,
+      underpadBedroomSubtotal: totals.pieces.bedroomUnderpad,
       underpadStairsSubtotal: 0,
       bathroomTileSubtotal,
       bathroomGuestSqft,
@@ -1937,6 +1940,9 @@ function buildPreviewTotals(data: SelectionData): ServerTotalsResult {
     stairLvpUpgradeSelected: !!data.stairLvpUpgradeSelected,
     stairPremiumCarpetSelected: !!data.stairPremiumCarpetSelected,
     stairUpgradeType: data.stairUpgradeType || 'standard',
+    bedroomFlooringChoice: data.bedroomFlooringChoice,
+    bedroomPremiumCarpetSelected: !!data.premiumCarpetBedroom,
+    bedroomPremiumUnderpadSelected: !!data.premiumUnderpadBedroom,
     additionalWindowsQty: data.additionalWindowsQty || 0,
     patioDoorsQty: data.patioDoorsQty || 0,
     automatedWindowsQty: data.automatedWindowsQty || 0,
@@ -1971,8 +1977,8 @@ function buildPreviewBuyerPricing(totals: ServerTotalsResult): BuyerEmailPricing
         heatedFloorAmount: f.heatedFloorAmount,
       })),
     },
-    premiumCarpetBedroomSubtotal: 0,
-    underpadBedroomSubtotal: 0,
+    premiumCarpetBedroomSubtotal: totals.pieces.bedroomCarpet,
+    underpadBedroomSubtotal: totals.pieces.bedroomUnderpad,
     underpadStairsSubtotal: 0,
     bathroomTileSubtotal: totals.pieces.bathroomTile,
     bathroomGuestSqft: totals.context.bathroomGuestSqft,

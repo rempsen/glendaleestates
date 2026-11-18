@@ -234,6 +234,9 @@ export function computeTotalsForSubmission(s: BuyerSelection, pricing: ExportPri
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       customTiledShower: !!(s as any).custom_tiled_shower,
       customPricing: (s as any).custom_pricing,
+      bedroomFlooringChoice: ((s as any).bedroom_flooring_choice === 'carpet' ? 'carpet' : (s as any).bedroom_flooring_choice === 'lvp' ? 'lvp' : ''),
+      bedroomPremiumCarpetSelected: !!(s as any).premium_carpet_bedroom,
+      bedroomPremiumUnderpadSelected: !!(s as any).premium_underpad_bedroom,
     },
     buildPricingAdapter(pricing),
   );

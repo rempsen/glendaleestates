@@ -176,6 +176,9 @@ export async function loadProjectManagementData(): Promise<PMData> {
         heatedFloorBathrooms: s.heated_floor_bathrooms || 0,
         customTiledShower: !!s.custom_tiled_shower,
         customPricing: (s as any).custom_pricing,
+        bedroomFlooringChoice: ((s as any).bedroom_flooring_choice === 'carpet' ? 'carpet' : (s as any).bedroom_flooring_choice === 'lvp' ? 'lvp' : ''),
+        bedroomPremiumCarpetSelected: !!(s as any).premium_carpet_bedroom,
+        bedroomPremiumUnderpadSelected: !!(s as any).premium_underpad_bedroom,
       },
       pricing,
     );

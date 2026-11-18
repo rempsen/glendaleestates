@@ -31,6 +31,7 @@ import {
   resolveOptionName,
 } from '@/lib/mockData';
 import { getUnitInfo, UnitInfo } from '@/lib/unitData';
+import { computeUpgradeTotals } from '@/lib/upgradeTotals';
 import { 
   AreaUpgradeSelection,
   BacksplashGroutSelection,
@@ -146,7 +147,6 @@ export default function SelectionWizard() {
     getGroutColorChangePrice,
     getUnderpadStairsPrice,
     getStairCarpetUpgradePrice,
-    getUnderpadCostPerSqyd,
     isFlatRateEnabled,
     getUnitAreaData,
   } = useDynamicPricing();
@@ -162,19 +162,9 @@ export default function SelectionWizard() {
   const underpadStairsPrice = useMemo(() => getUnderpadStairsPrice(), [getUnderpadStairsPrice]);
   const stairCarpetUpgradePrice = useMemo(() => getStairCarpetUpgradePrice(), [getStairCarpetUpgradePrice]);
   const isStairCarpetUpgradeEnabled = useMemo(() => isFlatRateEnabled('premium_carpet_stairs_price'), [isFlatRateEnabled]);
-  const underpadCostPerSqyd = useMemo(() => getUnderpadCostPerSqyd(), [getUnderpadCostPerSqyd]);
   const isStairLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_lvp_upgrade_price'), [isFlatRateEnabled]);
   const isStairPremiumLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_premium_lvp_upgrade_price'), [isFlatRateEnabled]);
   const isUnderpadStairsEnabled = useMemo(() => isFlatRateEnabled('premium_underpad_stairs_price'), [isFlatRateEnabled]);
-  const bedroomUnderpadUnitTypeCode = useMemo(() => {
-    const code = unitInfo?.typeCode?.toUpperCase() || '';
-
-    if (code === 'G' || code === 'H') {
-      return `${code}-2`;
-    }
-
-    return code;
-  }, [unitInfo?.typeCode]);
 
   const [selections, setSelections] = useState<SelectionState>({
     unitNumber: '',
@@ -422,6 +412,40 @@ export default function SelectionWizard() {
       setCurrentStep(prev => prev - 1);
     }
   };
+
+  // Bedroom premium carpet / underpad prices shown in the wizard come from the
+  // same engine that prices the quote, so the buyer sees the number the quote
+  // will carry. Flags are forced on so the price is visible before selecting.
+  const bedroomPremiumPrices = useMemo(() => {
+    const pricing = {
+      markupPercentage,
+      gstRate,
+      getMaterialCost,
+      getGroutColorFee,
+      getAdditionalWindowPrice,
+      getPatioDoorPrice,
+      getAutomatedMotorPrice,
+      getHeatedFloorPrice,
+      getStairLvpUpgradePrice,
+      getStairPremiumLvpUpgradePrice,
+      getUnitAreaData,
+    };
+    const base = {
+      unitTypeCode: unitInfo?.typeCode ?? null,
+      upgradeFloorSelection: selections.upgradeFloorSelection,
+      areaUpgrades: selections.areaUpgrades || [],
+      bedroomFlooringChoice: selections.bedroomFlooringChoice,
+      bedroomPremiumCarpetSelected: true,
+      bedroomPremiumUnderpadSelected: true,
+    };
+    const { pieces } = computeUpgradeTotals(base, pricing);
+    return { carpet: pieces.bedroomCarpet, underpad: pieces.bedroomUnderpad };
+  }, [
+    markupPercentage, gstRate, getMaterialCost, getGroutColorFee, getAdditionalWindowPrice,
+    getPatioDoorPrice, getAutomatedMotorPrice, getHeatedFloorPrice, getStairLvpUpgradePrice,
+    getStairPremiumLvpUpgradePrice, getUnitAreaData, unitInfo?.typeCode,
+    selections.upgradeFloorSelection, selections.areaUpgrades, selections.bedroomFlooringChoice,
+  ]);
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -2144,13 +2168,9 @@ export default function SelectionWizard() {
 
               {/* Premium Carpet Upgrade - show if carpet selected */}
               {selections.bedroomFlooringChoice === 'carpet' && (() => {
-                const unitData = getUnitAreaData(bedroomUnderpadUnitTypeCode);
-                const carpetSqyd = unitData ? (unitData.secondBedroomCarpet + unitData.masterBedroom) : 0;
-                const premiumCarpetCostPerSqyd = getMaterialCost('carpet' as any);
-                const premiumCarpetBaseCost = carpetSqyd * premiumCarpetCostPerSqyd;
-                const premiumCarpetMarkedUp = premiumCarpetBaseCost * (1 + markupPercentage);
+                const premiumCarpetMarkedUp = bedroomPremiumPrices.carpet;
                 const premiumCarpetWithGst = premiumCarpetMarkedUp * (1 + gstRate);
-                return carpetSqyd > 0 ? (
+                return premiumCarpetMarkedUp > 0 ? (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -2210,12 +2230,9 @@ export default function SelectionWizard() {
 
               {/* Premium Underpad Upgrade - show if carpet selected */}
               {selections.bedroomFlooringChoice === 'carpet' && (() => {
-                const unitData = getUnitAreaData(bedroomUnderpadUnitTypeCode);
-                const carpetSqyd = unitData ? (unitData.secondBedroomCarpet + unitData.masterBedroom) : 0;
-                const underpadBaseCost = carpetSqyd * underpadCostPerSqyd;
-                const underpadMarkedUp = underpadBaseCost * (1 + markupPercentage);
+                const underpadMarkedUp = bedroomPremiumPrices.underpad;
                 const underpadWithGst = underpadMarkedUp * (1 + gstRate);
-                return carpetSqyd > 0 ? (
+                return underpadMarkedUp > 0 ? (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}

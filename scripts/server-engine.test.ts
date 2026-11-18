@@ -57,3 +57,20 @@ for (const [name, input] of cases) {
     expect(s.pieces.bedroomCarpet).toBeCloseTo(c.pieces.bedroomCarpet, 2);
   });
 }
+
+test('server split-floor G/H read bedroom sq yd from the -2 row regardless of upgrade floor', () => {
+  const gh: ServerPricing = { ...sPricing, unitAreas: { 'G-1': { masterBedroom: 0 }, 'G-2': { masterBedroom: 120, secondBedroomCarpet: 0 } } as any };
+  for (const floor of ['1', '2', null] as const) {
+    const t = computeUpgradeTotalsServer({
+      unitTypeCode: 'G', upgradeFloorSelection: floor, areaUpgrades: [],
+      bedroomFlooringChoice: 'carpet', bedroomPremiumUnderpadSelected: true,
+    } as ServerTotalsInput, gh);
+    expect(t.pieces.bedroomUnderpad).toBeCloseTo(1152, 2);
+  }
+});
+
+test('server bedroomUnderpad override of 0 yields 0 and no line item', () => {
+  const t = server({ bedroomFlooringChoice: 'carpet', bedroomPremiumUnderpadSelected: true, customPricing: { overrides: { bedroomUnderpad: { amount: 0 } } } });
+  expect(t.pieces.bedroomUnderpad).toBe(0);
+  expect(t.lineItems.some(l => l.label.includes('Underpad'))).toBe(false);
+});

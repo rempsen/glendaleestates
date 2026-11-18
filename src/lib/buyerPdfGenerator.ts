@@ -402,8 +402,6 @@ export async function generateBuyerPreviewPDF(
   }
 
   // Additional selections captured in the wizard / admin editor
-  if (selections.premiumCarpetBedroom) standardData.push(['Premium Carpet (Bedrooms)', 'Selected']);
-  if (selections.premiumUnderpadBedroom) standardData.push(['Premium Underpad (Bedrooms)', 'Selected']);
   if (selections.hasStairs && selections.premiumUnderpadStairs) standardData.push(['Premium Underpad (Stairs)', 'Selected']);
   if (selections.hardwoodUpgradeSelected) standardData.push(['Hardwood Upgrade', 'Interested']);
   const docCount = selections.documentCount ?? (Array.isArray(selections.documentUploads) ? selections.documentUploads.length : 0);

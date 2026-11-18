@@ -277,7 +277,10 @@ export function computeUpgradeTotalsServer(
   // ---- Bedroom premium carpet / underpad (carpet bedrooms only; a hard-surface second bedroom is excluded) ----
   const secondBedroomIsHard = (input.areaUpgrades || []).some(a => a.areaId === 'secondBedroom' && /lvp|lvt|laminate|hardwood|tile/i.test(String(a.materialType)));
   const bedroomIsCarpet = input.bedroomFlooringChoice === 'carpet';
-  const bedroomCarpetSqyd = bedroomIsCarpet ? (unitData?.masterBedroom || 0) + (secondBedroomIsHard ? 0 : (unitData?.secondBedroomCarpet || 0)) : 0;
+  // Split-floor units G/H keep every bedroom on the 2nd floor, whatever floor the upgrades are on.
+  const unitBase = (normalizeUnitTypeCode(input.unitTypeCode) || '').toUpperCase().split('-')[0];
+  const bedroomUnitData = unitBase === 'G' || unitBase === 'H' ? pricing.unitAreas[`${unitBase}-2`] : unitData;
+  const bedroomCarpetSqyd = bedroomIsCarpet ? (bedroomUnitData?.masterBedroom || 0) + (secondBedroomIsHard ? 0 : (bedroomUnitData?.secondBedroomCarpet || 0)) : 0;
   const bedroomWord = secondBedroomIsHard ? 'Primary Bedroom' : 'Bedrooms';
   const bedroomCarpet = ov('bedroomCarpet',
     bedroomIsCarpet && input.bedroomPremiumCarpetSelected ? bedroomCarpetSqyd * (pricing.materials['carpet'] || 0) * (1 + pricing.markupPercentage) : 0,

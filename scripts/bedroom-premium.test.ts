@@ -50,3 +50,29 @@ test('office override on underpad', () => {
   }, pricing);
   expect(t.pieces.bedroomUnderpad).toBe(400);
 });
+
+test('split-floor G/H read bedroom sq yd from the -2 row regardless of upgrade floor', () => {
+  const gh: UpgradeTotalsPricing = {
+    ...pricing,
+    getUnitAreaData: (code: string) =>
+      code === 'G-1' ? ({ masterBedroom: 0 } as any)
+      : code === 'G-2' ? ({ masterBedroom: 120, secondBedroomCarpet: 0 } as any)
+      : null,
+  };
+  for (const floor of ['1', '2', null] as const) {
+    const t = computeUpgradeTotals({
+      unitTypeCode: 'G', upgradeFloorSelection: floor, areaUpgrades: [],
+      bedroomFlooringChoice: 'carpet', bedroomPremiumUnderpadSelected: true,
+    }, gh);
+    expect(t.pieces.bedroomUnderpad).toBeCloseTo(1152, 2);
+  }
+});
+
+test('bedroomUnderpad override of 0 yields 0 and no line item', () => {
+  const t = computeUpgradeTotals({
+    ...base, bedroomFlooringChoice: 'carpet', bedroomPremiumUnderpadSelected: true,
+    customPricing: { overrides: { bedroomUnderpad: { amount: 0 } } } as any,
+  }, pricing);
+  expect(t.pieces.bedroomUnderpad).toBe(0);
+  expect(t.lineItems.some(l => l.label.includes('Underpad'))).toBe(false);
+});

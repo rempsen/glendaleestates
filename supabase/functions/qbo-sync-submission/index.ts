@@ -297,6 +297,9 @@ async function computeTotalsForSubmission(admin: any, submission: any): Promise<
     bathroomTileGuestSelected: submission.bathroom_tile_guest_selected,
     heatedFloorBathrooms: submission.heated_floor_bathrooms,
     customTiledShower: submission.custom_tiled_shower,
+    bedroomFlooringChoice: submission.bedroom_flooring_choice,
+    bedroomPremiumCarpetSelected: !!submission.premium_carpet_bedroom,
+    bedroomPremiumUnderpadSelected: !!submission.premium_underpad_bedroom,
     customPricing: submission.custom_pricing,
   }, { materials, config, unitAreas, markupPercentage, gstRate });
 }

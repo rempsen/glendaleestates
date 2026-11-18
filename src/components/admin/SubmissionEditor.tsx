@@ -37,6 +37,7 @@ import {
   AreaUpgradeSelection,
 } from '@/lib/upgradeCostData';
 import { useUpgradePricing } from '@/hooks/useUpgradePricing';
+import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { getUnitInfo } from '@/lib/unitData';
 
 // Colour options — single source of truth shared with the buyer wizard.
@@ -93,6 +94,8 @@ interface BuyerSelection {
   stair_lvp_upgrade_selected?: boolean;
   stair_premium_carpet_selected?: boolean;
   premium_underpad_stairs?: boolean;
+  premium_carpet_bedroom?: boolean;
+  premium_underpad_bedroom?: boolean;
   bedroom_flooring_choice: string | null;
   bedroom_carpet_colour: string | null;
   bedroom_lvp_colour: string | null;
@@ -133,6 +136,10 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
     const config = pricingConfig.find(c => c.config_key === 'stair_lvp_upgrade_price');
     return config?.config_value || 2160;
   }, [pricingConfig]);
+  // Bedroom premium rates (per sq yd, marked up) for the switch copy; totals come from the engine.
+  const { getMaterialCost: getDynMaterialCost, markupPercentage: dynMarkup } = useDynamicPricing();
+  const bedroomCarpetRate = getDynMaterialCost('carpet' as any) * (1 + dynMarkup);
+  const bedroomUnderpadRate = getDynMaterialCost('premium_carpet_underpad' as any) * (1 + dynMarkup);
   const stairCarpetPrice = pricingConfig.find(c => c.config_key === 'premium_carpet_stairs_price')?.config_value || 0;
   const stairUnderpadPrice = pricingConfig.find(c => c.config_key === 'premium_underpad_stairs_price')?.config_value || 0;
 
@@ -256,6 +263,9 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
         bedroom_carpet_colour: editData.bedroom_carpet_colour,
         bedroom_lvp_colour: editData.bedroom_lvp_colour,
         bedroom_lvp_same_as_main: editData.bedroom_lvp_same_as_main,
+        // Bedroom premiums only apply to carpet bedrooms; clear both flags otherwise.
+        premium_carpet_bedroom: editData.bedroom_flooring_choice === 'carpet' && !!editData.premium_carpet_bedroom,
+        premium_underpad_bedroom: editData.bedroom_flooring_choice === 'carpet' && !!editData.premium_underpad_bedroom,
         stair_carpet_colour: editData.stair_carpet_colour,
         // No stairs = no stair upgrade charges (LVP nosings, premium carpet, underpad).
         stair_lvp_upgrade_selected: !!editData.has_stairs && !!editData.stair_lvp_upgrade_selected,
@@ -543,6 +553,26 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+
+              {editData.bedroom_flooring_choice === 'carpet' && (
+                <div className="space-y-3 col-span-2">
+                  <Label>Bedroom Carpet — Premium Upgrades</Label>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={!!editData.premium_carpet_bedroom}
+                      onCheckedChange={(checked) => handleChange('premium_carpet_bedroom', checked)}
+                    />
+                    <span className="text-sm text-muted-foreground">Premium Carpet ({`$${bedroomCarpetRate.toFixed(2)}`}/sq yd + GST)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={!!editData.premium_underpad_bedroom}
+                      onCheckedChange={(checked) => handleChange('premium_underpad_bedroom', checked)}
+                    />
+                    <span className="text-sm text-muted-foreground">Premium Underpad ({`$${bedroomUnderpadRate.toFixed(2)}`}/sq yd + GST)</span>
+                  </div>
                 </div>
               )}
 
