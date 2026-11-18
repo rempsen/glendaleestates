@@ -58,11 +58,13 @@ interface CustomPricingPanelProps {
   pricing: UpgradeTotalsPricing;
   /** Saves the editor in place; previews and exports read the saved record. */
   onSaveFirst: () => Promise<void>;
+  /** True while the editor is saving; disables preview/export/itemize. */
+  saving?: boolean;
   /** Writes quantity changes (e.g. zeroed window counts) back to the editor state. */
   onPatchSelections?: (patch: Partial<SubmissionEditState>) => void;
 }
 
-export function CustomPricingPanel({ value, onChange, submissionId, selections, unitCode, pricing, onSaveFirst, onPatchSelections }: CustomPricingPanelProps) {
+export function CustomPricingPanel({ value, onChange, submissionId, selections, unitCode, pricing, onSaveFirst, saving = false, onPatchSelections }: CustomPricingPanelProps) {
   const cp = parseCustomPricing(value);
   const live = computeUpgradeTotals(totalsInputFromSelections({ ...selections, customPricing: cp }, unitCode), pricing);
   const [itemizeOpen, setItemizeOpen] = useState(false);
@@ -78,6 +80,7 @@ export function CustomPricingPanel({ value, onChange, submissionId, selections, 
     setNames({ additional: add, patio, motorized: fillNames([...add, ...patio], motorQty, 'Window') });
     setItemizeOpen(true);
   };
+  const anyBlank = [...names.additional, ...names.patio, ...names.motorized, ...bedrooms.filter(b => b.on).map(b => b.label)].some(n => !n.trim());
   const confirmItemize = () => {
     const r = itemizeWindows(selections, pricing, { ...names, includedBedrooms: bedrooms.filter(b => b.on).map(b => ({ label: b.label, qty: 1 })) });
     if (r.customItems.length) {
@@ -311,13 +314,13 @@ export function CustomPricingPanel({ value, onChange, submissionId, selections, 
       {submissionId && (
         <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
           <p className="text-xs text-muted-foreground w-full">Preview and Word save your edits first, then open the saved version.</p>
-          <Button variant="outline" size="sm" onClick={() => saveThen(() => openClientPreview(submissionId))}><Eye className="w-4 h-4 mr-2" /> Client preview (PDF)</Button>
-          <Button variant="outline" size="sm" onClick={() => saveThen(() => downloadSubmissionWord(submissionId, true)).catch(e => toast.error('Word export failed', { description: (e as Error).message }))}><FileText className="w-4 h-4 mr-2" /> Word export</Button>
+          <Button variant="outline" size="sm" disabled={saving} onClick={() => saveThen(() => openClientPreview(submissionId))}><Eye className="w-4 h-4 mr-2" /> Client preview (PDF)</Button>
+          <Button variant="outline" size="sm" disabled={saving} onClick={() => saveThen(() => downloadSubmissionWord(submissionId, true)).catch(e => toast.error('Word export failed', { description: (e as Error).message }))}><FileText className="w-4 h-4 mr-2" /> Word export</Button>
         </div>
       )}
 
       {canItemize && (
-        <Button variant="outline" size="sm" onClick={openItemize}>Itemize windows by location…</Button>
+        <Button variant="outline" size="sm" disabled={saving} onClick={openItemize}>Itemize windows by location…</Button>
       )}
       <Dialog open={itemizeOpen} onOpenChange={setItemizeOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto">
@@ -343,9 +346,10 @@ export function CustomPricingPanel({ value, onChange, submissionId, selections, 
               </div>
             ))}
           </div>
+          {anyBlank && <p className="text-xs text-destructive">Fill in every location name to continue.</p>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setItemizeOpen(false)}>Cancel</Button>
-            <Button onClick={confirmItemize}>Itemize</Button>
+            <Button onClick={confirmItemize} disabled={anyBlank}>Itemize</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

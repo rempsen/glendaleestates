@@ -33,12 +33,13 @@ export function itemizeWindows(
   let n = 0;
   const line = (label: string, unitPrice: number, status: 'upgrade' | 'included'): CustomLineItem =>
     ({ id: newId(n++), label, quantity: 1, unit: 'each', unitPrice, status });
-  const clean = (xs: string[]) => xs.map(x => x.trim()).filter(Boolean);
+  // A blank name falls back to a numbered label so the line count always equals the quantity being replaced.
+  const clean = (xs: string[], fallback: string) => xs.map((x, i) => x.trim() || `${fallback} ${i + 1}`);
 
   const customItems: CustomLineItem[] = [
-    ...clean(locations.additional).map(l => line(`Roller shade, 5% openness — ${l}`, pricing.getAdditionalWindowPrice(), 'upgrade')),
-    ...clean(locations.patio).map(l => line(`Patio door panel track — ${l}`, pricing.getPatioDoorPrice(), 'upgrade')),
-    ...clean(locations.motorized).map(l => line(`Somfy motorization — ${l}`, pricing.getAutomatedMotorPrice(), 'upgrade')),
+    ...clean(locations.additional, 'Window').map(l => line(`Roller shade, 5% openness — ${l}`, pricing.getAdditionalWindowPrice(), 'upgrade')),
+    ...clean(locations.patio, 'Patio Door').map(l => line(`Patio door panel track — ${l}`, pricing.getPatioDoorPrice(), 'upgrade')),
+    ...clean(locations.motorized, 'Window').map(l => line(`Somfy motorization — ${l}`, pricing.getAutomatedMotorPrice(), 'upgrade')),
   ];
   for (const b of locations.includedBedrooms) {
     const label = b.label.trim();

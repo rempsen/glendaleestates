@@ -69,10 +69,12 @@ const UNIT_TYPES = [
 interface SubmissionEditorProps {
   submission: BuyerSelection;
   onSave: (updatedSubmission: BuyerSelection) => void;
+  /** Called after every successful write (including save-in-place for previews) so the parent row stays current. */
+  onSaved?: (updatedSubmission: BuyerSelection) => void;
   onCancel: () => void;
 }
 
-export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEditorProps) {
+export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: SubmissionEditorProps) {
   const [editData, setEditData] = useState<BuyerSelection>({ ...submission });
   const [saving, setSaving] = useState(false);
   
@@ -168,7 +170,12 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
   const savedRef = useRef<BuyerSelection | null>(null);
 
   /** Writes the current edits and the audit entry. Throws on validation or database failure; never closes the editor. */
-  const persist = async (): Promise<BuyerSelection> => {
+  const inFlight = useRef<Promise<BuyerSelection> | null>(null);
+  const persist = (): Promise<BuyerSelection> => {
+    if (!inFlight.current) inFlight.current = persistOnce().finally(() => { inFlight.current = null; });
+    return inFlight.current;
+  };
+  const persistOnce = async (): Promise<BuyerSelection> => {
     const stairValidationError = validateStairFlooring();
     if (stairValidationError) throw Object.assign(new Error(stairValidationError), { isValidation: true });
 
@@ -203,6 +210,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
       upgrade_interests: editData.upgrade_interests,
     };
     savedRef.current = updatedSubmission;
+    onSaved?.(updatedSubmission);
     return updatedSubmission;
   };
 
@@ -946,6 +954,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
               unitCode={panelUnitCode}
               pricing={panelPricing}
               onSaveFirst={saveNow}
+              saving={saving}
               onPatchSelections={(patch) => setEditData(prev => ({ ...prev, ...patch }))}
             />
           </AccordionContent>

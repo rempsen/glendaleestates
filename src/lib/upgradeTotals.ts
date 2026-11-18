@@ -368,7 +368,7 @@ export function computeUpgradeTotals(
   const uncommittedItems = (cp.customItems || []).filter(i => !isCommitted(i) && i.status !== 'included').map(i => {
     const hasPrice = (Number(i.quantity) > 0 && i.unitPrice !== null && i.unitPrice !== undefined && String(i.unitPrice) !== '') || (i.amount !== null && i.amount !== undefined && String(i.amount) !== '');
     return { label: (i.label || '').trim() || 'Custom Item', detail: i.detail?.trim() || undefined, area: i.area?.trim() || undefined, status: i.status as LineStatus,
-      amount: i.status === 'pending' || !hasPrice ? (i.status === 'included' ? 0 : null) : customItemAmount(i) };
+      amount: i.status === 'pending' || !hasPrice ? null : customItemAmount(i) };
   });
   const customItems = (cp.customItems || []).filter(isCommitted)
     .map(i => ({ label: (i.label || '').trim() || 'Custom Item', detail: i.detail?.trim() || undefined, area: i.area?.trim() || undefined, amount: customItemAmount(i) }))

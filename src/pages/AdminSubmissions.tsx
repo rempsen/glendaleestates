@@ -743,6 +743,10 @@ export default function AdminSubmissions() {
                 // Full Editor Mode
                 <SubmissionEditor
                   submission={selectedSubmission}
+                  onSaved={(updatedSubmission) => {
+                    setSubmissions(prev => prev.map(s => s.id === updatedSubmission.id ? updatedSubmission : s));
+                    setSelectedSubmission(updatedSubmission);
+                  }}
                   onSave={(updatedSubmission) => {
                     setSubmissions(prev => 
                       prev.map(s => s.id === updatedSubmission.id ? updatedSubmission : s)

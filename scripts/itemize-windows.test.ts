@@ -58,3 +58,11 @@ test('includedItems: included lines leave uncommittedItems (client and server en
   const st = computeUpgradeTotalsServer({ unitTypeCode: null, areaUpgrades: [], customPricing: { customItems: items } } as never, sp);
   expect(st.pieces.includedItems).toEqual([{ label: 'Blackout roller shade — Primary Bedroom', detail: undefined, area: 'Windows' }]);
 });
+
+test('a blank location name falls back to a numbered label; line count equals quantity, subtotal unchanged', () => {
+  const before = computeUpgradeTotals({ unitTypeCode: null, areaUpgrades: [], additionalWindowsQty: 2 }, pricing).grandSubtotal;
+  const r = itemizeWindows(sel({ additionalWindowsQty: 2 }), pricing, { ...noLocations, additional: ['Living Room', '  '] });
+  expect(r.customItems.map(i => i.label)).toEqual(['Roller shade, 5% openness — Living Room', 'Roller shade, 5% openness — Window 2']);
+  const after = computeUpgradeTotals({ unitTypeCode: null, areaUpgrades: [], customPricing: { customItems: r.customItems } }, pricing).grandSubtotal;
+  expect(after).toBeCloseTo(before, 2);
+});
