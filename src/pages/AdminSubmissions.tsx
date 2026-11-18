@@ -48,6 +48,7 @@ import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
 import { computeUpgradeTotals } from '@/lib/upgradeTotals';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { useUnitAreaData } from '@/hooks/useUnitAreaData';
+import { StatusWorkflowControl } from '@/components/admin/StatusWorkflowControl';
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
 import { SubmissionComparisonView } from '@/components/admin/SubmissionComparisonView';
 import { SubmissionAuditLog } from '@/components/admin/SubmissionAuditLog';
@@ -824,6 +825,23 @@ export default function AdminSubmissions() {
                     <DialogDescription>
                       Submitted {format(new Date(selectedSubmission.created_at), 'MMMM d, yyyy at h:mm a')}
                     </DialogDescription>
+                    <StatusWorkflowControl
+                      submissionId={selectedSubmission.id}
+                      currentStatus={selectedSubmission.status}
+                      createdAt={selectedSubmission.created_at}
+                      timestamps={{
+                        reviewed_at: (selectedSubmission as any).reviewed_at ?? null,
+                        quoted_at: (selectedSubmission as any).quoted_at ?? null,
+                        completed_at: (selectedSubmission as any).completed_at ?? null,
+                      }}
+                      onStatusChange={(newStatus, timestamps) => {
+                        const patch = { status: newStatus, ...timestamps };
+                        setSubmissions(prev =>
+                          prev.map(s => s.id === selectedSubmission.id ? ({ ...s, ...patch } as any) : s)
+                        );
+                        setSelectedSubmission(prev => prev ? ({ ...prev, ...patch } as any) : null);
+                      }}
+                    />
                   </DialogHeader>
 
                   {/* Tabs for Details vs Compare vs History */}

@@ -56,6 +56,11 @@ export interface SubmissionEditState {
   backsplash_grout_color?: string | null;
   backsplash_grout_comments?: string | null;
   heated_floor_bathrooms?: number;
+  automated_windows_qty?: number;
+  custom_tiled_shower?: boolean | null;
+  bathroom_tile_ensuite_selected?: boolean | null;
+  bathroom_tile_guest_selected?: boolean | null;
+  admin_notes?: string | null;
   bathroom_tile_selected?: boolean;
   hardwood_upgrade_selected?: boolean;
   custom_pricing?: unknown;
@@ -64,7 +69,8 @@ export interface SubmissionEditState {
 
 /**
  * Pure builder for the staff editor's buyer_selections update. No React, no Supabase.
- * - heated_floor_bathrooms is passed through unchanged (never derived from area rows).
+ * - heated_floor_bathrooms = max(staff input, count of area rows flagged heatedFloor), so the
+ *   saved value never drops below either source (the buyer's Section-4 count is preserved).
  * - area_upgrades rows keep every key (areaLabel included); only manualPrice,
  *   heatedFloor and manualPriceNote are normalised.
  * - Stair upgrade flags are forced off when the unit has no stairs.
@@ -76,6 +82,8 @@ export function buildSubmissionUpdatePayload(editData: SubmissionEditState): Tab
     manualPrice: Number(upgrade.manualPrice) > 0 ? Number(upgrade.manualPrice) : null,
     manualPriceNote: upgrade.manualPriceNote || '',
   }));
+
+  const heatedAreaCount = areaUpgradesJson.filter(u => u.heatedFloor).length;
 
   return {
     // Buyer Info
@@ -122,17 +130,21 @@ export function buildSubmissionUpdatePayload(editData: SubmissionEditState): Tab
     // Window Coverings
     additional_windows_qty: editData.additional_windows_qty,
     patio_doors_qty: editData.patio_doors_qty,
+    automated_windows_qty: editData.automated_windows_qty ?? 0,
     window_comments: editData.window_comments,
 
     // Area Upgrades - cast to Json type
     area_upgrades: areaUpgradesJson as unknown as Json,
     upgrade_floor_selection: editData.upgrade_floor_selection,
-    // Pass-through: never derive from area rows (that wiped the buyer's Section-4 count).
-    heated_floor_bathrooms: editData.heated_floor_bathrooms,
+    heated_floor_bathrooms: Math.max(Number(editData.heated_floor_bathrooms) || 0, heatedAreaCount),
+    custom_tiled_shower: !!editData.custom_tiled_shower,
+    bathroom_tile_ensuite_selected: !!editData.bathroom_tile_ensuite_selected,
+    bathroom_tile_guest_selected: !!editData.bathroom_tile_guest_selected,
     custom_pricing: (editData.custom_pricing ?? {}) as unknown as Json,
 
     // Admin
     sales_comments: editData.sales_comments,
+    admin_notes: editData.admin_notes ?? null,
     upgrade_interests: editData.upgrade_interests as unknown as Json,
   };
 }

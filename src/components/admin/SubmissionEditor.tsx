@@ -143,9 +143,10 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
     handleChange('area_upgrades', upgrades);
   };
 
-  // Calculate heated floor bathrooms from area upgrades
+  // Heated floor bathrooms as saved: max(staff input, area rows flagged heatedFloor).
   const calculateHeatedFloorCount = () => {
-    return (editData.area_upgrades || []).filter(u => u.heatedFloor).length;
+    const rows = (editData.area_upgrades || []).filter(u => u.heatedFloor).length;
+    return Math.max(Number(editData.heated_floor_bathrooms) || 0, rows);
   };
 
   // Validation helper for stair flooring
@@ -647,6 +648,15 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                   onChange={(e) => handleChange('patio_doors_qty', parseInt(e.target.value) || 0)}
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Motorized openings (Somfy)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={editData.automated_windows_qty ?? 0}
+                  onChange={(e) => handleChange('automated_windows_qty', parseInt(e.target.value) || 0)}
+                />
+              </div>
               <div className="space-y-2 col-span-2">
                 <Label>Window Comments</Label>
                 <Textarea
@@ -838,7 +848,42 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                 Add Area Upgrade
               </Button>
 
-              {/* Heated Floors Summary */}
+              {/* Bathroom upgrades */}
+              <div className="grid grid-cols-2 gap-4 p-3 rounded-lg bg-muted/50">
+                <div className="space-y-2 col-span-2">
+                  <Label>Heated floors — bathrooms (count)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    className="w-[120px]"
+                    value={editData.heated_floor_bathrooms ?? 0}
+                    onChange={(e) => handleChange('heated_floor_bathrooms', parseInt(e.target.value) || 0)}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={!!editData.custom_tiled_shower}
+                    onCheckedChange={(checked) => handleChange('custom_tiled_shower', checked)}
+                  />
+                  <Label>Custom tiled shower</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={!!editData.bathroom_tile_ensuite_selected}
+                    onCheckedChange={(checked) => handleChange('bathroom_tile_ensuite_selected', checked)}
+                  />
+                  <Label>Bathroom tile — ensuite</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={!!editData.bathroom_tile_guest_selected}
+                    onCheckedChange={(checked) => handleChange('bathroom_tile_guest_selected', checked)}
+                  />
+                  <Label>Bathroom tile — guest</Label>
+                </div>
+              </div>
+
+              {/* Heated Floors Summary (matches the saved value) */}
               {calculateHeatedFloorCount() > 0 && (
                 <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
                   <div className="flex items-center gap-2">
@@ -881,6 +926,14 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                 value={editData.sales_comments || ''}
                 onChange={(e) => handleChange('sales_comments', e.target.value || null)}
                 placeholder="Internal notes about this client..."
+                rows={4}
+              />
+            </div>
+            <div className="space-y-2 mt-4">
+              <Label>Internal notes (never printed for the buyer)</Label>
+              <Textarea
+                value={editData.admin_notes || ''}
+                onChange={(e) => handleChange('admin_notes', e.target.value || null)}
                 rows={4}
               />
             </div>

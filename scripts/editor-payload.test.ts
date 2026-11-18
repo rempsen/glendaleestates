@@ -45,3 +45,30 @@ test('has_stairs false forces stair upgrade flags off', () => {
   expect(p.stair_lvp_upgrade_selected).toBe(false);
   expect(p.stair_upgrade_type).toBe('standard');
 });
+
+test('payload includes the six Task 6 fields from editData', () => {
+  const p = buildSubmissionUpdatePayload(base({
+    automated_windows_qty: 3,
+    custom_tiled_shower: true,
+    bathroom_tile_ensuite_selected: true,
+    bathroom_tile_guest_selected: false,
+    admin_notes: 'call buyer',
+    heated_floor_bathrooms: 1,
+  }));
+  expect(p.automated_windows_qty).toBe(3);
+  expect(p.custom_tiled_shower).toBe(true);
+  expect(p.bathroom_tile_ensuite_selected).toBe(true);
+  expect(p.bathroom_tile_guest_selected).toBe(false);
+  expect(p.admin_notes).toBe('call buyer');
+});
+
+test('heated_floor_bathrooms = max(input, count of heated area rows)', () => {
+  const row = (heatedFloor: boolean) => ({ areaId: 'a', materialType: 'tile', productName: '', productColor: '', comments: '', heatedFloor });
+  expect(buildSubmissionUpdatePayload(base({
+    heated_floor_bathrooms: 1, area_upgrades: [row(true), row(true)],
+  })).heated_floor_bathrooms).toBe(2);
+  expect(buildSubmissionUpdatePayload(base({
+    heated_floor_bathrooms: 3, area_upgrades: [row(false), row(false)],
+  })).heated_floor_bathrooms).toBe(3);
+  expect(buildSubmissionUpdatePayload(base({})).heated_floor_bathrooms).toBe(0);
+});
