@@ -238,20 +238,43 @@ All renderers read lines (and, for sent/signed documents, the snapshot). Columns
 
 ### Phase 1 — Relief for Noni (week 1; ships to prod via GitHub → Lovable Publish)
 Scope (all on the current model; both engine copies):
-1. ~~Unhide stair premium carpet/underpad switches~~ **Done 2026-11-18, commit `fa3141b` (awaiting Lovable Publish).** Remaining: gate on `has_stairs` only. *(audit #1)*
-2. Price `premium_underpad_bedroom` and `premium_carpet_bedroom`: add inputs to both engines using master-bedroom sqyd × material × markup, with override keys `bedroomCarpet`, `bedroomUnderpad`; add editor toggles; add tests. *(audit #2)*
-3. Apply `ov('stairCarpet')`/`ov('stairUnderpad')` in both engines and add the two override inputs to `CustomPricingPanel` (`upgradeTotals.ts:217-221`, `upgradeTotalsServer.ts:75,262-266`). *(audit #4)*
-4. Stop `handleSave` clobbering `heated_floor_bathrooms` and dropping `areaLabel` (`SubmissionEditor.tsx:195-197,226-235,284`). *(audit #5, #10)*
-5. Area-upgrade `comments` become internal unless a new `clientComment` field is set; buyer PDF/Word/email print only client fields (`buyerPdfGenerator.ts:727-739`). *(audit #11)*
-6. Live totals inside `CustomPricingPanel`/editor computed from unsaved state; "Client preview" flushes first (`CustomPricingPanel.tsx:249`). *(audit #3)*
-7. Editor inputs for `automated_windows_qty`, `custom_tiled_shower`, bathroom tile flags, `admin_notes`; wire `StatusWorkflowControl` and `AdminNotesSection` or delete them. *(audit #13)*
-8. Backfill `automated_windows_qty` for pre-migration submissions where `window_total` implies motorization. **Unit 24 done 2026-11-18 (→ 2, audit-logged).** Remaining 8 units: report each implied change for Dan's sign-off before writing.
-9. Window lines by location as custom items (interim): a helper in the panel that converts the integer quantities into located custom lines in one click, with included bedroom shades at $0. (`status = 'included'` renders as "Included — $0", not under "Not included".)
-10. Retire stale `window_total` reads (`AdminSubmissions.tsx:1218`, `emailPreview.ts:90`, `submissionPdfGenerator.ts:346`, `useDashboardData.ts:149`, `AdminSalesAnalytics.tsx:105`) in favour of engine output. *(audit #9)*
-11. Security: JWT on `send-selections-email`; fail loudly on insert error; recipients to `portal_settings`.
-12. Fix label strings pending Phase 2 (`buyerPdfGenerator.ts:405-407`, email `:1315,:1340`, CSV `:68-72,:113`).
+1. ~~Unhide stair premium carpet/underpad switches~~ **Done 2026-11-18, commit `fa3141b` (awaiting Lovable Publish).** Remaining item verified done: the stair carpet/underpad switches now sit inside the `has_stairs` block of `SubmissionEditor.tsx` and show for any bedroom flooring choice (hidden only when Stair LVP upgrade is selected, which is mutually exclusive). *(audit #1)*
+2. ~~Price `premium_underpad_bedroom` and `premium_carpet_bedroom`: add inputs to both engines using master-bedroom sqyd × material × markup, with override keys `bedroomCarpet`, `bedroomUnderpad`; add editor toggles; add tests.~~ **Done 2026-11-18, commit `e8e0d9b` (both engines), `a51fca6` (all totals callers + editor toggles), `96c89f3` (canonical lines for the PM hub).** Unit 7 parity pin moved 2,845.50 → 3,296.70 (+451.20, 47 sq yd × 6 × 1.6) as intended. *(audit #2)*
+3. ~~Apply `ov('stairCarpet')`/`ov('stairUnderpad')` in both engines and add the two override inputs to `CustomPricingPanel` (`upgradeTotals.ts:217-221`, `upgradeTotalsServer.ts:75,262-266`).~~ **Done 2026-11-18, commit `c33bf38`.** *(audit #4)*
+4. ~~Stop `handleSave` clobbering `heated_floor_bathrooms` and dropping `areaLabel` (`SubmissionEditor.tsx:195-197,226-235,284`).~~ **Done 2026-11-18, commit `76c67ed` (payload builder `submissionUpdatePayload.ts`).** *(audit #5, #10)*
+5. ~~Area-upgrade `comments` become internal unless a new `clientComment` field is set; buyer PDF/Word/email print only client fields (`buyerPdfGenerator.ts:727-739`).~~ **Done 2026-11-18, commit `88a559e` (client vs internal notes), `761c707` (strip internal area comments at the buyer-safe boundary).** *(audit #11)*
+6. ~~Live totals inside `CustomPricingPanel`/editor computed from unsaved state; "Client preview" flushes first (`CustomPricingPanel.tsx:249`).~~ **Done 2026-11-18, commit `df35c42`, `ab5bf5a` (live totals strip; Client preview/Word save first; parent row kept current).** *(audit #3)*
+7. ~~Editor inputs for `automated_windows_qty`, `custom_tiled_shower`, bathroom tile flags, `admin_notes`; wire `StatusWorkflowControl` and `AdminNotesSection` or delete them.~~ **Done 2026-11-18, commits `f6bbdce`, `ffc1585`, `3d5626f` (editor inputs, status workflow wired, legacy status Select removed, heated-tile count).** *(audit #13)*
+8. **OPEN, not done.** Backfill `automated_windows_qty` for pre-migration submissions where `window_total` implies motorization. **Unit 24 done 2026-11-18 (→ 2, audit-logged).** Remaining 8 units: report each implied change for Dan's sign-off before writing (nothing written; no commit).
+9. ~~Window lines by location as custom items (interim): a helper in the panel that converts the integer quantities into located custom lines in one click, with included bedroom shades at $0. (`status = 'included'` renders as "Included — $0", not under "Not included".)~~ **Done 2026-11-18, commits `df35c42` (itemize-windows helper), `bf4f903` (included lines render in Standard Selections).**
+10. ~~Retire stale `window_total` reads (`AdminSubmissions.tsx:1218`, `emailPreview.ts:90`, `submissionPdfGenerator.ts:346`, `useDashboardData.ts:149`, `AdminSalesAnalytics.tsx:105`) in favour of engine output.~~ **Done 2026-11-18, commit `35a967d`.** *(audit #9)*
+11. ~~Security: JWT on `send-selections-email`; fail loudly on insert error; recipients to `portal_settings`.~~ **Done 2026-11-18, commits `b1c7e53` (`portal_settings` + recipients page), `8c43b4a` (buyer JWT, fail loudly on save errors), `09b2139` (in-function gating of five more edge functions).**
+12. ~~Fix label strings pending Phase 2 (`buyerPdfGenerator.ts:405-407`, email `:1315,:1340`, CSV `:68-72,:113`).~~ **Done 2026-11-18, commits `a683fbc`, `2b7b24a` (shared `outputLabels.ts`; PDF, Word, email, CSV, resend-confirmation; Primary Bedroom wording).**
 
 Acceptance: Noni, as `admin`, adds Primary Bedroom underpad and lower-stair carpet+pad to a carpet-bedroom test unit in under 60 seconds without help; totals update before save; parity harness green for all 9 units with the Unit 24 motorization change the only diff and signed off; `bun test` green; buyer PDF contains no internal text.
+
+Acceptance status (2026-11-18):
+- `bun test` green: 109 pass, 0 fail, 18 files (run 2026-11-18 on `2b7b24a`).
+- Parity harness (`scripts/parity.test.ts`, 9 units) green. Unit 24's motorization (10,388.40, backfilled to 2 openings) is already in the pins. Note Unit 7 moved 2,845.50 → 3,296.70 on purpose when bedroom premium pricing landed (`e8e0d9b`, +451.20), so it is a second diff that needs Dan's sign-off.
+- Buyer PDF contains no internal text: pinned by `scripts/buyer-pdf-selections.test.ts` (`scripts/callers.test.ts` guards the `window_total` rule).
+- Noni walkthrough: pending (checklist below).
+
+Noni walkthrough checklist (use a draft/test unit, never a real buyer; target under 60 seconds start to finish):
+1. Go to Admin → Submissions and open the draft/test submission (carpet bedrooms, has stairs). Start your timer.
+2. In the editor, find "Bedroom Carpet — Premium Upgrades" and turn on the "Premium Underpad" switch (and "Premium Carpet" if the test calls for it).
+3. Under "Stairs to Lower Level — Carpet Upgrades", turn on both "Premium Carpet" and "Premium Underpad".
+4. In the Custom Pricing panel, watch the "Totals (live)" strip (Window coverings, Upgrades, Subtotal, GST, Total). The numbers should change right away, before you save.
+5. Click "Save Changes" at the top.
+6. Click "Client preview (PDF)". Confirm no internal notes or office wording appear anywhere.
+7. Download the buyer PDF. If the unit has a pending line, find the row that says "Pending" where a price would be.
+8. Stop the timer and write the time down. Anything slow, confusing or unlabeled goes back to Dan.
+
+Deploy notes (Phase 1):
+- Apply migration `drizzle/migrations/0005_portal_settings.sql` before Publish. Lovable applies drizzle migrations on sync; verify with `select * from portal_settings`.
+- Publish the frontend and the edge functions together. The new `send-selections-email` rejects the old anon-key wizard, so an unpublished frontend cannot submit.
+- Whatever schedules `send-draft-reminder` must send header `x-internal-secret` set to the service-role key, or the function returns 401.
+- Set Lovable project knowledge to: "Follow AGENTS.md. Pricing engines (`src/lib/upgradeTotals.ts`, `supabase/functions/_shared/upgradeTotalsServer.ts`) and renderers are frozen pending the quote-lines migration; make UI-only changes unless Dan asks otherwise. Run `bun test` before committing."
+- Until Publish, the old live code hides area comments on regenerated PDFs.
 
 ### Phase 2 — Quote lines + migration + meeting console (weeks 2–4)
 `quote_lines`, `unit_base_spec`, `staff` role, `generateQuoteLines`, parity harness mode, backfill with per-unit sign-off, meeting console, cutover of admin view → Word/PDF; wizard Windows step reshaped to located windows; `pricing_queue` + Teams/Resend notifications + settings page; old engines deleted last.
