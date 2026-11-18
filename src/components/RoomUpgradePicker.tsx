@@ -485,14 +485,15 @@ export function RoomUpgradePicker({
                         <Label className="text-sm">Comments</Label>
                         <Input
                           placeholder="Any special notes..."
-                          value={editingSelection?.comments || selection?.comments || ''}
+                          value={editingSelection?.clientComment ?? selection?.clientComment ?? ''}
                           onChange={(e) => {
-                            setEditingSelection(prev => prev ? { ...prev, comments: e.target.value } : {
+                            setEditingSelection(prev => prev ? { ...prev, clientComment: e.target.value } : {
                               areaId: area.id,
                               materialType: area.upgradeTypes[0],
                               productName: '',
                               productColor: '',
-                              comments: e.target.value,
+                              comments: '',
+                              clientComment: e.target.value,
                             });
                           }}
                           className="mt-1"

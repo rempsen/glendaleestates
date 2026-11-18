@@ -1,3 +1,4 @@
+import { BATHROOM_TILE_LABEL, LAUNDRY_ROW_LABEL, laundryValue, PRIMARY_BEDROOM_FLOORING_LABEL, PRIMARY_BEDROOM_CARPET_COLOUR_LABEL, STAIR_CARPET_LABEL, STAIR_STANDARD_VALUE } from '@/lib/outputLabels';
 // Area upgrade interface
 interface AreaUpgrade {
   areaId: string;
@@ -12,7 +13,7 @@ interface AreaUpgrade {
 const AREA_NAMES: Record<string, string> = {
   mainLiving: 'Main Living Area',
   secondBedroom: 'Second Bedroom',
-  masterBedroom: 'Master Bedroom',
+  masterBedroom: 'Primary Bedroom',
   secondBedroomCarpet: 'Second Bedroom Carpet',
   guestBathroom: 'Guest Bathroom',
   masterEnsuite: 'Master Ensuite',
@@ -62,7 +63,6 @@ interface BuyerSubmission {
   stair_lvp_upgrade_selected?: boolean;
   additional_windows_qty: number;
   patio_doors_qty: number;
-  window_total: number;
   area_upgrades?: AreaUpgrade[];
   upgrade_floor_selection?: string | null;
   backsplash_grout_enabled?: boolean;
@@ -71,7 +71,8 @@ interface BuyerSubmission {
   upgrade_interests: Record<string, boolean>;
 }
 
-export function generateEmailPreviewHtml(submission: BuyerSubmission): string {
+/** `windowSubtotal` is the engine's pre-GST window figure (never the stale submit-time total column). */
+export function generateEmailPreviewHtml(submission: BuyerSubmission, windowSubtotal: number): string {
   const firstName = submission.first_name;
   const lastName = submission.last_name;
   const unitNumber = submission.unit_number;
@@ -87,7 +88,7 @@ export function generateEmailPreviewHtml(submission: BuyerSubmission): string {
   const stairCarpetColour = submission.stair_carpet_colour;
   const additionalWindowsQty = submission.additional_windows_qty || 0;
   const patioDoorsQty = submission.patio_doors_qty || 0;
-  const windowTotal = submission.window_total || 0;
+  const windowTotal = windowSubtotal;
   const areaUpgrades = submission.area_upgrades || [];
   const upgradeFloorSelection = submission.upgrade_floor_selection;
   const backsplashGroutEnabled = submission.backsplash_grout_enabled;
@@ -103,31 +104,31 @@ export function generateEmailPreviewHtml(submission: BuyerSubmission): string {
   }
   
   if (spcTileColour) {
-    standardSelections.push({ label: 'Bathroom/Laundry Tile', value: spcTileColour });
+    standardSelections.push({ label: BATHROOM_TILE_LABEL, value: spcTileColour });
   }
+
+  standardSelections.push({ label: LAUNDRY_ROW_LABEL, value: laundryValue(areaUpgrades as never) });
   
   if (backsplashOrientation) {
     standardSelections.push({ label: 'Kitchen Backsplash Orientation', value: backsplashOrientation });
   }
   
   if (bedroomFlooringChoice) {
-    let bedroomValue = bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : 
-                       bedroomFlooringChoice === 'carpet' ? 'Carpet' : bedroomFlooringChoice;
+    const bedroomValue = bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' :
+                         bedroomFlooringChoice === 'carpet' ? 'Carpet' : bedroomFlooringChoice;
+    standardSelections.push({ label: PRIMARY_BEDROOM_FLOORING_LABEL, value: bedroomValue });
     if (bedroomFlooringChoice === 'carpet' && bedroomCarpetColour) {
-      bedroomValue += ` - ${bedroomCarpetColour}`;
-    } else if (bedroomFlooringChoice === 'lvp' && !bedroomLvpSameAsMain && bedroomLvpColour) {
-      bedroomValue += ` - ${bedroomLvpColour}`;
-    } else if (bedroomFlooringChoice === 'lvp' && bedroomLvpSameAsMain) {
-      bedroomValue += ' (Same as Main Floor)';
+      standardSelections.push({ label: PRIMARY_BEDROOM_CARPET_COLOUR_LABEL, value: bedroomCarpetColour });
+    } else if (bedroomFlooringChoice === 'lvp') {
+      standardSelections.push({ label: 'Primary Bedroom LVP Colour', value: bedroomLvpSameAsMain ? 'Same as Main Floor' : (bedroomLvpColour || 'Not selected') });
     }
-    standardSelections.push({ label: 'Bedroom Flooring', value: bedroomValue });
   }
   
   if (hasStairs) {
     if (submission.stair_lvp_upgrade_selected) {
       standardSelections.push({ label: 'Stair Flooring', value: 'LVP Upgrade with Custom Nosings ($2,160 + GST)' });
-    } else if (stairCarpetColour) {
-      standardSelections.push({ label: 'Stair Carpet', value: stairCarpetColour });
+    } else {
+      standardSelections.push({ label: STAIR_CARPET_LABEL, value: stairCarpetColour ? `${STAIR_STANDARD_VALUE} — ${stairCarpetColour}` : STAIR_STANDARD_VALUE });
     }
   }
 
@@ -178,7 +179,7 @@ export function generateEmailPreviewHtml(submission: BuyerSubmission): string {
               </tr>
             `).join('')}
             <tr style="background: #0369a1;">
-              <td style="padding: 14px 16px; color: white; font-size: 15px; font-weight: 600;">Total (incl. GST)</td>
+              <td style="padding: 14px 16px; color: white; font-size: 15px; font-weight: 600;">Total (before GST)</td>
               <td style="padding: 14px 16px; color: #fbbf24; font-size: 18px; text-align: center; font-weight: 700;">$${windowTotal.toFixed(2)}</td>
             </tr>
           </table>

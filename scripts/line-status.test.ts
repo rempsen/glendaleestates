@@ -17,9 +17,12 @@ test('pending, under-review and deferred lines are left out of the total', () =>
     { id: 'b', label: 'Pending', status: 'pending', amount: null },
     { id: 'c', label: 'Disputed', status: 'disputed', amount: 1005 },
     { id: 'd', label: 'Deferred', status: 'deferred', amount: 500 },
+    { id: 'e', label: 'Standard', status: 'included', amount: 0 },
   ]);
   expect(t.grandSubtotal).toBe(1000);
+  // Included lines are listed separately (Standard Selections), not under "Not Included in Total".
   expect(t.pieces.uncommittedItems.length).toBe(3);
+  expect(t.pieces.includedItems.map(i => i.label)).toEqual(['Standard']);
 });
 test('a pending line is shown as Pending, never as $0', () => {
   expect(run([{ id: 'b', label: 'P', status: 'pending', amount: 200 }]).pieces.uncommittedItems[0].amount).toBeNull();

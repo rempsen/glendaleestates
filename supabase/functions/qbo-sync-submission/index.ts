@@ -16,6 +16,7 @@ import {
   type ServerLineItem,
   type ServerTotalsResult,
 } from '../_shared/upgradeTotalsServer.ts';
+import { clientPricingFetcher, loadServerPricing } from '../_shared/loadServerPricing.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -250,34 +251,8 @@ async function upsertEstimate(
 // ---------- totals from submission ----------
 
 async function computeTotalsForSubmission(admin: any, submission: any): Promise<ServerTotalsResult> {
-  // Pull pricing config + materials + unit areas the same way the email/PDF does.
-  const [pcRes, umRes, uaRes] = await Promise.all([
-    admin.from('pricing_config').select('config_key, config_value, is_percentage').eq('is_active', true),
-    admin.from('upgrade_materials').select('material_key, cost_per_unit').eq('is_active', true),
-    admin.from('unit_area_data').select('*'),
-  ]);
-
-  const config: Record<string, number> = {};
-  let markupPercentage = 0;
-  let gstRate = 0.05;
-  for (const r of (pcRes.data ?? [])) {
-    config[r.config_key] = Number(r.config_value);
-    if (r.config_key === 'markup_percentage') markupPercentage = Number(r.config_value);
-    if (r.config_key === 'gst_rate') gstRate = Number(r.config_value);
-  }
-  const materials: Record<string, number> = {};
-  for (const r of (umRes.data ?? [])) materials[r.material_key] = Number(r.cost_per_unit);
-
-  const unitAreas: Record<string, any> = {};
-  for (const r of (uaRes.data ?? [])) {
-    unitAreas[r.unit_type_code] = {
-      allLvp: Number(r.all_lvp), mainLiving: Number(r.main_living),
-      secondBedroom: Number(r.second_bedroom), masterBedroomLvp: Number(r.master_bedroom_lvp),
-      masterBedroom: Number(r.master_bedroom), secondBedroomCarpet: Number(r.second_bedroom_carpet),
-      guestBathroom: Number(r.guest_bathroom), masterEnsuite: Number(r.master_ensuite),
-      laundry: Number(r.laundry), backsplash: Number(r.backsplash),
-    };
-  }
+  // Same pricing load as every other edge engine caller (markup/GST stored as whole percentages, divided by 100).
+  const pricing = await loadServerPricing(clientPricingFetcher(admin));
 
   const code = normalizeUnitTypeCode(submission.unit_type);
   return computeUpgradeTotalsServer({
@@ -297,8 +272,11 @@ async function computeTotalsForSubmission(admin: any, submission: any): Promise<
     bathroomTileGuestSelected: submission.bathroom_tile_guest_selected,
     heatedFloorBathrooms: submission.heated_floor_bathrooms,
     customTiledShower: submission.custom_tiled_shower,
+    bedroomFlooringChoice: submission.bedroom_flooring_choice,
+    bedroomPremiumCarpetSelected: !!submission.premium_carpet_bedroom,
+    bedroomPremiumUnderpadSelected: !!submission.premium_underpad_bedroom,
     customPricing: submission.custom_pricing,
-  }, { materials, config, unitAreas, markupPercentage, gstRate });
+  }, pricing);
 }
 
 // ---------- main ----------

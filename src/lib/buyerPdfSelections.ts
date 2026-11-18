@@ -18,7 +18,11 @@ export function toBuyerPdfSelections(s: Tables<'buyer_selections'>): BuyerSelect
     lvpComments: s.lvp_comments || '', spcTileComments: s.spc_tile_comments || '',
     windowComments: s.window_comments || '', upgradeComments: s.upgrade_comments || '',
     upgradeInterestsNotes: s.upgrade_interests_notes || '',
-    areaUpgrades: (Array.isArray(s.area_upgrades) ? s.area_upgrades : []) as unknown as BuyerSelections['areaUpgrades'],
+    // Internal `comments` never cross this boundary; staff outputs read them from the raw row instead.
+    areaUpgrades: (Array.isArray(s.area_upgrades) ? s.area_upgrades : []).map((u) => {
+      const { comments: _internal, ...safe } = (u && typeof u === 'object' ? u : {}) as Record<string, unknown>;
+      return { ...safe, comments: '' };
+    }) as unknown as BuyerSelections['areaUpgrades'],
     upgradeFloorSelection: s.upgrade_floor_selection === '1' || s.upgrade_floor_selection === '2' ? s.upgrade_floor_selection : null,
     backsplashGrout: { enabled: !!s.backsplash_grout_enabled, groutColor: s.backsplash_grout_color || '', comments: s.backsplash_grout_comments || '' },
     bathroomTileSelected: !!s.bathroom_tile_selected, bathroomTileEnsuiteSelected: !!s.bathroom_tile_ensuite_selected,

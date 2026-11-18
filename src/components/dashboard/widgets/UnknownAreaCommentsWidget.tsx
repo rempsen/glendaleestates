@@ -75,7 +75,7 @@ export function UnknownAreaCommentsWidget() {
       const upgrades = Array.isArray(row.area_upgrades) ? row.area_upgrades : [];
       const entries: FlaggedEntry[] = [];
       upgrades.forEach((u: any) => {
-        const comment = typeof u?.comments === 'string' ? u.comments.trim() : '';
+        const comment = [u?.clientComment, u?.comments].filter((t): t is string => typeof t === 'string' && t.trim() !== '').map(t => t.trim()).join(' | ');
         if (!comment) return;
         const reason = classifyArea(u?.areaId);
         if (!reason) return;

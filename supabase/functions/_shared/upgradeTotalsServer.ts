@@ -60,6 +60,9 @@ export interface ServerTotalsInput {
   stairLvpUpgradeSelected?: boolean;
   stairPremiumCarpetSelected?: boolean;
   stairPremiumUnderpadSelected?: boolean;
+  bedroomFlooringChoice?: 'carpet' | 'lvp' | string | null;
+  bedroomPremiumCarpetSelected?: boolean;
+  bedroomPremiumUnderpadSelected?: boolean;
   stairUpgradeType?: 'standard' | 'lvp' | 'premium_lvp' | null;
   additionalWindowsQty?: number;
   patioDoorsQty?: number;
@@ -72,7 +75,7 @@ export interface ServerTotalsInput {
   customPricing?: any;
 }
 
-type OvKey = 'stair' | 'grout' | 'bathroomTile' | 'heatedFloor' | 'customShower';
+type OvKey = 'stair' | 'grout' | 'bathroomTile' | 'heatedFloor' | 'customShower' | 'stairCarpet' | 'stairUnderpad' | 'bedroomCarpet' | 'bedroomUnderpad';
 
 export interface ServerLineItem {
   group: 'stair' | 'grout' | 'window' | 'flooring' | 'bathroom' | 'custom';
@@ -94,6 +97,9 @@ export interface ServerTotalsResult {
     stairLvp: number;
     stairCarpet: number;
     stairUnderpad: number;
+    bedroomCarpet: number;
+    bedroomUnderpad: number;
+    bedroomCarpetSqyd: number;
     grout: number;
     windowAdditional: number;
     windowPatio: number;
@@ -111,6 +117,7 @@ export interface ServerTotalsResult {
     section4HeatedFloor: number;
     customShower: number;
     customItemsTotal: number;
+    includedItems: Array<{ label: string; detail?: string; area?: string }>;
   };
   // Raw quantities used for transparency labels (server-side only — kept
   // out of the UI counterpart because the UI never displays sq ft).
@@ -259,12 +266,31 @@ export function computeUpgradeTotalsServer(
   } else if (input.stairUpgradeType === 'lvp' || input.stairLvpUpgradeSelected) {
     stairLvp = stairLvpPrice;
   }
+  // Selection-based, evaluated before any override (matches the client's !isStairLvp).
+  const isStairLvp = stairLvp > 0;
   if (stairLvp > 0) stairLvp = ov('stair', stairLvp, true);
-  const stairCarpet = input.stairPremiumCarpetSelected && stairLvp === 0 ? stairCarpetUpgradePrice : 0;
+  const stairCarpet = ov('stairCarpet', input.stairPremiumCarpetSelected && !isStairLvp ? stairCarpetUpgradePrice : 0, !!input.stairPremiumCarpetSelected && !isStairLvp);
   if (stairLvp > 0) lineItems.push({ group: 'stair', label: lbl('stair', 'LVP with Custom Stair Nosings'), amount: stairLvp });
-  const stairUnderpad = input.stairPremiumUnderpadSelected && stairLvp === 0 ? stairUnderpadPrice : 0;
+  const stairUnderpad = ov('stairUnderpad', input.stairPremiumUnderpadSelected && !isStairLvp ? stairUnderpadPrice : 0, !!input.stairPremiumUnderpadSelected && !isStairLvp);
   if (stairCarpet > 0) lineItems.push({ group: 'stair', label: overrides.stairCarpet?.label?.trim() || 'Premium Carpet — Stairs to Lower Level', amount: stairCarpet });
   if (stairUnderpad > 0) lineItems.push({ group: 'stair', label: overrides.stairUnderpad?.label?.trim() || 'Premium Underpad — Stairs to Lower Level', amount: stairUnderpad });
+
+  // ---- Bedroom premium carpet / underpad (carpet bedrooms only; a hard-surface second bedroom is excluded) ----
+  const secondBedroomIsHard = (input.areaUpgrades || []).some(a => a.areaId === 'secondBedroom' && /lvp|lvt|laminate|hardwood|tile/i.test(String(a.materialType)));
+  const bedroomIsCarpet = input.bedroomFlooringChoice === 'carpet';
+  // Split-floor units G/H keep every bedroom on the 2nd floor, whatever floor the upgrades are on.
+  const unitBase = (normalizeUnitTypeCode(input.unitTypeCode) || '').toUpperCase().split('-')[0];
+  const bedroomUnitData = unitBase === 'G' || unitBase === 'H' ? pricing.unitAreas[`${unitBase}-2`] : unitData;
+  const bedroomCarpetSqyd = bedroomIsCarpet ? (bedroomUnitData?.masterBedroom || 0) + (secondBedroomIsHard ? 0 : (bedroomUnitData?.secondBedroomCarpet || 0)) : 0;
+  const bedroomWord = secondBedroomIsHard ? 'Primary Bedroom' : 'Bedrooms';
+  const bedroomCarpet = ov('bedroomCarpet',
+    bedroomIsCarpet && input.bedroomPremiumCarpetSelected ? bedroomCarpetSqyd * (pricing.materials['carpet'] || 0) * (1 + pricing.markupPercentage) : 0,
+    bedroomIsCarpet && !!input.bedroomPremiumCarpetSelected);
+  const bedroomUnderpad = ov('bedroomUnderpad',
+    bedroomIsCarpet && input.bedroomPremiumUnderpadSelected ? bedroomCarpetSqyd * (pricing.materials['premium_carpet_underpad'] || 0) * (1 + pricing.markupPercentage) : 0,
+    bedroomIsCarpet && !!input.bedroomPremiumUnderpadSelected);
+  if (bedroomCarpet > 0) lineItems.push({ group: 'flooring', label: lbl('bedroomCarpet', `Premium Carpet — ${bedroomWord} (${bedroomCarpetSqyd} sq yd)`), amount: bedroomCarpet });
+  if (bedroomUnderpad > 0) lineItems.push({ group: 'flooring', label: lbl('bedroomUnderpad', `Premium Underpad — ${bedroomWord} (${bedroomCarpetSqyd} sq yd)`), amount: bedroomUnderpad });
 
   // ---- Grout ----
   const grout = input.backsplashGroutEnabled ? ov('grout', groutColorPrice, true) : 0;
@@ -373,6 +399,9 @@ export function computeUpgradeTotalsServer(
   }
   if (customShower > 0) lineItems.push({ group: 'bathroom', label: lbl('customShower', 'Custom Tiled Shower'), amount: customShower });
 
+  const includedItems = (Array.isArray(cp.customItems) ? cp.customItems : [])
+    .filter((i: any) => i?.status === 'included')
+    .map((i: any) => ({ label: String(i.label || '').trim() || 'Custom Item', detail: String(i.detail || '').trim() || undefined, area: String(i.area || '').trim() || undefined }));
   let customItemsTotal = 0;
   for (const i of (Array.isArray(cp.customItems) ? cp.customItems : [])) {
     // Only 'upgrade' lines (default) are committed; included/pending/disputed/deferred are not charged.
@@ -385,7 +414,7 @@ export function computeUpgradeTotalsServer(
   }
 
   const upgradesSubtotal =
-    flooringSubtotal + areaHeatedFloorSubtotal + stairLvp + stairCarpet + stairUnderpad + grout +
+    flooringSubtotal + areaHeatedFloorSubtotal + stairLvp + stairCarpet + stairUnderpad + bedroomCarpet + bedroomUnderpad + grout +
     bathroomTile + section4HeatedFloor + customShower + customItemsTotal;
 
   const grandSubtotal = upgradesSubtotal + windowSubtotal;
@@ -405,6 +434,9 @@ export function computeUpgradeTotalsServer(
       stairLvp,
       stairCarpet,
       stairUnderpad,
+      bedroomCarpet,
+      bedroomUnderpad,
+      bedroomCarpetSqyd,
       grout,
       windowAdditional,
       windowPatio,
@@ -414,6 +446,7 @@ export function computeUpgradeTotalsServer(
       section4HeatedFloor,
       customShower,
       customItemsTotal,
+      includedItems,
     },
     context: {
       bathroomGuestSqft: baths.guest,

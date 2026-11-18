@@ -6,9 +6,6 @@
 //    "Your Comments & Notes" section: lvp, spcTile, window, backsplashGrout,
 //    upgradeInterestsNotes, upgradeComments, AND area_upgrades[].comments.
 //    It intentionally OMITS sales_comments (internal admin notes per policy).
-//  - Admin PDF (src/lib/submissionPdfGenerator.ts) renders the same fields
-//    PLUS sales_comments (Admin Notes section) PLUS area_upgrades[].comments
-//    (inline under Area Upgrades).
 
 import { createClient } from "@supabase/supabase-js";
 

@@ -21,6 +21,7 @@ interface AreaUpgrade {
   productName: string;
   productColor: string;
   comments: string;
+  clientComment?: string;
   heatedFloor?: boolean;
 }
 
@@ -49,7 +50,6 @@ interface BuyerSelection {
   bedroom_lvp_same_as_main: boolean;
   additional_windows_qty: number;
   patio_doors_qty: number;
-  window_total: number;
   window_comments?: string | null;
   upgrade_interests: Record<string, boolean>;
   status: string;
@@ -117,7 +117,6 @@ const FIELD_LABELS: Record<string, string> = {
   bedroom_lvp_same_as_main: 'Bedroom LVP Same as Main',
   additional_windows_qty: 'Additional Windows',
   patio_doors_qty: 'Patio Doors',
-  window_total: 'Window Total',
   window_comments: 'Window Comments',
   status: 'Status',
   sales_comments: 'Admin Notes',
@@ -136,7 +135,7 @@ const SIMPLE_FIELDS: (keyof BuyerSelection)[] = [
   'estimated_possession_date', 'has_stairs', 'lvp_colour', 'lvp_comments',
   'spc_tile_colour', 'spc_tile_comments', 'backsplash_orientation', 'stair_carpet_colour',
   'bedroom_flooring_choice', 'bedroom_carpet_colour', 'bedroom_lvp_colour', 'bedroom_lvp_same_as_main',
-  'additional_windows_qty', 'patio_doors_qty', 'window_total', 'window_comments',
+  'additional_windows_qty', 'patio_doors_qty', 'window_comments',
   'status', 'sales_comments', 'upgrade_floor_selection', 'backsplash_grout_enabled',
   'backsplash_grout_color', 'backsplash_grout_comments', 'heated_floor_bathrooms',
   'bathroom_tile_selected', 'hardwood_upgrade_selected',
@@ -174,7 +173,7 @@ function getCategory(field: string): Change['category'] {
   if (['backsplash_orientation', 'backsplash_grout_enabled', 'backsplash_grout_color', 'backsplash_grout_comments'].includes(field)) {
     return 'backsplash';
   }
-  if (['additional_windows_qty', 'patio_doors_qty', 'window_total', 'window_comments'].includes(field)) {
+  if (['additional_windows_qty', 'patio_doors_qty', 'window_comments'].includes(field)) {
     return 'windows';
   }
   if (['upgrade_floor_selection', 'heated_floor_bathrooms', 'bathroom_tile_selected', 'hardwood_upgrade_selected'].includes(field)) {
@@ -261,8 +260,8 @@ export function SubmissionComparisonView({ original, current }: SubmissionCompar
         });
       } else {
         // Check if upgrade changed
-        const origStr = `${origUpgrade.materialType}|${origUpgrade.productName}|${origUpgrade.productColor}|${origUpgrade.heatedFloor}|${Number((origUpgrade as any).manualPrice) || 0}|${origUpgrade.comments || ''}`;
-        const currStr = `${currUpgrade.materialType}|${currUpgrade.productName}|${currUpgrade.productColor}|${currUpgrade.heatedFloor}|${Number((currUpgrade as any).manualPrice) || 0}|${currUpgrade.comments || ''}`;
+        const origStr = `${origUpgrade.materialType}|${origUpgrade.productName}|${origUpgrade.productColor}|${origUpgrade.heatedFloor}|${Number((origUpgrade as any).manualPrice) || 0}|${origUpgrade.comments || ''}|${origUpgrade.clientComment || ''}`;
+        const currStr = `${currUpgrade.materialType}|${currUpgrade.productName}|${currUpgrade.productColor}|${currUpgrade.heatedFloor}|${Number((currUpgrade as any).manualPrice) || 0}|${currUpgrade.comments || ''}|${currUpgrade.clientComment || ''}`;
         
         if (origStr !== currStr) {
           result.push({

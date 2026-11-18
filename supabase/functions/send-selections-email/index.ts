@@ -1,5 +1,14 @@
 import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
-import { computeUpgradeTotalsServer, ServerTotalsResult } from "../_shared/upgradeTotalsServer.ts";
+import { toBuyerWording } from "../_shared/buyerWording.ts";
+import { computeUpgradeTotalsServer, type ServerPricing, ServerTotalsResult } from "../_shared/upgradeTotalsServer.ts";
+import { loadServerPricing, restPricingFetcher } from "../_shared/loadServerPricing.ts";
+import {
+  authorizeAdmin,
+  authorizeSubmission,
+  parseRecipients,
+  SEED_NOTIFICATION_RECIPIENTS,
+} from "../_shared/authorizeSubmission.ts";
+import { makeGetUserFromJwt } from "../_shared/internalAuth.ts";
 
 // Dynamic CORS headers will be used for responses
 
@@ -36,7 +45,10 @@ function validateInput(data: Record<string, unknown>): { valid: boolean; errors:
 
 // Pricing breakdown for CSV — kept loose to avoid forward-decl issues
 interface CsvPricingBreakdown {
+  windowSubtotal: number;
   lineItems: Array<{ label: string; cost: number }>;
+  bedroomCarpet?: number;
+  bedroomUnderpad?: number;
   subtotal: number;
   gst: number;
   grandTotal: number;
@@ -65,13 +77,14 @@ function generateCSV(data: SelectionData, savedId: string | undefined, pricingBr
   rows.push(['--- FLOORING SELECTIONS ---', '']);
   rows.push(['Main Floor LVP', data.lvpColour || 'Not selected']);
   rows.push(['LVP Comments', data.lvpComments || '']);
-  rows.push(['Bathroom/Laundry SPC Tile', data.spcTileColour || 'Not selected']);
+  rows.push([BATHROOM_TILE_LABEL, data.spcTileColour || 'Not selected']);
+  rows.push([LAUNDRY_ROW_LABEL, laundryValue(data.areaUpgrades)]);
   rows.push(['SPC Tile Comments', data.spcTileComments || '']);
-  rows.push(['Stair Carpet Colour', data.stairCarpetColour || 'N/A']);
-  rows.push(['Bedroom Flooring Choice', data.bedroomFlooringChoice || 'Not selected']);
-  rows.push(['Bedroom Carpet Colour', data.bedroomCarpetColour || 'N/A']);
-  rows.push(['Bedroom LVP Colour', data.bedroomLvpColour || 'N/A']);
-  rows.push(['Bedroom LVP Same as Main', data.bedroomLvpSameAsMain ? 'Yes' : 'No']);
+  rows.push([STAIR_CARPET_LABEL, data.hasStairs ? stairFlooringRow(data).value : 'N/A']);
+  rows.push([PRIMARY_BEDROOM_FLOORING_LABEL, data.bedroomFlooringChoice || 'Not selected']);
+  rows.push([PRIMARY_BEDROOM_CARPET_COLOUR_LABEL, data.bedroomCarpetColour || 'N/A']);
+  rows.push(['Primary Bedroom LVP Colour', data.bedroomLvpColour || 'N/A']);
+  rows.push(['Primary Bedroom LVP Same as Main', data.bedroomLvpSameAsMain ? 'Yes' : 'No']);
   
   // Backsplash
   rows.push(['--- BACKSPLASH ---', '']);
@@ -84,7 +97,7 @@ function generateCSV(data: SelectionData, savedId: string | undefined, pricingBr
   rows.push(['--- WINDOW COVERINGS ---', '']);
   rows.push(['Additional Windows Qty', String(data.additionalWindowsQty)]);
   rows.push(['Patio Doors Qty', String(data.patioDoorsQty)]);
-  rows.push(['Window Total (incl. GST)', `$${data.windowTotal.toFixed(2)}`]);
+  if (pricingBreakdown) rows.push(['Window Subtotal (before GST)', `$${pricingBreakdown.windowSubtotal.toFixed(2)}`]);
   rows.push(['Window Comments', data.windowComments || '']);
   
   // Area Upgrades
@@ -98,7 +111,8 @@ function generateCSV(data: SelectionData, savedId: string | undefined, pricingBr
       rows.push([`Upgrade ${index + 1} - Product Name`, upgrade.productName || '']);
       rows.push([`Upgrade ${index + 1} - Product Color`, upgrade.productColor || '']);
       rows.push([`Upgrade ${index + 1} - Heated Floor`, upgrade.heatedFloor ? 'Yes' : 'No']);
-      rows.push([`Upgrade ${index + 1} - Comments`, upgrade.comments || '']);
+      rows.push([`Upgrade ${index + 1} - Client Note`, upgrade.clientComment || '']);
+      rows.push([`Upgrade ${index + 1} - Internal Note`, upgrade.comments || '']);
     });
   } else {
     rows.push(['No area upgrades selected', '']);
@@ -109,8 +123,8 @@ function generateCSV(data: SelectionData, savedId: string | undefined, pricingBr
   rows.push(['Hardwood Upgrade Selected', data.hardwoodUpgradeSelected ? 'Yes' : 'No']);
   rows.push(['Bathroom Tile Selected', data.bathroomTileSelected ? 'Yes' : 'No']);
   rows.push(['Heated Floor Bathrooms', String(data.heatedFloorBathrooms)]);
-  rows.push(['Premium Carpet (Bedrooms)', data.premiumCarpetBedroom ? 'Yes' : 'No']);
-  rows.push(['Premium Underpad (Bedrooms)', data.premiumUnderpadBedroom ? 'Yes' : 'No']);
+  rows.push(['Premium Carpet (Bedrooms)', data.premiumCarpetBedroom ? `$${(pricingBreakdown?.bedroomCarpet ?? 0).toFixed(2)}` : 'No']);
+  rows.push(['Premium Underpad (Bedrooms)', data.premiumUnderpadBedroom ? `$${(pricingBreakdown?.bedroomUnderpad ?? 0).toFixed(2)}` : 'No']);
   rows.push(['Premium Underpad (Stairs)', data.premiumUnderpadStairs ? 'Yes' : 'No']);
   rows.push(['Custom Tiled Shower', data.customTiledShower ? 'Yes' : 'No']);
   
@@ -131,7 +145,7 @@ function generateCSV(data: SelectionData, savedId: string | undefined, pricingBr
   if (pricingBreakdown) {
     rows.push(['--- PRICING BREAKDOWN ---', '']);
     for (const item of pricingBreakdown.lineItems) {
-      rows.push([item.label, `$${item.cost.toFixed(2)}`]);
+      rows.push([toBuyerWording(item.label), `$${item.cost.toFixed(2)}`]);
     }
     rows.push(['Subtotal (pre-GST)', `$${pricingBreakdown.subtotal.toFixed(2)}`]);
     rows.push([`GST (${(pricingBreakdown.gstRate * 100).toFixed(0)}%)`, `$${pricingBreakdown.gst.toFixed(2)}`]);
@@ -234,13 +248,48 @@ async function supabaseInsert(table: string, data: Record<string, unknown>): Pro
   return { data: Array.isArray(result) ? result[0] : result, error: null };
 }
 
+// Resolve a user JWT to { email, isAdmin } (anon key resolves to null).
+const getUserFromJwt = makeGetUserFromJwt(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+// Internal notification recipients live in portal_settings (admin-editable). Read at request
+// time with the service role; fall back to the seed list only if the row is missing/malformed.
+async function loadInternalRecipients(): Promise<string[]> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  try {
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/portal_settings?select=value&key=eq.internal_notification_recipients&limit=1`,
+      { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+    );
+    if (res.ok) {
+      const rows = await res.json();
+      const parsed = Array.isArray(rows) && rows.length > 0 ? parseRecipients(rows[0]?.value) : null;
+      if (parsed) return parsed;
+      console.warn("portal_settings.internal_notification_recipients missing or malformed; using seed recipients");
+    } else {
+      console.warn(`portal_settings lookup failed (${res.status}); using seed recipients`);
+    }
+  } catch (err) {
+    console.warn("portal_settings lookup error; using seed recipients:", err);
+  }
+  return [...SEED_NOTIFICATION_RECIPIENTS];
+}
+
+function jsonResponse(status: number, payload: Record<string, unknown>): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeaders },
+  });
+}
+
 // Area upgrade selection interface
 interface AreaUpgrade {
   areaId: string;
   materialType: string;
   productName: string;
   productColor: string;
-  comments: string;
+  comments: string; // internal (staff only)
+  clientComment?: string; // buyer-visible
   heatedFloor?: boolean;
   manualPrice?: number;
   manualPriceNote?: string;
@@ -312,8 +361,8 @@ interface SelectionData {
 const AREA_NAMES: Record<string, string> = {
   mainLiving: 'Main Living Area',
   secondBedroom: 'Second Bedroom',
-  masterBedroomLvp: 'Master Bedroom (LVP)',
-  masterBedroom: 'Master Bedroom (Carpet)',
+  masterBedroomLvp: 'Primary Bedroom (LVP)',
+  masterBedroom: 'Primary Bedroom (Carpet)',
   secondBedroomCarpet: 'Second Bedroom Carpet',
   guestBathroom: 'Guest Bathroom',
   masterEnsuite: 'Master Ensuite',
@@ -334,6 +383,44 @@ const MATERIAL_NAMES: Record<string, string> = {
   nonstandard_lvt: 'Non Standard LVT Color',
   nonstandard_tile: 'Non Standard Tile Color',
 };
+
+// Buyer-facing wording. MIRRORS src/lib/outputLabels.ts (this function cannot import from src/);
+// scripts/buyer-pdf-selections.test.ts checks the mirror. Change copy in both places together.
+// Base spec: Luxury Vinyl Plank throughout; Dante 2.0 tile in washrooms only (pending Dan's confirmation).
+const LAUNDRY_STANDARD_LABEL = 'Luxury Vinyl Plank (standard)';
+const LAUNDRY_ROW_LABEL = 'Laundry Room';
+const BATHROOM_TILE_LABEL = 'Bathroom Tile';
+const PRIMARY_BEDROOM_FLOORING_LABEL = 'Primary Bedroom Flooring';
+const PRIMARY_BEDROOM_CARPET_COLOUR_LABEL = 'Primary Bedroom Carpet Colour';
+const STAIR_CARPET_LABEL = 'Stair Flooring – Carpet'; // en dash
+const STAIR_STANDARD_VALUE = 'Standard Carpet (Included)';
+
+// Laundry value: the upgraded material when an area_upgrades row for laundry exists, else the standard label.
+function laundryValue(areaUpgrades: AreaUpgrade[] | undefined): string {
+  const up = (areaUpgrades || []).find(u => u.areaId === 'laundry');
+  if (!up) return LAUNDRY_STANDARD_LABEL;
+  const text = [MATERIAL_NAMES[up.materialType] || up.materialType, up.productName, up.productColor]
+    .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(' — ');
+  return text || LAUNDRY_STANDARD_LABEL;
+}
+
+// Stair flooring row shared by the confirmation email and CSV (same rules as the buyer PDF).
+function stairFlooringRow(
+  data: SelectionData,
+  prices?: { stairLvpPrice: number; stairCarpetUpgradePrice: number },
+): { label: string; value: string } {
+  const price = (n: number | undefined) => (prices && n !== undefined ? ` ($${n.toFixed(0)} + GST)` : '');
+  if (data.stairLvpUpgradeSelected || data.stairUpgradeType === 'lvp' || data.stairUpgradeType === 'premium_lvp') {
+    return { label: 'Stair Flooring', value: `${data.stairUpgradeType === 'premium_lvp' ? 'Premium ' : ''}LVP Upgrade with Custom Nosings${price(prices?.stairLvpPrice)}` };
+  }
+  if (data.stairPremiumCarpetSelected) {
+    return { label: STAIR_CARPET_LABEL, value: `Premium Carpet Upgrade${data.stairCarpetColour ? ` (${data.stairCarpetColour})` : ''}${price(prices?.stairCarpetUpgradePrice)}` };
+  }
+  if (data.premiumUnderpadStairs) {
+    return { label: STAIR_CARPET_LABEL, value: data.stairCarpetColour || STAIR_STANDARD_VALUE };
+  }
+  return { label: STAIR_CARPET_LABEL, value: data.stairCarpetColour ? `${STAIR_STANDARD_VALUE} — ${data.stairCarpetColour}` : STAIR_STANDARD_VALUE };
+}
 
 // Normalize unit type label to unit type code
 // e.g., "Corner Unit G" -> "G", "Unit Type A" -> "A"
@@ -400,74 +487,9 @@ function resolveFloorSpecificUnitCode(
   return upper;
 }
 
-// Fetch dynamic pricing from database
-async function fetchDynamicPricing(): Promise<{
-  materials: Record<string, number>;
-  config: Record<string, number>;
-  unitAreas: Record<string, Record<string, number>>;
-  markupPercentage: number;
-  gstRate: number;
-}> {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-  const headers = {
-    "apikey": supabaseServiceKey,
-    "Authorization": `Bearer ${supabaseServiceKey}`,
-    "Content-Type": "application/json",
-  };
-
-  // Fetch materials, config, and unit areas in parallel
-  const [materialsRes, configRes, unitAreasRes] = await Promise.all([
-    fetch(`${supabaseUrl}/rest/v1/upgrade_materials?is_active=eq.true`, { headers }),
-    fetch(`${supabaseUrl}/rest/v1/pricing_config`, { headers }),
-    fetch(`${supabaseUrl}/rest/v1/unit_area_data`, { headers }),
-  ]);
-
-  const materials: Record<string, number> = {};
-  const config: Record<string, number> = {};
-  const unitAreas: Record<string, Record<string, number>> = {};
-
-  // Parse materials
-  if (materialsRes.ok) {
-    const data = await materialsRes.json();
-    for (const m of data) {
-      materials[m.material_key] = Number(m.cost_per_unit);
-    }
-  }
-
-  // Parse config
-  let markupPercentage = 0.60;
-  let gstRate = 0.05;
-  if (configRes.ok) {
-    const data = await configRes.json();
-    for (const c of data) {
-      config[c.config_key] = Number(c.config_value);
-      if (c.config_key === 'markup_percentage') markupPercentage = Number(c.config_value) / 100;
-      if (c.config_key === 'gst_rate') gstRate = Number(c.config_value) / 100;
-    }
-  }
-
-  // Parse unit areas
-  if (unitAreasRes.ok) {
-    const data = await unitAreasRes.json();
-    for (const u of data) {
-      unitAreas[u.unit_type_code] = {
-        allLvp: Number(u.all_lvp),
-        mainLiving: Number(u.main_living),
-        secondBedroom: Number(u.second_bedroom),
-        masterBedroomLvp: Number(u.master_bedroom_lvp || 0),
-        masterBedroom: Number(u.master_bedroom),
-        secondBedroomCarpet: Number(u.second_bedroom_carpet),
-        guestBathroom: Number(u.guest_bathroom),
-        masterEnsuite: Number(u.master_ensuite),
-        laundry: Number(u.laundry),
-        backsplash: Number(u.backsplash),
-      };
-    }
-  }
-
-  return { materials, config, unitAreas, markupPercentage, gstRate };
+// Fetch dynamic pricing from database (shared loader; markup/GST divided by 100)
+async function fetchDynamicPricing(): Promise<ServerPricing> {
+  return await loadServerPricing(restPricingFetcher(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!));
 }
 
 // Calculate area upgrade costs
@@ -545,6 +567,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const url = new URL(req.url);
   const action = url.searchParams.get('action');
   if (action === 'preview' || action === 'test') {
+    const adminAuth = await authorizeAdmin(req.headers.get('Authorization'), getUserFromJwt);
+    if (!adminAuth.ok) {
+      return jsonResponse(adminAuth.status, { error: adminAuth.status === 401 ? 'unauthorized' : 'forbidden' });
+    }
     try {
       const isPost = req.method === 'POST';
       const body: Record<string, unknown> = isPost ? await req.json().catch(() => ({})) : {};
@@ -585,8 +611,28 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
   }
 
+  // Set once the buyer_selections insert succeeds; lets the outer catch tell a
+  // post-save failure (row exists, do not resubmit) from a pre-save one.
+  let insertedSubmissionId: string | undefined;
+
   try {
-    const rawData = await req.json();
+    const rawData = await req.json().catch(() => null);
+    if (!rawData || typeof rawData !== 'object') {
+      // Auth first so an unauthenticated caller learns nothing about body validation.
+      const early = await authorizeSubmission(req.headers.get('Authorization'), '', getUserFromJwt);
+      if (!early.ok && early.status === 401) return jsonResponse(401, { error: 'unauthorized' });
+      return jsonResponse(400, { error: 'Invalid submission data. Please check your inputs and try again.' });
+    }
+
+    // Buyer JWT required; the body email must match the JWT email unless the caller is an admin.
+    const auth = await authorizeSubmission(
+      req.headers.get('Authorization'),
+      typeof rawData.email === 'string' ? rawData.email : '',
+      getUserFromJwt,
+    );
+    if (!auth.ok) {
+      return jsonResponse(auth.status, { error: auth.status === 401 ? 'unauthorized' : 'forbidden' });
+    }
 
     // Validate input data
     const validation = validateInput(rawData);
@@ -619,6 +665,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           const productName = String(upgrade.productName || '').trim().slice(0, 200);
           const productColor = String(upgrade.productColor || '').trim().slice(0, 100);
           const comments = String(upgrade.comments || '').trim().slice(0, 2000);
+          const clientComment = String(upgrade.clientComment || '').trim().slice(0, 2000);
           const heatedFloor = Boolean(upgrade.heatedFloor);
 
           const hasAnyMeaningfulData =
@@ -627,6 +674,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
             productName !== '' ||
             productColor !== '' ||
             comments !== '' ||
+            clientComment !== '' ||
             heatedFloor === true;
 
           if (!hasAnyMeaningfulData) return null;
@@ -637,13 +685,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
             productName,
             productColor,
             comments,
+            ...(clientComment ? { clientComment } : {}),
             heatedFloor,
             ...(upgrade.manualPrice !== undefined && upgrade.manualPrice !== null && upgrade.manualPrice !== '' && Number.isFinite(Number(upgrade.manualPrice))
               ? { manualPrice: Number(upgrade.manualPrice) } : {}),
             ...(upgrade.manualPriceNote ? { manualPriceNote: String(upgrade.manualPriceNote).slice(0, 500) } : {}),
           } as AreaUpgrade;
         })
-        .filter((u): u is AreaUpgrade => u !== null);
+        .filter((u: AreaUpgrade | null): u is AreaUpgrade => u !== null);
 
       const droppedEmpty = (rawData.areaUpgrades as unknown[]).length - areaUpgrades.length;
       if (droppedEmpty > 0) {
@@ -760,73 +809,79 @@ Deno.serve(async (req: Request): Promise<Response> => {
       status: "submitted",
     });
 
-    if (dbError) {
-      console.error("Database error:", dbError);
-    } else {
-      console.log("Saved selection to database:", savedSelection?.id);
-      
-      // Sync to HubSpot in background
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const supabaseFunctionsUrl = `${supabaseUrl}/functions/v1/sync-hubspot`;
-      fetch(supabaseFunctionsUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-        },
-        body: JSON.stringify({
-          id: savedSelection?.id,
-          unit_number: data.unitNumber,
-          unit_type: data.unitType,
-          first_name: data.firstName,
-          last_name: data.lastName,
-          email: data.email,
-          phone_number: data.phoneNumber,
-          estimated_possession_date: data.estimatedPossessionDate,
-          has_stairs: data.hasStairs,
-          lvp_colour: data.lvpColour,
-          lvp_comments: data.lvpComments,
-          spc_tile_colour: data.spcTileColour,
-          spc_tile_comments: data.spcTileComments,
-          backsplash_orientation: data.backsplashOrientation,
-          bedroom_flooring_choice: data.bedroomFlooringChoice,
-          bedroom_carpet_colour: data.bedroomCarpetColour,
-          bedroom_lvp_colour: data.bedroomLvpColour,
-          bedroom_lvp_same_as_main: data.bedroomLvpSameAsMain,
-          stair_carpet_colour: data.stairCarpetColour,
-          additional_windows_qty: data.additionalWindowsQty,
-          patio_doors_qty: data.patioDoorsQty,
-          window_total: data.windowTotal,
-          window_comments: data.windowComments,
-          hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
-          bathroom_tile_selected: data.bathroomTileSelected,
-          bathroom_tile_ensuite_selected: data.bathroomTileEnsuiteSelected ?? data.bathroomTileSelected,
-          bathroom_tile_guest_selected: data.bathroomTileGuestSelected ?? data.bathroomTileSelected,
-          heated_floor_bathrooms: data.heatedFloorBathrooms,
-          custom_tiled_shower: data.customTiledShower,
-          backsplash_grout_enabled: data.backsplashGroutEnabled,
-          backsplash_grout_color: data.backsplashGroutColor,
-          backsplash_grout_comments: data.backsplashGroutComments,
-          area_upgrades: data.areaUpgrades,
-          upgrade_floor_selection: data.upgradeFloorSelection,
-          upgrade_interests: data.upgradeInterests,
-          sales_comments: data.salesComments,
-          upgrade_comments: data.upgradeComments,
-          upgrade_interests_notes: data.upgradeInterestsNotes,
-          status: 'submitted',
-          created_at: savedSelection?.created_at,
-          pdf_base64: data.pdfBase64 || null,
-        }),
-      }).then(res => {
-        if (res.ok) {
-          console.log('HubSpot sync triggered successfully');
-        } else {
-          res.text().then(text => console.error('HubSpot sync failed:', text));
-        }
-      }).catch(err => console.error('HubSpot sync error:', err));
+    if (dbError || !savedSelection?.id) {
+      // Nothing is emailed unless the selection is safely stored.
+      console.error("Database error (no emails sent):", dbError);
+      return jsonResponse(500, { error: 'save_failed' });
     }
+
+    insertedSubmissionId = String(savedSelection.id);
+    console.log("Saved selection to database:", savedSelection.id);
     
+    // Sync to HubSpot in background
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseFunctionsUrl = `${supabaseUrl}/functions/v1/sync-hubspot`;
+    fetch(supabaseFunctionsUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+      },
+      body: JSON.stringify({
+        id: savedSelection?.id,
+        unit_number: data.unitNumber,
+        unit_type: data.unitType,
+        first_name: data.firstName,
+        last_name: data.lastName,
+        email: data.email,
+        phone_number: data.phoneNumber,
+        estimated_possession_date: data.estimatedPossessionDate,
+        has_stairs: data.hasStairs,
+        lvp_colour: data.lvpColour,
+        lvp_comments: data.lvpComments,
+        spc_tile_colour: data.spcTileColour,
+        spc_tile_comments: data.spcTileComments,
+        backsplash_orientation: data.backsplashOrientation,
+        bedroom_flooring_choice: data.bedroomFlooringChoice,
+        bedroom_carpet_colour: data.bedroomCarpetColour,
+        bedroom_lvp_colour: data.bedroomLvpColour,
+        bedroom_lvp_same_as_main: data.bedroomLvpSameAsMain,
+        stair_carpet_colour: data.stairCarpetColour,
+        additional_windows_qty: data.additionalWindowsQty,
+        patio_doors_qty: data.patioDoorsQty,
+        automated_windows_qty: data.automatedWindowsQty || 0,
+        premium_carpet_bedroom: data.premiumCarpetBedroom || false,
+        premium_underpad_bedroom: data.premiumUnderpadBedroom || false,
+        window_comments: data.windowComments,
+        hardwood_upgrade_selected: data.hardwoodUpgradeSelected,
+        bathroom_tile_selected: data.bathroomTileSelected,
+        bathroom_tile_ensuite_selected: data.bathroomTileEnsuiteSelected ?? data.bathroomTileSelected,
+        bathroom_tile_guest_selected: data.bathroomTileGuestSelected ?? data.bathroomTileSelected,
+        heated_floor_bathrooms: data.heatedFloorBathrooms,
+        custom_tiled_shower: data.customTiledShower,
+        backsplash_grout_enabled: data.backsplashGroutEnabled,
+        backsplash_grout_color: data.backsplashGroutColor,
+        backsplash_grout_comments: data.backsplashGroutComments,
+        area_upgrades: data.areaUpgrades,
+        upgrade_floor_selection: data.upgradeFloorSelection,
+        upgrade_interests: data.upgradeInterests,
+        sales_comments: data.salesComments,
+        upgrade_comments: data.upgradeComments,
+        upgrade_interests_notes: data.upgradeInterestsNotes,
+        status: 'submitted',
+        created_at: savedSelection?.created_at,
+        pdf_base64: data.pdfBase64 || null,
+      }),
+    }).then(res => {
+      if (res.ok) {
+        console.log('HubSpot sync triggered successfully');
+      } else {
+        res.text().then(text => console.error('HubSpot sync failed:', text));
+      }
+    }).catch(err => console.error('HubSpot sync error:', err));
+  
+
     // Fetch dynamic pricing for accurate cost calculations
     const pricing = await fetchDynamicPricing();
 
@@ -834,9 +889,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // computeUpgradeTotalsServer() is the byte-for-byte mirror of the UI's
     // src/lib/upgradeTotals.ts. The admin HTML, buyer HTML, and CSV attachment
     // all derive their pricing rows and grand total from this one result so
-    // they can never diverge. Informational-only flags (Premium Carpet/Underpad
-    // Bedrooms/Stairs) are intentionally NOT charged here — they remain on
-    // the SelectionData object as Yes/No flags for non-pricing display.
+    // they can never diverge. Bedroom premium carpet/underpad are priced by
+    // the engine (carpet bedrooms only) like every other line.
     const totals = computeUpgradeTotalsServer({
       unitTypeCode: data.unitType || null,
       upgradeFloorSelection: data.upgradeFloorSelection,
@@ -847,6 +901,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       stairPremiumCarpetSelected: data.stairPremiumCarpetSelected,
       stairPremiumUnderpadSelected: data.premiumUnderpadStairs,
       stairUpgradeType: data.stairUpgradeType,
+      bedroomFlooringChoice: data.bedroomFlooringChoice,
+      bedroomPremiumCarpetSelected: !!data.premiumCarpetBedroom,
+      bedroomPremiumUnderpadSelected: !!data.premiumUnderpadBedroom,
       additionalWindowsQty: data.additionalWindowsQty,
       patioDoorsQty: data.patioDoorsQty,
       automatedWindowsQty: data.automatedWindowsQty,
@@ -938,7 +995,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
                 <td style="padding: 10px 8px; color: #000000;">${u.heatedFloor ? '<strong style="color: #000000;">Yes (+$' + heatedFloorPrice.toFixed(0) + ')</strong>' : 'No'}</td>
                 <td style="padding: 10px 8px; color: #000000; text-align: right; font-weight: bold;">$${(materialCost + heatedCost).toFixed(2)}</td>
               </tr>
-              ${u.comments ? `<tr><td colspan="6" style="padding: 4px 8px 12px; color: #374151; font-size: 12px; font-style: italic;">Comments: ${escapeHtml(u.comments)}</td></tr>` : ''}
+              ${u.clientComment ? `<tr><td colspan="6" style="padding: 4px 8px 12px; color: #374151; font-size: 12px; font-style: italic;">Client note: ${escapeHtml(u.clientComment)}</td></tr>` : ''}
+              ${u.comments ? `<tr><td colspan="6" style="padding: 4px 8px 12px; color: #92400e; font-size: 12px; font-style: italic;">Internal note: ${escapeHtml(u.comments)}</td></tr>` : ''}
             `}).join('')}
             <tr style="border-top: 2px solid #1a1a2e; background: #f9fafb;">
               <td colspan="5" style="padding: 12px 8px 0; color: #000000; font-weight: bold;">Area Upgrades Subtotal:</td>
@@ -999,10 +1057,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (totals.grandSubtotal > 0) {
       const summaryItems = totals.lineItems.map(item => {
         const detail = item.detail
-          ? `<div style="color:#374151; font-size:12px; margin-top:2px;">${escapeHtml(item.detail)}</div>`
+          ? `<div style="color:#374151; font-size:12px; margin-top:2px;">${escapeHtml(toBuyerWording(item.detail))}</div>`
           : '';
         return `<tr>
-          <td style="padding:10px 8px; color:#000000; border-bottom:1px solid #e5e7eb;">${escapeHtml(item.label)}${detail}</td>
+          <td style="padding:10px 8px; color:#000000; border-bottom:1px solid #e5e7eb;">${escapeHtml(toBuyerWording(item.label))}${detail}</td>
           <td style="padding:10px 8px; color:#000000; text-align:right; font-weight:bold; border-bottom:1px solid #e5e7eb;">$${item.amount.toFixed(2)}</td>
         </tr>`;
       }).join('');
@@ -1079,9 +1137,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
             <h2>Flooring Selections</h2>
             <table>
               <tr><td class="label">Main Floor LVP:</td><td class="value">${escapeHtml(data.lvpColour) || 'Not selected'}</td></tr>
-              <tr><td class="label">Bathroom/Laundry SPC:</td><td class="value">${escapeHtml(data.spcTileColour) || 'Not selected'}</td></tr>
-              ${data.hasStairs ? `<tr><td class="label">Stairs Carpet:</td><td class="value">${escapeHtml(data.stairCarpetColour) || 'Not selected'}</td></tr>` : ''}
-              <tr><td class="label">Bedroom Flooring:</td><td class="value">${data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : escapeHtml(data.bedroomFlooringChoice) || 'Not selected'}</td></tr>
+              <tr><td class="label">${BATHROOM_TILE_LABEL}:</td><td class="value">${escapeHtml(data.spcTileColour) || 'Not selected'}</td></tr>
+              <tr><td class="label">${LAUNDRY_ROW_LABEL}:</td><td class="value">${escapeHtml(laundryValue(data.areaUpgrades))}</td></tr>
+              ${data.hasStairs ? `<tr><td class="label">${STAIR_CARPET_LABEL}:</td><td class="value">${escapeHtml(stairFlooringRow(data).value)}</td></tr>` : ''}
+              <tr><td class="label">${PRIMARY_BEDROOM_FLOORING_LABEL}:</td><td class="value">${data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : escapeHtml(data.bedroomFlooringChoice) || 'Not selected'}</td></tr>
             </table>
             ${data.lvpComments ? `<div class="comments"><strong>LVP Comments:</strong> ${escapeHtml(data.lvpComments)}</div>` : ''}
           </div>
@@ -1162,16 +1221,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // CSV pricing breakdown — same line items, subtotal, GST, and grand total
     // as the admin HTML, the buyer email, and the buyer/admin PDFs.
-    // Informational-only flags (Premium Carpet/Underpad Bedrooms/Stairs) are
-    // intentionally omitted from these pricing rows; they remain in the CSV
-    // above as Yes/No selection rows.
     const csvLineItems = totals.lineItems.map(item => ({
-      label: item.detail ? `${item.label} — ${item.detail}` : item.label,
+      label: toBuyerWording(item.detail ? `${item.label} — ${item.detail}` : item.label),
       cost: item.amount,
     }));
 
     const csvContent = generateCSV(data, savedSelection?.id as string | undefined, {
+      windowSubtotal,
       lineItems: csvLineItems,
+      bedroomCarpet: totals.pieces.bedroomCarpet,
+      bedroomUnderpad: totals.pieces.bedroomUnderpad,
       subtotal: totals.grandSubtotal,
       gst: totals.gst,
       grandTotal: totals.grandTotal,
@@ -1181,10 +1240,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // Send to BMD team (internal email with CSV) — isolated so DB save survives email failures
     let adminEmailResponse: { id?: string; error?: string } = {};
+    const internalRecipients = await loadInternalRecipients();
     try {
       adminEmailResponse = await sendEmailWithAttachment({
         from: "BMD Materials Portal <selections@bmdmaterials.com>",
-        to: ["dan@bmdmaterials.com", "noni@bmdmaterials.com", "brian@bmdmaterials.com", "office@bmdmaterials.com", "gregor.mckenzie@nvc360.com"],
+        to: internalRecipients,
         subject: `New Selection Submission - Unit ${escapeHtml(data.unitNumber) || 'Unknown'}${data.unitType ? ` (${escapeHtml(data.unitType)})` : ''} - ${escapeHtml(data.firstName)} ${escapeHtml(data.lastName)}`,
         html: htmlContent,
         attachments: [
@@ -1202,6 +1262,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // Send styled confirmation email to buyer with pricing data
     const buyerConfirmationHtml = generateBuyerConfirmationEmail(data, savedSelection?.id as string | undefined, {
+      windowSubtotal,
       additionalWindowPrice,
       patioDoorPrice,
       automatedMotorPrice,
@@ -1211,8 +1272,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       groutColorPrice,
       gstRate,
       areaUpgradeCosts,
-      premiumCarpetBedroomSubtotal: 0,
-      underpadBedroomSubtotal: 0,
+      premiumCarpetBedroomSubtotal: totals.pieces.bedroomCarpet,
+      underpadBedroomSubtotal: totals.pieces.bedroomUnderpad,
       underpadStairsSubtotal: 0,
       bathroomTileSubtotal,
       bathroomGuestSqft,
@@ -1249,8 +1310,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   } catch (error: unknown) {
     console.error("Error in send-selections-email function:", error);
+    // After the insert the record exists: tell the client so it does not invite a duplicate resubmit.
+    const body = insertedSubmissionId
+      ? { error: 'post_save_failed', submission_id: insertedSubmissionId }
+      : { error: 'internal_error' };
     return new Response(
-      JSON.stringify({ error: "An error occurred processing your submission. Please try again." }),
+      JSON.stringify(body),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -1261,6 +1326,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
 // Pricing parameters for buyer confirmation email
 interface BuyerEmailPricing {
+  windowSubtotal: number; // engine windowSubtotal (pre-GST)
   additionalWindowPrice: number;
   patioDoorPrice: number;
   automatedMotorPrice: number;
@@ -1309,14 +1375,17 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     });
   }
   
-  // Bathroom/Laundry Tile
+  // Bathroom Tile (laundry is its own row below)
   if (data.spcTileColour) {
     standardSelections.push({ 
-      label: 'Bathroom/Laundry Tile', 
+      label: BATHROOM_TILE_LABEL, 
       value: data.spcTileColour,
       detail: data.spcTileComments || undefined
     });
   }
+
+  // Laundry Room: standard LVP unless the buyer upgraded it
+  standardSelections.push({ label: LAUNDRY_ROW_LABEL, value: laundryValue(data.areaUpgrades) });
   
   // Kitchen Backsplash
   if (data.backsplashOrientation) {
@@ -1326,32 +1395,29 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
     });
   }
   
-  // Bedroom Flooring
+  // Primary Bedroom Flooring (+ colour on its own row, as in the buyer PDF)
   if (data.bedroomFlooringChoice) {
-    let bedroomValue = data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : 
-                       data.bedroomFlooringChoice === 'carpet' ? 'Carpet' : data.bedroomFlooringChoice;
+    const bedroomValue = data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' :
+                         data.bedroomFlooringChoice === 'carpet' ? 'Carpet' : data.bedroomFlooringChoice;
+    standardSelections.push({ label: PRIMARY_BEDROOM_FLOORING_LABEL, value: bedroomValue });
     if (data.bedroomFlooringChoice === 'carpet' && data.bedroomCarpetColour) {
-      bedroomValue += ` - ${data.bedroomCarpetColour}`;
-    } else if (data.bedroomFlooringChoice === 'lvp' && !data.bedroomLvpSameAsMain && data.bedroomLvpColour) {
-      bedroomValue += ` - ${data.bedroomLvpColour}`;
-    } else if (data.bedroomFlooringChoice === 'lvp' && data.bedroomLvpSameAsMain) {
-      bedroomValue += ' (Same as Main Floor)';
+      standardSelections.push({ label: PRIMARY_BEDROOM_CARPET_COLOUR_LABEL, value: data.bedroomCarpetColour });
+    } else if (data.bedroomFlooringChoice === 'lvp') {
+      standardSelections.push({
+        label: 'Primary Bedroom LVP Colour',
+        value: data.bedroomLvpSameAsMain ? `${data.lvpColour || 'Not selected'} (Same as Main Floor)` : (data.bedroomLvpColour || 'Not selected'),
+      });
     }
-    standardSelections.push({ label: 'Bedroom Flooring', value: bedroomValue });
   }
-  
+
   // Stair Flooring (if applicable) - use dynamic pricing
   if (data.hasStairs) {
-    if (data.stairLvpUpgradeSelected) {
-      standardSelections.push({ label: 'Stair Flooring', value: `LVP Upgrade with Custom Nosings ($${pricing.stairLvpPrice.toFixed(0)} + GST)` });
-    } else if (data.stairPremiumCarpetSelected) {
-      standardSelections.push({ label: 'Stair Flooring', value: `Premium Carpet Upgrade ($${pricing.stairCarpetUpgradePrice.toFixed(0)} + GST)` });
-    } else if (data.stairCarpetColour) {
-      standardSelections.push({ label: 'Stair Carpet', value: data.stairCarpetColour });
-    } else {
-      standardSelections.push({ label: 'Stair Flooring', value: 'Standard Carpet (Included)' });
-    }
+    standardSelections.push(stairFlooringRow(data, pricing));
   }
+
+  // $0 office-added lines (status 'included') belong with the standard selections, matching the buyer PDF.
+  (pricing.totals?.pieces?.includedItems || []).forEach(i =>
+    standardSelections.push({ label: toBuyerWording([i.area, i.label].filter(Boolean).join(' — ')), value: 'Included — $0.00' }));
 
   // Build standard selections HTML (no comments - those are internal)
   const standardSelectionsHtml = standardSelections.length > 0 ? `
@@ -1410,8 +1476,8 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
               </tr>
             `).join('')}
             <tr style="background: #f9fafb;">
-              <td style="padding: 14px 16px; color: #000000; font-size: 15px; font-weight: 600;">Total (incl. GST)</td>
-              <td style="padding: 14px 16px; color: #047857; font-size: 18px; text-align: center; font-weight: 700;">$${data.windowTotal.toFixed(2)}</td>
+              <td style="padding: 14px 16px; color: #000000; font-size: 15px; font-weight: 600;">Total (before GST)</td>
+              <td style="padding: 14px 16px; color: #047857; font-size: 18px; text-align: center; font-weight: 700;">$${pricing.windowSubtotal.toFixed(2)}</td>
             </tr>
           </table>
         </td>
@@ -1557,13 +1623,18 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
 
   // Sales Comments Section
   let salesCommentsHtml = '';
-  if (data.salesComments) {
+  // Buyer-facing: per-area notes print clientComment only; the internal `comments` field never appears here.
+  const clientAreaNoteLines = (data.areaUpgrades || [])
+    .filter(u => u.clientComment)
+    .map(u => `${AREA_NAMES[u.areaId] || u.areaId}: ${u.clientComment}`);
+  if (data.salesComments || clientAreaNoteLines.length > 0) {
     salesCommentsHtml = `
       <tr>
         <td style="background: #ffffff; padding: 0 40px 30px;">
           <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Your Comments</h2>
           <div style="background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 12px; padding: 16px 20px;">
-            <p style="margin: 0; color: #1a1a2e; font-size: 14px; line-height: 1.6;">${escapeHtml(data.salesComments)}</p>
+            ${data.salesComments ? `<p style="margin: 0; color: #1a1a2e; font-size: 14px; line-height: 1.6;">${escapeHtml(data.salesComments)}</p>` : ''}
+            ${clientAreaNoteLines.map(l => `<p style="margin: 8px 0 0; color: #1a1a2e; font-size: 14px; line-height: 1.6;">${escapeHtml(l)}</p>`).join('')}
           </div>
         </td>
       </tr>
@@ -1580,10 +1651,10 @@ function generateBuyerConfirmationEmail(data: SelectionData, selectionId: string
   if (t && t.grandSubtotal > 0) {
     const lineItemsHtml = t.lineItems.map(item => {
       const detail = item.detail
-        ? `<div style="color:#374151; font-size:12px; margin-top:2px;">${escapeHtml(item.detail)}</div>`
+        ? `<div style="color:#374151; font-size:12px; margin-top:2px;">${escapeHtml(toBuyerWording(item.detail))}</div>`
         : '';
       return `<tr>
-        <td style="padding: 10px 0; color: #1a1a2e; font-size: 14px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(item.label)}${detail}</td>
+        <td style="padding: 10px 0; color: #1a1a2e; font-size: 14px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(toBuyerWording(item.label))}${detail}</td>
         <td style="padding: 10px 0; color: #1a1a2e; font-size: 14px; text-align: right; font-weight: 500; border-bottom: 1px solid #e5e7eb;">$${item.amount.toFixed(2)}</td>
       </tr>`;
     }).join('');
@@ -1937,6 +2008,9 @@ function buildPreviewTotals(data: SelectionData): ServerTotalsResult {
     stairLvpUpgradeSelected: !!data.stairLvpUpgradeSelected,
     stairPremiumCarpetSelected: !!data.stairPremiumCarpetSelected,
     stairUpgradeType: data.stairUpgradeType || 'standard',
+    bedroomFlooringChoice: data.bedroomFlooringChoice,
+    bedroomPremiumCarpetSelected: !!data.premiumCarpetBedroom,
+    bedroomPremiumUnderpadSelected: !!data.premiumUnderpadBedroom,
     additionalWindowsQty: data.additionalWindowsQty || 0,
     patioDoorsQty: data.patioDoorsQty || 0,
     automatedWindowsQty: data.automatedWindowsQty || 0,
@@ -1952,6 +2026,7 @@ function buildPreviewBuyerPricing(totals: ServerTotalsResult): BuyerEmailPricing
   // Adapter so generateBuyerConfirmationEmail (which still consumes the
   // legacy BuyerEmailPricing shape) renders entirely from `totals`.
   return {
+    windowSubtotal: totals.windowSubtotal,
     additionalWindowPrice: totals.context.additionalWindowPrice,
     patioDoorPrice: totals.context.patioDoorPrice,
     automatedMotorPrice: totals.context.automatedMotorPrice,
@@ -1971,15 +2046,15 @@ function buildPreviewBuyerPricing(totals: ServerTotalsResult): BuyerEmailPricing
         heatedFloorAmount: f.heatedFloorAmount,
       })),
     },
-    premiumCarpetBedroomSubtotal: 0,
-    underpadBedroomSubtotal: 0,
+    premiumCarpetBedroomSubtotal: totals.pieces.bedroomCarpet,
+    underpadBedroomSubtotal: totals.pieces.bedroomUnderpad,
     underpadStairsSubtotal: 0,
     bathroomTileSubtotal: totals.pieces.bathroomTile,
     bathroomGuestSqft: totals.context.bathroomGuestSqft,
     bathroomEnsuiteSqft: totals.context.bathroomEnsuiteSqft,
     tileCostPerSqft: totals.context.tileCostPerSqft,
     section4HeatedFloorSubtotal: totals.pieces.section4HeatedFloor,
-    heatedFloorBathroomCount: data => 0, // unused fallback; real value below
+    heatedFloorBathroomCount: 0, // placeholder; real value assigned below
     customTiledShowerSubtotal: totals.pieces.customShower,
     showerBaseCost: totals.context.showerBaseCost,
     markupPercentage: totals.markupPercentage,
@@ -2001,7 +2076,7 @@ function renderPreviewAdminHtml(data: SelectionData): string {
   // exactly what staff will receive.
   const totals = buildPreviewTotals(data);
   const rows = totals.lineItems.map(item =>
-    `<tr><td style="padding:10px 8px; color:#000000; border-bottom:1px solid #e5e7eb;">${escapeHtml(item.label)}${item.detail ? ` <span style="color:#4b5563;">— ${escapeHtml(item.detail)}</span>` : ''}</td><td style="padding:10px 8px; color:#000000; text-align:right; font-weight:600; border-bottom:1px solid #e5e7eb;">$${item.amount.toFixed(2)}</td></tr>`
+    `<tr><td style="padding:10px 8px; color:#000000; border-bottom:1px solid #e5e7eb;">${escapeHtml(toBuyerWording(item.label))}${item.detail ? ` <span style="color:#4b5563;">— ${escapeHtml(toBuyerWording(item.detail))}</span>` : ''}</td><td style="padding:10px 8px; color:#000000; text-align:right; font-weight:600; border-bottom:1px solid #e5e7eb;">$${item.amount.toFixed(2)}</td></tr>`
   ).join('');
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Admin Email Preview</title></head>
 <body style="margin:0; padding:24px; background:#f9fafb; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif; color:#000000;">

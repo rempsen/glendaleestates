@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { AdminLayout } from '@/components/AdminLayout';
 import { StatCard } from '@/components/StatCard';
 import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
+import { useWindowSubtotal } from '@/hooks/useWindowSubtotal';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -32,7 +34,6 @@ import {
 interface BuyerSelection {
   id: string;
   status: string | null;
-  window_total: number | null;
   additional_windows_qty: number | null;
   patio_doors_qty: number | null;
   lvp_colour: string | null;
@@ -68,6 +69,7 @@ const CHART_COLORS = [
 const TOTAL_UNITS = 70;
 
 export default function AdminSalesAnalytics() {
+  const windowSubtotalOf = useWindowSubtotal();
   const [selections, setSelections] = useState<BuyerSelection[]>([]);
   const [pipeline, setPipeline] = useState<PipelineRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,7 +104,8 @@ export default function AdminSalesAnalytics() {
   // Selection stats
   const selectionStats = {
     total: selections.length,
-    windowRevenue: selections.reduce((sum, s) => sum + (s.window_total || 0), 0),
+    // pre-GST, engine-computed (the submit-time total column is stale)
+    windowRevenue: selections.reduce((sum, s) => sum + windowSubtotalOf(s as unknown as Tables<'buyer_selections'>), 0),
     hardwoodUpgrades: selections.filter(s => s.hardwood_upgrade_selected).length,
     tileUpgrades: selections.filter(s => s.bathroom_tile_selected).length,
     heatedFloors: selections.filter(s => (s.heated_floor_bathrooms || 0) > 0).length,
@@ -165,7 +168,7 @@ export default function AdminSalesAnalytics() {
   const revenueBreakdown = [
     { name: 'Contract Revenue', value: pipelineStats.totalContractValue },
     { name: 'GST Collected', value: pipeline.reduce((sum, p) => sum + (p.tax_amount || 0), 0) },
-    { name: 'Window Revenue', value: selectionStats.windowRevenue },
+    { name: 'Window Revenue (pre-GST)', value: selectionStats.windowRevenue },
   ];
 
   if (loading) {
@@ -373,7 +376,7 @@ export default function AdminSalesAnalytics() {
           </div>
           <div className="p-4 rounded-xl border border-border bg-card text-center">
             <p className="text-2xl font-serif font-semibold text-foreground">${(selectionStats.windowRevenue / 1000).toFixed(1)}k</p>
-            <p className="text-xs text-muted-foreground">Window Revenue</p>
+            <p className="text-xs text-muted-foreground">Window Revenue (pre-GST)</p>
           </div>
         </div>
       </div>

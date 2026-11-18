@@ -35,7 +35,6 @@ interface BuyerSelection {
   has_stairs: boolean | null;
   additional_windows_qty: number | null;
   patio_doors_qty: number | null;
-  window_total: number | null;
   window_comments: string | null;
   upgrade_interests: Record<string, boolean> | null;
   created_at: string;

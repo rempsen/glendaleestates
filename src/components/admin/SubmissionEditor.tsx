@@ -1,5 +1,5 @@
 import { lvpOptions, spcTileOptions, carpetOptions, toOptionId } from '@/lib/mockData';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,6 +25,9 @@ import {
 } from 'lucide-react';
 import { DownstreamTrackingPanel } from './DownstreamTrackingPanel';
 import { CustomPricingPanel } from './CustomPricingPanel';
+import { toBuyerPdfSelections } from '@/lib/buyerPdfSelections';
+import { pricingFromDynamic } from '@/lib/pricingFromDynamic';
+import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
 import { DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -37,7 +40,12 @@ import {
   AreaUpgradeSelection,
 } from '@/lib/upgradeCostData';
 import { useUpgradePricing } from '@/hooks/useUpgradePricing';
+import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { getUnitInfo } from '@/lib/unitData';
+import { buildSubmissionUpdatePayload, countHeatedTileRows, type SubmissionEditState, type AreaUpgrade } from '@/lib/submissionUpdatePayload';
+
+type BuyerSelection = SubmissionEditState;
+
 
 // Colour options — single source of truth shared with the buyer wizard.
 // Values saved are the wizard ids (e.g. 'wolf-river') so every PDF/email resolves them.
@@ -58,70 +66,15 @@ const UNIT_TYPES = [
   'Unit Type E', 'Unit Type F', 'Unit Type G', 'Unit Type H', 'Unit Type J',
 ];
 
-// Area upgrade interface
-interface AreaUpgrade {
-  areaId: string;
-  materialType: string;
-  productName: string;
-  productColor: string;
-  comments: string;
-  heatedFloor?: boolean;
-  manualPrice?: number | null;
-  manualPriceNote?: string;
-}
-
-
-// Submission interface matching the database schema
-interface BuyerSelection {
-  id: string;
-  created_at: string;
-  updated_at: string;
-  unit_number: string;
-  unit_type: string | null;
-  first_name: string;
-  last_name: string;
-  phone_number: string | null;
-  email: string;
-  estimated_possession_date: string | null;
-  has_stairs: boolean;
-  lvp_colour: string | null;
-  lvp_comments: string | null;
-  spc_tile_colour: string | null;
-  spc_tile_comments: string | null;
-  backsplash_orientation: string | null;
-  stair_carpet_colour: string | null;
-  stair_lvp_upgrade_selected?: boolean;
-  stair_premium_carpet_selected?: boolean;
-  premium_underpad_stairs?: boolean;
-  bedroom_flooring_choice: string | null;
-  bedroom_carpet_colour: string | null;
-  bedroom_lvp_colour: string | null;
-  bedroom_lvp_same_as_main: boolean;
-  additional_windows_qty: number;
-  patio_doors_qty: number;
-  window_total: number;
-  window_comments?: string | null;
-  upgrade_interests: Record<string, boolean>;
-  status: string;
-  sales_comments: string | null;
-  area_upgrades?: AreaUpgrade[];
-  upgrade_floor_selection?: string | null;
-  backsplash_grout_enabled?: boolean;
-  backsplash_grout_color?: string | null;
-  backsplash_grout_comments?: string | null;
-  heated_floor_bathrooms?: number;
-  bathroom_tile_selected?: boolean;
-  hardwood_upgrade_selected?: boolean;
-  custom_pricing?: unknown;
-}
-
 interface SubmissionEditorProps {
   submission: BuyerSelection;
   onSave: (updatedSubmission: BuyerSelection) => void;
+  /** Called after every successful write (including save-in-place for previews) so the parent row stays current. */
+  onSaved?: (updatedSubmission: BuyerSelection) => void;
   onCancel: () => void;
 }
 
-export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEditorProps) {
+export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: SubmissionEditorProps) {
   const [editData, setEditData] = useState<BuyerSelection>({ ...submission });
   const [saving, setSaving] = useState(false);
   
@@ -133,6 +86,11 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
     const config = pricingConfig.find(c => c.config_key === 'stair_lvp_upgrade_price');
     return config?.config_value || 2160;
   }, [pricingConfig]);
+  // Bedroom premium rates (per sq yd, marked up) for the switch copy; totals come from the engine.
+  const dynamicPricing = useDynamicPricing();
+  const { getMaterialCost: getDynMaterialCost, markupPercentage: dynMarkup } = dynamicPricing;
+  const bedroomCarpetRate = getDynMaterialCost('carpet' as any) * (1 + dynMarkup);
+  const bedroomUnderpadRate = getDynMaterialCost('premium_carpet_underpad' as any) * (1 + dynMarkup);
   const stairCarpetPrice = pricingConfig.find(c => c.config_key === 'premium_carpet_stairs_price')?.config_value || 0;
   const stairUnderpadPrice = pricingConfig.find(c => c.config_key === 'premium_underpad_stairs_price')?.config_value || 0;
 
@@ -175,6 +133,7 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
       productName: '',
       productColor: '',
       comments: '',
+      clientComment: '',
     };
     handleChange('area_upgrades', [...(editData.area_upgrades || []), newUpgrade]);
   };
@@ -191,9 +150,9 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
     handleChange('area_upgrades', upgrades);
   };
 
-  // Calculate heated floor bathrooms from area upgrades
+  // Heated floor bathrooms as saved: max(staff input, area rows flagged heatedFloor).
   const calculateHeatedFloorCount = () => {
-    return (editData.area_upgrades || []).filter(u => u.heatedFloor).length;
+    return Math.max(Number(editData.heated_floor_bathrooms) || 0, countHeatedTileRows(editData.area_upgrades));
   };
 
   // Validation helper for stair flooring
@@ -207,132 +166,85 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
     return null;
   };
 
-  const handleSave = async () => {
-    // Validate stair flooring selection
+  // Last row we know is in the database; audit diffs compare against it so a mid-edit save (saveNow) is not re-logged.
+  const savedRef = useRef<BuyerSelection | null>(null);
+
+  /** Writes the current edits and the audit entry. Throws on validation or database failure; never closes the editor. */
+  const inFlight = useRef<Promise<BuyerSelection> | null>(null);
+  const persist = (): Promise<BuyerSelection> => {
+    if (!inFlight.current) inFlight.current = persistOnce().finally(() => { inFlight.current = null; });
+    return inFlight.current;
+  };
+  const persistOnce = async (): Promise<BuyerSelection> => {
     const stairValidationError = validateStairFlooring();
-    if (stairValidationError) {
-      toast.error('Validation Error', {
-        description: stairValidationError,
+    if (stairValidationError) throw Object.assign(new Error(stairValidationError), { isValidation: true });
+
+    const updatePayload = buildSubmissionUpdatePayload(editData);
+    const { error } = await supabase
+      .from('buyer_selections')
+      .update(updatePayload)
+      .eq('id', submission.id);
+    if (error) throw error;
+
+    // Calculate changes for audit log
+    const originalData = (savedRef.current ?? submission) as unknown as Record<string, unknown>;
+    const newData = { ...updatePayload, area_upgrades: editData.area_upgrades } as unknown as Record<string, unknown>;
+    const { changes, changedFields } = calculateChanges(originalData, newData);
+
+    if (changedFields.length > 0) {
+      const changeSummary = generateChangeSummary(changedFields);
+      await createAuditLog({
+        submission_id: submission.id,
+        action_type: 'update',
+        changes,
+        previous_values: originalData,
+        new_values: newData,
+        change_summary: changeSummary,
       });
-      return;
     }
 
+    const updatedSubmission: BuyerSelection = {
+      ...submission,
+      ...updatePayload,
+      area_upgrades: editData.area_upgrades,
+      upgrade_interests: editData.upgrade_interests,
+    };
+    savedRef.current = updatedSubmission;
+    onSaved?.(updatedSubmission);
+    return updatedSubmission;
+  };
+
+  const handleSave = async () => {
     setSaving(true);
     try {
-      // Calculate heated floor count from area upgrades
-      const heatedFloorCount = calculateHeatedFloorCount();
-
-      // Cast area_upgrades to Json-compatible format
-      const areaUpgradesJson = (editData.area_upgrades || []).map(upgrade => ({
-        areaId: upgrade.areaId,
-        materialType: upgrade.materialType,
-        productName: upgrade.productName,
-        productColor: upgrade.productColor,
-        comments: upgrade.comments,
-        heatedFloor: upgrade.heatedFloor || false,
-        manualPrice: Number(upgrade.manualPrice) > 0 ? Number(upgrade.manualPrice) : null,
-        manualPriceNote: upgrade.manualPriceNote || '',
-      }));
-
-      const updatePayload = {
-        // Buyer Info
-        first_name: editData.first_name,
-        last_name: editData.last_name,
-        email: editData.email,
-        phone_number: editData.phone_number,
-        unit_number: editData.unit_number,
-        unit_type: editData.unit_type,
-        estimated_possession_date: editData.estimated_possession_date,
-        has_stairs: editData.has_stairs,
-        
-        // Flooring Selections
-        lvp_colour: editData.lvp_colour,
-        lvp_comments: editData.lvp_comments,
-        spc_tile_colour: editData.spc_tile_colour,
-        spc_tile_comments: editData.spc_tile_comments,
-        
-        // Bedroom Flooring
-        bedroom_flooring_choice: editData.bedroom_flooring_choice,
-        bedroom_carpet_colour: editData.bedroom_carpet_colour,
-        bedroom_lvp_colour: editData.bedroom_lvp_colour,
-        bedroom_lvp_same_as_main: editData.bedroom_lvp_same_as_main,
-        stair_carpet_colour: editData.stair_carpet_colour,
-        // No stairs = no stair upgrade charges (LVP nosings, premium carpet, underpad).
-        stair_lvp_upgrade_selected: !!editData.has_stairs && !!editData.stair_lvp_upgrade_selected,
-        stair_upgrade_type: !editData.has_stairs
-          ? 'standard'
-          : editData.stair_lvp_upgrade_selected
-            ? (((editData as any).stair_upgrade_type === 'premium_lvp') ? 'premium_lvp' : 'lvp')
-            : 'standard',
-        stair_premium_carpet_selected: !!editData.has_stairs && !editData.stair_lvp_upgrade_selected && !!editData.stair_premium_carpet_selected,
-        premium_underpad_stairs: !!editData.has_stairs && !editData.stair_lvp_upgrade_selected && !!editData.premium_underpad_stairs,
-        
-        // Backsplash
-        backsplash_orientation: editData.backsplash_orientation,
-        backsplash_grout_enabled: editData.backsplash_grout_enabled,
-        backsplash_grout_color: editData.backsplash_grout_color,
-        backsplash_grout_comments: editData.backsplash_grout_comments,
-        
-        // Window Coverings
-        additional_windows_qty: editData.additional_windows_qty,
-        patio_doors_qty: editData.patio_doors_qty,
-        window_comments: editData.window_comments,
-        
-        // Area Upgrades - cast to Json type
-        area_upgrades: areaUpgradesJson as unknown as import('@/integrations/supabase/types').Json,
-        upgrade_floor_selection: editData.upgrade_floor_selection,
-        heated_floor_bathrooms: heatedFloorCount,
-        custom_pricing: (editData.custom_pricing ?? {}) as unknown as import('@/integrations/supabase/types').Json,
-        
-        // Admin
-        sales_comments: editData.sales_comments,
-        upgrade_interests: editData.upgrade_interests as unknown as import('@/integrations/supabase/types').Json,
-      };
-
-      const { error } = await supabase
-        .from('buyer_selections')
-        .update(updatePayload)
-        .eq('id', submission.id);
-
-      if (error) throw error;
-
-      // Calculate changes for audit log
-      const originalData = submission as unknown as Record<string, unknown>;
-      const newData = { ...updatePayload, area_upgrades: editData.area_upgrades } as unknown as Record<string, unknown>;
-      const { changes, changedFields } = calculateChanges(originalData, newData);
-
-      // Create audit log if there were changes
-      if (changedFields.length > 0) {
-        const changeSummary = generateChangeSummary(changedFields);
-        await createAuditLog({
-          submission_id: submission.id,
-          action_type: 'update',
-          changes,
-          previous_values: originalData,
-          new_values: newData,
-          change_summary: changeSummary,
-        });
-      }
-
-      // Update local state with new values
-      const updatedSubmission: BuyerSelection = {
-        ...submission,
-        ...updatePayload,
-        area_upgrades: editData.area_upgrades,
-        upgrade_interests: editData.upgrade_interests,
-        heated_floor_bathrooms: heatedFloorCount,
-      };
-
+      const updatedSubmission = await persist();
       toast.success('Submission updated successfully');
       onSave(updatedSubmission);
     } catch (error: any) {
-      toast.error('Failed to save changes', {
+      toast.error(error?.isValidation ? 'Validation Error' : 'Failed to save changes', {
         description: error.message,
       });
     } finally {
       setSaving(false);
     }
   };
+
+  /** Save in place (editor stays open) so previews and exports, which read the database, show current edits. */
+  const saveNow = async () => {
+    setSaving(true);
+    try {
+      await persist();
+    } catch (error: any) {
+      toast.error('Could not save before preview', { description: error.message });
+      throw error;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const panelSelections = useMemo(() => toBuyerPdfSelections({ ...submission, ...editData } as never), [submission, editData]);
+  const panelPricing = useMemo(() => pricingFromDynamic(dynamicPricing as never), [dynamicPricing]);
+  const panelUnitCode = editData.unit_type ? normalizeUnitTypeCode(editData.unit_type) : null;
 
   return (
     <div className="space-y-6">
@@ -546,6 +458,26 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                 </div>
               )}
 
+              {editData.bedroom_flooring_choice === 'carpet' && (
+                <div className="space-y-3 col-span-2">
+                  <Label>Bedroom Carpet — Premium Upgrades</Label>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={!!editData.premium_carpet_bedroom}
+                      onCheckedChange={(checked) => handleChange('premium_carpet_bedroom', checked)}
+                    />
+                    <span className="text-sm text-muted-foreground">Premium Carpet ({`$${bedroomCarpetRate.toFixed(2)}`}/sq yd + GST)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={!!editData.premium_underpad_bedroom}
+                      onCheckedChange={(checked) => handleChange('premium_underpad_bedroom', checked)}
+                    />
+                    <span className="text-sm text-muted-foreground">Premium Underpad ({`$${bedroomUnderpadRate.toFixed(2)}`}/sq yd + GST)</span>
+                  </div>
+                </div>
+              )}
+
               {editData.bedroom_flooring_choice === 'lvp' && (
                 <>
                   <div className="space-y-2">
@@ -744,6 +676,15 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                   onChange={(e) => handleChange('patio_doors_qty', parseInt(e.target.value) || 0)}
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Motorized openings (Somfy)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={editData.automated_windows_qty ?? 0}
+                  onChange={(e) => handleChange('automated_windows_qty', parseInt(e.target.value) || 0)}
+                />
+              </div>
               <div className="space-y-2 col-span-2">
                 <Label>Window Comments</Label>
                 <Textarea
@@ -860,11 +801,19 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                     </div>
                     
                     <div className="space-y-1 col-span-2">
-                      <Label className="text-xs">Comments</Label>
+                      <Label className="text-xs">Client note (printed)</Label>
+                      <Input
+                        value={upgrade.clientComment ?? ''}
+                        onChange={(e) => updateAreaUpgrade(index, 'clientComment', e.target.value)}
+                        placeholder="Shown to the buyer on their PDF, Word copy and email"
+                      />
+                    </div>
+                    <div className="space-y-1 col-span-2">
+                      <Label className="text-xs">Internal note</Label>
                       <Input
                         value={upgrade.comments}
                         onChange={(e) => updateAreaUpgrade(index, 'comments', e.target.value)}
-                        placeholder="Any notes..."
+                        placeholder="Staff only - never printed for the buyer"
                       />
                     </div>
 
@@ -935,7 +884,45 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                 Add Area Upgrade
               </Button>
 
-              {/* Heated Floors Summary */}
+              {/* Bathroom upgrades */}
+              <div className="grid grid-cols-2 gap-4 p-3 rounded-lg bg-muted/50">
+                <div className="space-y-2 col-span-2">
+                  <Label>Heated floors — bathrooms (count)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    className="w-[120px]"
+                    value={editData.heated_floor_bathrooms ?? 0}
+                    onChange={(e) => handleChange('heated_floor_bathrooms', parseInt(e.target.value) || 0)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Saved as max(count, heated tile areas) = {calculateHeatedFloorCount()}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={!!editData.custom_tiled_shower}
+                    onCheckedChange={(checked) => handleChange('custom_tiled_shower', checked)}
+                  />
+                  <Label>Custom tiled shower</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={!!editData.bathroom_tile_ensuite_selected}
+                    onCheckedChange={(checked) => handleChange('bathroom_tile_ensuite_selected', checked)}
+                  />
+                  <Label>Bathroom tile — ensuite</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={!!editData.bathroom_tile_guest_selected}
+                    onCheckedChange={(checked) => handleChange('bathroom_tile_guest_selected', checked)}
+                  />
+                  <Label>Bathroom tile — guest</Label>
+                </div>
+              </div>
+
+              {/* Heated Floors Summary (matches the saved value) */}
               {calculateHeatedFloorCount() > 0 && (
                 <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
                   <div className="flex items-center gap-2">
@@ -959,7 +946,17 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
             </div>
           </AccordionTrigger>
           <AccordionContent className="pt-4 pb-6">
-            <CustomPricingPanel value={editData.custom_pricing} onChange={(v) => handleChange('custom_pricing', v)} submissionId={submission.id} />
+            <CustomPricingPanel
+              value={editData.custom_pricing}
+              onChange={(v) => handleChange('custom_pricing', v)}
+              submissionId={submission.id}
+              selections={panelSelections}
+              unitCode={panelUnitCode}
+              pricing={panelPricing}
+              onSaveFirst={saveNow}
+              saving={saving}
+              onPatchSelections={(patch) => setEditData(prev => ({ ...prev, ...patch }))}
+            />
           </AccordionContent>
         </AccordionItem>
 
@@ -978,6 +975,14 @@ export function SubmissionEditor({ submission, onSave, onCancel }: SubmissionEdi
                 value={editData.sales_comments || ''}
                 onChange={(e) => handleChange('sales_comments', e.target.value || null)}
                 placeholder="Internal notes about this client..."
+                rows={4}
+              />
+            </div>
+            <div className="space-y-2 mt-4">
+              <Label>Internal notes (never printed for the buyer)</Label>
+              <Textarea
+                value={editData.admin_notes || ''}
+                onChange={(e) => handleChange('admin_notes', e.target.value || null)}
                 rows={4}
               />
             </div>

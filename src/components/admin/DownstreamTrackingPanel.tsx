@@ -96,6 +96,9 @@ export function DownstreamTrackingPanel({ submissionId, submission }: Props) {
         heatedFloorBathrooms: submission.heated_floor_bathrooms || 0,
         customTiledShower: !!submission.custom_tiled_shower,
         customPricing: (submission as any).custom_pricing,
+        bedroomFlooringChoice: ((submission as any).bedroom_flooring_choice === 'carpet' ? 'carpet' : (submission as any).bedroom_flooring_choice === 'lvp' ? 'lvp' : ''),
+        bedroomPremiumCarpetSelected: !!(submission as any).premium_carpet_bedroom,
+        bedroomPremiumUnderpadSelected: !!(submission as any).premium_underpad_bedroom,
       },
       {
         markupPercentage: pricing.markupPercentage,

@@ -30,11 +30,15 @@ export function buildCanonicalLines(
       stairLvp: number;
       stairCarpet: number;
       stairUnderpad?: number;
+      bedroomCarpet?: number;
+      bedroomUnderpad?: number;
+      bedroomCarpetSqyd?: number;
       windowAdditional: number;
       windowPatio: number;
       windowAutomation: number;
       flooringUpgrades: { areaId: string; areaName: string; materialName: string; amount: number; heatedFloorAmount: number; productName?: string; productColor?: string; sqft?: number }[];
     };
+    lineItems?: { label: string; amount: number }[];
   },
 ): CanonicalLine[] {
   const out: CanonicalLine[] = [];
@@ -75,6 +79,16 @@ export function buildCanonicalLines(
   });
   push('stair_carpet', 'Stair Carpet Upgrade', totals.pieces.stairCarpet, {
     material_key: 'stair_carpet', area_type: 'stairs',
+  });
+  // Reuse the engine's own label (carries the sq yd and the Primary Bedroom variant).
+  const engineLabel = (prefix: string, fallback: string) =>
+    totals.lineItems?.find(l => l.label.startsWith(prefix))?.label || fallback;
+  const bedroomExtra = { area_type: 'bedroom', unit_of_measure: 'sqyd', quantity: Number(totals.pieces.bedroomCarpetSqyd) || 1 };
+  push('bedroom_carpet', engineLabel('Premium Carpet — ', 'Premium Carpet — Bedrooms'), totals.pieces.bedroomCarpet || 0, {
+    material_key: 'carpet', ...bedroomExtra,
+  });
+  push('bedroom_underpad', engineLabel('Premium Underpad — ', 'Premium Underpad — Bedrooms'), totals.pieces.bedroomUnderpad || 0, {
+    material_key: 'premium_carpet_underpad', ...bedroomExtra,
   });
   push('window_additional', 'Additional Windows', totals.pieces.windowAdditional, {
     material_key: 'window_blind', area_type: 'window',

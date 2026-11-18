@@ -1,28 +1,28 @@
 project_id = "adtbjnwaxmxhyjkjxqoz"
 
 [functions.send-selections-email]
-verify_jwt = false
+verify_jwt = true
 
 [functions.sync-hubspot]
-verify_jwt = false
+verify_jwt = true
 
 [functions.setup-hubspot-properties]
-verify_jwt = false
+verify_jwt = true
 
 [functions.manage-users]
 verify_jwt = false
 
 [functions.send-user-notification]
-verify_jwt = false
+verify_jwt = true
 
 [functions.send-draft-reminder]
 verify_jwt = false
 
 [functions.resend-confirmation-email]
-verify_jwt = false
+verify_jwt = true
 
 [functions.audit-pricing-consistency]
-verify_jwt = false
+verify_jwt = true
 
 [functions.qbo-oauth-callback]
 verify_jwt = false

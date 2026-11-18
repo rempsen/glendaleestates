@@ -62,3 +62,18 @@ test('Stairs row without office price adds nothing', () => {
   const t = computeUpgradeTotals({ ...unit31, areaUpgrades: [...unit31.areaUpgrades, { areaId: 'stairs', materialType: 'carpet', productName: '', productColor: '' } as any] }, pricing).grandSubtotal;
   expect(t).toBeCloseTo(base, 2);
 });
+
+const stairOverrideInput = { ...base, stairPremiumCarpetSelected: true, stairPremiumUnderpadSelected: true };
+test('stairCarpet override replaces the $840 flat rate', () => {
+  const t = computeUpgradeTotals({ ...stairOverrideInput, customPricing: { overrides: { stairCarpet: { amount: 700 } } } }, stairPricing);
+  expect(t.pieces.stairCarpet).toBe(700);
+});
+test('stairCarpet override of 0 waives the line', () => {
+  const t = computeUpgradeTotals({ ...stairOverrideInput, customPricing: { overrides: { stairCarpet: { amount: 0 } } } }, stairPricing);
+  expect(t.pieces.stairCarpet).toBe(0);
+  expect(t.lineItems.find(l => l.group === 'stair' && /Carpet/.test(l.label))).toBeUndefined();
+});
+test('stairUnderpad override replaces the $165 flat rate', () => {
+  const t = computeUpgradeTotals({ ...stairOverrideInput, customPricing: { overrides: { stairUnderpad: { amount: 100 } } } }, stairPricing);
+  expect(t.pieces.stairUnderpad).toBe(100);
+});

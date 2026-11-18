@@ -14,43 +14,20 @@
 // Returns: { audited, mismatches: [{ submissionId, unitNumber, expected, found, missing }] }
 // =====================================================================
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { authorizeInternalOrAdmin, makeGetUserFromJwt } from "../_shared/internalAuth.ts";
 import {
   computeUpgradeTotalsServer,
   normalizeUnitTypeCode,
   ServerAreaUpgrade,
   ServerPricing,
 } from "../_shared/upgradeTotalsServer.ts";
+import { loadServerPricing, restPricingFetcher } from "../_shared/loadServerPricing.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 async function fetchPricing(): Promise<ServerPricing> {
-  const headers = { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` };
-  const [mRes, cRes, uRes] = await Promise.all([
-    fetch(`${SUPABASE_URL}/rest/v1/upgrade_materials?is_active=eq.true`, { headers }),
-    fetch(`${SUPABASE_URL}/rest/v1/pricing_config`, { headers }),
-    fetch(`${SUPABASE_URL}/rest/v1/unit_area_data`, { headers }),
-  ]);
-  const materials: Record<string, number> = {};
-  const config: Record<string, number> = {};
-  const unitAreas: Record<string, any> = {};
-  let markupPercentage = 0.6, gstRate = 0.05;
-  if (mRes.ok) for (const m of await mRes.json()) materials[m.material_key] = Number(m.cost_per_unit);
-  if (cRes.ok) for (const c of await cRes.json()) {
-    config[c.config_key] = Number(c.config_value);
-    if (c.config_key === 'markup_percentage') markupPercentage = Number(c.config_value) / 100;
-    if (c.config_key === 'gst_rate') gstRate = Number(c.config_value) / 100;
-  }
-  if (uRes.ok) for (const u of await uRes.json()) unitAreas[u.unit_type_code] = {
-    allLvp: Number(u.all_lvp), mainLiving: Number(u.main_living),
-    secondBedroom: Number(u.second_bedroom),
-    masterBedroomLvp: Number(u.master_bedroom_lvp || 0),
-    masterBedroom: Number(u.master_bedroom),
-    secondBedroomCarpet: Number(u.second_bedroom_carpet),
-    guestBathroom: Number(u.guest_bathroom), masterEnsuite: Number(u.master_ensuite),
-    laundry: Number(u.laundry), backsplash: Number(u.backsplash),
-  };
-  return { materials, config, unitAreas, markupPercentage, gstRate };
+  return await loadServerPricing(restPricingFetcher(SUPABASE_URL, SERVICE_KEY));
 }
 
 async function fetchPreviewHtml(submissionId: string): Promise<string> {
@@ -101,6 +78,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
+  const gate = await authorizeInternalOrAdmin(
+    req,
+    { serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") },
+    makeGetUserFromJwt(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!),
+  );
+  if (!gate.ok) {
+    return new Response(JSON.stringify({ error: "unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json", ...cors },
+    });
+  }
+
   try {
     const url = new URL(req.url);
     const oneId = url.searchParams.get('submissionId');
@@ -137,6 +126,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
           bathroomTileGuestSelected: sub.bathroom_tile_guest_selected,
           heatedFloorBathrooms: sub.heated_floor_bathrooms,
           customTiledShower: sub.custom_tiled_shower,
+          bedroomFlooringChoice: sub.bedroom_flooring_choice,
+          bedroomPremiumCarpetSelected: !!sub.premium_carpet_bedroom,
+          bedroomPremiumUnderpadSelected: !!sub.premium_underpad_bedroom,
           customPricing: sub.custom_pricing,
         }, pricing);
 

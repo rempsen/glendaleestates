@@ -429,7 +429,8 @@ export interface AreaUpgradeSelection {
   materialType: MaterialType;
   productName: string;
   productColor: string;
-  comments: string;
+  comments: string; // INTERNAL (staff-only) since 2026-11-16; never printed on buyer outputs
+  clientComment?: string; // Buyer-visible note; the only area note buyer outputs print
   heatedFloor?: boolean; // Only for tile in bathrooms
   // Manual price quoted by the BMD office (GST-exclusive, PST already included).
   // When set (> 0) it overrides the calculated area × material price.

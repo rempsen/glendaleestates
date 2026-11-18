@@ -2,6 +2,8 @@ import { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, Headi
 import { computeUpgradeTotals, parseCustomPricing, LINE_STATUS_LABELS } from '@/lib/upgradeTotals';
 import { totalsInputFromSelections } from '@/lib/buyerPdfGenerator';
 import { toBuyerPdfSelections } from '@/lib/buyerPdfSelections';
+import { internalAreaNotes } from '@/lib/areaNotes';
+import { buildWordSelectionRows } from '@/lib/submissionWordRows';
 import { loadSavedSubmissionContext } from '@/lib/savedSubmissionPdf';
 
 const money = (n: number) => `$${n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -27,17 +29,8 @@ export async function downloadSubmissionWord(id: string, staff = true): Promise<
   const sel = toBuyerPdfSelections(s);
   const totals = computeUpgradeTotals(totalsInputFromSelections(sel, unitCode), pricing);
   const cp = parseCustomPricing((s as any).custom_pricing);
-  const prov = cp.provisional || {};
 
-  const selRows: string[][] = [
-    ['Main Floor LVP', `${s.lvp_colour || 'Not selected'}${prov.lvp_colour ? ` (PROVISIONAL — ${prov.lvp_colour})` : ''}`],
-    ['Bathroom Tile', s.spc_tile_colour || 'Not selected'],
-    ['Primary Bedroom Flooring', s.bedroom_flooring_choice || 'Not selected'],
-    ...(s.bedroom_carpet_colour ? [['Primary Bedroom Carpet Colour', s.bedroom_carpet_colour]] : []),
-    ['Kitchen Backsplash', s.backsplash_orientation || 'Not selected'],
-  ];
-  (sel.areaUpgrades || []).forEach(u => selRows.push([`Upgrade — ${u.areaId}`, [u.productName, u.productColor, u.comments].filter(Boolean).join(' — ')]));
-
+  const selRows = buildWordSelectionRows(s, pricing, unitCode);
   const quoteRows = totals.lineItems.map(li => [li.group, [li.label, li.detail].filter(Boolean).join(' — '), money(li.amount)]);
   const notIn = (totals.pieces.uncommittedItems || []).map(u => [[u.area, u.label, u.detail].filter(Boolean).join(' — '), LINE_STATUS_LABELS[u.status], u.amount === null ? 'Pending' : money(u.amount)]);
   const followUps = (cp.followUps || []).filter(f => !f.done && (staff || f.clientVisible));
@@ -45,6 +38,8 @@ export async function downloadSubmissionWord(id: string, staff = true): Promise<
   const notes = [
     ['Flooring', s.lvp_comments], ['Tile', s.spc_tile_comments], ['Windows', s.window_comments], ['Upgrades', s.upgrade_comments],
   ].filter(([, v]) => v) as string[][];
+  // Buyer copy prints clientComment only (in the Selections table); staff also get the internal `comments`, labelled.
+  if (staff) internalAreaNotes(Array.isArray(s.area_upgrades) ? (s.area_upgrades as never[]) : []).forEach(n => notes.push([`Upgrade — ${n.areaId} (internal note)`, n.text]));
 
   const doc = new Document({ sections: [{ children: [
     new Paragraph({ text: `Glendale Estates — Unit ${s.unit_number} Selections & Quote`, heading: HeadingLevel.HEADING_1 }),

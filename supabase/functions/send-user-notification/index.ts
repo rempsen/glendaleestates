@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
+import { authorizeInternalOrAdmin, isSelf, makeGetUserFromJwt } from "../_shared/internalAuth.ts";
 
 interface NotificationRequest {
   type: "user_created" | "password_reset" | "client_signup";
@@ -213,8 +214,29 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const gate = await authorizeInternalOrAdmin(
+    req,
+    { serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") },
+    makeGetUserFromJwt(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!),
+    { allowUser: true },
+  );
+  if (!gate.ok) {
+    return new Response(JSON.stringify({ error: "unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const { type, userEmail, performedByEmail, tempPassword }: NotificationRequest = await req.json();
+
+    // A signed-in buyer (non-admin, non-internal) may only trigger the signup notice about themselves.
+    if (gate.kind === "user" && !(type === "client_signup" && isSelf(gate.email, userEmail))) {
+      return new Response(JSON.stringify({ error: "forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     console.log(`Processing notification: type=${type}, user=${userEmail}`);
 

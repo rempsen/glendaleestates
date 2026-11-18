@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useDraftSave } from '@/hooks/useDraftSave';
+import { migrateDraftClientComments } from '@/lib/draftClientComments';
 import { 
   lvpOptions, 
   lvpSpecs,
@@ -31,6 +32,7 @@ import {
   resolveOptionName,
 } from '@/lib/mockData';
 import { getUnitInfo, UnitInfo } from '@/lib/unitData';
+import { computeUpgradeTotals } from '@/lib/upgradeTotals';
 import { 
   AreaUpgradeSelection,
   BacksplashGroutSelection,
@@ -56,6 +58,7 @@ import bedroomLvpPreviewImg from '@/assets/bedroom-lvp-preview.jpg';
 import customTiledShowerNicheImg from '@/assets/custom-tiled-shower-niche.jpg';
 import { DocumentUploader } from '@/components/DocumentUploader';
 import { StairCarpetAddOn } from '@/components/buyer/StairCarpetAddOn';
+import { submitErrorMessage } from '@/lib/submitErrorMessage';
 
 // Dynamic step configuration based on unit
 const getSteps = (hasStairs: boolean) => {
@@ -121,6 +124,14 @@ interface SelectionState {
   documentUploads: UploadedDocument[];
 }
 
+// Thrown when send-selections-email answers non-2xx; `code` is the parsed body `error`
+// (e.g. save_failed, post_save_failed, internal_error).
+class SubmitError extends Error {
+  constructor(public status: number, public code?: string) {
+    super(code || `submit failed (${status})`);
+  }
+}
+
 export default function SelectionWizard() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
@@ -146,7 +157,6 @@ export default function SelectionWizard() {
     getGroutColorChangePrice,
     getUnderpadStairsPrice,
     getStairCarpetUpgradePrice,
-    getUnderpadCostPerSqyd,
     isFlatRateEnabled,
     getUnitAreaData,
   } = useDynamicPricing();
@@ -162,19 +172,9 @@ export default function SelectionWizard() {
   const underpadStairsPrice = useMemo(() => getUnderpadStairsPrice(), [getUnderpadStairsPrice]);
   const stairCarpetUpgradePrice = useMemo(() => getStairCarpetUpgradePrice(), [getStairCarpetUpgradePrice]);
   const isStairCarpetUpgradeEnabled = useMemo(() => isFlatRateEnabled('premium_carpet_stairs_price'), [isFlatRateEnabled]);
-  const underpadCostPerSqyd = useMemo(() => getUnderpadCostPerSqyd(), [getUnderpadCostPerSqyd]);
   const isStairLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_lvp_upgrade_price'), [isFlatRateEnabled]);
   const isStairPremiumLvpUpgradeEnabled = useMemo(() => isFlatRateEnabled('stair_premium_lvp_upgrade_price'), [isFlatRateEnabled]);
   const isUnderpadStairsEnabled = useMemo(() => isFlatRateEnabled('premium_underpad_stairs_price'), [isFlatRateEnabled]);
-  const bedroomUnderpadUnitTypeCode = useMemo(() => {
-    const code = unitInfo?.typeCode?.toUpperCase() || '';
-
-    if (code === 'G' || code === 'H') {
-      return `${code}-2`;
-    }
-
-    return code;
-  }, [unitInfo?.typeCode]);
 
   const [selections, setSelections] = useState<SelectionState>({
     unitNumber: '',
@@ -262,14 +262,14 @@ export default function SelectionWizard() {
   const lvpRelatedAreaComments = useMemo(
     () =>
       (selections.areaUpgrades || []).filter(
-        (u) => u && u.comments && u.comments.trim() && LVP_RELATED_AREA_IDS.has(u.areaId),
+        (u) => u && u.clientComment && u.clientComment.trim() && LVP_RELATED_AREA_IDS.has(u.areaId),
       ),
     [selections.areaUpgrades, LVP_RELATED_AREA_IDS],
   );
   const tileRelatedAreaComments = useMemo(
     () =>
       (selections.areaUpgrades || []).filter(
-        (u) => u && u.comments && u.comments.trim() && TILE_RELATED_AREA_IDS.has(u.areaId),
+        (u) => u && u.clientComment && u.clientComment.trim() && TILE_RELATED_AREA_IDS.has(u.areaId),
       ),
     [selections.areaUpgrades, TILE_RELATED_AREA_IDS],
   );
@@ -325,7 +325,8 @@ export default function SelectionWizard() {
 
   const resumeDraft = useCallback(() => {
     if (pendingDraft) {
-      setSelections(pendingDraft.selections as unknown as SelectionState);
+      // Pre-split drafts carry the buyer's area note in `comments`; move it to `clientComment`.
+      setSelections(migrateDraftClientComments(pendingDraft.selections as unknown as SelectionState));
       setCurrentStep(pendingDraft.currentStep);
       setHighestStepReached(pendingDraft.highestStepReached);
       toast.success('Draft restored');
@@ -423,6 +424,40 @@ export default function SelectionWizard() {
     }
   };
 
+  // Bedroom premium carpet / underpad prices shown in the wizard come from the
+  // same engine that prices the quote, so the buyer sees the number the quote
+  // will carry. Flags are forced on so the price is visible before selecting.
+  const bedroomPremiumPrices = useMemo(() => {
+    const pricing = {
+      markupPercentage,
+      gstRate,
+      getMaterialCost,
+      getGroutColorFee,
+      getAdditionalWindowPrice,
+      getPatioDoorPrice,
+      getAutomatedMotorPrice,
+      getHeatedFloorPrice,
+      getStairLvpUpgradePrice,
+      getStairPremiumLvpUpgradePrice,
+      getUnitAreaData,
+    };
+    const base = {
+      unitTypeCode: unitInfo?.typeCode ?? null,
+      upgradeFloorSelection: selections.upgradeFloorSelection,
+      areaUpgrades: selections.areaUpgrades || [],
+      bedroomFlooringChoice: selections.bedroomFlooringChoice,
+      bedroomPremiumCarpetSelected: true,
+      bedroomPremiumUnderpadSelected: true,
+    };
+    const { pieces } = computeUpgradeTotals(base, pricing);
+    return { carpet: pieces.bedroomCarpet, underpad: pieces.bedroomUnderpad };
+  }, [
+    markupPercentage, gstRate, getMaterialCost, getGroutColorFee, getAdditionalWindowPrice,
+    getPatioDoorPrice, getAutomatedMotorPrice, getHeatedFloorPrice, getStairLvpUpgradePrice,
+    getStairPremiumLvpUpgradePrice, getUnitAreaData, unitInfo?.typeCode,
+    selections.upgradeFloorSelection, selections.areaUpgrades, selections.bedroomFlooringChoice,
+  ]);
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
     setSubmissionStep('preparing');
@@ -507,11 +542,17 @@ export default function SelectionWizard() {
       await new Promise(resolve => setTimeout(resolve, 300)); // Brief pause for UX
       
       setSubmissionStep('sending');
+      // The function requires the buyer's own session token; the anon key alone is rejected (401).
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not signed in');
+      }
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-selections-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           ...selections,
@@ -536,7 +577,9 @@ export default function SelectionWizard() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to send email');
+        // Non-2xx: keep the draft and wizard state untouched so the buyer can retry.
+        const err = await response.json().catch(() => ({} as { error?: string }));
+        throw new SubmitError(response.status, err?.error);
       }
 
       // Step 3: Finalize
@@ -553,9 +596,16 @@ export default function SelectionWizard() {
       navigate('/');
     } catch (error) {
       console.error('Error submitting selections:', error);
-      toast.error('Failed to submit selections', {
-        description: 'Please try again or contact support.',
-      });
+      const status = error instanceof SubmitError ? error.status : 0;
+      const code = error instanceof SubmitError ? error.code : undefined;
+      if (status === 500 && code === 'post_save_failed') {
+        // The record exists. Drop the draft so the buyer is not invited to submit a duplicate.
+        await deleteDraft().catch(() => undefined);
+        toast.warning('Selections saved', { description: submitErrorMessage(status, code), duration: 15000 });
+        navigate('/');
+        return;
+      }
+      toast.error('Failed to submit selections', { description: submitErrorMessage(status, code) });
     } finally {
       setIsSubmitting(false);
     }
@@ -1531,7 +1581,7 @@ export default function SelectionWizard() {
                             <span className="font-medium">
                               {AREA_DEFINITIONS.find((a) => a.id === u.areaId)?.name || u.areaId}:
                             </span>{' '}
-                            {u.comments}
+                            {u.clientComment}
                           </li>
                         ))}
                       </ul>
@@ -1865,7 +1915,7 @@ export default function SelectionWizard() {
                             <span className="font-medium">
                               {AREA_DEFINITIONS.find((a) => a.id === u.areaId)?.name || u.areaId}:
                             </span>{' '}
-                            {u.comments}
+                            {u.clientComment}
                           </li>
                         ))}
                       </ul>
@@ -2144,13 +2194,9 @@ export default function SelectionWizard() {
 
               {/* Premium Carpet Upgrade - show if carpet selected */}
               {selections.bedroomFlooringChoice === 'carpet' && (() => {
-                const unitData = getUnitAreaData(bedroomUnderpadUnitTypeCode);
-                const carpetSqyd = unitData ? (unitData.secondBedroomCarpet + unitData.masterBedroom) : 0;
-                const premiumCarpetCostPerSqyd = getMaterialCost('carpet' as any);
-                const premiumCarpetBaseCost = carpetSqyd * premiumCarpetCostPerSqyd;
-                const premiumCarpetMarkedUp = premiumCarpetBaseCost * (1 + markupPercentage);
+                const premiumCarpetMarkedUp = bedroomPremiumPrices.carpet;
                 const premiumCarpetWithGst = premiumCarpetMarkedUp * (1 + gstRate);
-                return carpetSqyd > 0 ? (
+                return premiumCarpetMarkedUp > 0 ? (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -2210,12 +2256,9 @@ export default function SelectionWizard() {
 
               {/* Premium Underpad Upgrade - show if carpet selected */}
               {selections.bedroomFlooringChoice === 'carpet' && (() => {
-                const unitData = getUnitAreaData(bedroomUnderpadUnitTypeCode);
-                const carpetSqyd = unitData ? (unitData.secondBedroomCarpet + unitData.masterBedroom) : 0;
-                const underpadBaseCost = carpetSqyd * underpadCostPerSqyd;
-                const underpadMarkedUp = underpadBaseCost * (1 + markupPercentage);
+                const underpadMarkedUp = bedroomPremiumPrices.underpad;
                 const underpadWithGst = underpadMarkedUp * (1 + gstRate);
-                return carpetSqyd > 0 ? (
+                return underpadMarkedUp > 0 ? (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}

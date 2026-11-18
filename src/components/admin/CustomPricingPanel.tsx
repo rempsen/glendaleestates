@@ -9,19 +9,18 @@ import { generateSavedSubmissionPdf } from '@/lib/savedSubmissionPdf';
 import { downloadSubmissionWord } from '@/lib/submissionWordExport';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { computeUpgradeTotals, type UpgradeTotalsPricing } from '@/lib/upgradeTotals';
+import { totalsInputFromSelections, type BuyerSelections } from '@/lib/buyerPdfGenerator';
+import { itemizeWindows } from '@/lib/itemizeWindows';
+import { OVERRIDES } from '@/lib/customPricingOverrides';
+import type { SubmissionEditState } from '@/lib/submissionUpdatePayload';
 import {
   customItemAmount, parseCustomPricing, isCommitted, LINE_STATUS_LABELS,
   type CustomPricing, type LineStatus, type FollowUp, type CustomLineItem, type OverrideKey,
 } from '@/lib/upgradeTotals';
 
-const OVERRIDES: Array<{ key: OverrideKey; title: string; hint: string }> = [
-  { key: 'stair', title: 'Stair upgrade', hint: 'Applies when stairs are upgraded to LVP' },
-  { key: 'grout', title: 'Backsplash / grout', hint: 'Applies when grout colour change is on' },
-  { key: 'bathroomTile', title: 'Bathroom porcelain tile', hint: 'Applies when the bathroom tile upgrade is on' },
-  { key: 'heatedFloor', title: 'Heated tile floor', hint: 'Applies when at least one heated bathroom is set' },
-  { key: 'customShower', title: 'Custom tiled shower', hint: 'Applies when the custom shower is on' },
-];
 
 const GST = 0.05;
 const fmt = (n: number) => `$${n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -38,8 +37,54 @@ async function openClientPreview(id: string) {
   } catch (e) { toast.error('Could not build the client preview', { description: (e as Error).message }); }
 }
 
-export function CustomPricingPanel({ value, onChange, submissionId }: { value: unknown; onChange: (v: CustomPricing) => void; submissionId?: string }) {
+const fillNames = (defaults: string[], n: number, fallback: string) =>
+  Array.from({ length: n }, (_, i) => defaults[i] ?? `${fallback} ${i + 1}`);
+
+interface CustomPricingPanelProps {
+  value: unknown;
+  onChange: (v: CustomPricing) => void;
+  submissionId?: string;
+  /** Current (unsaved) selections, used for the live totals strip and window itemizing. */
+  selections: BuyerSelections;
+  unitCode: string | null;
+  pricing: UpgradeTotalsPricing;
+  /** Saves the editor in place; previews and exports read the saved record. */
+  onSaveFirst: () => Promise<void>;
+  /** True while the editor is saving; disables preview/export/itemize. */
+  saving?: boolean;
+  /** Writes quantity changes (e.g. zeroed window counts) back to the editor state. */
+  onPatchSelections?: (patch: Partial<SubmissionEditState>) => void;
+}
+
+export function CustomPricingPanel({ value, onChange, submissionId, selections, unitCode, pricing, onSaveFirst, saving = false, onPatchSelections }: CustomPricingPanelProps) {
   const cp = parseCustomPricing(value);
+  const live = computeUpgradeTotals(totalsInputFromSelections({ ...selections, customPricing: cp }, unitCode), pricing);
+  const [itemizeOpen, setItemizeOpen] = useState(false);
+  const addQty = selections.additionalWindowsQty || 0;
+  const patioQty = selections.patioDoorsQty || 0;
+  const motorQty = selections.automatedWindowsQty || 0;
+  const canItemize = addQty + patioQty + motorQty > 0;
+  const [names, setNames] = useState({ additional: [] as string[], patio: [] as string[], motorized: [] as string[] });
+  const [bedrooms, setBedrooms] = useState([{ label: 'Primary Bedroom', on: true }, { label: 'Second Bedroom', on: true }]);
+  const openItemize = () => {
+    const add = fillNames(['Living Room', 'Front Entrance'], addQty, 'Window');
+    const patio = fillNames(['Patio Door 1', 'Patio Door 2'], patioQty, 'Patio Door');
+    setNames({ additional: add, patio, motorized: fillNames([...add, ...patio], motorQty, 'Window') });
+    setItemizeOpen(true);
+  };
+  const anyBlank = [...names.additional, ...names.patio, ...names.motorized, ...bedrooms.filter(b => b.on).map(b => b.label)].some(n => !n.trim());
+  const confirmItemize = () => {
+    const r = itemizeWindows(selections, pricing, { ...names, includedBedrooms: bedrooms.filter(b => b.on).map(b => ({ label: b.label, qty: 1 })) });
+    if (r.customItems.length) {
+      onChange({ ...cp, customItems: [...(cp.customItems || []), ...r.customItems] });
+      onPatchSelections?.(r.patch);
+    }
+    setItemizeOpen(false);
+  };
+  const saveThen = async (action: () => unknown) => {
+    try { await onSaveFirst(); } catch { return; }
+    await action();
+  };
   const overrides = cp.overrides || {};
   const items = cp.customItems || [];
 
@@ -87,6 +132,20 @@ export function CustomPricingPanel({ value, onChange, submissionId }: { value: u
       <p className="text-sm text-muted-foreground">
         All prices entered here are PST included and GST exclusive. GST (5%) is added automatically to the client total, PDF and exports. Leave a price blank to use the standard calculated price.
       </p>
+
+      <div className="rounded-lg border border-border bg-muted/40 p-3" aria-label="Totals (live)">
+        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
+          <span className="font-medium">Totals (live)</span>
+          <span>Window coverings <b>{fmt(live.windowSubtotal)}</b></span>
+          <span>Upgrades <b>{fmt(live.upgradesSubtotal)}</b></span>
+          <span>Subtotal <b>{fmt(live.grandSubtotal)}</b></span>
+          <span>GST <b>{fmt(live.gst)}</b></span>
+          <span>Total <b>{fmt(live.grandTotal)}</b></span>
+        </div>
+        {live.pieces.uncommittedItems.length > 0 && (
+          <p className="text-xs text-muted-foreground mt-1">Not in total: {live.pieces.uncommittedItems.length} line{live.pieces.uncommittedItems.length === 1 ? '' : 's'}</p>
+        )}
+      </div>
 
       <div className="space-y-3">
         <h4 className="font-medium">Office price overrides</h4>
@@ -246,11 +305,46 @@ export function CustomPricingPanel({ value, onChange, submissionId }: { value: u
 
       {submissionId && (
         <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
-          <p className="text-xs text-muted-foreground w-full">Preview and Word use the last saved version — save first to include new edits.</p>
-          <Button variant="outline" size="sm" onClick={() => openClientPreview(submissionId)}><Eye className="w-4 h-4 mr-2" /> Client preview (PDF)</Button>
-          <Button variant="outline" size="sm" onClick={() => downloadSubmissionWord(submissionId, true).catch(e => toast.error('Word export failed', { description: (e as Error).message }))}><FileText className="w-4 h-4 mr-2" /> Word export</Button>
+          <p className="text-xs text-muted-foreground w-full">Preview and Word save your edits first, then open the saved version.</p>
+          <Button variant="outline" size="sm" disabled={saving} onClick={() => saveThen(() => openClientPreview(submissionId))}><Eye className="w-4 h-4 mr-2" /> Client preview (PDF)</Button>
+          <Button variant="outline" size="sm" disabled={saving} onClick={() => saveThen(() => downloadSubmissionWord(submissionId, true)).catch(e => toast.error('Word export failed', { description: (e as Error).message }))}><FileText className="w-4 h-4 mr-2" /> Word export</Button>
         </div>
       )}
+
+      {canItemize && (
+        <Button variant="outline" size="sm" disabled={saving} onClick={openItemize}>Itemize windows by location…</Button>
+      )}
+      <Dialog open={itemizeOpen} onOpenChange={setItemizeOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Itemize windows by location</DialogTitle>
+            <DialogDescription>Replaces the window counts with one priced line per location. The total does not change.</DialogDescription>
+          </DialogHeader>
+          {([['additional', 'Additional windows (roller shade)'], ['patio', 'Patio door panel track'], ['motorized', 'Somfy motorization']] as const).map(([k, title]) =>
+            names[k].length > 0 && (
+              <div key={k} className="space-y-2">
+                <Label>{title}</Label>
+                {names[k].map((n, i) => (
+                  <Input key={i} value={n} aria-label={`${title} ${i + 1}`} onChange={e => setNames(prev => ({ ...prev, [k]: prev[k].map((x, j) => (j === i ? e.target.value : x)) }))} />
+                ))}
+              </div>
+            ))}
+          <div className="space-y-2">
+            <Label>Blackout roller shades (included, $0)</Label>
+            {bedrooms.map((b, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Checkbox checked={b.on} onCheckedChange={c => setBedrooms(bedrooms.map((x, j) => (j === i ? { ...x, on: !!c } : x)))} aria-label={`Include ${b.label}`} />
+                <Input value={b.label} onChange={e => setBedrooms(bedrooms.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
+              </div>
+            ))}
+          </div>
+          {anyBlank && <p className="text-xs text-destructive">Fill in every location name to continue.</p>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setItemizeOpen(false)}>Cancel</Button>
+            <Button onClick={confirmItemize} disabled={anyBlank}>Itemize</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

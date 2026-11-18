@@ -123,7 +123,7 @@ export const EXPORT_SECTIONS: SectionDef[] = [
       'submission_id', 'unit_number',
       'additional_windows_qty', 'patio_doors_qty',
       'additional_window_charge', 'patio_door_charge', 'window_automation_charge',
-      'window_subtotal', 'window_total_db', 'window_comments',
+      'window_subtotal', 'window_comments',
     ],
   },
   {
@@ -135,7 +135,7 @@ export const EXPORT_SECTIONS: SectionDef[] = [
     columns: [
       'submission_id', 'unit_number', 'first_name', 'last_name',
       'area_id', 'area_name', 'material_type', 'material_name',
-      'product_name', 'product_color', 'comments',
+      'product_name', 'product_color', 'client_comment', 'comments',
       'heated_floor', 'amount', 'heated_floor_amount',
     ],
   },
@@ -234,6 +234,9 @@ export function computeTotalsForSubmission(s: BuyerSelection, pricing: ExportPri
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       customTiledShower: !!(s as any).custom_tiled_shower,
       customPricing: (s as any).custom_pricing,
+      bedroomFlooringChoice: ((s as any).bedroom_flooring_choice === 'carpet' ? 'carpet' : (s as any).bedroom_flooring_choice === 'lvp' ? 'lvp' : ''),
+      bedroomPremiumCarpetSelected: !!(s as any).premium_carpet_bedroom,
+      bedroomPremiumUnderpadSelected: !!(s as any).premium_underpad_bedroom,
     },
     buildPricingAdapter(pricing),
   );
@@ -348,7 +351,6 @@ export function buildSubmissionSectionRows(
     patio_door_charge: fmtMoney(totals.pieces.windowPatio),
     window_automation_charge: fmtMoney(totals.pieces.windowAutomation),
     window_subtotal: fmtMoney(totals.windowSubtotal),
-    window_total_db: s.window_total ?? 0,
     window_comments: s.window_comments ?? '',
   }];
 
@@ -364,6 +366,7 @@ export function buildSubmissionSectionRows(
     material_name: u.materialName,
     product_name: u.productName ?? '',
     product_color: u.productColor ?? '',
+    client_comment: '',
     comments: '',
     heated_floor: u.heatedFloorAmount > 0,
     amount: fmtMoney(u.amount),
@@ -378,7 +381,8 @@ export function buildSubmissionSectionRows(
     const raw = rawAreaUpgrades[i];
     if (raw) {
       row.material_type = raw.materialType ?? row.material_type;
-      row.comments = raw.comments ?? '';
+      row.client_comment = raw.clientComment ?? '';
+      row.comments = raw.comments ?? ''; // internal
     }
   });
 

@@ -1,7 +1,6 @@
 // Shared upgrade pricing calculator — single source of truth used by:
 //   - On-screen UpgradePricingSummary
 //   - buyerPdfGenerator (buyer-facing PDF)
-//   - submissionPdfGenerator (admin PDF)
 //   - send-selections-email edge function (CSV summary)
 //
 // All consumers MUST go through computeUpgradeTotals() so the buyer total
@@ -55,6 +54,9 @@ export interface UpgradeTotalsInput {
   stairUpgradeType?: 'standard' | 'lvp' | 'premium_lvp' | string | null;
   stairPremiumCarpetSelected?: boolean;
   stairPremiumUnderpadSelected?: boolean;
+  bedroomFlooringChoice?: 'carpet' | 'lvp' | string | null;
+  bedroomPremiumCarpetSelected?: boolean;
+  bedroomPremiumUnderpadSelected?: boolean;
   additionalWindowsQty?: number;
   patioDoorsQty?: number;
   automatedWindowsQty?: number;
@@ -67,7 +69,7 @@ export interface UpgradeTotalsInput {
 }
 
 // Office pricing set by sales/admin. Amounts are GST-exclusive, PST included.
-export type OverrideKey = 'stair' | 'grout' | 'bathroomTile' | 'heatedFloor' | 'customShower' | 'stairCarpet' | 'stairUnderpad';
+export type OverrideKey = 'stair' | 'grout' | 'bathroomTile' | 'heatedFloor' | 'customShower' | 'stairCarpet' | 'stairUnderpad' | 'bedroomCarpet' | 'bedroomUnderpad';
 export interface PriceOverride { amount?: number | null; label?: string }
 export type LineStatus = 'upgrade' | 'included' | 'pending' | 'disputed' | 'deferred';
 export const LINE_STATUS_LABELS: Record<LineStatus, string> = {
@@ -120,6 +122,9 @@ export interface UpgradeTotalsResult {
     stairLvp: number;
     stairCarpet: number;
     stairUnderpad: number;
+    bedroomCarpet: number;
+    bedroomUnderpad: number;
+    bedroomCarpetSqyd: number;
     grout: number;
     windowAdditional: number;
     windowPatio: number;
@@ -133,6 +138,8 @@ export interface UpgradeTotalsResult {
     customItemsTotal: number;
     /** Office lines shown but not counted: included, pending (amount null), under review, deferred. */
     uncommittedItems: Array<{ label: string; detail?: string; area?: string; status: LineStatus; amount: number | null }>;
+    /** Office lines marked Included (standard): shown in Standard Selections at $0, never under Not Included. */
+    includedItems: Array<{ label: string; detail?: string; area?: string }>;
     labels: Partial<Record<OverrideKey, string>>;
   };
 }
@@ -214,13 +221,34 @@ export function computeUpgradeTotals(
   const stairLvp = !isStairLvp ? 0 : ov('stair', isPremiumStairLvp
     ? (pricing.getStairPremiumLvpUpgradePrice?.() || pricing.getStairLvpUpgradePrice?.() || 0)
     : (pricing.getStairLvpUpgradePrice?.() || 0), true);
-  const stairCarpet = input.stairPremiumCarpetSelected && !isStairLvp
-    ? (pricing.getStairCarpetUpgradePrice?.() || 0) : 0;
+  const stairCarpet = ov('stairCarpet',
+    input.stairPremiumCarpetSelected && !isStairLvp ? (pricing.getStairCarpetUpgradePrice?.() || 0) : 0,
+    !!input.stairPremiumCarpetSelected && !isStairLvp);
   if (stairLvp > 0) lineItems.push({ group: 'stair', label: labels.stair || (isPremiumStairLvp ? 'Premium LVP with Custom Stair Nosings' : 'LVP with Custom Stair Nosings'), amount: stairLvp });
-  const stairUnderpad = input.stairPremiumUnderpadSelected && !isStairLvp
-    ? (pricing.getStairUnderpadUpgradePrice?.() || 0) : 0;
+  const stairUnderpad = ov('stairUnderpad',
+    input.stairPremiumUnderpadSelected && !isStairLvp ? (pricing.getStairUnderpadUpgradePrice?.() || 0) : 0,
+    !!input.stairPremiumUnderpadSelected && !isStairLvp);
   if (stairCarpet > 0) lineItems.push({ group: 'stair', label: labels.stairCarpet || 'Premium Carpet — Stairs to Lower Level', amount: stairCarpet });
   if (stairUnderpad > 0) lineItems.push({ group: 'stair', label: labels.stairUnderpad || 'Premium Underpad — Stairs to Lower Level', amount: stairUnderpad });
+
+  // ---- Bedroom premium carpet / underpad (carpet bedrooms only; a hard-surface second bedroom is excluded) ----
+  const secondBedroomIsHard = (input.areaUpgrades || []).some(a => a.areaId === 'secondBedroom' && /lvp|lvt|laminate|hardwood|tile/i.test(String(a.materialType)));
+  const bedroomIsCarpet = input.bedroomFlooringChoice === 'carpet';
+  // Split-floor units G/H keep every bedroom on the 2nd floor, whatever floor the upgrades are on.
+  const unitBase = (normalizeUnitTypeCode(input.unitTypeCode) || '').toUpperCase().split('-')[0];
+  const bedroomUnitData = (unitBase === 'G' || unitBase === 'H') && pricing.getUnitAreaData
+    ? pricing.getUnitAreaData(`${unitBase}-2`)
+    : unitData;
+  const bedroomCarpetSqyd = bedroomIsCarpet ? (bedroomUnitData?.masterBedroom || 0) + (secondBedroomIsHard ? 0 : (bedroomUnitData?.secondBedroomCarpet || 0)) : 0;
+  const bedroomWord = secondBedroomIsHard ? 'Primary Bedroom' : 'Bedrooms';
+  const bedroomCarpet = ov('bedroomCarpet',
+    bedroomIsCarpet && input.bedroomPremiumCarpetSelected ? bedroomCarpetSqyd * pricing.getMaterialCost('carpet') * (1 + pricing.markupPercentage) : 0,
+    bedroomIsCarpet && !!input.bedroomPremiumCarpetSelected);
+  const bedroomUnderpad = ov('bedroomUnderpad',
+    bedroomIsCarpet && input.bedroomPremiumUnderpadSelected ? bedroomCarpetSqyd * pricing.getMaterialCost('premium_carpet_underpad') * (1 + pricing.markupPercentage) : 0,
+    bedroomIsCarpet && !!input.bedroomPremiumUnderpadSelected);
+  if (bedroomCarpet > 0) lineItems.push({ group: 'flooring', label: labels.bedroomCarpet || `Premium Carpet — ${bedroomWord} (${bedroomCarpetSqyd} sq yd)`, amount: bedroomCarpet });
+  if (bedroomUnderpad > 0) lineItems.push({ group: 'flooring', label: labels.bedroomUnderpad || `Premium Underpad — ${bedroomWord} (${bedroomCarpetSqyd} sq yd)`, amount: bedroomUnderpad });
 
   // ---- Grout ----
   const grout = input.backsplashGrout?.enabled ? ov('grout', pricing.getGroutColorFee(), true) : 0;
@@ -334,10 +362,12 @@ export function computeUpgradeTotals(
   if (customShower > 0) lineItems.push({ group: 'bathroom', label: labels.customShower || 'Custom Tiled Shower', amount: customShower });
 
   // ---- Custom office line items ----
-  const uncommittedItems = (cp.customItems || []).filter(i => !isCommitted(i)).map(i => {
+  const includedItems = (cp.customItems || []).filter(i => i.status === 'included')
+    .map(i => ({ label: (i.label || '').trim() || 'Custom Item', detail: i.detail?.trim() || undefined, area: i.area?.trim() || undefined }));
+  const uncommittedItems = (cp.customItems || []).filter(i => !isCommitted(i) && i.status !== 'included').map(i => {
     const hasPrice = (Number(i.quantity) > 0 && i.unitPrice !== null && i.unitPrice !== undefined && String(i.unitPrice) !== '') || (i.amount !== null && i.amount !== undefined && String(i.amount) !== '');
     return { label: (i.label || '').trim() || 'Custom Item', detail: i.detail?.trim() || undefined, area: i.area?.trim() || undefined, status: i.status as LineStatus,
-      amount: i.status === 'pending' || !hasPrice ? (i.status === 'included' ? 0 : null) : customItemAmount(i) };
+      amount: i.status === 'pending' || !hasPrice ? null : customItemAmount(i) };
   });
   const customItems = (cp.customItems || []).filter(isCommitted)
     .map(i => ({ label: (i.label || '').trim() || 'Custom Item', detail: i.detail?.trim() || undefined, area: i.area?.trim() || undefined, amount: customItemAmount(i) }))
@@ -346,7 +376,7 @@ export function computeUpgradeTotals(
   customItems.forEach(i => lineItems.push({ group: 'custom', label: i.label, detail: i.detail, amount: i.amount }));
 
   const upgradesSubtotal =
-    flooringSubtotal + areaHeatedFloorSubtotal + stairLvp + stairCarpet + stairUnderpad + grout +
+    flooringSubtotal + areaHeatedFloorSubtotal + stairLvp + stairCarpet + stairUnderpad + bedroomCarpet + bedroomUnderpad + grout +
     bathroomTile + section4HeatedFloor + customShower + customItemsTotal;
 
   const grandSubtotal = upgradesSubtotal + windowSubtotal;
@@ -364,6 +394,9 @@ export function computeUpgradeTotals(
       stairLvp,
       stairCarpet,
       stairUnderpad,
+      bedroomCarpet,
+      bedroomUnderpad,
+      bedroomCarpetSqyd,
       grout,
       windowAdditional,
       windowPatio,
@@ -376,6 +409,7 @@ export function computeUpgradeTotals(
       customItems,
       customItemsTotal,
       uncommittedItems,
+      includedItems,
       labels,
     },
   };

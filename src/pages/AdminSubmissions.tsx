@@ -48,6 +48,7 @@ import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
 import { computeUpgradeTotals } from '@/lib/upgradeTotals';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { useUnitAreaData } from '@/hooks/useUnitAreaData';
+import { StatusWorkflowControl } from '@/components/admin/StatusWorkflowControl';
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
 import { SubmissionComparisonView } from '@/components/admin/SubmissionComparisonView';
 import { SubmissionAuditLog } from '@/components/admin/SubmissionAuditLog';
@@ -62,6 +63,7 @@ interface AreaUpgrade {
   productName: string;
   productColor: string;
   comments: string;
+  clientComment?: string;
   heatedFloor?: boolean;
 }
 
@@ -139,6 +141,9 @@ function calculateSubmissionPricing(submission: BuyerSelection, pricing: Pricing
     heatedFloorBathrooms: submission.heated_floor_bathrooms || 0,
     customTiledShower: !!(submission as any).custom_tiled_shower,
     customPricing: (submission as any).custom_pricing,
+    bedroomFlooringChoice: ((submission as any).bedroom_flooring_choice === 'carpet' ? 'carpet' : (submission as any).bedroom_flooring_choice === 'lvp' ? 'lvp' : ''),
+    bedroomPremiumCarpetSelected: !!(submission as any).premium_carpet_bedroom,
+    bedroomPremiumUnderpadSelected: !!(submission as any).premium_underpad_bedroom,
   }, {
     markupPercentage: pricing.markupPercentage,
     gstRate: pricing.gstRate,
@@ -198,10 +203,12 @@ interface BuyerSelection {
   bedroom_lvp_same_as_main: boolean;
   additional_windows_qty: number;
   patio_doors_qty: number;
-  window_total: number;
   window_comments?: string | null;
   upgrade_interests: Record<string, boolean>;
   status: string;
+  reviewed_at?: string | null;
+  quoted_at?: string | null;
+  completed_at?: string | null;
   sales_comments: string | null;
   upgrade_comments?: string | null;
   upgrade_interests_notes?: string | null;
@@ -330,31 +337,6 @@ export default function AdminSubmissions() {
     fetchSubmissions();
   }, []);
 
-  const updateStatus = async (id: string, newStatus: string) => {
-    try {
-      const { error } = await supabase
-        .from('buyer_selections')
-        .update({ status: newStatus })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      setSubmissions(prev => 
-        prev.map(s => s.id === id ? { ...s, status: newStatus } : s)
-      );
-      
-      if (selectedSubmission?.id === id) {
-        setSelectedSubmission(prev => prev ? { ...prev, status: newStatus } : null);
-      }
-
-      toast.success('Status updated');
-    } catch (error: any) {
-      toast.error('Failed to update status', {
-        description: error.message,
-      });
-    }
-  };
-
   const filteredSubmissions = submissions.filter(s => {
     const matchesSearch = 
       s.unit_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -456,7 +438,7 @@ export default function AdminSubmissions() {
       console.error('Preview failed:', err);
       toast.error('Failed to load email preview', { description: err?.message || 'Unknown error' });
       // Fallback to legacy local preview so admin still sees something
-      setEmailPreviewHtml(generateEmailPreviewHtml(selectedSubmission));
+      setEmailPreviewHtml(generateEmailPreviewHtml(selectedSubmission, calculateSubmissionPricing(selectedSubmission, pricingValues).windowCoverings.subtotal));
     }
   };
 
@@ -535,7 +517,7 @@ export default function AdminSubmissions() {
       if (sub.spc_tile_comments) labels.push('Bathroom Tile comments');
       if (sub.window_comments) labels.push('Window Coverings comments');
       if (sub.backsplash_grout_comments) labels.push('Backsplash Grout comments');
-      if ((sub.area_upgrades || []).some(u => u.comments)) labels.push('Per-area upgrade comments');
+      if ((sub.area_upgrades || []).some(u => u.comments || u.clientComment)) labels.push('Per-area upgrade comments');
       if ((sub as any).upgrade_comments) labels.push('Upgrade Pricing Summary comments');
       if ((sub as any).upgrade_interests_notes) labels.push('Upgrade Interests notes');
 
@@ -760,6 +742,10 @@ export default function AdminSubmissions() {
                 // Full Editor Mode
                 <SubmissionEditor
                   submission={selectedSubmission}
+                  onSaved={(updatedSubmission) => {
+                    setSubmissions(prev => prev.map(s => s.id === updatedSubmission.id ? updatedSubmission : s));
+                    setSelectedSubmission(updatedSubmission);
+                  }}
                   onSave={(updatedSubmission) => {
                     setSubmissions(prev => 
                       prev.map(s => s.id === updatedSubmission.id ? updatedSubmission : s)
@@ -821,6 +807,23 @@ export default function AdminSubmissions() {
                     <DialogDescription>
                       Submitted {format(new Date(selectedSubmission.created_at), 'MMMM d, yyyy at h:mm a')}
                     </DialogDescription>
+                    <StatusWorkflowControl
+                      submissionId={selectedSubmission.id}
+                      currentStatus={selectedSubmission.status}
+                      createdAt={selectedSubmission.created_at}
+                      timestamps={{
+                        reviewed_at: selectedSubmission.reviewed_at ?? null,
+                        quoted_at: selectedSubmission.quoted_at ?? null,
+                        completed_at: selectedSubmission.completed_at ?? null,
+                      }}
+                      onStatusChange={(newStatus, timestamps) => {
+                        const patch: Partial<BuyerSelection> = { status: newStatus, ...timestamps };
+                        setSubmissions(prev =>
+                          prev.map(s => s.id === selectedSubmission.id ? { ...s, ...patch } : s)
+                        );
+                        setSelectedSubmission(prev => prev ? { ...prev, ...patch } : null);
+                      }}
+                    />
                   </DialogHeader>
 
                   {/* Tabs for Details vs Compare vs History */}
@@ -1067,7 +1070,7 @@ export default function AdminSubmissions() {
                         !!s.backsplash_grout_comments ||
                         !!(s as any).upgrade_comments ||
                         !!(s as any).upgrade_interests_notes ||
-                        (s.area_upgrades || []).some(u => u.comments);
+                        (s.area_upgrades || []).some(u => u.comments || u.clientComment);
                       if (!hasCaptured || !s.email) return null;
                       return (
                         <Button
@@ -1086,19 +1089,6 @@ export default function AdminSubmissions() {
                         </Button>
                       );
                     })()}
-                    <Select 
-                      value={selectedSubmission.status} 
-                      onValueChange={(value) => updateStatus(selectedSubmission.id, value)}
-                    >
-                      <SelectTrigger className="w-[140px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="submitted">Submitted</SelectItem>
-                        <SelectItem value="reviewed">Reviewed</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </div>
                 </div>
 
@@ -1214,8 +1204,8 @@ export default function AdminSubmissions() {
                         <span className="ml-2">{selectedSubmission.patio_doors_qty}</span>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Total:</span>
-                        <span className="ml-2 font-medium">${selectedSubmission.window_total?.toFixed(2)}</span>
+                        <span className="text-muted-foreground">Total (before GST):</span>
+                        <span className="ml-2 font-medium">${calculateSubmissionPricing(selectedSubmission, pricingValues).windowCoverings.subtotal.toFixed(2)}</span>
                       </div>
                     </div>
                     {selectedSubmission.window_comments && (
@@ -1262,8 +1252,11 @@ export default function AdminSubmissions() {
                               </div>
                             )}
                           </div>
+                          {upgrade.clientComment && (
+                            <p className="mt-2 text-xs text-muted-foreground italic">Client note: {upgrade.clientComment}</p>
+                          )}
                           {upgrade.comments && (
-                            <p className="mt-2 text-xs text-muted-foreground italic">Comments: {upgrade.comments}</p>
+                            <p className="mt-2 text-xs text-muted-foreground italic">Internal note: {upgrade.comments}</p>
                           )}
                         </div>
                       ))}

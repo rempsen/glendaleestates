@@ -8,8 +8,7 @@
  *   3. Admin HTML email body
  *   4. Admin CSV export
  *   5. HubSpot sync (sync-hubspot/index.ts)
- *   6. Admin submission PDF (submissionPdfGenerator.ts)
- *   7. Buyer-facing PDF (buyerPdfGenerator.ts)
+ *   6. Buyer-facing PDF (buyerPdfGenerator.ts)
  *
  * Run:  bun scripts/audit-comment-coverage.ts
  * Exits non-zero if any expected field is missing in any pipeline stage.
@@ -77,20 +76,6 @@ const stages: Stage[] = [
       upgradeComments: ['upgrade_comments'],
       upgradeInterestsNotes: ['upgrade_interests_notes'],
       areaUpgradeComments: ['area_upgrades'],
-    },
-  },
-  {
-    label: 'Admin submission PDF',
-    path: 'src/lib/submissionPdfGenerator.ts',
-    needles: {
-      lvpComments: ['lvp_comments'],
-      spcTileComments: ['spc_tile_comments'],
-      windowComments: ['window_comments'],
-      backsplashGroutComments: ['backsplash_grout_comments'],
-      salesComments: ['sales_comments'],
-      upgradeComments: ['upgrade_comments'],
-      upgradeInterestsNotes: ['upgrade_interests_notes'],
-      areaUpgradeComments: ['u.comments'],
     },
   },
   {

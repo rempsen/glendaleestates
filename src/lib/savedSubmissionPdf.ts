@@ -1,3 +1,4 @@
+import { internalAreaNotes } from '@/lib/areaNotes';
 import { supabase } from '@/integrations/supabase/client';
 import { generateBuyerPreviewPDF, type PdfPricingConfig } from '@/lib/buyerPdfGenerator';
 import { toBuyerPdfSelections } from '@/lib/buyerPdfSelections';
@@ -55,7 +56,7 @@ export async function generateSavedSubmissionPdf(id: string, saveToFile = false,
     pricing, {
       saveToFile, returnBase64: true,
       footerLabel: staff ? 'STAFF COPY — Contains internal notes' : `Submitted selections — ${s.status || 'submitted'}`,
-      staffRecord: staff ? { submittedAt: s.created_at, status: s.status, adminNotes: (s as any).admin_notes, salesComments: s.sales_comments } : undefined,
+      staffRecord: staff ? { submittedAt: s.created_at, status: s.status, adminNotes: (s as any).admin_notes, salesComments: s.sales_comments, areaInternalNotes: internalAreaNotes(s.area_upgrades as never) } : undefined,
     });
   if (typeof result !== 'string') throw new Error('PDF generation returned no file');
   return result;

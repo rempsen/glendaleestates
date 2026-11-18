@@ -10,7 +10,7 @@ interface Submission {
   first_name: string;
   last_name: string;
   status: string | null;
-  window_total: number | null;
+  window_subtotal: number; // pre-GST, from the pricing engine
 }
 
 interface RecentSubmissionsWidgetProps {
@@ -35,7 +35,7 @@ export function RecentSubmissionsWidget({ submissions }: RecentSubmissionsWidget
               <th className="text-left py-2 px-2 text-xs font-medium text-muted-foreground">Unit</th>
               <th className="text-left py-2 px-2 text-xs font-medium text-muted-foreground">Buyer</th>
               <th className="text-left py-2 px-2 text-xs font-medium text-muted-foreground">Status</th>
-              <th className="text-right py-2 px-2 text-xs font-medium text-muted-foreground">Window</th>
+              <th className="text-right py-2 px-2 text-xs font-medium text-muted-foreground">Window (pre-GST)</th>
             </tr>
           </thead>
           <tbody>
@@ -54,9 +54,9 @@ export function RecentSubmissionsWidget({ submissions }: RecentSubmissionsWidget
                   <StatusBadge status={submission.status || 'submitted'} />
                 </td>
                 <td className="py-2 px-2 text-right">
-                  {(submission.window_total || 0) > 0 ? (
+                  {submission.window_subtotal > 0 ? (
                     <span className="text-sm font-medium text-foreground">
-                      ${(submission.window_total || 0).toLocaleString()}
+                      ${submission.window_subtotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </span>
                   ) : (
                     <span className="text-muted-foreground text-sm">—</span>

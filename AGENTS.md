@@ -1,5 +1,22 @@
 # Architecture rules
 
-- Generate saved-submission PDFs through one fresh-record service and an explicit buyer-safe mapper; all download and preview paths must share it to prevent missing selections, stale notes, and inconsistent pricing. Staff downloads pass `staff=true` to append internal notes after the buyer-safe content; buyer-facing paths never do.- Office price overrides and custom line items live in `buyer_selections.custom_pricing` and are applied only inside `computeUpgradeTotals` (client) and `computeUpgradeTotalsServer` (edge); every caller must pass `customPricing` so UI, PDFs, exports, PM and QuickBooks totals stay identical.
+- Generate saved-submission PDFs through one fresh-record service and an explicit buyer-safe mapper; all download and preview paths must share it to prevent missing selections, stale notes, and inconsistent pricing. Staff downloads pass `staff=true` to append internal notes after the buyer-safe content; buyer-facing paths never do.
+- Office price overrides and custom line items live in `buyer_selections.custom_pricing` and are applied only inside `computeUpgradeTotals` (client) and `computeUpgradeTotalsServer` (edge); every caller must pass `customPricing` so UI, PDFs, exports, PM and QuickBooks totals stay identical.
 - AI summaries of buyer upgrade requests run only in the admin-checked `summarize-upgrade-requests` edge function via `@lovable.dev/ai-gateway`; it sends selection fields and change log only, never admin/sales notes.
 - Office line items carry a `status`; only 'upgrade' (default) counts in totals, others surface via `pieces.uncommittedItems` and print as "Not Included in Total". The `guard_custom_pricing` trigger rejects non-admin changes to `custom_pricing`. Word export (`submissionWordExport.ts`) shares `loadSavedSubmissionContext` + `totalsInputFromSelections` with the PDF so totals match.
+- Bedroom premium carpet/underpad and stair carpet/underpad are priced by the engines via override keys `bedroomCarpet`, `bedroomUnderpad`, `stairCarpet`, `stairUnderpad`; editor toggles must exist for every priced flag.
+- `buyer_selections.window_total` is write-once at submission and must not be read for display; use the engine's `windowSubtotal` (guarded by `scripts/callers.test.ts`).
+
+## Phase 1 additions (2026-11-18)
+
+- `supabase/functions/_shared/authorizeSubmission.ts`: JWT and admin checks for `send-selections-email` (401 no/invalid JWT, 403 email mismatch unless admin); also parses notification recipients.
+- `supabase/functions/_shared/internalAuth.ts`: in-function gate (service key, `x-internal-secret`, or admin JWT) for the edge functions that run with `verify_jwt = false`.
+- `supabase/functions/_shared/buyerWording.ts`: buyer-facing wording (Primary Bedroom etc.) for edge-function renderers; mirrors `src/lib/outputLabels.ts`.
+- `src/lib/outputLabels.ts`: shared buyer-facing label constants and render-time wording (`toBuyerWording`, `laundryValue`); engines keep internal names.
+- `src/lib/itemizeWindows.ts`: converts window quantities into located custom lines (panel "Itemize windows by location").
+- `src/lib/submissionUpdatePayload.ts`: pure builder for the editor's `buyer_selections` update payload; add new editor fields here.
+- `src/lib/areaNotes.ts`: `clientAreaNotes` (printed for the buyer) vs `internalAreaNotes` (staff only); area `comments` are internal, `clientComment` is buyer-visible.
+- `src/lib/pricingFromDynamic.ts` and `src/hooks/useWindowSubtotal.ts`: build engine pricing from `useDynamicPricing()` and return the engine's window subtotal for a row.
+- `portal_settings` table (migration `drizzle/migrations/0005_portal_settings.sql`): admin-editable notification recipients, read by `send-selections-email` at request time.
+- `supabase/functions/_shared/loadServerPricing.ts`: the only edge loader for `ServerPricing` (divides `markup_percentage` / `gst_rate` by 100); every edge engine caller uses it.
+- `supabase/functions/_shared/sanitizeChangesForAi.ts`: strips `sales_comments`, `admin_notes` and area `comments` from audit-log `changes` before any AI prompt.

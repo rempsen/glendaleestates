@@ -10,6 +10,13 @@ import { AdminLayout } from '@/components/AdminLayout';
 const FN_URL = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/send-selections-email`;
 const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
+// The function enforces the admin role for preview/test, so send the admin's session token (never the anon key).
+async function adminHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error('Not signed in');
+  return { apikey: ANON, Authorization: `Bearer ${session.access_token}` };
+}
+
 export default function AdminEmailPreview() {
   const [type, setType] = useState<'buyer' | 'admin'>('buyer');
   const [html, setHtml] = useState<string>('');
@@ -18,10 +25,13 @@ export default function AdminEmailPreview() {
 
   const loadPreview = async (t: 'buyer' | 'admin') => {
     setType(t);
-    const res = await fetch(`${FN_URL}?action=preview&type=${t}`, {
-      headers: { apikey: ANON, Authorization: `Bearer ${ANON}` },
-    });
-    setHtml(await res.text());
+    try {
+      const res = await fetch(`${FN_URL}?action=preview&type=${t}`, { headers: await adminHeaders() });
+      if (!res.ok) throw new Error(`Preview failed (${res.status})`);
+      setHtml(await res.text());
+    } catch (e) {
+      toast({ title: 'Preview failed', description: e instanceof Error ? e.message : String(e), variant: 'destructive' });
+    }
   };
 
   useEffect(() => { loadPreview('buyer'); }, []);
@@ -40,7 +50,7 @@ export default function AdminEmailPreview() {
       if (error || !data) {
         const r = await fetch(`${FN_URL}?action=test`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', apikey: ANON, Authorization: `Bearer ${ANON}` },
+          headers: { 'Content-Type': 'application/json', ...(await adminHeaders()) },
           body: JSON.stringify({ type, to }),
         });
         if (!r.ok) throw new Error(await r.text());

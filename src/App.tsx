@@ -20,6 +20,7 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminEmailPreview from "./pages/AdminEmailPreview";
 import AdminProjectManagement from "./pages/AdminProjectManagement";
 import AdminQuickBooksSettings from "./pages/AdminQuickBooksSettings";
+import AdminNotificationSettings from "./pages/AdminNotificationSettings";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
@@ -49,6 +50,7 @@ const App = () => (
           <Route path="/admin/email-preview" element={<ProtectedRoute><AdminEmailPreview /></ProtectedRoute>} />
           <Route path="/admin/project-management" element={<ProtectedRoute><AdminProjectManagement /></ProtectedRoute>} />
           <Route path="/admin/settings/quickbooks" element={<ProtectedRoute><AdminQuickBooksSettings /></ProtectedRoute>} />
+          <Route path="/admin/settings/notifications" element={<ProtectedRoute><AdminNotificationSettings /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

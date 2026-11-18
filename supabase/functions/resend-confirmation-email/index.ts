@@ -1,13 +1,16 @@
 // Resend confirmation email — uses the SHARED upgradeTotalsServer +
 // EMAIL_THEME so the buyer's email pricing matches the on-screen summary,
 // the buyer PDF, the admin email, and the CSV attachment exactly.
+import { toBuyerWording } from "../_shared/buyerWording.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { authorizeInternalOrAdmin, makeGetUserFromJwt } from "../_shared/internalAuth.ts";
 import {
   computeUpgradeTotalsServer,
   normalizeUnitTypeCode,
   ServerAreaUpgrade,
   ServerPricing,
 } from "../_shared/upgradeTotalsServer.ts";
+import { loadServerPricing, restPricingFetcher } from "../_shared/loadServerPricing.ts";
 import { EMAIL_THEME, styles, wrapEmailShell } from "../_shared/emailTheme.ts";
 
 function escapeHtml(text: string | undefined | null): string {
@@ -46,10 +49,14 @@ async function supabaseSelect(table: string, id: string) {
 
 const AREA_NAMES: Record<string, string> = {
   mainLiving: 'Main Living Area', secondBedroom: 'Second Bedroom',
-  masterBedroom: 'Master Bedroom', secondBedroomCarpet: 'Second Bedroom Carpet',
+  masterBedroom: 'Primary Bedroom', secondBedroomCarpet: 'Second Bedroom Carpet',
   guestBathroom: 'Guest Bathroom', masterEnsuite: 'Master Ensuite',
   laundry: 'Laundry Room', backsplash: 'Kitchen Backsplash', allLvp: 'Entire Unit LVP',
 };
+// Buyer-facing wording. MIRRORS src/lib/outputLabels.ts (cannot import from src/); change in both places together.
+const LAUNDRY_STANDARD_LABEL = 'Luxury Vinyl Plank (standard)';
+const STAIR_CARPET_LABEL = 'Stair Flooring – Carpet';
+const STAIR_STANDARD_VALUE = 'Standard Carpet (Included)';
 const MATERIAL_NAMES: Record<string, string> = {
   lvp: 'Premium LVP', hardwood: 'Hardwood', lvt: 'Premium LVT',
   carpet: 'Premium Carpet', tile: 'Porcelain Tile',
@@ -58,34 +65,7 @@ const MATERIAL_NAMES: Record<string, string> = {
 };
 
 async function fetchDynamicPricing(): Promise<ServerPricing> {
-  const url = Deno.env.get("SUPABASE_URL")!;
-  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const headers = { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
-  const [mRes, cRes, uRes] = await Promise.all([
-    fetch(`${url}/rest/v1/upgrade_materials?is_active=eq.true`, { headers }),
-    fetch(`${url}/rest/v1/pricing_config`, { headers }),
-    fetch(`${url}/rest/v1/unit_area_data`, { headers }),
-  ]);
-  const materials: Record<string, number> = {};
-  const config: Record<string, number> = {};
-  const unitAreas: Record<string, any> = {};
-  let markupPercentage = 0.6, gstRate = 0.05;
-  if (mRes.ok) for (const m of await mRes.json()) materials[m.material_key] = Number(m.cost_per_unit);
-  if (cRes.ok) for (const c of await cRes.json()) {
-    config[c.config_key] = Number(c.config_value);
-    if (c.config_key === 'markup_percentage') markupPercentage = Number(c.config_value) / 100;
-    if (c.config_key === 'gst_rate') gstRate = Number(c.config_value) / 100;
-  }
-  if (uRes.ok) for (const u of await uRes.json()) unitAreas[u.unit_type_code] = {
-    allLvp: Number(u.all_lvp), mainLiving: Number(u.main_living),
-    secondBedroom: Number(u.second_bedroom),
-    masterBedroomLvp: Number(u.master_bedroom_lvp || 0),
-    masterBedroom: Number(u.master_bedroom),
-    secondBedroomCarpet: Number(u.second_bedroom_carpet),
-    guestBathroom: Number(u.guest_bathroom), masterEnsuite: Number(u.master_ensuite),
-    laundry: Number(u.laundry), backsplash: Number(u.backsplash),
-  };
-  return { materials, config, unitAreas, markupPercentage, gstRate };
+  return await loadServerPricing(restPricingFetcher(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!));
 }
 
 function buildBuyerHtml(sub: Record<string, any>, totals: ReturnType<typeof computeUpgradeTotalsServer>): string {
@@ -99,17 +79,31 @@ function buildBuyerHtml(sub: Record<string, any>, totals: ReturnType<typeof comp
   // Standard selections
   const std: { label: string; value: string }[] = [];
   if (sub.lvp_colour) std.push({ label: 'Main Floor LVP', value: sub.lvp_colour });
-  if (sub.spc_tile_colour) std.push({ label: 'Bathroom/Laundry Tile', value: sub.spc_tile_colour });
+  if (sub.spc_tile_colour) std.push({ label: 'Bathroom Tile', value: sub.spc_tile_colour });
+  const laundryUp = (Array.isArray(sub.area_upgrades) ? sub.area_upgrades : []).find((u: { areaId?: string }) => u?.areaId === 'laundry');
+  const laundryText = laundryUp
+    ? [MATERIAL_NAMES[laundryUp.materialType] || laundryUp.materialType, laundryUp.productName, laundryUp.productColor].filter(Boolean).filter((v: string, i: number, a: string[]) => a.indexOf(v) === i).join(' — ')
+    : '';
+  std.push({ label: 'Laundry Room', value: laundryText || LAUNDRY_STANDARD_LABEL });
   if (sub.backsplash_orientation) std.push({ label: 'Kitchen Backsplash Orientation', value: sub.backsplash_orientation });
   if (sub.bedroom_flooring_choice) {
-    let v = sub.bedroom_flooring_choice === 'lvp' ? 'Luxury Vinyl Plank' :
+    const v = sub.bedroom_flooring_choice === 'lvp' ? 'Luxury Vinyl Plank' :
             sub.bedroom_flooring_choice === 'carpet' ? 'Carpet' : sub.bedroom_flooring_choice;
-    if (sub.bedroom_flooring_choice === 'carpet' && sub.bedroom_carpet_colour) v += ` - ${sub.bedroom_carpet_colour}`;
-    else if (sub.bedroom_flooring_choice === 'lvp' && !sub.bedroom_lvp_same_as_main && sub.bedroom_lvp_colour) v += ` - ${sub.bedroom_lvp_colour}`;
-    else if (sub.bedroom_flooring_choice === 'lvp' && sub.bedroom_lvp_same_as_main) v += ' (Same as Main Floor)';
-    std.push({ label: 'Bedroom Flooring', value: v });
+    std.push({ label: 'Primary Bedroom Flooring', value: v });
+    if (sub.bedroom_flooring_choice === 'carpet' && sub.bedroom_carpet_colour) std.push({ label: 'Primary Bedroom Carpet Colour', value: sub.bedroom_carpet_colour });
+    else if (sub.bedroom_flooring_choice === 'lvp') std.push({ label: 'Primary Bedroom LVP Colour', value: sub.bedroom_lvp_same_as_main ? `${sub.lvp_colour || 'Not selected'} (Same as Main Floor)` : (sub.bedroom_lvp_colour || 'Not selected') });
   }
-  if (sub.has_stairs && sub.stair_carpet_colour) std.push({ label: 'Stair Carpet', value: sub.stair_carpet_colour });
+  if (sub.has_stairs) {
+    const stairLvp = sub.stair_lvp_upgrade_selected || sub.stair_upgrade_type === 'lvp' || sub.stair_upgrade_type === 'premium_lvp';
+    if (stairLvp) std.push({ label: 'Stair Flooring', value: `${sub.stair_upgrade_type === 'premium_lvp' ? 'Premium ' : ''}LVP Upgrade with Custom Nosings` });
+    else if (sub.stair_premium_carpet_selected) std.push({ label: STAIR_CARPET_LABEL, value: `Premium Carpet Upgrade${sub.stair_carpet_colour ? ` (${sub.stair_carpet_colour})` : ''}` });
+    else if (sub.premium_underpad_stairs) std.push({ label: STAIR_CARPET_LABEL, value: sub.stair_carpet_colour || STAIR_STANDARD_VALUE });
+    else std.push({ label: STAIR_CARPET_LABEL, value: sub.stair_carpet_colour ? `${STAIR_STANDARD_VALUE} — ${sub.stair_carpet_colour}` : STAIR_STANDARD_VALUE });
+  }
+
+  // $0 office-added lines (status 'included') belong with the standard selections, matching the buyer PDF.
+  (totals.pieces.includedItems || []).forEach(i =>
+    std.push({ label: toBuyerWording([i.area, i.label].filter(Boolean).join(' — ')), value: 'Included — $0.00' }));
 
   const stdHtml = std.length ? `
     <h2 style="${styles.h2}">Your Standard Selections</h2>
@@ -121,8 +115,8 @@ function buildBuyerHtml(sub: Record<string, any>, totals: ReturnType<typeof comp
   let summaryHtml = '';
   if (totals.grandSubtotal > 0) {
     const rows = totals.lineItems.map(item => {
-      const detail = item.detail ? `<div style="color:${EMAIL_THEME.colors.textMuted}; font-size:12px; margin-top:2px;">${escapeHtml(item.detail)}</div>` : '';
-      return `<tr><td style="${styles.td}">${escapeHtml(item.label)}${detail}</td><td style="${styles.tdRight}">$${item.amount.toFixed(2)}</td></tr>`;
+      const detail = item.detail ? `<div style="color:${EMAIL_THEME.colors.textMuted}; font-size:12px; margin-top:2px;">${escapeHtml(toBuyerWording(item.detail))}</div>` : '';
+      return `<tr><td style="${styles.td}">${escapeHtml(toBuyerWording(item.label))}${detail}</td><td style="${styles.tdRight}">$${item.amount.toFixed(2)}</td></tr>`;
     }).join('');
     summaryHtml = `
       <h2 style="${styles.h2}">Complete Upgrade Summary</h2>
@@ -183,8 +177,8 @@ function buildBuyerHtml(sub: Record<string, any>, totals: ReturnType<typeof comp
 
 function buildAdminHtml(sub: Record<string, any>, totals: ReturnType<typeof computeUpgradeTotalsServer>, editedBy: string): string {
   const rows = totals.lineItems.map(item => {
-    const detail = item.detail ? `<div style="color:${EMAIL_THEME.colors.textMuted}; font-size:12px;">${escapeHtml(item.detail)}</div>` : '';
-    return `<tr><td style="${styles.td}">${escapeHtml(item.label)}${detail}</td><td style="${styles.tdRight}">$${item.amount.toFixed(2)}</td></tr>`;
+    const detail = item.detail ? `<div style="color:${EMAIL_THEME.colors.textMuted}; font-size:12px;">${escapeHtml(toBuyerWording(item.detail))}</div>` : '';
+    return `<tr><td style="${styles.td}">${escapeHtml(toBuyerWording(item.label))}${detail}</td><td style="${styles.tdRight}">$${item.amount.toFixed(2)}</td></tr>`;
   }).join('');
   const summary = totals.grandSubtotal > 0 ? `
     <h2 style="${styles.h2}">Complete Upgrade Summary</h2>
@@ -218,6 +212,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
+  const gate = await authorizeInternalOrAdmin(
+    req,
+    { serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") },
+    makeGetUserFromJwt(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!),
+  );
+  if (!gate.ok) {
+    return new Response(JSON.stringify({ error: "unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json", ...cors },
+    });
+  }
+
   try {
     const { submissionId, sendToBuyer = true, editedBy = 'Admin', preview = false, previewType = 'buyer' } = await req.json();
     if (!submissionId) {
@@ -250,6 +256,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       bathroomTileGuestSelected: sub.bathroom_tile_guest_selected,
       heatedFloorBathrooms: sub.heated_floor_bathrooms,
       customTiledShower: sub.custom_tiled_shower,
+      bedroomFlooringChoice: sub.bedroom_flooring_choice,
+      bedroomPremiumCarpetSelected: !!sub.premium_carpet_bedroom,
+      bedroomPremiumUnderpadSelected: !!sub.premium_underpad_bedroom,
       customPricing: sub.custom_pricing,
     }, pricing);
 

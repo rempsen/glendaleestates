@@ -114,7 +114,7 @@ export function WidgetGrid({
         const revenueData = [
           { name: 'Contract Revenue', value: stats.pipelineStats.totalContractValue },
           { name: 'GST Collected', value: stats.pipelineStats.totalTax },
-          { name: 'Window Revenue', value: stats.selectionStats.windowRevenue },
+          { name: 'Window Revenue (pre-GST)', value: stats.selectionStats.windowRevenue },
         ];
         return <RevenueChartWidget data={revenueData} />;
 
@@ -145,7 +145,7 @@ export function WidgetGrid({
           { label: 'Signed', value: stats.pipelineStats.signed },
           { label: 'Deposits', value: stats.pipelineStats.depositsReceived },
           { label: 'Selections', value: stats.selectionStats.total },
-          { label: 'Window Rev', value: `$${(stats.selectionStats.windowRevenue / 1000).toFixed(1)}k` },
+          { label: 'Window Rev (pre-GST)', value: `$${(stats.selectionStats.windowRevenue / 1000).toFixed(1)}k` },
         ];
         return <QuickStatsWidget stats={quickStats} />;
 
