@@ -15,6 +15,7 @@ import {
   parseSelectionBody,
   type SelectionData,
 } from "../_shared/submissionRow.ts";
+import { subtotalParityLog, wizardSubmissionLines } from "../_shared/wizardSubmissionLines.ts";
 
 // Dynamic CORS headers will be used for responses
 
@@ -252,6 +253,23 @@ async function supabaseInsert(table: string, data: Record<string, unknown>): Pro
 
   const result = await response.json();
   return { data: Array.isArray(result) ? result[0] : result, error: null };
+}
+
+// Batch insert with the service role (bypasses RLS); one request, no rows returned.
+async function supabaseInsertRows(table: string, rows: Record<string, unknown>[]): Promise<{ error: string | null }> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const response = await fetch(`${supabaseUrl}/rest/v1/${table}`, {
+    method: "POST",
+    headers: {
+      "apikey": supabaseServiceKey,
+      "Authorization": `Bearer ${supabaseServiceKey}`,
+      "Content-Type": "application/json",
+      "Prefer": "return=minimal",
+    },
+    body: JSON.stringify(rows),
+  });
+  return response.ok ? { error: null } : { error: `${response.status} ${await response.text()}` };
 }
 
 // Resolve a user JWT to { email, isAdmin } (anon key resolves to null).
@@ -664,6 +682,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // Fetch dynamic pricing for accurate cost calculations
     const pricing = await fetchDynamicPricing();
+
+    // === QUOTE LINES (Phase 2 Task 9) ===
+    // Regenerated here from the SAVED row with the shared generator; client lines/amounts are never trusted. The
+    // client `windows` list is validated (<= 50 rows, allowed kinds, location <= 80 chars) and names window lines
+    // only. Written in one batch with source='wizard'. On any failure the submission is already saved: log it
+    // (as for post_save_failed) and carry on to the emails.
+    try {
+      const wl = wizardSubmissionLines(savedSelection, rawData.windows, pricing);
+      if (wl.windowsRejected) {
+        console.warn(`[quote_lines] windows list ignored for ${insertedSubmissionId} (${wl.windowsRejected}); generic window locations used`);
+      }
+      console.log(subtotalParityLog(insertedSubmissionId, rawData.subtotal, wl.subtotal));
+      const { error: linesError } = await supabaseInsertRows("quote_lines", wl.inserts);
+      if (linesError) {
+        console.error(`[quote_lines] insert failed for ${insertedSubmissionId} (submission saved; lines missing):`, linesError);
+      } else {
+        console.log(`[quote_lines] wrote ${wl.inserts.length} lines for ${insertedSubmissionId}`);
+      }
+    } catch (linesErr) {
+      console.error(`[quote_lines] generation failed for ${insertedSubmissionId} (submission saved; lines missing):`, linesErr);
+    }
 
     // === SINGLE SOURCE OF TRUTH ===
     // computeUpgradeTotalsServer() is the byte-for-byte mirror of the UI's
