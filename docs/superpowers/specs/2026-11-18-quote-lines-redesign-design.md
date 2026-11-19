@@ -297,6 +297,31 @@ Deploy notes (Phase 1):
 `quote_lines`, `unit_base_spec`, `staff` role, `generateQuoteLines`, parity harness mode, backfill with per-unit sign-off, meeting console, cutover of admin view → Word/PDF; wizard Windows step reshaped to located windows; `pricing_queue` + Teams/Resend notifications + settings page; old engines deleted last. **Addendum §6.16:** `RunningTotal` rail in console, wizard and review page; `/admin/quotes` search-first list with the console at `/admin/quotes/:id`.
 Acceptance: all 9 submissions' totals identical pre/post (harness); console passes a scripted Unit 24 meeting walkthrough (the 12 corrections from Mike's email) end to end; Word/PDF show the six columns; a pending line reaches Dan's Teams within 1 minute and the email fallback within the configured window; no code path computes a price outside line generation. Noni can find any unit from `/admin/quotes` and be editing it within two clicks; every change she makes moves the running total before she saves; the wizard shows a buyer the running total from the first priced step.
 
+**Status (2026-11-18, branch `phase2-quote-lines`; commit ranges per task from the SDD ledger):**
+1. ~~`quote_lines`, `unit_base_spec`, snapshots/documents/reviews, `staff` role (schema)~~ **Done — T1 `cafdcfe`, `8c37551` (0006); T2 `3e6cc4a`, `37ae275` (0007 base spec).** Applied to prod 0006–0011.
+2. ~~`generateQuoteLines` with cent-exact parity on all 9 units~~ **Done — T3 `43ae3bf`, `d805552`.**
+3. ~~Running total rail~~ **Done — T4 `e778eea`, `90755b2`; wizard T9 `2044eb6`.**
+4. ~~Backfill with per-unit parity report; harness mode~~ **Code done — T5 `e4df30d`, `de83ec6`; prod dry run 9/9 ok (Unit 24 double-count decision open). `--write` pending Dan's sign-off.**
+5. ~~Lines hook (autosave, flush, conflicts, realtime)~~ **Done — T6 `b4624b1`, `598c719` (0008).**
+6. ~~`/admin/quotes` search-first list; console at `/admin/quotes/:id`~~ **Done — T7 `50c059c`, `8901658`.**
+7. ~~Meeting console~~ **Done — T8 `d32f5f6`, `0dbf7db`, `a804aa0`, `1127003` (0009).**
+8. ~~Wizard Windows step as located windows; wizard writes lines at submit~~ **Done — T9 `f01bde0`, `2044eb6`, `d8a599b`, `039f4f6`.**
+9. ~~Cutover admin view → Word/PDF~~ **Done — T10 `c2401df`, `97a8252`, `46ddb54` (0010).** Emails, HubSpot, exports, PM hub — **T11 `ad70813`, `e0eafb5`, `8588b25`, `d51bd02`.**
+10. ~~`pricing_queue` + Teams/Resend notifications + settings page~~ **Done — T12 `1cd73cf`, `21d9f7d`, `70959d3` (0011).** Teams URL and Database Webhook are deploy steps (runbook).
+11. ~~Staff role end to end~~ **Done — T16 `1ed1ab6`, `1a25e72` (0014).** Noni's role row waits for Dan.
+12. ~~AI hardening~~ **Done — T17 `33fa34f`, `230394e` (0015).**
+13. ~~Old engines deleted last~~ **Done — T18 `5b22bf9` (engines, `custom_pricing` writers and dead pricing UI removed; guard + lines-only parity), `1f4e488` (office shades → window coverings, tracking keys, digest buyer responses).**
+Built early from Phase 3 scope: `/my-quote` + reviews + buyer requests (T13 `1722ebf`, `90f186d`, `9510b3a`, `83d1e85`; 0012), snapshots/documents/SignWell (T14 `3decd93`, `f60b5a2`, `bf1a16b`, `e01a536`; 0013), QBO estimate from lines (T15 `f15298f`, `1348035`, `9650674`).
+
+Acceptance status (2026-11-18):
+- All 9 totals identical pre/post: `scripts/parity.test.ts` (lines only since T18) holds the nine Phase 1 pins to the cent. Prod harness (`audit-pricing-consistency`, stored vs generated) runs after the backfill — pending.
+- Unit 24 scripted walkthrough (Mike's 12 corrections): pending (controller, after deploy).
+- Word/PDF six columns + status: done (T10).
+- Pending line → Teams within 1 minute / email fallback: code done (T12); needs the Teams URL and the Database Webhook in prod.
+- No code path computes a price outside line generation: enforced by `scripts/callers.test.ts` (T18).
+- Noni: any unit from `/admin/quotes` in two clicks; running total moves before save; wizard shows the total from the first priced step: done (T7, T8, T9); walkthrough with Noni pending.
+- Deploy: `docs/deploy/phase2-runbook.md`.
+
 ### Phase 3 — Buyer review, requests, e-sign (weeks 4–6)
 `/my-quote`, `quote_line_reviews`, buyer requests, snapshots, documents, SignWell integration, `esign-webhook`, email cutover, QBO estimate from lines.
 Acceptance: a buyer can accept/question lines and the response appears in the console; a signed selection sheet lands in `unit-documents` within 1 minute of signing with status `signed`; an email sent to the buyer and the QBO estimate match the console total.
