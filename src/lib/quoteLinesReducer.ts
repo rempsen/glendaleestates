@@ -32,6 +32,8 @@ export interface QuoteLinesState {
   saveState: SaveState;
   /** Lines created locally that the server has not acknowledged yet (next save is an INSERT). */
   pendingIds: string[];
+  /** The most recent conflict reload and the local changes it discarded (sent patch + edits queued behind it). */
+  lastConflict: { id: string; dropped: LinePatch } | null;
 }
 
 export const CONFLICT_MESSAGE = 'Reloaded — someone else edited this line';
@@ -44,12 +46,13 @@ export type QuoteLinesAction =
   | { type: 'reorder'; ids: string[] }
   | { type: 'saveStart'; ids: string[] }
   | { type: 'saveOk'; id: string; row: StoredLine; at: Date }
-  | { type: 'saveConflict'; id: string; row: StoredLine }
+  /** `sent` is the patch that was in flight (the reducer no longer holds it after saveStart). */
+  | { type: 'saveConflict'; id: string; row: StoredLine; sent?: LinePatch }
   | { type: 'saveError'; ids: string[]; message: string; patches?: Record<string, LinePatch> }
   | { type: 'remoteChange'; row: StoredLine };
 
 export const initialQuoteLinesState: QuoteLinesState = {
-  lines: {}, order: [], dirty: {}, inflight: {}, saveState: { status: 'idle' }, pendingIds: [],
+  lines: {}, order: [], dirty: {}, inflight: {}, saveState: { status: 'idle' }, pendingIds: [], lastConflict: null,
 };
 
 /** DB row → StoredLine (narrows the string columns to the shared unions; nullable location → ''). */
@@ -102,8 +105,13 @@ export function quoteLinesReducer(state: QuoteLinesState, action: QuoteLinesActi
     case 'loaded': {
       const lines: Record<string, StoredLine> = {};
       for (const r of action.rows) {
-        if (state.inflight[r.id] && state.lines[r.id]) lines[r.id] = state.lines[r.id];
-        else lines[r.id] = { ...r, ...(state.dirty[r.id] ?? {}) } as StoredLine;
+        const local = state.lines[r.id];
+        if (state.inflight[r.id] && local) lines[r.id] = local;
+        else if (state.dirty[r.id] && local) {
+          // Keep the updated_at our pending edit was based on, so its guarded UPDATE still detects a
+          // concurrent edit (a refresh must not re-base the patch onto someone else's newer row).
+          lines[r.id] = { ...r, ...state.dirty[r.id], updated_at: local.updated_at } as StoredLine;
+        } else lines[r.id] = r;
       }
       for (const id of state.pendingIds) if (state.lines[id] && !lines[id]) lines[id] = state.lines[id];
       const known = state.order.filter((id) => id in lines);
@@ -199,6 +207,7 @@ export function quoteLinesReducer(state: QuoteLinesState, action: QuoteLinesActi
       // Adopt the other user's row wholesale; drop our conflicting patch and anything queued behind it.
       const id = action.id;
       const lines = { ...state.lines, [id]: action.row };
+      const dropped = { ...(action.sent ?? {}), ...(state.dirty[id] ?? {}) } as LinePatch;
       return {
         ...state,
         lines,
@@ -206,6 +215,7 @@ export function quoteLinesReducer(state: QuoteLinesState, action: QuoteLinesActi
         inflight: without(state.inflight, id),
         order: sortIds(state.order, lines),
         saveState: { status: 'error', error: CONFLICT_MESSAGE },
+        lastConflict: { id, dropped },
       };
     }
 
@@ -247,4 +257,29 @@ export function selectIsDirty(state: QuoteLinesState): boolean {
   return Object.keys(state.dirty).length > 0
     || Object.keys(state.inflight).length > 0
     || state.pendingIds.length > 0;
+}
+
+/** `label → "Premium underpad", quantity → 44` — the fields and values of a patch, for user-facing messages. */
+export function describePatch(patch: LinePatch): string {
+  return Object.entries(patch)
+    .filter(([, v]) => v !== undefined)
+    .map(([k, v]) => `${k} → ${JSON.stringify(v)}`)
+    .join(', ');
+}
+
+/** Toast text for a conflict reload: names every local change that was discarded so nothing vanishes silently. */
+export function conflictMessage(dropped: LinePatch): string {
+  const desc = describePatch(dropped);
+  return desc ? `${CONFLICT_MESSAGE}. Your unsaved changes: ${desc}` : CONFLICT_MESSAGE;
+}
+
+/** Lines with unsaved work (dirty, in flight or never inserted), labelled for a user-facing message. */
+export function describeUnsaved(state: QuoteLinesState): string[] {
+  const ids = new Set([...Object.keys(state.dirty), ...Object.keys(state.inflight), ...state.pendingIds]);
+  return state.order.filter((id) => ids.has(id)).map((id) => {
+    const l = state.lines[id];
+    const patch = state.dirty[id];
+    const what = l.location ? `${l.label} (${l.location})` : l.label;
+    return patch && Object.keys(patch).length ? `${what}: ${describePatch(patch)}` : what;
+  });
 }

@@ -6,7 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import {
-  quoteLinesReducer, initialQuoteLinesState, selectLines, selectIsDirty, fromRow, CONFLICT_MESSAGE,
+  quoteLinesReducer, initialQuoteLinesState, selectLines, selectIsDirty, fromRow, sameUpdatedAt,
+  conflictMessage, describeUnsaved,
   type QuoteLinesAction, type QuoteLinesState, type StoredLine, type LinePatch, type QuoteLineRow, type SaveState,
 } from '@/lib/quoteLinesReducer';
 import { buildInsert, buildUpdate, buildReorder } from '@/lib/quoteLinesApi';
@@ -41,7 +42,14 @@ const LINE_DEFAULTS = {
 
 const newId = () => crypto.randomUUID();
 
-export function useQuoteLines(submissionId: string | null | undefined): UseQuoteLines {
+export interface UseQuoteLinesOptions {
+  /** Shown in error toasts, e.g. "Unit 204", so staff know which unit did not save. */
+  unitLabel?: string;
+}
+
+export const NOT_PERMITTED_MESSAGE = 'Save was not permitted';
+
+export function useQuoteLines(submissionId: string | null | undefined, opts: UseQuoteLinesOptions = {}): UseQuoteLines {
   const stateRef = useRef<QuoteLinesState>(initialQuoteLinesState);
   const [state, setState] = useState<QuoteLinesState>(initialQuoteLinesState);
   const [loading, setLoading] = useState(false);
@@ -50,6 +58,12 @@ export function useQuoteLines(submissionId: string | null | undefined): UseQuote
   subRef.current = submissionId;
   /** Bumped when the submission changes; late acks from an older generation are dropped. */
   const genRef = useRef(0);
+  const unitLabelRef = useRef(opts.unitLabel);
+  unitLabelRef.current = opts.unitLabel;
+  /** Submission (and its label) whose lines are currently in stateRef. */
+  const heldRef = useRef<{ sid: string | null | undefined; unitLabel?: string }>({ sid: null });
+  /** Flush of the outgoing submission; the next submission is loaded only after it settles. */
+  const outgoingRef = useRef<Promise<void>>(Promise.resolve());
 
   // Synchronous store so async save callbacks always read the latest state.
   const dispatch = useCallback((action: QuoteLinesAction, gen: number = genRef.current) => {
@@ -94,11 +108,17 @@ export function useQuoteLines(submissionId: string | null | undefined): UseQuote
         return;
       }
       if (error && error.code !== 'PGRST116') throw new Error(error.message);
-      // Zero rows matched our updated_at: someone else saved first. Reload just this line.
+      // Zero rows matched. Either someone else saved first (updated_at moved) or RLS denied the UPDATE
+      // (updated_at unchanged). Reload just this line to tell the two apart.
       const { data: fresh, error: refetchError } = await supabase.from('quote_lines').select('*').eq('id', id).maybeSingle();
       if (refetchError || !fresh) throw new Error(refetchError?.message ?? 'Line no longer available');
-      put({ type: 'saveConflict', id, row: fromRow(fresh as QuoteLineRow) });
-      toast.warning(CONFLICT_MESSAGE);
+      const freshRow = fromRow(fresh as QuoteLineRow);
+      if (sameUpdatedAt(freshRow.updated_at, req.match.updated_at)) throw new Error(NOT_PERMITTED_MESSAGE);
+      put({ type: 'saveConflict', id, row: freshRow, sent: patch });
+      if (gen === genRef.current) {
+        const dropped = stateRef.current.lastConflict?.id === id ? stateRef.current.lastConflict.dropped : (patch ?? {});
+        toast.warning(conflictMessage(dropped), { duration: Infinity });
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       put({ type: 'saveError', ids: [id], message, patches: restore });
@@ -127,17 +147,55 @@ export function useQuoteLines(submissionId: string | null | undefined): UseQuote
     dispatch({ type: 'loaded', rows: (data ?? []).map((r) => fromRow(r as QuoteLineRow)) });
   }, [dispatch]);
 
-  // Reset and load when the submission changes. On teardown (submission switch or unmount, e.g. in-app
-  // navigation, which beforeunload does not cover) the pending saves are sent first so nothing is dropped.
-  useEffect(() => {
-    genRef.current += 1;
-    stateRef.current = initialQuoteLinesState;
-    setState(initialQuoteLinesState);
-    if (submissionId) void refresh();
-    return () => { void flush(); };
-  }, [submissionId, refresh, flush]);
+  /**
+   * Sends everything pending for the submission currently held, awaiting queued follow-ups too. If anything
+   * is still unsaved afterwards, it is named in an error toast with the unit, because the state is about to
+   * be dropped.
+   */
+  const flushOutgoing = useCallback(async () => {
+    const held = heldRef.current;
+    await flush();
+    if (heldRef.current.sid !== held.sid) return;
+    const s = stateRef.current;
+    if (!selectIsDirty(s)) return;
+    const unsaved = describeUnsaved(s);
+    const unit = held.unitLabel ?? 'this submission';
+    toast.error(`${unit}: ${unsaved.length} line${unsaved.length === 1 ? '' : 's'} did not save`, {
+      description: `${s.saveState.error ? `${s.saveState.error}. ` : ''}${unsaved.join('; ')}`,
+      duration: Infinity,
+    });
+  }, [flush]);
 
-  useEffect(() => () => scheduler.dispose(), [scheduler]);
+  // Reset and load when the submission changes. On teardown (submission switch or unmount, e.g. in-app
+  // navigation, which beforeunload does not cover) the outgoing submission's saves are flushed FIRST —
+  // including follow-ups queued behind an in-flight save — and only then is the state reset and the
+  // generation bumped (late responses for the old generation are ignored after that).
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(!!submissionId);
+    void outgoingRef.current.then(() => {
+      if (cancelled) return;
+      genRef.current += 1;
+      heldRef.current = { sid: submissionId, unitLabel: unitLabelRef.current };
+      stateRef.current = initialQuoteLinesState;
+      setState(initialQuoteLinesState);
+      if (submissionId) void refresh();
+    });
+    return () => {
+      cancelled = true;
+      outgoingRef.current = outgoingRef.current.then(flushOutgoing, flushOutgoing);
+    };
+  }, [submissionId, refresh, flushOutgoing]);
+
+  // Keep the label of the held submission current (callers may resolve it after the first render).
+  useEffect(() => {
+    if (heldRef.current.sid === submissionId) heldRef.current = { sid: submissionId, unitLabel: opts.unitLabel };
+  }, [submissionId, opts.unitLabel]);
+
+  // Dispose only after a final flush has drained (flush awaits queued follow-ups), so nothing is cleared unsent.
+  useEffect(() => () => {
+    void outgoingRef.current.then(() => flush()).finally(() => scheduler.dispose());
+  }, [scheduler, flush]);
 
   // Realtime: merge INSERT/UPDATE from other sources; the reducer ignores dirty/in-flight lines and our own echoes.
   useEffect(() => {

@@ -2,8 +2,10 @@
 import { test, expect, describe } from 'bun:test';
 import {
   quoteLinesReducer, initialQuoteLinesState, selectLines, selectIsDirty, CONFLICT_MESSAGE,
+  describePatch, conflictMessage, describeUnsaved,
   type QuoteLinesState, type StoredLine,
 } from '@/lib/quoteLinesReducer';
+import { buildUpdate } from '@/lib/quoteLinesApi';
 
 const T0 = '2026-11-18T10:00:00.000000+00:00';
 const T1 = '2026-11-18T10:00:05.000000+00:00';
@@ -224,5 +226,60 @@ describe('loaded (refresh)', () => {
     expect(s.lines.b.label).toBe('fresh');
     expect(s.lines.n).toBeDefined();
     expect(selectLines(s).map((l) => l.id)).toEqual(['a', 'b', 'n']);
+  });
+});
+
+describe('fix round 1: refresh must not re-base a dirty line', () => {
+  test("loaded keeps the dirty line's old updated_at, so the save conflicts and then shows the other user's amount", () => {
+    let s = loaded([row('x', { label: 'orig', amount: 500 })]);
+    s = quoteLinesReducer(s, { type: 'edit', id: 'x', patch: { label: 'Premium underpad' } });
+    // refresh(): another user changed the amount and saved (newer updated_at).
+    s = quoteLinesReducer(s, { type: 'loaded', rows: [row('x', { label: 'orig', amount: 750, updated_at: T2 })] });
+    expect(s.lines.x.updated_at).toBe(T0);
+    expect(s.lines.x.label).toBe('Premium underpad');
+    expect(s.dirty.x).toEqual({ label: 'Premium underpad' });
+    const req = buildUpdate('x', s.dirty.x, s.lines.x.updated_at);
+    expect(req.match.updated_at).toBe(T0); // the OLD timestamp: the guarded UPDATE matches zero rows
+    const sent = s.dirty.x;
+    s = quoteLinesReducer(s, { type: 'saveStart', ids: ['x'] });
+    s = quoteLinesReducer(s, { type: 'saveConflict', id: 'x', row: row('x', { label: 'orig', amount: 750, updated_at: T2 }), sent });
+    expect(s.lines.x.amount).toBe(750);
+    expect(s.lines.x.updated_at).toBe(T2);
+    expect(s.lastConflict).toEqual({ id: 'x', dropped: { label: 'Premium underpad' } });
+  });
+
+  test('a clean line adopts the fresh row (including updated_at) on loaded', () => {
+    let s = loaded([row('x')]);
+    s = quoteLinesReducer(s, { type: 'loaded', rows: [row('x', { amount: 750, updated_at: T2 })] });
+    expect(s.lines.x).toEqual(row('x', { amount: 750, updated_at: T2 }));
+  });
+});
+
+describe('fix round 1: conflicts report what they dropped', () => {
+  test('lastConflict holds the sent patch plus edits queued behind it (queued wins)', () => {
+    let s = loaded([row('a')]);
+    s = quoteLinesReducer(s, { type: 'edit', id: 'a', patch: { label: 'Premium underpad', quantity: 40 } });
+    const sent = s.dirty.a;
+    s = quoteLinesReducer(s, { type: 'saveStart', ids: ['a'] });
+    s = quoteLinesReducer(s, { type: 'edit', id: 'a', patch: { quantity: 44 } });
+    s = quoteLinesReducer(s, { type: 'saveConflict', id: 'a', row: row('a', { updated_at: T2 }), sent });
+    expect(s.lastConflict).toEqual({ id: 'a', dropped: { label: 'Premium underpad', quantity: 44 } });
+    expect(conflictMessage(s.lastConflict!.dropped)).toBe(
+      'Reloaded — someone else edited this line. Your unsaved changes: label → "Premium underpad", quantity → 44');
+  });
+
+  test('initial state has no conflict; message falls back when nothing was dropped', () => {
+    expect(initialQuoteLinesState.lastConflict).toBeNull();
+    expect(conflictMessage({})).toBe(CONFLICT_MESSAGE);
+    expect(describePatch({ status: 'removed', unit_price: null, provisional: true })).toBe(
+      'status → "removed", unit_price → null, provisional → true');
+  });
+
+  test('describeUnsaved names dirty, in-flight and un-inserted lines with their pending values', () => {
+    let s = loaded([row('a', { label: 'Hall LVP' }), row('b', { sort_order: 20, label: 'Tile', location: '' }), row('c', { sort_order: 30 })]);
+    s = quoteLinesReducer(s, { type: 'edit', id: 'a', patch: { quantity: 44 } });
+    s = quoteLinesReducer(s, { type: 'edit', id: 'b', patch: { label: 'Bath tile' } });
+    s = quoteLinesReducer(s, { type: 'saveStart', ids: ['b'] });
+    expect(describeUnsaved(s)).toEqual(['Hall LVP (Kitchen): quantity → 44', 'Bath tile']);
   });
 });
