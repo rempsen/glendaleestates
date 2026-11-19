@@ -201,7 +201,9 @@ office / buyer-request lines as `FAIL: partial-lines` (exit 1) and never writes 
 the tracking panel shows any pre-cutover tracking rows by their legacy key but cannot save new ones). Prod has 0 stored
 lines today, so run the backfill `--write` for the **eight clean units** with `--unit` (2, 4, 7, 27, 31, 37, 38, 43)
 **immediately after the migrations and the publish**, one unit per run, against the signed-off dry run. Leave Unit 24
-until Dan decides the double count (step 1).
+until Dan decides the double count (step 1). Do not run `--write` for a unit while staff have that unit open in the
+console: the backfill's zero-lines check and the console's "Itemise" re-check are not atomic with each other, and the
+0016 sentinel index only guards console-vs-console; a simultaneous backfill and itemise could double the unit's lines.
 
 Prerequisites: 0006–0011 applied (done); Dan has signed off the dry run per unit and Unit 7's +$451.20.
 
