@@ -43,7 +43,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X, DollarSign, Trash2, Mail, GitCompare, History, Send, AlertTriangle } from 'lucide-react';
-import { generateSavedSubmissionPdf } from '@/lib/savedSubmissionPdf';
+import { generateSavedSubmissionPdf, loadSavedSubmissionContext } from '@/lib/savedSubmissionPdf';
 import { format } from 'date-fns';
 import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
 import { computeUpgradeTotals } from '@/lib/upgradeTotals';
@@ -438,8 +438,14 @@ export default function AdminSubmissions() {
     } catch (err: any) {
       console.error('Preview failed:', err);
       toast.error('Failed to load email preview', { description: err?.message || 'Unknown error' });
-      // Fallback to legacy local preview so admin still sees something
-      setEmailPreviewHtml(generateEmailPreviewHtml(selectedSubmission, calculateSubmissionPricing(selectedSubmission, pricingValues).windowCoverings.subtotal));
+      // Fallback: local preview from the submission's quote lines (same fresh-record loader as the PDF)
+      try {
+        const { lines, gstRate } = await loadSavedSubmissionContext(selectedSubmission.id);
+        setEmailPreviewHtml(generateEmailPreviewHtml(selectedSubmission, { lines, gstRate, pricesAvailable: true }));
+      } catch (fallbackErr) {
+        console.error('Local preview failed:', fallbackErr);
+        setEmailPreviewHtml('<p style="padding:24px;font-family:sans-serif;color:#555">Preview unavailable.</p>');
+      }
     }
   };
 

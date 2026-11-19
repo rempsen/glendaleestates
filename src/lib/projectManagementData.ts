@@ -2,15 +2,16 @@
 // Loads everything the Project Management page needs:
 //   - All buyer_selections
 //   - submission_payments / ownership / line_items
-//   - pricing + unit areas (so we can synthesise canonical lines for any
-//     submission that hasn't been opened in the editor yet)
+//   - quote_lines (Phase 2 Task 11): canonical PM lines are the counted +
+//     included quote lines keyed by quote_line_id; submissions with no stored
+//     lines fall back to the generator (same rule as the PDF/Word/exports)
 // Returns three derived shapes: per-unit rows, line-item rows, aggregate rows.
 // =====================================================================
 
 import { supabase } from '@/integrations/supabase/client';
-import { computeUpgradeTotals } from '@/lib/upgradeTotals';
-import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
-import { buildCanonicalLines, type CanonicalLine } from '@/lib/submissionLineItems';
+import { sumQuoteLines, type QuoteLine } from '@/lib/quoteLines';
+import { buildPmCanonicalLines, legacyKeysForLines } from '@/lib/submissionLineItems';
+import { loadLinesForSubmissions } from '@/lib/submissionLinesLoader';
 import type {
   SubmissionPaymentRow, SubmissionLineItemRow,
 } from '@/lib/fetchDownstreamData';
@@ -43,6 +44,8 @@ export interface PMUnitRow {
 
 export interface PMLineRow {
   submission_id: string;
+  /** The quote line this PM line is (also its `line_key` for new submission_line_items rows). */
+  quote_line_id: string;
   unit_number: string;
   full_name: string;
   line_key: string;
@@ -94,106 +97,48 @@ export interface PMData {
 
 const num = (v: unknown) => Number(v) || 0;
 
-export async function loadProjectManagementData(): Promise<PMData> {
-  const [subRes, payRes, lineRes, supRes, pricingRes, areasRes, matRes] = await Promise.all([
-    supabase.from('buyer_selections').select('*').order('unit_number'),
-    supabase.from('submission_payments').select('*'),
-    supabase.from('submission_line_items').select('*'),
-    supabase.from('suppliers').select('id,name').eq('is_active', true).order('name'),
-    supabase.from('pricing_config').select('*').eq('is_active', true),
-    supabase.from('unit_area_data').select('*'),
-    supabase.from('upgrade_materials').select('material_key,cost_per_unit').eq('is_active', true),
-  ]);
+export interface PMInputs {
+  submissions: Submission[];
+  /** Quote lines per submission id (stored, or generated when none are stored). */
+  linesBySubmission: Record<string, QuoteLine[]>;
+  gstRate: number;
+  payments: SubmissionPaymentRow[];
+  lineItems: SubmissionLineItemRow[];
+  suppliers: { id: string; name: string }[];
+}
 
-  const submissions = (subRes.data || []) as Submission[];
+/** Pure: per-unit, per-line and aggregate PM rows from quote lines. Totals via sumQuoteLines only. */
+export function derivePMData(input: PMInputs): PMData {
   const payments = new Map<string, SubmissionPaymentRow>();
-  (payRes.data || []).forEach((r) => payments.set(r.submission_id, r as SubmissionPaymentRow));
+  input.payments.forEach((r) => payments.set(r.submission_id, r));
   const linesBySub = new Map<string, Map<string, SubmissionLineItemRow>>();
-  (lineRes.data || []).forEach((r) => {
-    const row = r as SubmissionLineItemRow;
+  input.lineItems.forEach((row) => {
     if (!linesBySub.has(row.submission_id)) linesBySub.set(row.submission_id, new Map());
     linesBySub.get(row.submission_id)!.set(row.line_key, row);
   });
 
-  // ---------- pricing helpers (mirror useDynamicPricing) ----------
-  const cfg: Record<string, number> = {};
-  (pricingRes.data || []).forEach((r) => { cfg[r.config_key] = num(r.config_value); });
-  const matCostMap: Record<string, number> = {};
-  (matRes.data || []).forEach((r: { material_key: string; cost_per_unit: number }) => {
-    matCostMap[r.material_key] = num(r.cost_per_unit);
-  });
-  const pricing = {
-    markupPercentage: (cfg.markup_percentage ?? 60) / 100,
-    gstRate: (cfg.gst_rate ?? 5) / 100,
-    getMaterialCost: (m: string) => matCostMap[m] ?? 0,
-    getGroutColorFee: () => cfg.grout_color_change_price ?? 0,
-    getAdditionalWindowPrice: () => cfg.additional_window_price ?? 0,
-    getPatioDoorPrice: () => cfg.patio_door_price ?? 0,
-    getAutomatedMotorPrice: () => cfg.automated_motor_price ?? 0,
-    getHeatedFloorPrice: () => cfg.heated_floor_per_bathroom ?? 0,
-    getStairLvpUpgradePrice: () => cfg.stair_lvp_upgrade_price ?? 0,
-    getStairPremiumLvpUpgradePrice: () => cfg.stair_premium_lvp_upgrade_price ?? 0,
-    getStairCarpetUpgradePrice: () => cfg.premium_carpet_stairs_price ?? 0,
-    getStairUnderpadUpgradePrice: () => cfg.premium_underpad_stairs_price ?? 0,
-    getUnitAreaData: (code: string) => {
-      const row = (areasRes.data || []).find((u) => u.unit_type_code?.toUpperCase() === code?.toUpperCase());
-      if (!row) return null;
-      return {
-        allLvp: num(row.all_lvp), mainLiving: num(row.main_living),
-        secondBedroom: num(row.second_bedroom),
-        masterBedroomLvp: num((row as { master_bedroom_lvp?: number }).master_bedroom_lvp),
-        masterBedroom: num(row.master_bedroom),
-        secondBedroomCarpet: num(row.second_bedroom_carpet),
-        guestBathroom: num(row.guest_bathroom),
-        masterEnsuite: num(row.master_ensuite),
-        laundry: num(row.laundry), backsplash: num(row.backsplash),
-      };
-    },
-  };
-
   const units: PMUnitRow[] = [];
   const lines: PMLineRow[] = [];
 
-  for (const s of submissions) {
-    const totals = computeUpgradeTotals(
-      {
-        unitTypeCode: s.unit_type ? normalizeUnitTypeCode(s.unit_type) : null,
-        upgradeFloorSelection: s.upgrade_floor_selection || null,
-        areaUpgrades: s.area_upgrades || [],
-        backsplashGrout: s.backsplash_grout_enabled
-          ? { enabled: true, groutColor: s.backsplash_grout_color || '', comments: '' }
-          : null,
-        stairLvpUpgradeSelected: !!s.stair_lvp_upgrade_selected,
-        stairUpgradeType: s.stair_upgrade_type || null,
-        stairPremiumCarpetSelected: !!s.stair_premium_carpet_selected,
-        stairPremiumUnderpadSelected: !!s.premium_underpad_stairs,
-        additionalWindowsQty: s.additional_windows_qty || 0,
-        patioDoorsQty: s.patio_doors_qty || 0,
-        automatedWindowsQty: s.automated_windows_qty || 0,
-        bathroomTileSelected: !!s.bathroom_tile_selected,
-        bathroomTileEnsuiteSelected: s.bathroom_tile_ensuite_selected,
-        bathroomTileGuestSelected: s.bathroom_tile_guest_selected,
-        heatedFloorBathrooms: s.heated_floor_bathrooms || 0,
-        customTiledShower: !!s.custom_tiled_shower,
-        customPricing: (s as any).custom_pricing,
-        bedroomFlooringChoice: ((s as any).bedroom_flooring_choice === 'carpet' ? 'carpet' : (s as any).bedroom_flooring_choice === 'lvp' ? 'lvp' : ''),
-        bedroomPremiumCarpetSelected: !!(s as any).premium_carpet_bedroom,
-        bedroomPremiumUnderpadSelected: !!(s as any).premium_underpad_bedroom,
-      },
-      pricing,
-    );
-    const canonical: CanonicalLine[] = buildCanonicalLines(s, totals);
-    const subLines = linesBySub.get(s.id) || new Map();
+  for (const s of input.submissions) {
+    const quoteLines = input.linesBySubmission[s.id] ?? [];
+    const sums = sumQuoteLines(quoteLines, input.gstRate);
+    const canonical = buildPmCanonicalLines(quoteLines);
+    const legacy = legacyKeysForLines(quoteLines, canonical);
+    const subLines = linesBySub.get(s.id) || new Map<string, SubmissionLineItemRow>();
 
     let nOrdered = 0, nReceived = 0, nInstalled = 0;
     canonical.forEach((cl) => {
-      const tracked = subLines.get(cl.line_key);
+      // New rows are keyed by quote_line_id; rows saved before the cutover keep their legacy keys (untouched).
+      const legacyKey = legacy.get(cl.quote_line_id);
+      const tracked = subLines.get(cl.line_key) ?? (legacyKey ? subLines.get(legacyKey) : undefined);
       const status = tracked?.installation_status || 'not_started';
       if (status === 'ordered' || status === 'received' || status === 'installed' || status === 'staged') nOrdered++;
       if (status === 'received' || status === 'staged' || status === 'installed') nReceived++;
       if (status === 'installed') nInstalled++;
       lines.push({
         submission_id: s.id,
+        quote_line_id: cl.quote_line_id,
         unit_number: s.unit_number,
         full_name: `${s.first_name || ''} ${s.last_name || ''}`.trim(),
         line_key: cl.line_key,
@@ -233,7 +178,7 @@ export async function loadProjectManagementData(): Promise<PMData> {
       full_name: `${s.first_name || ''} ${s.last_name || ''}`.trim(),
       unit_type: s.unit_type || null,
       status: s.status || 'submitted',
-      grand_total: totals.grandTotal,
+      grand_total: sums.total,
       deposit_required: !!pay?.deposit_required,
       deposit_amount: num(pay?.deposit_amount),
       deposit_paid: !!pay?.deposit_paid,
@@ -241,7 +186,7 @@ export async function loadProjectManagementData(): Promise<PMData> {
       balance_paid: balancePaidAmt,
       balance_paid_date: (pay as { balance_paid_date?: string | null } | undefined)?.balance_paid_date ?? null,
       payments_to_date: paidToDate,
-      balance_owing: Math.max(totals.grandTotal - paidToDate, 0),
+      balance_owing: Math.max(sums.total - paidToDate, 0),
       payment_status: pay?.payment_status ?? 'unbilled',
       invoice_number: pay?.invoice_number ?? null,
       lines_total: canonical.length,
@@ -284,6 +229,25 @@ export async function loadProjectManagementData(): Promise<PMData> {
     aggregates: Array.from(aggMap.values()).sort((a, b) =>
       a.material_key.localeCompare(b.material_key) || a.color_name.localeCompare(b.color_name)
     ),
-    suppliers: (supRes.data || []) as { id: string; name: string }[],
+    suppliers: input.suppliers,
   };
+}
+
+export async function loadProjectManagementData(): Promise<PMData> {
+  const [subRes, payRes, lineRes, supRes] = await Promise.all([
+    supabase.from('buyer_selections').select('*').order('unit_number'),
+    supabase.from('submission_payments').select('*'),
+    supabase.from('submission_line_items').select('*'),
+    supabase.from('suppliers').select('id,name').eq('is_active', true).order('name'),
+  ]);
+  const submissions = (subRes.data || []) as Submission[];
+  const { linesBySubmission, gstRate } = await loadLinesForSubmissions(submissions);
+  return derivePMData({
+    submissions,
+    linesBySubmission,
+    gstRate,
+    payments: (payRes.data || []) as SubmissionPaymentRow[],
+    lineItems: (lineRes.data || []) as SubmissionLineItemRow[],
+    suppliers: (supRes.data || []) as { id: string; name: string }[],
+  });
 }

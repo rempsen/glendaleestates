@@ -30,13 +30,9 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { generateSavedSubmissionPdf } from '@/lib/savedSubmissionPdf';
-import { useDynamicPricing } from '@/hooks/useDynamicPricing';
-import { useUnitAreaData } from '@/hooks/useUnitAreaData';
-import {
-  type BuyerSelection,
-  type ExportPricing,
-} from '@/lib/submissionExportBuilder';
+import { type BuyerSelection } from '@/lib/submissionExportBuilder';
 import { buildFlatExport } from '@/lib/submissionFlatExport';
+import { loadLinesForSubmissions, type SubmissionLinesBatch } from '@/lib/submissionLinesLoader';
 import { fetchDownstreamData, type DownstreamData } from '@/lib/fetchDownstreamData';
 
 const STATUS_OPTIONS = ['submitted', 'in_review', 'quoted', 'completed', 'cancelled'];
@@ -54,12 +50,13 @@ const downloadBlob = (content: BlobPart, filename: string, mime: string) => {
 const sanitize = (s: string) => s.replace(/[^a-z0-9_-]+/gi, '_').slice(0, 60);
 
 // Build a single XLSX workbook with one sheet, grouped header banner row + sub-header.
+// Money comes from each submission's quote lines (stored, or generated when none are stored yet).
 function buildSingleSheetXlsx(
   targets: BuyerSelection[],
-  pricing: ExportPricing,
+  batch: SubmissionLinesBatch,
   downstream: DownstreamData,
 ): ArrayBuffer {
-  const flat = buildFlatExport(targets, pricing, downstream);
+  const flat = buildFlatExport(targets, batch.linesBySubmission, batch.gstRate, downstream);
 
   // Row 1: group banner (one cell per group, then merged across its span)
   // Row 2: column sub-headers
@@ -110,64 +107,6 @@ export default function AdminExport() {
   const [unitType, setUnitType] = useState<string>('all');
   const [status, setStatus] = useState<string>('all');
   const [emailQuery, setEmailQuery] = useState('');
-
-  // Pricing
-  const {
-    loaded: pricingLoaded,
-    markupPercentage,
-    gstRate,
-    getMaterialCost,
-    getAdditionalWindowPrice,
-    getPatioDoorPrice,
-    getAutomatedMotorPrice,
-    getHeatedFloorPrice,
-    getGroutColorChangePrice,
-    getStairLvpUpgradePrice,
-    getStairPremiumLvpUpgradePrice,
-    getStairCarpetUpgradePrice,
-    getUnderpadStairsPrice,
-  } = useDynamicPricing();
-  const { unitAreaData } = useUnitAreaData();
-
-  const exportPricing: ExportPricing = useMemo(() => ({
-    markupPercentage,
-    gstRate,
-    patioDoorPrice: getPatioDoorPrice(),
-    additionalWindowPrice: getAdditionalWindowPrice(),
-    automatedMotorPrice: getAutomatedMotorPrice(),
-    heatedFloorPrice: getHeatedFloorPrice(),
-    backsplashGroutPrice: getGroutColorChangePrice(),
-    stairLvpUpgradePrice: getStairLvpUpgradePrice(),
-    stairPremiumLvpUpgradePrice: getStairPremiumLvpUpgradePrice(),
-    stairCarpetUpgradePrice: getStairCarpetUpgradePrice(),
-    stairUnderpadUpgradePrice: getUnderpadStairsPrice(),
-    getMaterialCost,
-    getUnitAreaData: (code: string) => {
-      const row = unitAreaData.find(
-        (u) => u.unit_type_code?.toUpperCase() === code?.toUpperCase(),
-      );
-      if (!row) return null;
-      return {
-        allLvp: Number(row.all_lvp) || 0,
-        mainLiving: Number(row.main_living) || 0,
-        secondBedroom: Number(row.second_bedroom) || 0,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        masterBedroomLvp: Number((row as any).master_bedroom_lvp) || 0,
-        masterBedroom: Number(row.master_bedroom) || 0,
-        secondBedroomCarpet: Number(row.second_bedroom_carpet) || 0,
-        guestBathroom: Number(row.guest_bathroom) || 0,
-        masterEnsuite: Number(row.master_ensuite) || 0,
-        laundry: Number(row.laundry) || 0,
-        backsplash: Number(row.backsplash) || 0,
-      };
-    },
-  }), [
-    markupPercentage, gstRate, getPatioDoorPrice, getAdditionalWindowPrice,
-    getAutomatedMotorPrice, getHeatedFloorPrice, getGroutColorChangePrice,
-    getStairLvpUpgradePrice,
-    getStairPremiumLvpUpgradePrice, getStairCarpetUpgradePrice, getUnderpadStairsPrice, getMaterialCost,
-    unitAreaData,
-  ]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -228,10 +167,6 @@ export default function AdminExport() {
 
   // ---------- Exports ----------
   const ensureReady = (): boolean => {
-    if (!pricingLoaded) {
-      toast.error('Pricing data still loading — try again in a moment');
-      return false;
-    }
     if (filtered.length === 0) {
       toast.error('No submissions match the current filters');
       return false;
@@ -243,8 +178,8 @@ export default function AdminExport() {
     if (!ensureReady()) return;
     setGenerating('xlsx-all');
     try {
-      const downstream = await fetchDownstreamData(filtered.map((s) => s.id));
-      const buf = buildSingleSheetXlsx(filtered, exportPricing, downstream);
+      const [downstream, batch] = await Promise.all([fetchDownstreamData(filtered.map((s) => s.id)), loadLinesForSubmissions(filtered)]);
+      const buf = buildSingleSheetXlsx(filtered, batch, downstream);
       downloadBlob(
         buf,
         `submissions-export-${format(new Date(), 'yyyy-MM-dd')}.xlsx`,
@@ -260,15 +195,11 @@ export default function AdminExport() {
   };
 
   const exportSingleClient = async (s: BuyerSelection) => {
-    if (!pricingLoaded) {
-      toast.error('Pricing data still loading — try again in a moment');
-      return;
-    }
     setGenerating(`xlsx-${s.id}`);
     try {
-      const downstream = await fetchDownstreamData([s.id]);
+      const [downstream, batch] = await Promise.all([fetchDownstreamData([s.id]), loadLinesForSubmissions([s])]);
       const baseName = `${sanitize(s.unit_number || 'unit')}_${sanitize(s.last_name || 'client')}_${format(new Date(), 'yyyy-MM-dd')}`;
-      const buf = buildSingleSheetXlsx([s], exportPricing, downstream);
+      const buf = buildSingleSheetXlsx([s], batch, downstream);
       downloadBlob(
         buf,
         `${baseName}.xlsx`,
@@ -311,17 +242,17 @@ export default function AdminExport() {
     emailQuery.trim() ? emailQuery : null,
   ].filter(Boolean).length;
 
-  const busy = loading || generating !== null || !pricingLoaded;
+  const busy = loading || generating !== null;
 
   // Preview group banner for the "Sections covered" card
+  // (Group names only; the line-block widths are sized from each export's own lines.)
   const previewGroups = useMemo(() => {
-    if (!pricingLoaded) return [];
     try {
-      return buildFlatExport(filtered.length ? filtered : submissions, exportPricing).groups;
+      return buildFlatExport(filtered.length ? filtered : submissions, {}, 0.05).groups;
     } catch {
       return [];
     }
-  }, [pricingLoaded, filtered, submissions, exportPricing]);
+  }, [filtered, submissions]);
 
   return (
     <AdminLayout>
