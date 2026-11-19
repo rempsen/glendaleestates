@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Logo } from '@/components/Logo';
 import { WizardProgress } from '@/components/WizardProgress';
 import { StepContainer } from '@/components/StepContainer';
+import { StepRailContext } from '@/components/stepRail';
 import { SelectionCard } from '@/components/SelectionCard';
 import { UpgradeTeaser } from '@/components/UpgradeTeaser';
 import { FloorPlanViewer } from '@/components/FloorPlanViewer';
@@ -12,13 +13,19 @@ import { RoomUpgradePicker } from '@/components/RoomUpgradePicker';
 import { PremiumLVPSynergyShowcase } from '@/components/upgrades/PremiumLVPSynergyShowcase';
 import { PremiumLVPShowcase } from '@/components/upgrades/PremiumLVPShowcase';
 import { PremiumCarpetShowcase } from '@/components/upgrades/PremiumCarpetShowcase';
-import { UpgradePricingSummary } from '@/components/UpgradePricingSummary';
+import { RunningTotal } from '@/components/quote/RunningTotal';
+import { LocatedWindowsList } from '@/components/buyer/LocatedWindowsList';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useDraftSave } from '@/hooks/useDraftSave';
 import { migrateDraftClientComments } from '@/lib/draftClientComments';
+import { migrateDraftWindows } from '@/lib/draftWindows';
+import { quotePricingFromRows, wizardQuoteLines, wizardSubmitBody } from '@/lib/generateInputFromSelections';
+import { sumQuoteLines, windowCounts, WINDOW_KIND_PRODUCTS } from '@/lib/quoteLines';
+import { baseSpecFor } from '@/lib/baseSpec';
+import type { WizardWindow } from '@shared/wizardWindows';
 import { 
   lvpOptions, 
   lvpSpecs,
@@ -69,6 +76,10 @@ const getSteps = (hasStairs: boolean) => {
   return [...baseSteps, 'Windows', 'Upgrades', 'Comments', 'Review'];
 };
 
+/** The running-total rail shows from the first step with a priced choice (Home Info, Floor Plan and the included
+ * main-floor LVP step come before it). */
+const FIRST_PRICED_STEP = 'Bathroom';
+
 // Document upload interface
 interface UploadedDocument {
   name: string;
@@ -102,9 +113,12 @@ interface SelectionState {
   stairPremiumCarpetSelected: boolean;
   bedroomLvpColour: string;
   bedroomLvpSameAsMain: boolean;
+  // Derived from `windows` (windowCounts) on every change; still written to buyer_selections for Phase 1 renderers.
   additionalWindowsQty: number;
   patioDoorsQty: number;
   automatedWindowsQty: number;
+  /** Located windows (Windows step); travels to the server as `windows` and becomes window_coverings lines. */
+  windows: WizardWindow[];
   windowComments: string;
   salesComments: string;
   upgradeInterests: Record<string, boolean>;
@@ -159,6 +173,9 @@ export default function SelectionWizard() {
     getStairCarpetUpgradePrice,
     isFlatRateEnabled,
     getUnitAreaData,
+    config: pricingConfigRows,
+    materials: pricingMaterialRows,
+    unitAreas: pricingUnitAreaRows,
   } = useDynamicPricing();
   
   // Get dynamic pricing values - use useMemo to ensure they update when pricing loads
@@ -203,6 +220,7 @@ export default function SelectionWizard() {
     additionalWindowsQty: 0,
     patioDoorsQty: 0,
     automatedWindowsQty: 0,
+    windows: [],
     windowComments: '',
     salesComments: '',
     upgradeInterests: {
@@ -230,6 +248,21 @@ export default function SelectionWizard() {
   } | null>(null);
 
   const steps = getSteps(selections.hasStairs);
+  const showRail = currentStep >= steps.indexOf(FIRST_PRICED_STEP);
+
+  // The running total (spec §6.16): lines regenerated from the in-progress selections on every change, through the
+  // same row mapping the server uses after the insert, so the buyer sees the lines that will be submitted.
+  const quotePricing = useMemo(
+    () => quotePricingFromRows({ config: pricingConfigRows, materials: pricingMaterialRows, unitAreas: pricingUnitAreaRows }),
+    [pricingConfigRows, pricingMaterialRows, pricingUnitAreaRows],
+  );
+  const quoteLines = useMemo(() => wizardQuoteLines(selections, unitInfo, quotePricing), [selections, unitInfo, quotePricing]);
+  const includedShades = useMemo(
+    () => baseSpecFor(unitInfo?.typeCode ?? null)
+      .filter((r) => r.section === 'window_coverings' && r.isIncluded)
+      .map((r) => ({ location: r.location, product: r.defaultProduct })),
+    [unitInfo?.typeCode],
+  );
 
   // Draft save hook
   const { saveDraft, loadDraft, deleteDraft, isSaving, lastSaved, hasUnsavedChanges } = useDraftSave({
@@ -326,14 +359,16 @@ export default function SelectionWizard() {
   const resumeDraft = useCallback(() => {
     if (pendingDraft) {
       // Pre-split drafts carry the buyer's area note in `comments`; move it to `clientComment`.
-      setSelections(migrateDraftClientComments(pendingDraft.selections as unknown as SelectionState));
+      // Pre-Task-9 drafts carry only the three window integers; give them generic located rows.
+      const restored = migrateDraftClientComments(pendingDraft.selections as unknown as SelectionState);
+      setSelections(migrateDraftWindows(restored, includedShades.map((s) => s.location)));
       setCurrentStep(pendingDraft.currentStep);
       setHighestStepReached(pendingDraft.highestStepReached);
       toast.success('Draft restored');
     }
     setShowDraftPrompt(false);
     setPendingDraft(null);
-  }, [pendingDraft]);
+  }, [pendingDraft, includedShades]);
 
   const discardDraft = useCallback(() => {
     deleteDraft();
@@ -392,6 +427,11 @@ export default function SelectionWizard() {
 
   const updateSelection = (key: keyof SelectionState, value: any) => {
     setSelections(prev => ({ ...prev, [key]: value }));
+  };
+
+  // The located list is the source; the three integer columns follow it.
+  const updateWindows = (next: WizardWindow[]) => {
+    setSelections(prev => ({ ...prev, windows: next, ...windowCounts(next) }));
   };
 
   const toggleUpgradeInterest = (id: string) => {
@@ -463,8 +503,9 @@ export default function SelectionWizard() {
     setSubmissionStep('preparing');
     
     try {
-      const windowSubtotal = (selections.additionalWindowsQty * additionalWindowPrice) + (selections.patioDoorsQty * patioDoorPrice) + (selections.automatedWindowsQty * automatedMotorPrice);
-      const windowTotal = windowSubtotal * (1 + gstRate);
+      // The submit-time window figure (GST-inclusive) and the logged subtotal come from the lines the rail shows.
+      const linesSum = sumQuoteLines(quoteLines, quotePricing.gstRate);
+      const windowTotal = linesSum.windowCoverings * (1 + quotePricing.gstRate);
       
       // Step 1: Generate PDF
       setSubmissionStep('generating-pdf');
@@ -554,26 +595,9 @@ export default function SelectionWizard() {
           'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({
-          ...selections,
-          unitType: unitInfo?.unitType || null,
-          bedroomLvpColour: selections.bedroomLvpSameAsMain ? selections.lvpColour : selections.bedroomLvpColour,
-          windowTotal: windowTotal,
-          areaUpgrades: selections.areaUpgrades,
-          upgradeFloorSelection: selections.upgradeFloorSelection,
-          backsplashGroutEnabled: selections.backsplashGrout.enabled,
-          backsplashGroutColor: selections.backsplashGrout.groutColor,
-          backsplashGroutComments: selections.backsplashGrout.comments,
-          stairLvpUpgradeSelected: selections.stairLvpUpgradeSelected,
-          stairUpgradeType: selections.stairUpgradeType,
-          premiumCarpetBedroom: selections.premiumCarpetBedroom,
-          premiumUnderpadBedroom: selections.premiumUnderpadBedroom,
-          premiumUnderpadStairs: selections.premiumUnderpadStairs,
-          stairPremiumCarpetSelected: selections.stairPremiumCarpetSelected,
-          customTiledShower: selections.customTiledShower,
-          pdfBase64: pdfBase64,
-          documentUploads: selections.documentUploads,
-        }),
+        // Same body wizardSelectionsToRow models: integers derived from the windows list, which travels as
+        // `windows`; `subtotal` is logged against the server's regenerated lines (never trusted).
+        body: JSON.stringify(wizardSubmitBody(selections, unitInfo, { windowTotal, subtotal: linesSum.subtotal, pdfBase64 })),
       });
 
       if (!response.ok) {
@@ -681,7 +705,7 @@ export default function SelectionWizard() {
               </ul>
 
               <div className="flex items-center gap-3 mb-4">
-                <div className="text-2xl font-bold text-primary">$2,347.80</div>
+                <div className="text-2xl font-bold text-primary">${patioDoorPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 <div className="text-sm text-muted-foreground">per patio door<br />(plus GST, installed)</div>
               </div>
 
@@ -764,127 +788,15 @@ export default function SelectionWizard() {
           </div>
         </div>
 
-        {/* Optional Extensions */}
+        {/* Windows by location (spec §6.3); the rail shows the running total */}
         <div className="p-6 rounded-xl border border-border bg-card">
-          <h3 className="font-medium text-foreground mb-2">How Many Would You Like?</h3>
-          <p className="text-sm text-muted-foreground mb-6">
-            Select the number of windows and patio doors you'd like to add matching coverings to.
-          </p>
-
-          <div className="space-y-6">
-            <div>
-              <Label htmlFor="additionalWindows" className="text-foreground">
-                Additional Non-Bedroom Windows
-              </Label>
-              <p className="text-sm text-muted-foreground mb-2">
-                Living room, dining room, kitchen, etc. — ${additionalWindowPrice.toFixed(2)} per window (pre-GST, installed)
-              </p>
-              <Input
-                id="additionalWindows"
-                type="number"
-                min={0}
-                max={20}
-                value={selections.additionalWindowsQty}
-                onChange={(e) => updateSelection('additionalWindowsQty', parseInt(e.target.value) || 0)}
-                className="max-w-24"
-              />
-            </div>
-
-            <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
-              <Label htmlFor="patioDoors" className="text-foreground font-medium">
-                Patio Door Panel Track Systems
-              </Label>
-              <p className="text-sm text-muted-foreground mb-3">
-                Sliding panel track for patio doors — ${patioDoorPrice.toFixed(2)} per opening (pre-GST, installed)
-              </p>
-              <Input
-                id="patioDoors"
-                type="number"
-                min={0}
-                max={5}
-                value={selections.patioDoorsQty}
-                onChange={(e) => updateSelection('patioDoorsQty', parseInt(e.target.value) || 0)}
-                className="max-w-24"
-              />
-            </div>
-
-            <div className="p-4 rounded-xl bg-accent/10 border border-accent/30">
-              <Label htmlFor="automatedWindows" className="text-foreground font-medium">
-                Motorized Automation Upgrade
-              </Label>
-              <p className="text-sm text-muted-foreground mb-3">
-                Add Somfy motorization to any window — ${automatedMotorPrice.toFixed(2)} per window (pre-GST, installed)
-              </p>
-              <Input
-                id="automatedWindows"
-                type="number"
-                min={0}
-                max={20}
-                value={selections.automatedWindowsQty}
-                onChange={(e) => updateSelection('automatedWindowsQty', parseInt(e.target.value) || 0)}
-                className="max-w-24"
-              />
-            </div>
-          </div>
-
-          <div className="mt-6">
-            {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0 || selections.automatedWindowsQty > 0) && (
-              <div className="p-4 rounded-xl bg-secondary/50 border border-border">
-                <h4 className="font-medium text-foreground mb-3">Window Covering Pricing</h4>
-                <div className="space-y-2 text-sm">
-                  {selections.additionalWindowsQty > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        Additional Windows ({selections.additionalWindowsQty} × ${additionalWindowPrice.toFixed(2)})
-                      </span>
-                      <span className="font-medium">${(selections.additionalWindowsQty * additionalWindowPrice).toLocaleString()}</span>
-                    </div>
-                  )}
-                  {selections.patioDoorsQty > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        Patio Door Panels ({selections.patioDoorsQty} × ${patioDoorPrice.toFixed(2)})
-                      </span>
-                      <span className="font-medium">${(selections.patioDoorsQty * patioDoorPrice).toLocaleString()}</span>
-                    </div>
-                  )}
-                  {selections.automatedWindowsQty > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        Motorized Automation ({selections.automatedWindowsQty} × ${automatedMotorPrice.toFixed(2)})
-                      </span>
-                      <span className="font-medium">${(selections.automatedWindowsQty * automatedMotorPrice).toLocaleString()}</span>
-                    </div>
-                  )}
-                  <div className="border-t border-border pt-2 mt-2">
-                    {(() => {
-                      const subtotal = (selections.additionalWindowsQty * additionalWindowPrice) + 
-                                       (selections.patioDoorsQty * patioDoorPrice) + 
-                                       (selections.automatedWindowsQty * automatedMotorPrice);
-                      const windowGst = subtotal * gstRate;
-                      const total = subtotal + windowGst;
-                      return (
-                        <>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Subtotal</span>
-                            <span>${subtotal.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">GST ({(gstRate * 100).toFixed(0)}%)</span>
-                            <span>${windowGst.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between font-semibold text-foreground pt-1">
-                            <span>Total</span>
-                            <span className="text-primary">${total.toLocaleString()}</span>
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          <h3 className="font-medium text-foreground mb-4">Your Windows</h3>
+          <LocatedWindowsList
+            windows={selections.windows}
+            onChange={updateWindows}
+            included={includedShades}
+            prices={{ window: additionalWindowPrice, patioDoor: patioDoorPrice, motor: automatedMotorPrice }}
+          />
         </div>
 
         {/* Comments Section */}
@@ -940,20 +852,19 @@ export default function SelectionWizard() {
           />
         </div>
 
-        {/* Pricing Summary */}
-        <UpgradePricingSummary
-          unitTypeCode={unitInfo?.typeCode || null}
-          selectedFloor={selections.upgradeFloorSelection}
-          areaUpgrades={selections.areaUpgrades}
-          backsplashGrout={selections.backsplashGrout}
-          upgradeComments={selections.upgradeComments}
-          onUpgradeCommentsChange={(comments) => updateSelection('upgradeComments', comments)}
-          bathroomTileSelected={selections.bathroomTileSelected}
-          bathroomTileEnsuiteSelected={selections.bathroomTileEnsuiteSelected}
-          bathroomTileGuestSelected={selections.bathroomTileGuestSelected}
-          heatedFloorBathrooms={selections.heatedFloorBathrooms}
-          customTiledShower={selections.customTiledShower}
-        />
+        {/* Upgrade comments (prices and totals are in the running-total rail) */}
+        <div>
+          <label htmlFor="upgrade-comments" className="block text-sm font-medium text-foreground mb-2">
+            Additional Comments or Questions
+          </label>
+          <textarea
+            id="upgrade-comments"
+            value={selections.upgradeComments}
+            onChange={(e) => updateSelection('upgradeComments', e.target.value)}
+            placeholder="Any specific questions or notes about your upgrade selections..."
+            className="w-full min-h-[80px] p-3 text-sm rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y"
+          />
+        </div>
 
         {/* Other Upgrade Interests */}
         <div>
@@ -1205,76 +1116,29 @@ export default function SelectionWizard() {
           </div>
         </div>
 
-        {/* Window Coverings - Selection details only, pricing in summary */}
-        {(selections.additionalWindowsQty > 0 || selections.patioDoorsQty > 0 || selections.automatedWindowsQty > 0) && (
+        {/* Window Coverings by location — amounts are in the running-total rail */}
+        {(selections.windows.length > 0 || selections.windowComments) && (
           <div className="p-4 rounded-xl border border-border bg-card">
             <h4 className="font-medium text-foreground mb-3">Window Coverings</h4>
-            <div className="grid gap-2 text-sm">
-              {selections.additionalWindowsQty > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Additional Windows</span>
-                  <span className="font-medium">{selections.additionalWindowsQty} unit{selections.additionalWindowsQty > 1 ? 's' : ''}</span>
-                </div>
-              )}
-              {selections.patioDoorsQty > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Patio Door Panel Track</span>
-                  <span className="font-medium">{selections.patioDoorsQty} unit{selections.patioDoorsQty > 1 ? 's' : ''}</span>
-                </div>
-              )}
-              {selections.automatedWindowsQty > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Somfy Automation</span>
-                  <span className="font-medium">{selections.automatedWindowsQty} motor{selections.automatedWindowsQty > 1 ? 's' : ''}</span>
-                </div>
-              )}
-              {selections.windowComments && (
-                <div className="pt-2 border-t border-border mt-2">
-                  <span className="text-muted-foreground">Comments: </span>
-                  <span className="text-foreground">{selections.windowComments}</span>
-                </div>
-              )}
-            </div>
+            <ul className="grid gap-2 text-sm">
+              {selections.windows.map((w) => (
+                <li key={w.id} className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">{w.location || 'Window'}</span>
+                  <span className="font-medium text-right">
+                    {w.kind === 'included' ? 'Included shade' : WINDOW_KIND_PRODUCTS[w.kind]}
+                    {w.motorized ? ' + Somfy motorization' : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {selections.windowComments && (
+              <div className="pt-2 border-t border-border mt-2 text-sm">
+                <span className="text-muted-foreground">Comments: </span>
+                <span className="text-foreground">{selections.windowComments}</span>
+              </div>
+            )}
           </div>
         )}
-
-        {/* Comprehensive Upgrade Pricing Summary - ALL upgrades consolidated */}
-        {(() => {
-          const hasAnyUpgrade = 
-            selections.stairLvpUpgradeSelected ||
-            selections.backsplashGrout?.enabled ||
-            selections.additionalWindowsQty > 0 ||
-            selections.patioDoorsQty > 0 ||
-            selections.automatedWindowsQty > 0 ||
-            selections.areaUpgrades.length > 0 ||
-            selections.heatedFloorBathrooms > 0 ||
-            selections.customTiledShower ||
-            selections.bathroomTileSelected;
-
-          if (!hasAnyUpgrade) return null;
-
-          return (
-            <div className="p-4 rounded-xl border-2 border-primary/40 bg-primary/5">
-              <UpgradePricingSummary
-                unitTypeCode={unitInfo?.typeCode || null}
-                selectedFloor={selections.upgradeFloorSelection}
-                areaUpgrades={selections.areaUpgrades}
-                backsplashGrout={selections.backsplashGrout}
-                stairLvpUpgradeSelected={selections.stairLvpUpgradeSelected}
-                windowCoverings={{
-                  additionalWindowsQty: selections.additionalWindowsQty,
-                  patioDoorsQty: selections.patioDoorsQty,
-                  automatedWindowsQty: selections.automatedWindowsQty,
-                }}
-                bathroomTileSelected={selections.bathroomTileSelected}
-                bathroomTileEnsuiteSelected={selections.bathroomTileEnsuiteSelected}
-                bathroomTileGuestSelected={selections.bathroomTileGuestSelected}
-                heatedFloorBathrooms={selections.heatedFloorBathrooms}
-                customTiledShower={selections.customTiledShower}
-              />
-            </div>
-          );
-        })()}
 
         {/* Upgrade Interests */}
         {Object.values(selections.upgradeInterests).some(v => v) && (
@@ -2831,15 +2695,23 @@ export default function SelectionWizard() {
       </div>
 
       {/* Main Content */}
-      <main className="container max-w-3xl mx-auto px-4 py-8 md:py-12">
-        <AnimatePresence mode="wait">
-          <motion.div key={currentStep}>
-            {renderStep()}
-          </motion.div>
-        </AnimatePresence>
+      {/* From the first priced step the main column widens at lg+ for the 320 px running-total rail; below lg the
+          rail is a fixed bottom bar, so the page keeps room for it. */}
+      <main className={`container mx-auto px-4 py-8 md:py-12 ${showRail ? 'max-w-3xl lg:max-w-6xl pb-28 lg:pb-12' : 'max-w-3xl'}`}>
+        <StepRailContext.Provider
+          value={showRail ? (
+            <RunningTotal lines={quoteLines} gstRate={quotePricing.gstRate} buyerView saveState={{ status: 'idle' }} headerHeight="5rem" />
+          ) : null}
+        >
+          <AnimatePresence mode="wait">
+            <motion.div key={currentStep}>
+              {renderStep()}
+            </motion.div>
+          </AnimatePresence>
+        </StepRailContext.Provider>
 
         {/* Navigation */}
-        <div className="flex items-center justify-between mt-12 pt-6 border-t border-border">
+        <div className={`flex items-center justify-between mt-12 pt-6 border-t border-border ${showRail ? 'lg:mr-[352px]' : ''}`}>
           <Button
             variant="ghost"
             onClick={prevStep}

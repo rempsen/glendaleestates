@@ -255,3 +255,48 @@ describe('base spec: window presets and the edge mirror', () => {
     expect(WINDOW_LOCATION_PRESETS.some((p) => /\$|\d/.test(p))).toBe(false);
   });
 });
+describe('wizard source guards', () => {
+  const wizard = readFileSync(join(root, 'src/pages/SelectionWizard.tsx'), 'utf8');
+  test('the wizard renders totals only through RunningTotal (no UpgradePricingSummary, no own subtotal math)', () => {
+    expect(wizard).not.toContain('UpgradePricingSummary');
+    expect(wizard).toContain('<RunningTotal');
+    expect(wizard).not.toMatch(/additionalWindowsQty\s*\*\s*additionalWindowPrice/);
+  });
+  test('lines regenerate from in-progress selections with useMemo', () => {
+    expect(wizard).toMatch(/useMemo\(\s*\(\)\s*=>\s*wizardQuoteLines\(/);
+  });
+  test('no hard-coded dollar amounts in the wizard', () => {
+    expect(wizard).not.toMatch(/\$\d[\d,]*\.\d\d/);
+  });
+});
+
+describe('Windows step and rail shell render', () => {
+  test('LocatedWindowsList: bedrooms read-only "Included", one row per window, Add another', async () => {
+    const { createElement } = await import('react');
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const { LocatedWindowsList } = await import('../src/components/buyer/LocatedWindowsList');
+    const html = renderToStaticMarkup(createElement(LocatedWindowsList, {
+      windows: [{ id: 'a', location: 'Den', kind: 'roller_1', motorized: true }, { id: 'b', location: 'Patio Door', kind: 'panel_track', motorized: false }],
+      onChange: () => undefined,
+      included: [{ location: 'Primary Bedroom', product: 'Graber blackout shade' }, { location: 'Second Bedroom', product: 'Graber blackout shade' }],
+      prices: { window: 1, patioDoor: 2, motor: 3 },
+    }));
+    expect(html.match(/Included</g)?.length).toBe(2);
+    expect(html).toContain('Primary Bedroom');
+    expect(html).toContain('value="Den"'); // typed (non-preset) location shows its text box
+    expect(html).toContain('Remove window 2');
+    expect(html).toContain('Add another window');
+  });
+  test('StepContainer is a two-column shell only when a rail is provided', async () => {
+    const { createElement } = await import('react');
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const { StepContainer } = await import('../src/components/StepContainer');
+    const { StepRailContext } = await import('../src/components/stepRail');
+    const plain = renderToStaticMarkup(createElement(StepContainer, { title: 'T', children: 'body' }));
+    expect(plain).not.toContain('lg:grid-cols');
+    const withRail = renderToStaticMarkup(createElement(StepRailContext.Provider, { value: createElement('aside', null, 'rail') },
+      createElement(StepContainer, { title: 'T', children: 'body' })));
+    expect(withRail).toContain('lg:grid-cols-[minmax(0,1fr)_320px]');
+    expect(withRail).toContain('<aside>rail</aside>');
+  });
+});

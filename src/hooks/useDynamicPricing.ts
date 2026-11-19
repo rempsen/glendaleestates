@@ -376,6 +376,8 @@ export function useDynamicPricing() {
     refreshPricing,
     materials: state.materials,
     config: state.config,
+    // Raw rows for the quote-line generator (quotePricingFromRows), same rows the edge loader reads.
+    unitAreas: state.unitAreas,
   };
 }
 
