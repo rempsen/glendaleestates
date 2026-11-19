@@ -59,7 +59,7 @@ for (const unit of Object.keys(PINS)) {
       unit_area_data: snap.unit_area_data,
     }));
     const s = (liveSubmissions as any[]).find(r => r.unit_number === unit);
-    // Same input mapping as qbo-sync-submission computeTotalsForSubmission.
+    // Same input mapping qbo-sync-submission used before Task 15 (it now maps quote_lines; this pins the engine).
     const t = computeUpgradeTotalsServer({
       unitTypeCode: normalizeUnitTypeCode(s.unit_type),
       upgradeFloorSelection: s.upgrade_floor_selection,

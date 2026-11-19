@@ -27,3 +27,7 @@
 - `supabase/functions/_shared/esign/provider.ts`: the `EsignProvider` seam; `signwell.ts` is the only implementation and `providerFromEnv.ts` the only place one is built. SignWell secrets (`SIGNWELL_API_KEY`, `SIGNWELL_WEBHOOK_SECRET`, `SIGNWELL_TEST_MODE`) are edge env only, never `portal_settings`.
 - `quote_snapshots` are insert-only (trigger in 0006; `scripts/esign-send.test.ts` fails on any client `.update`/`.delete`/`.upsert`). The signature PDF is the buyer render of the snapshot lines (`generateSnapshotBuyerPdf`, internal notes stripped); unit files live at `unit-documents/{unit_number}/{document_id}.pdf` (`unitDocumentPath`).
 - `esign-webhook` verifies the signature before any parse or DB call, acts on `signed` only after the provider returns the completed PDF, confirms declined/voided via the provider API, and only moves `buyer_selections.status` forward (`esign_status_after_signed`, default `completed`).
+
+## Phase 2 Task 15 (QuickBooks estimate)
+
+- `qbo-sync-submission` builds the Estimate 1:1 from quote_lines via `supabase/functions/_shared/qboLinesMap.ts` (`estimateLinesFromQuoteLines`): Amount = line amount, totals = `sumQuoteLines`, SKU `GLEN-{SECTION}-{material_key | slug(label)}`, Items NonInventory with Name = Sku. It never calls a pricing engine (guarded by `scripts/qbo-lines-map.test.ts`) and answers 409 `quote has unpriced lines` (with `lineIds`) while any line is pending / under_review or an upgrade has no amount. QBO descriptions carry `client_note` only, never `internal_note`.
