@@ -10,7 +10,7 @@ import type { PricingSnapshot } from './lib/fixturePricing';
 import {
   buildGenerateInputFromRow, pricingFromRows, referenceTotalsForRow, type SubmissionRow,
 } from './lib/generateInputFromRow';
-import { generateQuoteLines, countsInTotal, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
+import { generateQuoteLines, countsInTotal, gstLabel, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
 import { buildLineRows, CountedHiddenLineError, LINE_COLUMNS, INCLUDED_AMOUNT_TEXT, type LineRow } from '../src/lib/lineRenderRows';
 import { savedSubmissionLines, GENERATED_LINES_NOTE } from '../src/lib/generateInputFromSelections';
 
@@ -191,7 +191,7 @@ describe('saved-submission line source (fallback until the backfill runs)', () =
   });
   test('stored lines win, in sort_order, without removed ones', () => {
     const stored = [
-      { ...line({ label: 'B', sort_order: 20 }), id: 'b', location: null },
+      { ...line({ label: 'B', sort_order: 20, source: 'migration' }), id: 'b', location: null },
       { ...line({ label: 'GONE', sort_order: 15, status: 'removed' }), id: 'g' },
       { ...line({ label: 'A', sort_order: 10 }), id: 'a' },
     ];
@@ -203,12 +203,63 @@ describe('saved-submission line source (fallback until the backfill runs)', () =
   });
 });
 
+describe('GST total-row label follows the rate (identical output at 5%)', () => {
+  test('gstLabel', () => {
+    expect(gstLabel(0.05)).toBe('GST 5%');
+    expect(gstLabel(0.075)).toBe('GST 7.5%');
+    expect(gstLabel(0.13)).toBe('GST 13%');
+  });
+  test('buildLineRows labels the GST row from gstRate', () => {
+    const labels = (rate: number) => buildLineRows([line({})], { buyerView: true, gstRate: rate }).totals.rows.map((r) => r.label);
+    expect(labels(0.05)).toEqual(['Upgrades', 'Window coverings', 'Subtotal', 'GST 5%', 'Total']);
+    expect(labels(0.07)[3]).toBe('GST 7%');
+  });
+});
+
+describe('un-itemised submissions with office / buyer-request lines (final fix wave C1): mixed, never smaller', () => {
+  for (const row of rows) {
+    test(`Unit ${row.unit_number}: 0 itemised + 1 office pending line → generated lines + the pending line; total = generated`, () => {
+      const generated = generateQuoteLines(buildGenerateInputFromRow(row, pricing));
+      const pending = { ...line({ label: 'Office pending', status: 'pending', amount: null, sort_order: 1 }), id: 'p1', submission_id: row.id };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { lines, linesSource } = savedSubmissionLines([pending] as any, row, pricing);
+      expect(linesSource).toBe('mixed');
+      expect(lines.length).toBe(generated.length + 1);
+      const p = lines.find((l) => l.id === 'p1')!;
+      expect(p.label).toBe('Office pending');
+      expect(p.sort_order).toBeGreaterThan(Math.max(...generated.map((l) => l.sort_order)));
+      const gen = buildLineRows(generated, { buyerView: false, gstRate: GST });
+      const mixed = buildLineRows(lines, { buyerView: false, gstRate: GST });
+      expect(mixed.totals.total.toFixed(2)).toBe(gen.totals.total.toFixed(2));
+      expect(mixed.totals.total.toFixed(2)).toBe(referenceTotalsForRow(row, pricing).grandTotal.toFixed(2));
+    });
+  }
+  test('a priced office line on an un-itemised unit adds to (never replaces) the generated total', () => {
+    const row = rows.find((r) => r.unit_number === '31')!;
+    const generated = generateQuoteLines(buildGenerateInputFromRow(row, pricing));
+    const extra = { ...line({ label: 'Office extra', amount: 100, source: 'buyer_request' }), id: 'x' };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { lines, linesSource } = savedSubmissionLines([extra] as any, row, pricing);
+    expect(linesSource).toBe('mixed');
+    const gen = buildLineRows(generated, { buyerView: false, gstRate: GST }).upgrades.subtotal;
+    expect(buildLineRows(lines, { buyerView: false, gstRate: GST }).upgrades.subtotal.toFixed(2)).toBe((gen + 100).toFixed(2));
+  });
+  test('removed office lines on an un-itemised unit are dropped; the generated quote still shows', () => {
+    const row = rows.find((r) => r.unit_number === '31')!;
+    const gone = { ...line({ label: 'GONE', status: 'removed' }), id: 'g' };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { lines, linesSource } = savedSubmissionLines([gone] as any, row, pricing);
+    expect(linesSource).toBe('mixed');
+    expect(lines).toEqual(generateQuoteLines(buildGenerateInputFromRow(row, pricing)));
+  });
+});
+
 describe('all-removed stored lines (fix round 1)', () => {
   const row = rows.find((r) => r.unit_number === '31')!;
   test('an all-removed stored set is db with no lines — staff deletions are never resurrected', () => {
     const stored = [
-      { ...line({ label: 'GONE-A', status: 'removed' }), id: 'a' },
-      { ...line({ label: 'GONE-B', status: 'removed', section: 'standard' }), id: 'b' },
+      { ...line({ label: 'GONE-A', status: 'removed', source: 'migration' }), id: 'a' },
+      { ...line({ label: 'GONE-B', status: 'removed', section: 'standard', source: 'wizard' }), id: 'b' },
     ];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { lines, linesSource } = savedSubmissionLines(stored as any, row, pricing);

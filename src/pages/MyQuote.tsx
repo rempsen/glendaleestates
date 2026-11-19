@@ -13,7 +13,7 @@ import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { MyQuoteView } from '@/components/buyer/MyQuoteView';
 import {
-  buildMyQuoteState, OFFICE_CONTACT_TEXT,
+  buildMyQuoteState, changeRequestErrorText, isMissingRpc, OFFICE_CONTACT_TEXT,
   type LineReview, type MyQuoteHeader, type MyQuoteRpcLine, type MyQuoteState, type ReviewResponse,
 } from '@/lib/myQuoteModel';
 import { generateBuyerQuotePdf } from '@/lib/savedSubmissionPdf';
@@ -28,9 +28,13 @@ async function loadMyQuote(userId: string): Promise<Loaded> {
     supabase.from('quote_line_reviews').select('id,line_id,response,comment,created_at').eq('buyer_user_id', userId)
       .order('created_at', { ascending: false }),
   ]);
-  for (const r of [header, lines, reviews]) if (r.error) throw r.error;
+  // get_my_quote_header ships in 0012; until it is applied, PostgREST answers PGRST202 and the page renders from the
+  // lines alone ("Your quote" title, no identity header).
+  const headerMissing = isMissingRpc(header.error);
+  for (const r of [lines, reviews]) if (r.error) throw r.error;
+  if (header.error && !headerMissing) throw header.error;
   return {
-    headers: (header.data ?? []) as MyQuoteHeader[],
+    headers: (headerMissing ? [] : header.data ?? []) as MyQuoteHeader[],
     lines: (lines.data ?? []) as MyQuoteRpcLine[],
     reviews: (reviews.data ?? []) as LineReview[],
   };
@@ -78,7 +82,7 @@ export default function MyQuote() {
 
   const onRequestChange = async (text: string) => {
     const { error } = await supabase.rpc('request_quote_change', { _text: text });
-    if (error) { toast.error('Your request was not sent', { description: OFFICE_CONTACT_TEXT }); throw error; }
+    if (error) { toast.error('Your request was not sent', { description: changeRequestErrorText(error) }); throw error; }
     toast.success('Request sent — we will update your quote');
     await refresh();
   };

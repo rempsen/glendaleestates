@@ -20,7 +20,8 @@
 //
 // Exit codes:
 //   0  every row ok or skipped
-//   1  parity FAIL on at least one row (including "differs from signed-off report"); nothing wrong was written
+//   1  parity FAIL on at least one row (including "differs from signed-off report", and "FAIL: partial-lines": a
+//      submission holding only office / buyer_request lines, never itemised); nothing wrong was written
 //   2  usage / refusal / connection or runtime error (a row that errored is FAIL and was not left written)
 //   3  ROLLBACK FAILED: a submission may hold a partial set of source='migration' lines; manual cleanup needed
 //      (DELETE FROM quote_lines WHERE submission_id = '<id>' AND source = 'migration'), then re-run the dry run.
@@ -40,6 +41,8 @@ export interface BackfillDb {
   /** Submitted rows from `buyer_selections` (never drafts). */
   listSubmissions(): Promise<SubmissionRow[]>;
   countLines(submissionId: string): Promise<number>;
+  /** Lines with source IN ('wizard','migration') — the generated quote. Zero with countLines > 0 = partial lines. */
+  countItemisedLines(submissionId: string): Promise<number>;
   /** One batch for one submission; throws on any error. */
   insertLines(lines: InsertLine[]): Promise<void>;
   /** Rollback for a failed batch: deletes this submission's source='migration' lines. */
@@ -61,7 +64,8 @@ export interface BackfillDeps {
   transformLines?: (lines: QuoteLine[], row: SubmissionRow) => QuoteLine[];
 }
 
-export type RowStatus = 'ok' | 'FAIL' | 'skipped: has lines' | 'skipped: aborted';
+export type RowStatus = 'ok' | 'FAIL' | 'FAIL: partial-lines' | 'skipped: has lines' | 'skipped: aborted';
+const isFail = (s: RowStatus) => s === 'FAIL' || s === 'FAIL: partial-lines';
 export interface ReportRow {
   unit: string;
   submission_id: string;
@@ -201,7 +205,15 @@ export async function runBackfill(db: BackfillDb, opts: BackfillOptions, deps: B
         else if (s.status !== 'ok') r.reasons.push(`not ok in signed-off report (was "${s.status}")`);
       }
       r.existing_lines = await db.countLines(row.id);
-      r.status = r.existing_lines > 0 ? 'skipped: has lines' : r.reasons.length ? 'FAIL' : 'ok';
+      if (r.existing_lines > 0 && (await db.countItemisedLines(row.id)) === 0) {
+        // Only office / buyer_request lines: the unit was never itemised, and every surface would show those lines
+        // alone. Not written (the console's "Itemise this quote" or a manual fix decides); reported as a FAIL.
+        r.status = 'FAIL: partial-lines';
+        r.reasons.push(`partial-lines: ${r.existing_lines} office / buyer_request line(s) but no wizard / migration lines; `
+          + 'itemise it in the console (Itemise this quote) before any write');
+      } else {
+        r.status = r.existing_lines > 0 ? 'skipped: has lines' : r.reasons.length ? 'FAIL' : 'ok';
+      }
 
       if (opts.write && r.status === 'ok' && lines.length > 0) {
         const batch = toInsertRows(lines, row.id);
@@ -254,9 +266,9 @@ export function formatTable(report: BackfillReport): string {
   const fmt = (row: readonly string[]) => row.map((c, i) => c.padEnd(widths[i])).join(' | ').trimEnd();
   const count = (s: RowStatus) => report.rows.filter((r) => r.status === s).length;
   const out = [fmt(COLUMNS), widths.map((w) => '-'.repeat(w)).join('-|-'), ...cells.map(fmt), ''];
-  out.push(`${report.mode}: ${report.rows.length} submissions · ok ${count('ok')} · FAIL ${count('FAIL')} · `
+  out.push(`${report.mode}: ${report.rows.length} submissions · ok ${count('ok')} · FAIL ${count('FAIL') + count('FAIL: partial-lines')} · `
     + `skipped ${count('skipped: has lines')} · aborted ${count('skipped: aborted')} · writes ${report.writes}`);
-  for (const r of report.rows) if (r.status === 'FAIL') out.push(`FAIL Unit ${r.unit}: ${r.reasons.join('; ')}`);
+  for (const r of report.rows) if (isFail(r.status)) out.push(`FAIL Unit ${r.unit}: ${r.reasons.join('; ')}`);
   if (report.aborted) out.push('ABORTED: a rollback failed; see the ROLLBACK FAILED row and clean up by hand (exit 3).');
   if (report.error) out.push(`ERROR: ${report.error}`);
   return out.join('\n');
@@ -310,6 +322,12 @@ export function supabaseBackfillDb(url: string, serviceKey: string): BackfillDb 
       if (r.error) throw new Error(`count quote_lines: ${r.error.message}`);
       return r.count ?? 0;
     },
+    async countItemisedLines(id) {
+      const r = await admin.from('quote_lines').select('id', { count: 'exact', head: true }).eq('submission_id', id)
+        .in('source', ['wizard', 'migration']);
+      if (r.error) throw new Error(`count itemised quote_lines: ${r.error.message}`);
+      return r.count ?? 0;
+    },
     async insertLines(lines) {
       // One PostgREST request = one INSERT statement, so the batch is atomic on its own; the caller still rolls back.
       must(await admin.from('quote_lines').insert(lines as never), 'insert quote_lines');
@@ -337,7 +355,7 @@ interface Io { log(s: string): void; error(s: string): void }
 export function exitCodeFor(report: BackfillReport): 0 | 1 | 2 | 3 {
   if (report.aborted) return 3;
   if (report.error || report.rows.some((r) => r.errored)) return 2;
-  if (report.rows.some((r) => r.status === 'FAIL')) return 1;
+  if (report.rows.some((r) => isFail(r.status))) return 1;
   return 0;
 }
 

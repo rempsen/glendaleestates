@@ -29,6 +29,8 @@ import { AddLineMenu } from '@/components/quote/AddLineMenu';
 import { NotesPanels } from '@/components/quote/NotesPanels';
 import { FOLLOWUPS_CONFLICT_MESSAGE, saveNotes, type NotesPatch } from '@/lib/followUps';
 import { DocumentsPanel } from '@/components/quote/DocumentsPanel';
+import { ItemiseBanner } from '@/components/quote/ItemiseBanner';
+import { consoleItemiseState, fetchItemiseInputs, ITEMISE_LOCKED_REASON } from '@/lib/itemiseQuote';
 import { RunningTotal } from '@/components/quote/RunningTotal';
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
 import { Button } from '@/components/ui/button';
@@ -184,13 +186,34 @@ export default function QuoteConsole() {
 
   const patch = useCallback((lineId: string, p: LinePatch) => { q.upsert({ id: lineId, ...p }); }, [q]);
 
+  // Itemise-first (final fix wave C1): no stored wizard / migration line → banner, edits locked.
+  const itemise = consoleItemiseState({ loading: q.loading, loadError: q.loadError, lines: q.lines });
+  const [itemising, setItemising] = useState(false);
+  const onItemise = useCallback(async () => {
+    if (!id) return;
+    setItemising(true);
+    try {
+      const inputs = await fetchItemiseInputs(supabase, id);
+      if (!inputs.length) { toast.error('Nothing to itemise for this unit'); return; }
+      // One createLine per generated line: each is audited and autosaved like any console insert.
+      for (const input of inputs) q.createLine(input);
+      await q.flush();
+      toast.success(`Itemised: ${inputs.length} lines`);
+    } catch (e) {
+      toast.error('Could not itemise this quote', { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setItemising(false);
+    }
+  }, [id, q]);
+
   const changeStatus = useCallback((line: StoredLine, to: LineStatus) => {
+    if (itemise.locked) { toast.error(ITEMISE_LOCKED_REASON); return; }
     if (to === line.status) return;
     if (needsReason(to)) { setPrompt({ line, to, note: line.client_note ?? '', error: null }); return; }
     const r = applyStatusChange(line, to);
     if (r.ok === false) { toast.error(r.reason); return; }
     q.upsert({ id: line.id, ...r.patch });
-  }, [q]);
+  }, [q, itemise.locked]);
 
   const confirmReason = () => {
     if (!prompt) return;
@@ -226,11 +249,12 @@ export default function QuoteConsole() {
 
   const createLine = useCallback((draft: LineDraft) => {
     if (q.loading) { toast.error('Lines are still loading — try again in a moment.'); return; }
+    if (itemise.locked) { toast.error(ITEMISE_LOCKED_REASON); return; }
     q.createLine(draft);
-  }, [q]);
+  }, [q, itemise.locked]);
 
   if (!id) return null;
-  const addDisabled = q.loading || !!q.loadError;
+  const addDisabled = itemise.locked;
 
   return (
     <AdminLayout>
@@ -269,6 +293,7 @@ export default function QuoteConsole() {
               ))}
             </nav>
             {q.loading && !q.lines.length && <p className="text-sm text-muted-foreground">Loading lines…</p>}
+            {itemise.needsItemising && <ItemiseBanner busy={itemising} disabled={!row} onItemise={() => void onItemise()} />}
 
             {SECTION_ORDER.map((s) => (
               <SectionGroup
@@ -298,6 +323,7 @@ export default function QuoteConsole() {
               gstRate={dyn.loaded && !dyn.error ? dyn.gstRate : null}
               flushSaved={flushSaved}
               current={currentQuote}
+              lockedReason={itemise.locked ? ITEMISE_LOCKED_REASON : null}
             />
           </div>
 

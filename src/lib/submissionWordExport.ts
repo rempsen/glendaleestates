@@ -95,7 +95,7 @@ export async function downloadSubmissionWord(id: string, staff = false): Promise
     tables: buildWordLineTables(model, buildWordOpenQuestions(s)),
     notes,
     internal,
-    sourceNote: staff && linesSource === 'generated' ? GENERATED_LINES_NOTE : undefined,
+    sourceNote: staff && linesSource !== 'db' ? GENERATED_LINES_NOTE : undefined,
     fileName: `Unit-${s.unit_number}-selections.docx`,
   });
 }

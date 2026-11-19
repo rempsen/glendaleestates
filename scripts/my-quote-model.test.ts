@@ -8,7 +8,7 @@ import type { PricingSnapshot } from './lib/fixturePricing';
 import { buildGenerateInputFromRow, pricingFromRows, type SubmissionRow } from './lib/generateInputFromRow';
 import { generateQuoteLines, sumQuoteLines, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
 import {
-  buildMyQuoteState, stateFromBuyerLines, latestReviewByLine, toBuyerLine, validateChangeRequest, validateReviewComment, buyerPdfSelectionsFromHeader,
+  buildMyQuoteState, stateFromBuyerLines, pickHeader, isMissingRpc, changeRequestErrorText, NOT_ITEMISED_TEXT, latestReviewByLine, toBuyerLine, validateChangeRequest, validateReviewComment, buyerPdfSelectionsFromHeader,
   NO_QUOTE_TEXT, UNAVAILABLE_TEXT, CHANGE_REQUEST_MAX, REVIEW_COMMENT_MAX,
   type MyQuoteHeader, type MyQuoteRpcLine, type LineReview,
 } from '../src/lib/myQuoteModel';
@@ -122,6 +122,33 @@ describe('no quote for this sign-in (Review Focus 4)', () => {
     if (state.kind !== 'ready') throw new Error(state.kind);
     expect(state.submissionId).toBe('new');
     expect(JSON.stringify(state)).not.toContain('OLD LINE');
+  });
+
+  test('newest submission THAT HAS LINES wins over a newer empty one; no lines at all falls back to the newest', () => {
+    const headers = [header({ submission_id: 'new' }), header({ submission_id: 'old', unit_number: '7' })];
+    const state = buildMyQuoteState({ headers, lines: [rpc({ id: 'a', submission_id: 'old', label: 'OLD LINE' })], reviews: [], gstRate: GST });
+    if (state.kind !== 'ready') throw new Error(state.kind);
+    expect(state.submissionId).toBe('old');
+    expect(state.header?.unit_number).toBe('7');
+    expect(pickHeader(headers, [])?.submission_id).toBe('new');
+    expect(pickHeader([], [])).toBeNull();
+  });
+
+  test('get_my_quote_header missing (PGRST202, 0012 not applied): renders from the lines alone as "Your quote"', () => {
+    expect(isMissingRpc({ code: 'PGRST202' })).toBe(true);
+    expect(isMissingRpc({ code: '42501' })).toBe(false);
+    expect(isMissingRpc(null)).toBe(false);
+    const state = buildMyQuoteState({ headers: [], lines: [rpc()], reviews: [], gstRate: GST });
+    if (state.kind !== 'ready') throw new Error(state.kind);
+    expect(state.header).toBeNull();
+    const html = renderToStaticMarkup(createElement(MyQuoteView, { state, onReview: async () => {}, onRequestChange: async () => {} }));
+    expect(html).toContain('Your quote');
+  });
+
+  test('request_quote_change on an un-itemised quote shows the itemise-first text; other errors the office contact', () => {
+    expect(changeRequestErrorText({ message: 'This quote has not been itemised yet; please contact the office' })).toBe(NOT_ITEMISED_TEXT);
+    expect(changeRequestErrorText({ message: 'boom' })).toBe(OFFICE_CONTACT_TEXT);
+    expect(changeRequestErrorText(null)).toBe(OFFICE_CONTACT_TEXT);
   });
 
   test('a counted hidden line (never returned by the RPC) shows the office contact instead of throwing', () => {

@@ -60,9 +60,9 @@ export const HUBSPOT_PRICING_PROPERTIES = [
  * (no prices printed). Stored lines carry their own prices and are always sent.
  */
 export function hubspotPricingProperties(
-  lines: QuoteLine[], gstRate: number, opts: { linesSource: 'db' | 'generated'; pricingUnavailable: string | null },
+  lines: QuoteLine[], gstRate: number, opts: { linesSource: 'db' | 'generated' | 'mixed'; pricingUnavailable: string | null },
 ): Record<(typeof HUBSPOT_PRICING_PROPERTIES)[number], string> | null {
-  if (opts.linesSource === 'generated' && opts.pricingUnavailable) return null;
+  if (opts.linesSource !== 'db' && opts.pricingUnavailable) return null;
   const v = hubspotQuoteValues(lines, gstRate);
   return {
     // property name unchanged for CRM history; value = sumQuoteLines(lines).windowCoverings (pre-GST)

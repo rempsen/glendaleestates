@@ -16,7 +16,7 @@ export const PAGE_ROWS = 1000;
 
 export interface SubmissionLinesBatch {
   linesBySubmission: Record<string, QuoteLine[]>;
-  linesSourceBySubmission: Record<string, 'db' | 'generated'>;
+  linesSourceBySubmission: Record<string, 'db' | 'generated' | 'mixed'>;
   gstRate: number;
 }
 
@@ -66,7 +66,7 @@ export async function loadLinesForSubmissions(
     stored.get(row.submission_id)!.push(row);
   }
   const linesBySubmission: Record<string, QuoteLine[]> = {};
-  const linesSourceBySubmission: Record<string, 'db' | 'generated'> = {};
+  const linesSourceBySubmission: Record<string, 'db' | 'generated' | 'mixed'> = {};
   for (const s of submissions) {
     const { lines, linesSource } = savedSubmissionLines(stored.get(s.id), s, pricing);
     linesBySubmission[s.id] = lines;

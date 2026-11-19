@@ -117,7 +117,7 @@ async function pricingPropertiesForSubmission(submission: BuyerSelection): Promi
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   const pricing = await loadServerPricing(clientPricingFetcher(admin));
   const pricingUnavailable = pricingUnavailableReason(pricing);
-  let result: { lines: ReturnType<typeof savedSubmissionLinesCore>['lines']; linesSource: 'db' | 'generated' };
+  let result: { lines: ReturnType<typeof savedSubmissionLinesCore>['lines']; linesSource: 'db' | 'generated' | 'mixed' };
   if (!submission.id) {
     result = savedSubmissionLinesCore([], submission, pricing);
   } else {

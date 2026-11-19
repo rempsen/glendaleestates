@@ -100,6 +100,6 @@ export function savedSubmissionLines(
   stored: ReadonlyArray<StoredQuoteLineRow> | null | undefined,
   row: BuyerSelectionsRowLike,
   pricing: QuotePricing,
-): { lines: QuoteLine[]; linesSource: 'db' | 'generated' } {
+): { lines: QuoteLine[]; linesSource: 'db' | 'generated' | 'mixed' } {
   return savedSubmissionLinesCore(stored, row, pricing, baseSpecFor(unitTypeCodeOfRow(row)));
 }

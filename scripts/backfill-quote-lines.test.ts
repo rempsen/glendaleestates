@@ -29,10 +29,10 @@ interface Stub extends BackfillDb {
   pricingPatch?: (rows: PricingSnapshot) => void;
 }
 
-function stubDb(existing: Record<string, number> = {}): Stub {
+function stubDb(existing: Record<string, number> = {}, existingSource = 'migration'): Stub {
   const store = new Map<string, InsertLine[]>();
   for (const [id, n] of Object.entries(existing)) {
-    store.set(id, Array.from({ length: n }, () => ({ submission_id: id, source: 'office' }) as unknown as InsertLine));
+    store.set(id, Array.from({ length: n }, () => ({ submission_id: id, source: existingSource }) as unknown as InsertLine));
   }
   const calls = { insert: 0, delete: 0, list: 0 };
   const db: Stub = {
@@ -45,6 +45,9 @@ function stubDb(existing: Record<string, number> = {}): Stub {
     async countLines(id) {
       if (db.failCountFor === id) throw new Error('simulated count timeout');
       return store.get(id)?.length ?? 0;
+    },
+    async countItemisedLines(id) {
+      return (store.get(id) ?? []).filter((l) => (l.source as string) === 'wizard' || l.source === 'migration').length;
     },
     async insertLines(lines) {
       calls.insert++;
@@ -201,6 +204,26 @@ describe('--write', () => {
     // Also reported in a dry run.
     expect((await runBackfill(stubDb({ [target]: 1 }), { write: false })).rows.find((r) => r.unit === '7')!.status)
       .toBe('skipped: has lines');
+  });
+
+  test('only office / buyer_request lines (never itemised) → FAIL: partial-lines, not written, exit 1', async () => {
+    const target = idOf('7');
+    for (const src of ['office', 'buyer_request']) {
+      const dry = await runBackfill(stubDb({ [target]: 1 }, src), { write: false });
+      const d7 = dry.rows.find((r) => r.unit === '7')!;
+      expect(d7.status).toBe('FAIL: partial-lines');
+      expect(d7.reasons.join(' ')).toContain('partial-lines');
+      expect(exitCodeFor(dry)).toBe(1);
+      expect(formatTable(dry)).toContain('FAIL Unit 7');
+    }
+    const db = stubDb({ [target]: 2 }, 'office');
+    const report = await runBackfill(db, { write: true, confirm: 'yes', expect: await signedOff(stubDb({ [target]: 2 }, 'office')) });
+    const r7 = report.rows.find((r) => r.unit === '7')!;
+    expect(r7.status).toBe('FAIL: partial-lines');
+    expect(r7.written).toBe(0);
+    expect(db.store.get(target)!.length).toBe(2);
+    expect(report.writes).toBe(8);
+    expect(exitCodeFor(report)).toBe(1);
   });
 
   test('insert error → rolled back (no partial set) and FAIL; the run continues', async () => {

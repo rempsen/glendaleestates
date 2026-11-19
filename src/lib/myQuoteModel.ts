@@ -12,6 +12,7 @@ export { OFFICE_CONTACT_TEXT };
 export const NO_QUOTE_TEXT = 'No quote found for this sign-in';
 export const UNAVAILABLE_TEXT = 'Your quote cannot be shown right now';
 export const EMPTY_TEXT = 'Your itemised quote is being prepared';
+export const NOT_ITEMISED_TEXT = 'This quote has not been itemised yet; please contact the office';
 export const CHANGE_REQUEST_MAX = 300;
 export const REVIEW_COMMENT_MAX = 500;
 
@@ -102,14 +103,31 @@ export function stateFromBuyerLines(input: {
 }
 
 /**
- * Page state from the two RPCs and the caller's own reviews. `headers` is newest first (one buyer email can hold more
- * than one submission); only the newest is shown, and request_quote_change targets the same one.
+ * The header to show: the newest submission (headers are newest first) that has visible lines, else the newest.
+ * One buyer email can hold more than one submission; an older itemised one is not hidden by a newer empty one.
+ */
+export function pickHeader(headers: readonly MyQuoteHeader[], lines: readonly Pick<MyQuoteRpcLine, 'submission_id'>[]): MyQuoteHeader | null {
+  const withLines = new Set(lines.map((l) => l.submission_id));
+  return headers.find((h) => withLines.has(h.submission_id)) ?? headers[0] ?? null;
+}
+
+/** PostgREST "function not found": get_my_quote_header (0012) is not applied yet; render from the lines alone. */
+export const isMissingRpc = (e: { code?: string } | null | undefined): boolean => e?.code === 'PGRST202';
+
+/** Buyer-facing text for a failed request_quote_change() call. */
+export function changeRequestErrorText(e: { message?: string } | null | undefined): string {
+  return /not been itemised/i.test(e?.message ?? '') ? NOT_ITEMISED_TEXT : OFFICE_CONTACT_TEXT;
+}
+
+/**
+ * Page state from the two RPCs and the caller's own reviews. `headers` is newest first; the shown submission is
+ * `pickHeader`'s (with no header at all the lines' own submission, titled "Your quote").
  */
 export function buildMyQuoteState(input: {
   headers: readonly MyQuoteHeader[]; lines: readonly MyQuoteRpcLine[]; reviews: readonly LineReview[]; gstRate: number;
 }): MyQuoteState {
   return stateFromBuyerLines({
-    header: input.headers[0] ?? null,
+    header: pickHeader(input.headers, input.lines),
     lines: input.lines.map(toBuyerLine),
     reviews: input.reviews,
     gstRate: input.gstRate,

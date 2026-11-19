@@ -71,7 +71,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       submissionId: String(sub.id), row: sub, pricing,
     });
     // Stored lines carry their own prices; generated ones need the live tables.
-    const unavailable = linesSource === 'generated' ? pricingUnavailableReason(pricing) : null;
+    const unavailable = linesSource !== 'db' ? pricingUnavailableReason(pricing) : null;
     if (unavailable) console.warn(`[resend] pricing unavailable (${unavailable}); emails print no prices for ${sub.id}`);
     const q: EmailLines = { lines, gstRate: pricing.gstRate, pricesAvailable: !unavailable, linesSource };
     const grandTotal = linesGrandTotal(q);

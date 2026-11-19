@@ -31,6 +31,14 @@ if (denoTest) {
     ok(g.linesSource === 'generated' && g.lines.length > 2, 'expected generated fallback');
   });
 
+  denoTest('un-itemised (only an office pending line stored): mixed = generated + that line, total unchanged', () => {
+    const g = savedSubmissionLinesCore([], sub, PREVIEW_PRICING);
+    const m = savedSubmissionLinesCore([stored[1]], sub, PREVIEW_PRICING);
+    ok(m.linesSource === 'mixed', `expected mixed, got ${m.linesSource}`);
+    ok(m.lines.length === g.lines.length + 1 && m.lines.some((l) => l.id === 'l2'), 'pending line missing');
+    ok(sumQuoteLines(m.lines, 0.05).total === sumQuoteLines(g.lines, 0.05).total, 'total shrank or grew');
+  });
+
   denoTest('buyer + admin copies: seven columns, Pending not $0.00, totals from sumQuoteLines', () => {
     const q = { lines: stored, gstRate: 0.05, pricesAvailable: true, linesSource: 'db' as const };
     const total = sumQuoteLines(stored, 0.05).total;

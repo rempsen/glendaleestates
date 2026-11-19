@@ -49,7 +49,7 @@ export async function generateSavedSubmissionPdf(id: string, saveToFile = false,
     saveToFile, returnBase64: true,
     footerLabel: staff ? 'STAFF COPY — Contains internal notes' : `Submitted selections — ${s.status || 'submitted'}`,
     staffRecord: staff ? { submittedAt: s.created_at, status: s.status, adminNotes: (s as any).admin_notes, salesComments: s.sales_comments, areaInternalNotes: internalAreaNotes(s.area_upgrades as never) } : undefined,
-    sourceNote: staff && linesSource === 'generated' ? GENERATED_LINES_NOTE : undefined,
+    sourceNote: staff && linesSource !== 'db' ? GENERATED_LINES_NOTE : undefined,
   });
   if (typeof result !== 'string') throw new Error('PDF generation returned no file');
   return result;

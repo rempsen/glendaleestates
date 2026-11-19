@@ -22,7 +22,7 @@ export interface EmailLines {
   gstRate: number;
   /** False when pricing was unavailable at submit: print no money, say the itemised quote will follow. */
   pricesAvailable: boolean;
-  linesSource?: 'db' | 'generated';
+  linesSource?: 'db' | 'generated' | 'mixed';
 }
 
 export interface LinesEmailOptions {
@@ -31,7 +31,7 @@ export interface LinesEmailOptions {
   /** False when the lines were generated without prices (pricing unavailable): print no money at all. */
   pricesAvailable: boolean;
   /** Stored lines ('db') or generator fallback ('generated'); the staff copy notes a fallback. */
-  linesSource?: 'db' | 'generated';
+  linesSource?: 'db' | 'generated' | 'mixed';
 }
 
 export interface LinesEmailResult {
@@ -119,7 +119,7 @@ export function renderLinesEmailHtml(lines: QuoteLine[], opts: LinesEmailOptions
       note('A 10% material overage is allowed on all quoted amounts.'));
   }
   if (!opts.buyerView) {
-    if (opts.linesSource === 'generated') parts.push(note(GENERATED_LINES_NOTE));
+    if (opts.linesSource === 'generated' || opts.linesSource === 'mixed') parts.push(note(GENERATED_LINES_NOTE));
     if (model.internalNotes.length) {
       parts.push(`<div style="${styles.sectionWarning}">${h3(INTERNAL_NOTES_HEADING)}<ul style="margin:0; padding-left:18px;">${model.internalNotes
         .map((n) => `<li style="${styles.text}"><strong>${escapeHtml([n.location, n.item].filter(Boolean).join(' — '))}:</strong> ${escapeHtml(n.note)}</li>`).join('')}</ul></div>`);

@@ -77,6 +77,14 @@ describe('migration 0012 buyer change request', () => {
     expect(req).toContain('RETURNING id INTO _id');
   });
 
+  test('request_quote_change refuses an un-itemised quote (no stored line other than buyer requests), before the insert', () => {
+    const guard = "IF NOT EXISTS (SELECT 1 FROM public.quote_lines ql WHERE ql.submission_id = _submission AND ql.source <> 'buyer_request') THEN "
+      + "RAISE EXCEPTION 'This quote has not been itemised yet; please contact the office' USING ERRCODE = 'P0002'; END IF;";
+    expect(req).toContain(guard);
+    expect(req.indexOf(guard)).toBeGreaterThan(req.indexOf("RAISE EXCEPTION 'No quote found for this sign-in'"));
+    expect(req.indexOf(guard)).toBeLessThan(req.indexOf('INSERT INTO public.quote_lines'));
+  });
+
   test('rep fallback order: last staff line editor → pricing_default_assignee (staff only) → NULL', () => {
     const editor = req.indexOf('SELECT e.user_id INTO _rep');
     const fallback = req.indexOf('IF _rep IS NULL THEN');

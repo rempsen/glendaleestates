@@ -60,6 +60,13 @@ BEGIN
     RAISE EXCEPTION 'No quote found for this sign-in' USING ERRCODE = 'P0002';
   END IF;
 
+  -- Itemise-first (final fix wave C1): a request on a submission whose quote has not been itemised (no stored line
+  -- other than buyer requests) would become its only stored line and hide the generated quote on every surface.
+  IF NOT EXISTS (SELECT 1 FROM public.quote_lines ql
+                 WHERE ql.submission_id = _submission AND ql.source <> 'buyer_request') THEN
+    RAISE EXCEPTION 'This quote has not been itemised yet; please contact the office' USING ERRCODE = 'P0002';
+  END IF;
+
   IF (SELECT count(*) FROM public.quote_lines ql
       WHERE ql.submission_id = _submission AND ql.source = 'buyer_request' AND ql.status = 'pending') >= 20 THEN
     RAISE EXCEPTION 'Too many open change requests; please contact the office' USING ERRCODE = '54000';
