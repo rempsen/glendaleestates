@@ -1,4 +1,5 @@
 import { lvpOptions, spcTileOptions, carpetOptions, toOptionId } from '@/lib/mockData';
+import { useRole } from '@/hooks/useRole';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -82,6 +83,8 @@ interface SubmissionEditorProps {
 export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerDetailsOnly = false }: SubmissionEditorProps) {
   const [editData, setEditData] = useState<BuyerSelection>({ ...submission });
   const [saving, setSaving] = useState(false);
+  // Payments / ownership / procurement tables are admin-only RLS: staff do not see that panel.
+  const { isAdmin } = useRole();
   
   // Fetch dynamic pricing
   const { pricingConfig, loading: pricingLoading } = useUpgradePricing();
@@ -1004,7 +1007,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
         </AccordionItem>
 
         {/* Downstream Tracking */}
-        {!buyerDetailsOnly && <AccordionItem value="downstream" className="border rounded-lg px-4">
+        {!buyerDetailsOnly && isAdmin && <AccordionItem value="downstream" className="border rounded-lg px-4">
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <ClipboardList className="w-4 h-4" />

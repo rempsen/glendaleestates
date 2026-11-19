@@ -28,6 +28,7 @@ import NotFound from "./pages/NotFound";
 import MyQuote from "./pages/MyQuote";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { BuyerRoute } from "./components/BuyerRoute";
+import { routeRequiresAdmin } from "./lib/rolePermissions";
 
 const queryClient = new QueryClient();
 
@@ -49,23 +50,23 @@ const App = () => (
           <Route path="/draft-saved" element={<DraftSaved />} />
           <Route path="/my-quote" element={<BuyerRoute><MyQuote /></BuyerRoute>} />
           <Route path="/auth" element={<Auth />} />
-          <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-          <Route path="/admin/pipeline" element={<ProtectedRoute><AdminPipeline /></ProtectedRoute>} />
-          <Route path="/admin/quotes" element={<ProtectedRoute><AdminQuotes /></ProtectedRoute>} />
-          <Route path="/admin/quotes/:id" element={<ProtectedRoute><QuoteConsole /></ProtectedRoute>} />
-          <Route path="/admin/pricing-queue" element={<ProtectedRoute><AdminPricingQueue /></ProtectedRoute>} />
-          <Route path="/admin/submissions/:id/console" element={<ProtectedRoute><ConsoleRedirect /></ProtectedRoute>} />
-          <Route path="/admin/submissions" element={<ProtectedRoute><AdminSubmissions /></ProtectedRoute>} />
-          <Route path="/admin/homes" element={<ProtectedRoute><AdminHomes /></ProtectedRoute>} />
-          <Route path="/admin/sales-analytics" element={<ProtectedRoute><AdminSalesAnalytics /></ProtectedRoute>} />
-          <Route path="/admin/reports" element={<ProtectedRoute><AdminReports /></ProtectedRoute>} />
-          <Route path="/admin/export" element={<ProtectedRoute><AdminExport /></ProtectedRoute>} />
-          <Route path="/admin/pricing" element={<ProtectedRoute><AdminPricingControl /></ProtectedRoute>} />
-          <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
-          <Route path="/admin/email-preview" element={<ProtectedRoute><AdminEmailPreview /></ProtectedRoute>} />
-          <Route path="/admin/project-management" element={<ProtectedRoute><AdminProjectManagement /></ProtectedRoute>} />
-          <Route path="/admin/settings/quickbooks" element={<ProtectedRoute><AdminQuickBooksSettings /></ProtectedRoute>} />
-          <Route path="/admin/settings/notifications" element={<ProtectedRoute><AdminNotificationSettings /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin')}><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/pipeline" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin/pipeline')}><AdminPipeline /></ProtectedRoute>} />
+          <Route path="/admin/quotes" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin/quotes')}><AdminQuotes /></ProtectedRoute>} />
+          <Route path="/admin/quotes/:id" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin/quotes/:id')}><QuoteConsole /></ProtectedRoute>} />
+          <Route path="/admin/pricing-queue" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin/pricing-queue')}><AdminPricingQueue /></ProtectedRoute>} />
+          <Route path="/admin/submissions/:id/console" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin/submissions/:id/console')}><ConsoleRedirect /></ProtectedRoute>} />
+          <Route path="/admin/submissions" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin/submissions')}><AdminSubmissions /></ProtectedRoute>} />
+          <Route path="/admin/homes" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin/homes')}><AdminHomes /></ProtectedRoute>} />
+          <Route path="/admin/sales-analytics" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin/sales-analytics')}><AdminSalesAnalytics /></ProtectedRoute>} />
+          <Route path="/admin/reports" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin/reports')}><AdminReports /></ProtectedRoute>} />
+          <Route path="/admin/export" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin/export')}><AdminExport /></ProtectedRoute>} />
+          <Route path="/admin/pricing" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin/pricing')}><AdminPricingControl /></ProtectedRoute>} />
+          <Route path="/admin/users" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin/users')}><AdminUsers /></ProtectedRoute>} />
+          <Route path="/admin/email-preview" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin/email-preview')}><AdminEmailPreview /></ProtectedRoute>} />
+          <Route path="/admin/project-management" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin/project-management')}><AdminProjectManagement /></ProtectedRoute>} />
+          <Route path="/admin/settings/quickbooks" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin/settings/quickbooks')}><AdminQuickBooksSettings /></ProtectedRoute>} />
+          <Route path="/admin/settings/notifications" element={<ProtectedRoute requireAdmin={routeRequiresAdmin('/admin/settings/notifications')}><AdminNotificationSettings /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

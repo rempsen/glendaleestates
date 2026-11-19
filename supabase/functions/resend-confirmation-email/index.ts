@@ -1,7 +1,7 @@
 // Resend confirmation email (Phase 2 Task 11): the buyer and admin copies print the submission's stored quote lines
 // (generator fallback when none exist yet) — the same lines, rows and totals as the PDF, Word and the submit emails.
 import { getCorsHeaders } from "../_shared/cors.ts";
-import { authorizeInternalOrAdmin, makeGetUserFromJwt } from "../_shared/internalAuth.ts";
+import { authorizeStaffOrAdmin, makeGetUserFromJwt } from "../_shared/internalAuth.ts";
 import { loadServerPricing, pricingUnavailableReason, restPricingFetcher } from "../_shared/loadServerPricing.ts";
 import { loadSubmissionLinesRest } from "../_shared/savedSubmissionLines.ts";
 import type { EmailLines } from "../_shared/linesEmailHtml.ts";
@@ -39,14 +39,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
-  const gate = await authorizeInternalOrAdmin(
+  const gate = await authorizeStaffOrAdmin(
     req,
     { serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") },
     makeGetUserFromJwt(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!),
   );
   if (!gate.ok) {
-    return new Response(JSON.stringify({ error: "unauthorized" }), {
-      status: 401,
+    return new Response(JSON.stringify({ error: gate.status === 403 ? "staff or admin role required" : "unauthorized" }), {
+      status: gate.status,
       headers: { "Content-Type": "application/json", ...cors },
     });
   }

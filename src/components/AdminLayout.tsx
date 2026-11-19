@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { usePricingQueueCount } from '@/hooks/usePricingQueue';
+import { useRole } from '@/hooks/useRole';
+import { navItemsFor } from '@/lib/rolePermissions';
 import { 
   LayoutDashboard, 
   Home, 
@@ -33,23 +35,24 @@ import { GitGraph, FileSearch, Hourglass } from 'lucide-react';
 
 const PRICING_QUEUE_PATH = '/admin/pricing-queue';
 
-const navItems = [
-  { icon: FileSearch, label: 'Quotes', path: '/admin/quotes' },
-  { icon: Hourglass, label: 'Pricing queue', path: PRICING_QUEUE_PATH },
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
-  { icon: GitGraph, label: 'Pipeline', path: '/admin/pipeline' },
-  { icon: Inbox, label: 'Submissions', path: '/admin/submissions' },
-  { icon: Home, label: 'All Homes', path: '/admin/homes' },
-  { icon: ClipboardList, label: 'Project Management', path: '/admin/project-management' },
-  { icon: BarChart3, label: 'Sales Analytics', path: '/admin/sales-analytics' },
-  { icon: FileText, label: 'Reports', path: '/admin/reports' },
-  { icon: Download, label: 'Export', path: '/admin/export' },
-  { icon: DollarSign, label: 'Pricing Control', path: '/admin/pricing' },
-  { icon: Users, label: 'User Management', path: '/admin/users' },
-  { icon: Mail, label: 'Email Preview', path: '/admin/email-preview' },
-  { icon: Receipt, label: 'QuickBooks', path: '/admin/settings/quickbooks' },
-  { icon: Bell, label: 'Notifications', path: '/admin/settings/notifications' },
-];
+// Which items a role sees lives in src/lib/rolePermissions.ts (staff: no Pricing Control, Users, QuickBooks, settings).
+const NAV_ICONS: Record<string, typeof Home> = {
+  '/admin/quotes': FileSearch,
+  [PRICING_QUEUE_PATH]: Hourglass,
+  '/admin': LayoutDashboard,
+  '/admin/pipeline': GitGraph,
+  '/admin/submissions': Inbox,
+  '/admin/homes': Home,
+  '/admin/project-management': ClipboardList,
+  '/admin/sales-analytics': BarChart3,
+  '/admin/reports': FileText,
+  '/admin/export': Download,
+  '/admin/pricing': DollarSign,
+  '/admin/users': Users,
+  '/admin/email-preview': Mail,
+  '/admin/settings/quickbooks': Receipt,
+  '/admin/settings/notifications': Bell,
+};
 
 export function AdminLayout({ children }: AdminLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -57,6 +60,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const queueCount = usePricingQueueCount();
+  const { role } = useRole();
+  const navItems = navItemsFor(role).map((i) => ({ ...i, icon: NAV_ICONS[i.path] ?? Settings }));
 
   const handleSignOut = async () => {
     await signOut();

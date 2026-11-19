@@ -1,6 +1,7 @@
 // Resend a corrected selection summary email with the regenerated PDF (containing comments
 // that were captured in the database but missing from the originally-sent PDF).
 import { corsHeaders } from "../_shared/cors.ts";
+import { authorizeStaffOrAdmin, makeGetUserFromJwt } from "../_shared/internalAuth.ts";
 
 interface ResendRequestBody {
   submissionId: string;
@@ -37,45 +38,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Validate caller is an authenticated admin
-    const authHeader = req.headers.get("Authorization") || "";
-    const jwt = authHeader.replace(/^Bearer\s+/i, "");
-    if (!jwt) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // Caller must be BMD staff or an admin (Phase 2 Task 16): 401 no / invalid JWT, 403 signed-in non-staff.
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const userResp = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${jwt}` },
-    });
-    if (!userResp.ok) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    const userData = await userResp.json();
-    const userId = userData?.id;
-    if (!userId) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    // Confirm admin role
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const roleResp = await fetch(
-      `${supabaseUrl}/rest/v1/user_roles?user_id=eq.${userId}&role=eq.admin&select=role`,
-      { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } }
-    );
-    const roles = await roleResp.json();
-    if (!Array.isArray(roles) || roles.length === 0) {
+    const gate = await authorizeStaffOrAdmin(req, { serviceRoleKey: serviceKey }, makeGetUserFromJwt(supabaseUrl, serviceKey));
+    if (!gate.ok) {
       return new Response(
-        JSON.stringify({ error: "Forbidden — admin role required" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: gate.status === 403 ? "Forbidden — staff or admin role required" : "Unauthorized" }),
+        { status: gate.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

@@ -1,10 +1,10 @@
 // send-for-signature (Phase 2 Task 14, spec §6.8): staff JWT → provider document from the snapshot PDF the console
 // uploaded to unit-documents/{unit}/{document_id}.pdf → { embedded_signing_url }. Logic: ./handler.ts (tested).
-// verify_jwt = false in config.toml; gated in-function by authorizeInternalOrAdmin({ allowStaff }) (admin or staff JWT).
+// verify_jwt = false in config.toml; gated in-function by authorizeStaffOrAdmin (admin or staff JWT).
 // ENV: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SIGNWELL_API_KEY, SIGNWELL_WEBHOOK_SECRET, SIGNWELL_TEST_MODE (default true).
 // SETTINGS: portal_settings.esign_provider (default "signwell").
 import { getCorsHeaders } from '../_shared/cors.ts';
-import { authorizeInternalOrAdmin, makeGetUserFromJwt } from '../_shared/internalAuth.ts';
+import { authorizeStaffOrAdmin, makeGetUserFromJwt } from '../_shared/internalAuth.ts';
 import { ESIGN_SETTINGS_KEYS, parseEsignProvider } from '../_shared/esign/documents.ts';
 import { providerFromEnv } from '../_shared/esign/providerFromEnv.ts';
 import { serviceRest } from '../_shared/esign/serviceRest.ts';
@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   if (!supabaseUrl || !serviceKey) return json(500, { error: 'Function not configured' });
 
-  const auth = await authorizeInternalOrAdmin(req, { serviceRoleKey: serviceKey }, makeGetUserFromJwt(supabaseUrl, serviceKey), { allowStaff: true });
+  const auth = await authorizeStaffOrAdmin(req, { serviceRoleKey: serviceKey }, makeGetUserFromJwt(supabaseUrl, serviceKey));
   let body: unknown = null;
   try { body = await req.json(); } catch { body = null; }
 

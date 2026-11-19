@@ -5,7 +5,7 @@ import { FakeEsignProvider } from '../supabase/functions/_shared/esign/fakeProvi
 import {
   documentTitle, parseStatusAfterSigned, safeUnitFolder, statusAdvancePatch, unitDocumentPath,
 } from '../supabase/functions/_shared/esign/documents';
-import { authorizeInternalOrAdmin } from '../supabase/functions/_shared/internalAuth';
+import { authorizeInternalOrAdmin, authorizeStaffOrAdmin } from '../supabase/functions/_shared/internalAuth';
 
 const DOC = '22222222-2222-4222-8222-222222222222';
 const staff = { ok: true as const, kind: 'staff' as const, email: 'noni@bmdmaterials.com', userId: 'u-noni' };
@@ -117,14 +117,17 @@ describe('esign document helpers', () => {
   });
 });
 
-describe('internalAuth allowStaff', () => {
+describe('internalAuth staff gate (send-for-signature uses authorizeStaffOrAdmin)', () => {
   const env = { serviceRoleKey: 'svc' };
   const req = (jwt: string) => ({ headers: { get: (n: string) => (n === 'Authorization' ? `Bearer ${jwt}` : null) } });
   const getUser = async (jwt: string) =>
     jwt === 'staff' ? { email: 'noni@x', isStaff: true, id: 'u1' } : jwt === 'buyer' ? { email: 'b@x' } : null;
-  test('staff JWT ok only with allowStaff', async () => {
-    expect(await authorizeInternalOrAdmin(req('staff'), env, getUser, { allowStaff: true })).toEqual({ ok: true, kind: 'staff', email: 'noni@x', userId: 'u1' });
+  test('staff JWT ok only via authorizeStaffOrAdmin; buyer 403', async () => {
+    expect(await authorizeStaffOrAdmin(req('staff'), env, getUser)).toEqual({ ok: true, kind: 'staff', email: 'noni@x', userId: 'u1' });
     expect(await authorizeInternalOrAdmin(req('staff'), env, getUser)).toEqual({ ok: false, status: 401 });
-    expect(await authorizeInternalOrAdmin(req('buyer'), env, getUser, { allowStaff: true })).toEqual({ ok: false, status: 401 });
+    expect(await authorizeStaffOrAdmin(req('buyer'), env, getUser)).toEqual({ ok: false, status: 403 });
+  });
+  test('handler maps a 403 gate to 403', async () => {
+    expect((await handleSendForSignature({ document_id: DOC }, { ok: false, status: 403 }, harness().deps)).status).toBe(403);
   });
 });

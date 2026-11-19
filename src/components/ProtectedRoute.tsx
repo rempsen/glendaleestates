@@ -1,48 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { useRole } from '@/hooks/useRole';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  /** Admin-only page (pricing, users, QuickBooks, settings…). Otherwise BMD staff may enter too. See src/lib/rolePermissions.ts. */
+  requireAdmin?: boolean;
 }
 
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, loading } = useAuth();
+export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
+  const { user, loading: authLoading } = useAuth();
+  const { role, loading, isAdmin, isStaff } = useRole();
   const navigate = useNavigate();
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [checkingRole, setCheckingRole] = useState(true);
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-      return;
-    }
+    if (!authLoading && !user) navigate('/auth');
+  }, [user, authLoading, navigate]);
 
-    if (user) {
-      // Check if user has admin role
-      const checkAdminRole = async () => {
-        const { data, error } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user.id)
-          .eq('role', 'admin')
-          .maybeSingle();
-
-        if (error) {
-          console.error('Error checking role:', error);
-          setIsAdmin(false);
-        } else {
-          setIsAdmin(!!data);
-        }
-        setCheckingRole(false);
-      };
-
-      checkAdminRole();
-    }
-  }, [user, loading, navigate]);
-
-  if (loading || checkingRole) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -57,7 +33,9 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return null;
   }
 
-  if (!isAdmin) {
+  const allowed = requireAdmin ? isAdmin : isStaff;
+  if (!allowed) {
+    const staffOnAdminPage = role === 'staff';
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4 text-center p-8">
@@ -68,13 +46,15 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
           </div>
           <h2 className="text-xl font-semibold">Access Denied</h2>
           <p className="text-muted-foreground max-w-md">
-            Only users with a @bmdmaterials.com email address can access the admin area.
+            {staffOnAdminPage
+              ? 'This page is for administrators. Ask Dan or Brian if you need a change here.'
+              : 'Only users with a @bmdmaterials.com email address can access the admin area.'}
           </p>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate(staffOnAdminPage ? '/admin/quotes' : '/')}
             className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
           >
-            Return to Home
+            {staffOnAdminPage ? 'Go to Quotes' : 'Return to Home'}
           </button>
         </div>
       </div>

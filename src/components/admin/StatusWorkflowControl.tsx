@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useRole } from '@/hooks/useRole';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -72,6 +73,8 @@ export function StatusWorkflowControl({
   createdAt,
   onStatusChange 
 }: StatusWorkflowControlProps) {
+  // QuickBooks is admin-only (spec §6.9): staff status changes never call qbo-sync-submission.
+  const { isAdmin } = useRole();
   const [updating, setUpdating] = useState(false);
 
   const handleStatusChange = async (newStatus: string) => {
@@ -112,7 +115,9 @@ export function StatusWorkflowControl({
       toast.success(`Status updated to ${newStatus}`);
 
       // Auto-sync to QuickBooks when entering 'quoted' state.
-      if (newStatus === 'quoted') {
+      if (newStatus === 'quoted' && !isAdmin) {
+        toast.info('An admin will sync this quote to QuickBooks.');
+      } else if (newStatus === 'quoted') {
         toast.info('Syncing to QuickBooks…');
         supabase.functions.invoke('qbo-sync-submission', {
           body: { submission_id: submissionId },

@@ -422,6 +422,7 @@ export default function AdminUsers() {
                 <TableHead>Last Sign In</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Admin</TableHead>
+                <TableHead title="BMD staff: console, quotes, pricing queue, submissions and documents; no pricing, users or QuickBooks">Staff</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -481,6 +482,14 @@ export default function AdminUsers() {
                       checked={user.roles.includes('admin')}
                       onCheckedChange={() => handleToggleRole(user.id, 'admin', user.roles.includes('admin'))}
                       disabled={actionLoading === user.id}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Switch
+                      checked={user.roles.includes('staff')}
+                      onCheckedChange={() => handleToggleRole(user.id, 'staff', user.roles.includes('staff'))}
+                      disabled={actionLoading === user.id}
+                      aria-label={`Staff role for ${user.email ?? 'user'}`}
                     />
                   </TableCell>
                   <TableCell className="text-right">

@@ -42,7 +42,9 @@ export interface HandlerResult { status: number; body: Record<string, unknown> }
 export const SIGNED_URL_SECONDS = 600;
 
 export async function handleSendForSignature(body: unknown, auth: InternalAuthResult, deps: SendDeps): Promise<HandlerResult> {
-  if (auth.ok === false) return { status: 401, body: { error: 'Unauthorized' } };
+  if (auth.ok === false) {
+    return auth.status === 403 ? { status: 403, body: { error: 'Staff sign-in required' } } : { status: 401, body: { error: 'Unauthorized' } };
+  }
   if (auth.kind !== 'admin' && auth.kind !== 'staff') return { status: 403, body: { error: 'Staff sign-in required' } };
 
   const documentId = body && typeof body === 'object' ? (body as { document_id?: unknown }).document_id : undefined;

@@ -38,7 +38,7 @@ verify_jwt = false
 [functions.pricing-digest]
 verify_jwt = false
 
-# Phase 2 Task 14, gated in-function: send-for-signature = admin or staff JWT (authorizeInternalOrAdmin allowStaff);
+# Phase 2 Task 14, gated in-function: send-for-signature = admin or staff JWT (authorizeStaffOrAdmin);
 # esign-webhook = public SignWell webhook, signature verified on the raw body before any DB access.
 [functions.send-for-signature]
 verify_jwt = false

@@ -1,5 +1,5 @@
 import { corsHeaders } from "../_shared/cors.ts";
-import { authorizeInternalOrAdmin, makeGetUserFromJwt } from "../_shared/internalAuth.ts";
+import { authorizeStaffOrAdmin, makeGetUserFromJwt } from "../_shared/internalAuth.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { clientPricingFetcher, loadServerPricing, pricingUnavailableReason } from "../_shared/loadServerPricing.ts";
 import { loadSubmissionLinesClient, savedSubmissionLinesCore } from "../_shared/savedSubmissionLines.ts";
@@ -236,14 +236,14 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const gate = await authorizeInternalOrAdmin(
+  const gate = await authorizeStaffOrAdmin(
     req,
     { serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") },
     makeGetUserFromJwt(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!),
   );
   if (!gate.ok) {
-    return new Response(JSON.stringify({ error: "unauthorized" }), {
-      status: 401,
+    return new Response(JSON.stringify({ error: gate.status === 403 ? "staff or admin role required" : "unauthorized" }), {
+      status: gate.status,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useRole } from '@/hooks/useRole';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminLayout } from '@/components/AdminLayout';
@@ -233,6 +234,8 @@ const statusColors: Record<string, string> = {
 
 export default function AdminSubmissions() {
   const [submissions, setSubmissions] = useState<BuyerSelection[]>([]);
+  // AI summaries run in the admin-checked summarize-upgrade-requests function (AGENTS.md): admins only.
+  const { isAdmin } = useRole();
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -865,7 +868,7 @@ export default function AdminSubmissions() {
                     
                     <TabsContent value="details" className="mt-4">
               <div className="space-y-6">
-                <UpgradeRequestSummary key={selectedSubmission.id} submissionId={selectedSubmission.id} />
+                {isAdmin && <UpgradeRequestSummary key={selectedSubmission.id} submissionId={selectedSubmission.id} />}
                 {/* Missing-comments warning banner */}
                 {(() => {
                   const sub = selectedSubmission as any;

@@ -31,3 +31,8 @@
 ## Phase 2 Task 15 (QuickBooks estimate)
 
 - `qbo-sync-submission` builds the Estimate 1:1 from quote_lines via `supabase/functions/_shared/qboLinesMap.ts` (`estimateLinesFromQuoteLines`): Amount = line amount, totals = `sumQuoteLines`, SKU `GLEN-{SECTION}-{material_key | slug(label)}`, Items NonInventory with Name = Sku. It never calls a pricing engine (guarded by `scripts/qbo-lines-map.test.ts`) and answers 409 `quote has unpriced lines` (with `lineIds`) while any line is pending / under_review or an upgrade has no amount. QBO descriptions carry `client_note` only, never `internal_note`.
+
+## Phase 2 Task 16 (staff role)
+
+- `src/lib/rolePermissions.ts` is the only admin-area permission map (`ADMIN_ROUTES`, `canAccess`, `navItemsFor`, `routeRequiresAdmin`, `resolveRole`); every `/admin` route in `App.tsx` passes `requireAdmin={routeRequiresAdmin(path)}` and unknown routes are admin-only (guarded by `scripts/role-gating.test.ts`). A route opens to `staff` only when the tables it reads are staff-readable under RLS. `useRole()` (`src/hooks/useRole.ts`) gives `'admin' | 'staff' | 'client' | null`.
+- Staff-facing edge functions gate with `authorizeStaffOrAdmin` (`_shared/internalAuth.ts`: service key / internal secret / admin or staff JWT; buyer JWT 403, none 401): `send-for-signature`, `resend-confirmation-email`, `resend-corrected-summary`, `sync-hubspot`. QBO, `manage-users`, `summarize-upgrade-requests`, `notify-pricing-request` and `audit-pricing-consistency` stay admin-only.
