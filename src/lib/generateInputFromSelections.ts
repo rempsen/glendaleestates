@@ -87,3 +87,27 @@ export function wizardQuoteLines(selections: WizardSelections, unitInfo: WizardU
   const windows = toQuoteWindows(Array.isArray(selections.windows) ? selections.windows : []);
   return generateQuoteLines(buildGenerateInputFromRow(wizardSelectionsToRow(selections, unitInfo), pricing, { windows }));
 }
+
+/** Staff-copy footer note when a saved submission has no stored lines yet; the buyer copy prints nothing about it. */
+export const GENERATED_LINES_NOTE = 'Generated from selections (not yet itemised)';
+
+/** A stored `quote_lines` row, as far as the renderers need it (nullable location, as in the DB). */
+export type StoredQuoteLineRow = Omit<QuoteLine, 'location'> & { location: string | null };
+
+/**
+ * The lines a saved-submission renderer prints (Phase 2 Task 10). Stored `quote_lines` win (removed dropped, in
+ * `sort_order`); a submission with none yet (not backfilled, or pricing unavailable at submit) falls back to the
+ * generator over the row — the same mapping the backfill uses — so every existing submission stays renderable.
+ */
+export function savedSubmissionLines(
+  stored: ReadonlyArray<StoredQuoteLineRow> | null | undefined,
+  row: BuyerSelectionsRowLike,
+  pricing: QuotePricing,
+): { lines: QuoteLine[]; linesSource: 'db' | 'generated' } {
+  const kept = (stored ?? [])
+    .filter((l) => l.status !== 'removed')
+    .map((l) => ({ ...l, location: l.location ?? '' }) as QuoteLine)
+    .sort((a, b) => a.sort_order - b.sort_order);
+  if ((stored ?? []).length > 0) return { lines: kept, linesSource: 'db' };
+  return { lines: generateQuoteLines(buildGenerateInputFromRow(row, pricing)), linesSource: 'generated' };
+}
