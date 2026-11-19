@@ -143,6 +143,37 @@ export interface QuoteBaseSpecRow {
   isIncluded: boolean;
 }
 
+/** Window covering kinds the wizard collects (spec §6.3). */
+export type QuoteWindowKind = 'roller_5' | 'roller_1' | 'panel_track' | 'included';
+/**
+ * One located window from the wizard's Windows step. `included` rows are the base-spec bedroom shades: they add no
+ * opening line (the base spec already lists them at $0) and exist only so a bedroom shade can be motorized.
+ */
+export interface QuoteWindow { location: string; kind: QuoteWindowKind; motorized: boolean }
+
+/** product_name per kind (no prices). */
+export const WINDOW_KIND_PRODUCTS: Record<Exclude<QuoteWindowKind, 'included'>, string> = {
+  roller_5: 'Roller shade 5%',
+  roller_1: 'Roller shade 1%',
+  panel_track: 'Sliding panel track',
+};
+
+/**
+ * The three integer columns the located list stands for: additional = roller rows, patio = panel-track rows,
+ * automated = motorized rows (included bedroom shades too). The wizard writes these to buyer_selections.
+ */
+export function windowCounts(windows: readonly QuoteWindow[]): {
+  additionalWindowsQty: number; patioDoorsQty: number; automatedWindowsQty: number;
+} {
+  let additionalWindowsQty = 0; let patioDoorsQty = 0; let automatedWindowsQty = 0;
+  for (const w of windows) {
+    if (w.kind === 'panel_track') patioDoorsQty++;
+    else if (w.kind !== 'included') additionalWindowsQty++;
+    if (w.motorized) automatedWindowsQty++;
+  }
+  return { additionalWindowsQty, patioDoorsQty, automatedWindowsQty };
+}
+
 export interface GenerateInput {
   selections: QuoteSelections;
   unitTypeCode: string | null;
@@ -155,6 +186,12 @@ export interface GenerateInput {
   submissionId?: string;
   /** Source of the generated (non-office) lines: 'wizard' (default) or 'migration' for the backfill. */
   source?: 'wizard' | 'migration';
+  /**
+   * Located windows (wizard). Used for locations and product names only: amounts still come from the three integer
+   * quantities, and the list is ignored (generic `Additional Window N` / `Patio Door N` lines) unless its counts equal
+   * those integers and every count is within MAX_WINDOW_QTY.
+   */
+  windows?: QuoteWindow[] | null;
 }
 
 // ---- Copied constants (names only; no prices) ----
@@ -488,12 +525,43 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
     section: 'window_coverings', location, label, product_name: product, quantity: 1, unit: 'each',
     unit_price: price, amount: price, pricing_mode: 'flat_rate', price_source_ref: `config:${key}`, status: 'upgrade', wizard_field: field,
   });
-  if (aw > 0) for (let i = 1; i <= aq; i++) opening(windowLoc(i), 'Additional window covering', null, aw, 'additional_window_price', 'additional_windows_qty');
-  if (pd > 0) for (let i = 1; i <= pq; i++) opening(patioLoc(i), 'Patio door panel track', 'Panel track', pd, 'patio_door_price', 'patio_doors_qty');
-  if (am > 0) {
-    for (let k = 1; k <= mq; k++) {
-      const loc = k <= pq ? patioLoc(k) : k - pq <= aq ? windowLoc(k - pq) : `Motorized Opening ${k}`;
-      opening(loc, 'Somfy motorization', 'Somfy motor, hub, programming & installation', am, 'automated_motor_price', 'automated_windows_qty');
+  const located = Array.isArray(input.windows) ? input.windows.filter((w) => w && typeof w === 'object') : null;
+  const lc = located ? windowCounts(located) : null;
+  const useLocated = !!located && located.length > 0 && !!lc && lc.additionalWindowsQty === rawAq && lc.patioDoorsQty === rawPq
+    && lc.automatedWindowsQty === rawMq && rawAq <= MAX_WINDOW_QTY && rawPq <= MAX_WINDOW_QTY && rawMq <= MAX_WINDOW_QTY;
+  if (useLocated && located) {
+    // One opening line per row, then its Somfy line; same prices and counts as the integer path below.
+    let wn = 0; let pn = 0; let on = 0;
+    for (const w of located) {
+      const typed = toBuyerWording(String(w.location || '').trim());
+      let loc: string;
+      if (w.kind === 'panel_track') {
+        pn++;
+        loc = typed || patioLoc(pn);
+        if (pd > 0) opening(loc, 'Patio door panel track', WINDOW_KIND_PRODUCTS.panel_track, pd, 'patio_door_price', 'patio_doors_qty');
+      } else if (w.kind === 'included') {
+        on++;
+        loc = typed || `Motorized Opening ${on}`;
+      } else {
+        wn++;
+        loc = typed || windowLoc(wn);
+        if (aw > 0) {
+          opening(loc, 'Additional window covering', WINDOW_KIND_PRODUCTS[w.kind] || WINDOW_KIND_PRODUCTS.roller_5,
+            aw, 'additional_window_price', 'additional_windows_qty');
+        }
+      }
+      if (w.motorized && am > 0) {
+        opening(loc, 'Somfy motorization', 'Somfy motor, hub, programming & installation', am, 'automated_motor_price', 'automated_windows_qty');
+      }
+    }
+  } else {
+    if (aw > 0) for (let i = 1; i <= aq; i++) opening(windowLoc(i), 'Additional window covering', null, aw, 'additional_window_price', 'additional_windows_qty');
+    if (pd > 0) for (let i = 1; i <= pq; i++) opening(patioLoc(i), 'Patio door panel track', 'Panel track', pd, 'patio_door_price', 'patio_doors_qty');
+    if (am > 0) {
+      for (let k = 1; k <= mq; k++) {
+        const loc = k <= pq ? patioLoc(k) : k - pq <= aq ? windowLoc(k - pq) : `Motorized Opening ${k}`;
+        opening(loc, 'Somfy motorization', 'Somfy motor, hub, programming & installation', am, 'automated_motor_price', 'automated_windows_qty');
+      }
     }
   }
   if (rawAq > MAX_WINDOW_QTY || rawPq > MAX_WINDOW_QTY || rawMq > MAX_WINDOW_QTY) {

@@ -46,7 +46,7 @@ describe('totals callers pass bedroom premium inputs', () => {
 // computeUpgradeTotals(...).windowSubtotal (pre-GST).
 describe('nothing reads the stale window_total column', () => {
   const ALLOWED = new Set([
-    'supabase/functions/send-selections-email/index.ts', // keeps the submit-time INSERT only
+    'supabase/functions/_shared/submissionRow.ts', // send-selections-email's submit-time INSERT payload only
     'supabase/functions/setup-hubspot-properties/index.ts', // HubSpot property definition (name kept for CRM history)
     'src/lib/buyerPdfSelections.ts', // explicit field mapping
     'src/lib/submissionUpdatePayload.ts', // type field
@@ -65,8 +65,8 @@ describe('nothing reads the stale window_total column', () => {
     expect(bad).toEqual([]);
   });
 
-  test('send-selections-email only inserts window_total (once)', () => {
-    const t = files.find((f) => f.rel === 'supabase/functions/send-selections-email/index.ts')!.text;
+  test('send-selections-email only inserts window_total (once, in its shared insert payload)', () => {
+    const t = files.find((f) => f.rel === 'supabase/functions/_shared/submissionRow.ts')!.text;
     expect((t.match(/(?<![A-Za-z0-9_])window_total(?![A-Za-z0-9_])/g) || []).length).toBeLessThanOrEqual(1);
   });
 });

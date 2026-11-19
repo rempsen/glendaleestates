@@ -1,6 +1,8 @@
-// One mapping from a `buyer_selections` row to (a) both engines' inputs and (b) `GenerateInput` for
-// generateQuoteLines. scripts/quote-lines-parity.test.ts proves this mapping on the 9 live units, and
-// scripts/backfill-quote-lines.ts uses the same functions, so the backfill cannot drift from what was proven.
+// One mapping from a `buyer_selections` row to (a) both engines' inputs (the oracle, test/backfill only) and (b)
+// `GenerateInput` for generateQuoteLines. (b) lives in src/lib/generateInputFromSelections.ts (shared with the wizard
+// and, via _shared/quoteSelectionsFromRow.ts, with send-selections-email) and is re-exported here.
+// scripts/quote-lines-parity.test.ts proves this mapping on the 9 live units, and scripts/backfill-quote-lines.ts uses
+// the same functions, so the backfill cannot drift from what was proven.
 import { loadFixturePricing, type PricingSnapshot } from './fixturePricing';
 import { computeUpgradeTotals, type UpgradeTotalsPricing } from '../../src/lib/upgradeTotals';
 import {
@@ -9,9 +11,9 @@ import {
 import { serverPricingFromRows } from '../../supabase/functions/_shared/loadServerPricing';
 import { totalsInputFromSelections } from '../../src/lib/buyerPdfGenerator';
 import { toBuyerPdfSelections } from '../../src/lib/buyerPdfSelections';
-import { normalizeUnitTypeCode } from '../../src/lib/upgradeCostData';
-import { baseSpecFor } from '../../src/lib/baseSpec';
-import type { GenerateInput, QuoteBaseSpecRow } from '../../supabase/functions/_shared/quoteLines.ts';
+import { buildGenerateInputFromRow, unitTypeCodeOf } from '../../src/lib/generateInputFromSelections';
+
+export { buildGenerateInputFromRow, unitTypeCodeOf };
 
 export type SubmissionRow = Parameters<typeof toBuyerPdfSelections>[0];
 
@@ -32,9 +34,6 @@ export function enginePricingFromRows(rows: PricingSnapshot): EnginePricing {
     }),
   };
 }
-
-export const unitTypeCodeOf = (row: SubmissionRow): string | null =>
-  row.unit_type ? normalizeUnitTypeCode(row.unit_type) : null;
 
 /** Raw row → ServerTotalsInput: the same mapping as audit-pricing-consistency / qbo-sync-submission. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,21 +70,4 @@ export function engineTotalsForRow(row: SubmissionRow, pricing: EnginePricing) {
   const client = computeUpgradeTotals(totalsInputFromSelections(selections, unitTypeCodeOf(row)), pricing.clientPricing);
   const server = computeUpgradeTotalsServer(serverTotalsInputFromRow(row), pricing.serverPricing);
   return { client, server };
-}
-
-/** Row → GenerateInput. Base spec defaults to `baseSpecFor(unit type)`; source defaults to the generator's ('wizard'). */
-export function buildGenerateInputFromRow(
-  row: SubmissionRow,
-  pricing: ServerPricing,
-  opts: { baseSpec?: QuoteBaseSpecRow[]; source?: 'wizard' | 'migration' } = {},
-): GenerateInput {
-  const code = unitTypeCodeOf(row);
-  const input: GenerateInput = {
-    selections: toBuyerPdfSelections(row),
-    unitTypeCode: code,
-    pricing,
-    baseSpec: opts.baseSpec ?? baseSpecFor(code),
-  };
-  if (opts.source) input.source = opts.source;
-  return input;
 }

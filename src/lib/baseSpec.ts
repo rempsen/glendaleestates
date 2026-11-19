@@ -79,6 +79,17 @@ function rowsFor(t: TypeRooms): BaseSpecRow[] {
 
 export const BASE_SPEC: BaseSpecRow[] = TYPE_ROOMS.flatMap(rowsFor);
 
+/**
+ * Non-bedroom window locations offered by the wizard's Windows step (spec §6.3); the bedroom rows come from the
+ * type's `window_coverings` base-spec rows (included shades). Every unit type has these rooms. No prices.
+ */
+export const WINDOW_LOCATION_PRESETS: readonly string[] = ['Main Living', 'Kitchen', 'Dining', 'Front Entrance', 'Patio Door'];
+
+/** Locations whose shades the base spec includes for a unit type (the bedrooms). */
+export function includedShadeLocations(unitTypeCode: string | null | undefined): string[] {
+  return baseSpecFor(unitTypeCode).filter((r) => r.section === 'window_coverings' && r.isIncluded).map((r) => r.location);
+}
+
 /** Base-spec rows for a unit type. Accepts `G-1`/`G-2`, `Unit Type A`, `Corner Unit H-2` etc.; unknown types give []. */
 export function baseSpecFor(unitTypeCode: string | null | undefined): BaseSpecRow[] {
   const normalized = normalizeUnitTypeCode(unitTypeCode ?? null);
