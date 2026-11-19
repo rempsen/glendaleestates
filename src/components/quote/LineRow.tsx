@@ -1,12 +1,13 @@
 // One quote line in the meeting console: every field edits inline and autosaves through useQuoteLines.
 // Keyboard: Tab moves between cells, Enter commits and moves to the next cell, Esc cancels the cell, ⌘/Ctrl+S saves.
-// The only arithmetic is lineAmount (amount = qty × unit price when both are present).
+// The only arithmetic is lineAmount, reached through the pure patches in src/lib/lineEdits.ts.
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ArrowDown, ArrowUp, MoreVertical, NotebookPen, Trash2 } from 'lucide-react';
 import type { LineStatus, LineUnit } from '@/lib/quoteLines';
 import type { LinePatch, StoredLine } from '@/lib/quoteLinesReducer';
 import type { PresetPerson } from '@/lib/addLinePresets';
-import { lineAmount } from '@/lib/lineAmount';
+import { priceEditPatch, clientNoteEdit, type EditResult } from '@/lib/lineEdits';
+import { toast } from 'sonner';
 import { formatMoney, PENDING_TEXT } from '@/components/quote/runningTotalModel';
 import { StatusSelect } from '@/components/quote/StatusSelect';
 import { UNIT_OPTIONS, focusNextCell, isSaveKey, parseNumber } from '@/components/quote/consoleCells';
@@ -107,8 +108,8 @@ export interface LineRowProps {
 export function LineRow({ line, people, onPatch, onStatusChange, onRemove, onMove, canMoveUp, canMoveDown }: LineRowProps) {
   const [notesOpen, setNotesOpen] = useState(false);
   const included = line.status === 'included';
+  const pending = line.status === 'pending';
   const computed = has(line.quantity) && has(line.unit_price);
-  const toManual = line.pricing_mode === 'manual' ? {} : { pricing_mode: 'manual' as const };
   const flagged = line.flagged_to ? people.find((p) => p.user_id === line.flagged_to) : undefined;
   const noteCount = (line.client_note ? 1 : 0) + (line.internal_note ? 1 : 0);
 
@@ -117,22 +118,18 @@ export function LineRow({ line, people, onPatch, onStatusChange, onRemove, onMov
     if (required && !v) return false;
     onPatch({ [key]: key === 'location' || key === 'label' ? v : v || null } as LinePatch);
   };
-  const setQty = (draft: string) => {
-    const q = parseNumber(draft);
-    if (q === undefined) return false;
-    onPatch({ quantity: q, amount: lineAmount(q, line.unit_price, line.amount) });
+  const apply = (r: EditResult) => {
+    if (r.ok === false) { toast.error(r.reason); return false; }
+    onPatch(r.patch);
+    return true;
   };
-  const setUnitPrice = (draft: string) => {
-    const p = parseNumber(draft);
-    if (p === undefined) return false;
-    onPatch({ unit_price: p, amount: lineAmount(line.quantity, p, line.amount), ...toManual });
+  const priceEdit = (field: 'quantity' | 'unit_price' | 'amount') => (draft: string) => {
+    const n = parseNumber(draft);
+    if (n === undefined) return false;
+    return apply(priceEditPatch(line, { [field]: n } as { quantity: number | null }));
   };
-  const setAmount = (draft: string) => {
-    const a = parseNumber(draft);
-    if (a === undefined) return false;
-    onPatch({ amount: lineAmount(null, null, a), ...toManual });
-  };
-  const note = (key: 'client_note' | 'internal_note') => (draft: string) => { onPatch({ [key]: draft.trim() || null } as LinePatch); };
+  const setClientNote = (draft: string) => apply(clientNoteEdit(line, draft));
+  const setInternalNote = (draft: string) => { onPatch({ internal_note: draft.trim() || null }); };
 
   return (
     <li
@@ -169,22 +166,22 @@ export function LineRow({ line, people, onPatch, onStatusChange, onRemove, onMov
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <EditableCell value={numText(line.quantity)} onCommit={setQty} ariaLabel="Quantity" placeholder="Qty" numeric className="w-[4.5rem]" disabled={included} />
+        <EditableCell value={numText(line.quantity)} onCommit={priceEdit('quantity')} ariaLabel="Quantity" placeholder="Qty" numeric className="w-[4.5rem]" disabled={included} />
         <Select value={line.unit} onValueChange={(v) => onPatch({ unit: v as LineUnit })} disabled={included}>
           <SelectTrigger data-console-cell aria-label="Unit" className="h-9 w-[5.5rem]"><SelectValue /></SelectTrigger>
           <SelectContent>{UNIT_OPTIONS.map((u) => <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>)}</SelectContent>
         </Select>
         <EditableCell
-          value={numText(line.unit_price)} onCommit={setUnitPrice} ariaLabel="Unit price" placeholder="Unit price"
+          value={numText(line.unit_price)} onCommit={priceEdit('unit_price')} ariaLabel="Unit price" placeholder="Unit price"
           numeric className="w-[6.5rem]" disabled={included}
         />
-        {computed || included ? (
+        {computed || included || pending ? (
           <span className="w-[7rem] text-right text-sm font-medium tabular-nums" aria-label="Amount">
-            {included ? 'Included' : formatMoney(line.amount as number)}
+            {included ? 'Included' : pending || line.amount == null ? PENDING_TEXT : formatMoney(line.amount)}
           </span>
         ) : (
           <EditableCell
-            value={numText(line.amount)} onCommit={setAmount} ariaLabel="Amount" placeholder={PENDING_TEXT}
+            value={numText(line.amount)} onCommit={priceEdit('amount')} ariaLabel="Amount" placeholder={PENDING_TEXT}
             numeric className="w-[7rem] font-medium"
           />
         )}
@@ -230,12 +227,12 @@ export function LineRow({ line, people, onPatch, onStatusChange, onRemove, onMov
         <div className="mt-2 grid gap-2 md:grid-cols-2">
           <div>
             <p className="mb-1 text-xs font-medium text-muted-foreground">Client note — printed for the buyer</p>
-            <EditableCell multiline value={line.client_note ?? ''} onCommit={note('client_note')} ariaLabel="Client note" />
+            <EditableCell multiline value={line.client_note ?? ''} onCommit={setClientNote} ariaLabel="Client note" />
           </div>
           <div className="rounded-md bg-amber-50 p-1.5 dark:bg-amber-950/40">
             <p className="mb-1 text-xs font-semibold text-amber-800 dark:text-amber-300">Internal — never printed</p>
             <EditableCell
-              multiline value={line.internal_note ?? ''} onCommit={note('internal_note')} ariaLabel="Internal note (never printed)"
+              multiline value={line.internal_note ?? ''} onCommit={setInternalNote} ariaLabel="Internal note (never printed)"
               className="border-amber-300 bg-amber-50 dark:bg-amber-950/40"
             />
           </div>

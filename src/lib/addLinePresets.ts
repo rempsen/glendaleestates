@@ -4,6 +4,7 @@
 import type { LineStatus, LineUnit, PricingMode, QuoteLine, Section } from '@/lib/quoteLines';
 import { lineAmount } from '@/lib/lineAmount';
 import { AREA_DEFINITIONS } from '@/lib/upgradeCostData';
+import type { useDynamicPricing } from '@/hooks/useDynamicPricing';
 
 export interface PresetMaterial { key: string; name: string; costPerUnit: number; unit: 'sqft' | 'sqyd' | 'flat' }
 export interface PresetConfigRow { config_key: string; config_value: number; is_active: boolean }
@@ -18,13 +19,11 @@ export interface PresetSource {
   unitAreas: Record<string, number | undefined> | null;
 }
 
-/** The subset of useDynamicPricing() the presets read. */
-export interface DynamicPresetInput {
-  markupPercentage: number;
-  materials: Array<{ material_key: string; name: string; cost_per_unit: number; unit_type: string; is_active?: boolean }>;
-  config: Array<{ config_key: string; config_value: number; is_active: boolean }>;
-  getUnitAreaData: (code: string) => Record<string, number | undefined> | null;
-}
+/**
+ * The part of `useDynamicPricing()` the presets read, typed from the hook itself so `tsc` fails if the hook stops
+ * returning it (type-only import: nothing from the hook runs here).
+ */
+export type DynamicPresetInput = Pick<ReturnType<typeof useDynamicPricing>, 'markupPercentage' | 'materials' | 'config' | 'getUnitAreaData'>;
 
 export function presetSourceFromDynamic(dyn: DynamicPresetInput, unitTypeCode: string | null): PresetSource {
   return {
@@ -34,7 +33,7 @@ export function presetSourceFromDynamic(dyn: DynamicPresetInput, unitTypeCode: s
       unit: m.unit_type === 'sqyd' || m.unit_type === 'flat' ? m.unit_type : 'sqft',
     })),
     config: dyn.config.map((c) => ({ config_key: c.config_key, config_value: Number(c.config_value), is_active: c.is_active !== false })),
-    unitAreas: unitTypeCode ? dyn.getUnitAreaData(unitTypeCode) : null,
+    unitAreas: unitTypeCode ? ((dyn.getUnitAreaData(unitTypeCode) as Record<string, number | undefined> | null) ?? null) : null,
   };
 }
 
@@ -76,10 +75,28 @@ const isNum = (v: number | null | undefined): v is number => typeof v === 'numbe
 
 export const catalogOptions = (src: PresetSource): PresetMaterial[] => src.materials;
 
-export function areaOptions(src: PresetSource): Array<{ areaId: string; label: string; quantity: number }> {
+/** Premium underpad is laid under carpet: it takes the carpet areas (as the generator prices it on bedroom carpet). */
+const AREA_MATERIAL_ALIAS: Record<string, string> = { premium_carpet_underpad: 'carpet' };
+
+/** Whether a measured area can take a material: same unit (sqft vs sqyd) and listed in the area's upgrade types. */
+function areaFits(areaId: string, m: PresetMaterial): boolean {
+  const def = AREA_DEFINITIONS.find((a) => a.id === areaId);
+  if (!def || def.unit !== m.unit) return false;
+  const types = def.upgradeTypes as readonly string[];
+  return types.includes(m.key) || types.includes(AREA_MATERIAL_ALIAS[m.key] ?? '');
+}
+
+/**
+ * Measured areas for the unit (quantity > 0). With a material, only areas in the material's unit whose upgrade
+ * types include it — a per-sqyd carpet never takes a sqft area.
+ */
+export function areaOptions(src: PresetSource, materialKey?: string | null): Array<{ areaId: string; label: string; quantity: number }> {
   if (!src.unitAreas) return [];
+  const m = materialKey ? src.materials.find((x) => x.key === materialKey) : undefined;
+  if (materialKey && (!m || m.unit === 'flat')) return [];
   return Object.entries(src.unitAreas)
     .filter((e): e is [string, number] => isNum(e[1]) && e[1] > 0)
+    .filter(([areaId]) => !m || areaFits(areaId, m))
     .map(([areaId, quantity]) => ({ areaId, quantity, label: AREA_DEFINITIONS.find((a) => a.id === areaId)?.name ?? areaId }));
 }
 
@@ -103,9 +120,12 @@ export function catalogLine(src: PresetSource, input: {
   const m = src.materials.find((x) => x.key === input.materialKey);
   if (!m || !isNum(m.costPerUnit)) return { error: `Material "${input.materialKey}" is not in Pricing Control.` };
   let quantity: number | null = isNum(input.quantity) ? input.quantity : null;
-  if (m.unit === 'flat') quantity = quantity ?? 1;
-  else if (input.areaId) {
-    const area = areaOptions(src).find((a) => a.areaId === input.areaId);
+  if (m.unit === 'flat') {
+    if (input.areaId) return { error: `${m.name} is a flat price; it does not take an area.` };
+    quantity = quantity ?? 1;
+  } else if (input.areaId) {
+    if (!areaFits(input.areaId, m)) return { error: `${m.name} (${m.unit}) cannot be priced on that area.` };
+    const area = areaOptions(src, m.key).find((a) => a.areaId === input.areaId);
     if (!area) return { error: 'That area has no measured size for this unit type.' };
     quantity = area.quantity;
   }
@@ -177,6 +197,19 @@ export function defaultLocation(section: Section, baseSpec: ReadonlyArray<{ sect
 }
 
 export interface PresetPerson { user_id: string; name: string; email: string | null }
+
+/** staff_directory() rows → people for the Flag-to picker: one per user (admin and staff rows merged), by name. */
+export function peopleFromDirectory(
+  rows: ReadonlyArray<{ user_id: string; email: string | null; first_name: string | null; last_name: string | null }>,
+): PresetPerson[] {
+  const byId = new Map<string, PresetPerson>();
+  for (const r of rows) {
+    if (byId.has(r.user_id)) continue;
+    const name = [r.first_name, r.last_name].map((x) => (x ?? '').trim()).filter(Boolean).join(' ') || r.email || 'Staff member';
+    byId.set(r.user_id, { user_id: r.user_id, name, email: r.email });
+  }
+  return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
 
 /**
  * Who prices a section by default (controller ruling): window coverings → Dan, flooring / tile / stairs / basement →

@@ -1,10 +1,11 @@
+import type React from 'react';
 // Meeting console header: unit · buyer · type · possession · status, and the output actions.
-import { ArrowLeft, Eye, FileDown, FileText, PenLine, UserPen } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Eye, FileDown, FileText, PenLine, UserPen } from 'lucide-react';
+import { OUTPUT_ACTIONS, type OutputAction } from '@/lib/consoleActions';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-
-export type ConsoleAction = 'preview' | 'word' | 'pdf';
 
 export interface ConsoleHeaderProps {
   unitNumber: string | null;
@@ -13,13 +14,11 @@ export interface ConsoleHeaderProps {
   possession: string | null;
   status: string | null;
   /** The action currently running (its button shows a busy label); all actions disable meanwhile. */
-  busy: ConsoleAction | null;
+  busy: OutputAction | null;
   /** Lines loading or not loaded: outputs are disabled. */
   outputsDisabled: boolean;
   onBack: () => void;
-  onPreview: () => void;
-  onWord: () => void;
-  onPdf: () => void;
+  onAction: (action: OutputAction) => void;
   onEditBuyer: () => void;
 }
 
@@ -40,15 +39,11 @@ export function ConsoleHeader(p: ConsoleHeaderProps) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" disabled={off} onClick={p.onPreview}>
-            <Eye className="mr-1.5 h-4 w-4" />{p.busy === 'preview' ? 'Preparing…' : 'Client preview'}
+          <Button variant="outline" size="sm" disabled={off} onClick={() => p.onAction('preview')}>
+            <Eye className="mr-1.5 h-4 w-4" />{p.busy === 'preview' ? 'Preparing…' : label('preview')}
           </Button>
-          <Button variant="outline" size="sm" disabled={off} onClick={p.onWord}>
-            <FileText className="mr-1.5 h-4 w-4" />{p.busy === 'word' ? 'Exporting…' : 'Word'}
-          </Button>
-          <Button variant="outline" size="sm" disabled={off} onClick={p.onPdf}>
-            <FileDown className="mr-1.5 h-4 w-4" />{p.busy === 'pdf' ? 'Exporting…' : 'PDF'}
-          </Button>
+          <OutputMenu kind="word" icon={<FileText className="mr-1.5 h-4 w-4" />} busy={p.busy} onAction={p.onAction} off={off} />
+          <OutputMenu kind="pdf" icon={<FileDown className="mr-1.5 h-4 w-4" />} busy={p.busy} onAction={p.onAction} off={off} />
           <Tooltip>
             <TooltipTrigger asChild>
               <span tabIndex={0}>
@@ -65,5 +60,31 @@ export function ConsoleHeader(p: ConsoleHeaderProps) {
         </div>
       </div>
     </header>
+  );
+}
+
+const label = (id: OutputAction) => OUTPUT_ACTIONS.find((a) => a.id === id)?.label ?? id;
+
+/** Word / PDF with an explicit client or staff copy (the buyer is at this screen). */
+function OutputMenu({ kind, icon, busy, off, onAction }: {
+  kind: 'word' | 'pdf'; icon: React.ReactNode; busy: OutputAction | null; off: boolean; onAction: (a: OutputAction) => void;
+}) {
+  const items = OUTPUT_ACTIONS.filter((a) => a.id.startsWith(`${kind}_`));
+  const running = busy !== null && busy.startsWith(`${kind}_`);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" disabled={off}>
+          {icon}{running ? 'Exporting…' : kind === 'word' ? 'Word' : 'PDF'}<ChevronDown className="ml-1 h-3.5 w-3.5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {items.map((a) => (
+          <DropdownMenuItem key={a.id} onSelect={() => onAction(a.id)} className={a.staff ? 'text-amber-800 dark:text-amber-300' : undefined}>
+            {a.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

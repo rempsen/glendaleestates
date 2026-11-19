@@ -6,7 +6,8 @@ import { readFileSync } from 'node:fs';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
 import {
   catalogLine, flatRateLine, manualLine, includedLine, pendingLine, catalogOptions, flatRateOptions, areaOptions,
-  defaultLocation, defaultAssignee, FLAT_RATE_PRESETS, type PresetSource, type PresetPerson,
+  defaultLocation, defaultAssignee, FLAT_RATE_PRESETS, presetSourceFromDynamic,
+  type PresetSource, type PresetPerson, type DynamicPresetInput,
 } from '../src/lib/addLinePresets';
 import { baseSpecFor } from '../src/lib/baseSpec';
 
@@ -196,5 +197,53 @@ describe('no price literals', () => {
     const code = strip(readFileSync(new URL('../src/lib/addLinePresets.ts', import.meta.url), 'utf8'));
     const nums = (code.match(/(?<![\w.])\d+(?:\.\d+)?(?![\w.])/g) || []).filter((n) => n !== '0' && n !== '1');
     expect(nums).toEqual([]);
+  });
+});
+
+describe('fix round 1: source from the real useDynamicPricing shape', () => {
+  // Same keys and row shapes the hook returns (materials / config are the raw DB rows; getUnitAreaData maps columns).
+  const hookReturn: DynamicPresetInput = {
+    markupPercentage: Number(pricingSnapshot.pricing_config.find((c) => c.config_key === 'markup_percentage')!.config_value) / 100,
+    materials: pricingSnapshot.upgrade_materials as unknown as DynamicPresetInput['materials'],
+    config: pricingSnapshot.pricing_config as unknown as DynamicPresetInput['config'],
+    getUnitAreaData: ((code: string) => areaFor(pricingSnapshot, code)) as unknown as DynamicPresetInput['getUnitAreaData'],
+  };
+  test('builds without throwing and matches the hand-built source', () => {
+    const src = presetSourceFromDynamic(hookReturn, 'C');
+    expect(src.materials.map((m) => m.key).sort()).toEqual(real.materials.map((m) => m.key).sort());
+    expect(src.unitAreas).toEqual(real.unitAreas);
+    expect(src.markupPercentage).toBe(real.markupPercentage);
+    const r = catalogLine(src, { section: 'flooring', materialKey: 'lvp', areaId: 'mainLiving', location: 'Main Living' });
+    expect('error' in r).toBe(false);
+  });
+  test('inactive materials are dropped; unknown unit type gives no areas', () => {
+    const rows = hookReturn.materials.map((m) => (m.material_key === 'hardwood' ? { ...m, is_active: false } : m));
+    expect(presetSourceFromDynamic({ ...hookReturn, materials: rows }, 'C').materials.map((m) => m.key)).not.toContain('hardwood');
+    expect(presetSourceFromDynamic(hookReturn, null).unitAreas).toBeNull();
+  });
+});
+
+describe('fix round 1: areas match the material unit and upgrade types', () => {
+  test('carpet (sqyd) is offered only sqyd carpet areas', () => {
+    const ids = areaOptions(real, 'carpet').map((a) => a.areaId);
+    expect(ids.length).toBeGreaterThan(0);
+    expect(ids.every((id) => ['masterBedroom', 'secondBedroomCarpet', 'masterBedroomCarpet', 'stairs'].includes(id))).toBe(true);
+    expect(ids).not.toContain('mainLiving');
+  });
+  test('underpad takes the carpet areas', () => {
+    expect(areaOptions(real, 'premium_carpet_underpad').map((a) => a.areaId)).toEqual(areaOptions(real, 'carpet').map((a) => a.areaId));
+  });
+  test('LVP (sqft) is never offered a sqyd area; tile only tile areas', () => {
+    const lvp = areaOptions(real, 'lvp').map((a) => a.areaId);
+    expect(lvp).toContain('mainLiving');
+    expect(lvp).not.toContain('masterBedroom');
+    expect(areaOptions(real, 'tile').map((a) => a.areaId).every((id) => ['guestBathroom', 'masterEnsuite', 'laundry', 'backsplash'].includes(id))).toBe(true);
+    expect(areaOptions(real, 'tiled_shower')).toEqual([]);
+  });
+  test('catalogLine refuses a mismatched area (carpet on a sqft room, LVP on a carpet bedroom)', () => {
+    expect(catalogLine(real, { section: 'flooring', materialKey: 'carpet', areaId: 'mainLiving', location: 'X' })).toHaveProperty('error');
+    expect(catalogLine(real, { section: 'flooring', materialKey: 'premium_carpet_underpad', areaId: 'allLvp', location: 'X' })).toHaveProperty('error');
+    expect(catalogLine(real, { section: 'flooring', materialKey: 'lvp', areaId: 'masterBedroom', location: 'X' })).toHaveProperty('error');
+    expect(catalogLine(real, { section: 'bathroom', materialKey: 'tiled_shower', areaId: 'masterEnsuite', location: 'X' })).toHaveProperty('error');
   });
 });

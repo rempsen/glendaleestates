@@ -1410,6 +1410,16 @@ export type Database = {
         Args: { _user_id: string }
         Returns: boolean
       }
+      staff_directory: {
+        Args: never
+        Returns: {
+          email: string | null
+          first_name: string | null
+          last_name: string | null
+          role: string
+          user_id: string
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "user" | "staff"

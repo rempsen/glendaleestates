@@ -173,7 +173,7 @@ describe('overrides', () => {
     expect(shower.label).toBe('Tiled Shower - Walls, Floor, Drain + Waterproofing, Shower wall extends out');
     // Label-only override keeps the flat rate.
     const [pad] = byField(lines, 'premium_underpad_stairs');
-    expect(pad).toMatchObject({ pricing_mode: 'flat_rate', price_source_ref: 'premium_underpad_stairs_price', amount: 165 });
+    expect(pad).toMatchObject({ pricing_mode: 'flat_rate', price_source_ref: 'config:premium_underpad_stairs_price', amount: 165 });
     expect(pad.label).toBe('Premium Underpad — Stairs to Upper Level');
   });
 
@@ -208,7 +208,7 @@ describe('windows, heated floors, ordering', () => {
 
   test('Unit 4: additional window line priced from pricing_config', () => {
     const [w] = byField(fromRow('4'), 'additional_windows_qty');
-    expect(w).toMatchObject({ unit_price: 673.5, amount: 673.5, pricing_mode: 'flat_rate', price_source_ref: 'additional_window_price' });
+    expect(w).toMatchObject({ unit_price: 673.5, amount: 673.5, pricing_mode: 'flat_rate', price_source_ref: 'config:additional_window_price' });
   });
 
   test('area heated floor applies only when no bathroom count is set', () => {
@@ -343,7 +343,7 @@ describe('engine rules (each pinned against computeUpgradeTotals)', () => {
     const p = pricingFrom((s) => { s.pricing_config.find((c) => c.config_key === 'stair_premium_lvp_upgrade_price')!.config_value = 0; });
     const { lines, engine, sum } = both('C', { stairUpgradeType: 'premium_lvp', stairLvpUpgradeSelected: true }, p);
     expect(engine.pieces.stairLvp).toBe(2160);
-    expect(byField(lines, 'stair_upgrade_type')[0]).toMatchObject({ amount: 2160, price_source_ref: 'stair_lvp_upgrade_price' });
+    expect(byField(lines, 'stair_upgrade_type')[0]).toMatchObject({ amount: 2160, price_source_ref: 'config:stair_lvp_upgrade_price' });
     expect(sum.subtotal).toBe(engine.grandSubtotal);
   });
 });

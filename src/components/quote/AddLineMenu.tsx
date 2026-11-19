@@ -87,7 +87,7 @@ function AddLineDialog({ kind, section, source, baseSpec, people, recipients, di
   const [error, setError] = useState<string | null>(null);
 
   const materials = source ? catalogOptions(source) : [];
-  const areas = source ? areaOptions(source) : [];
+  const areas = source && materialKey ? areaOptions(source, materialKey) : [];
   const flatRates = source ? flatRateOptions(source) : [];
 
   // Request pricing: preselect the section's usual pricer when the people list allows it.
@@ -161,7 +161,7 @@ function AddLineDialog({ kind, section, source, baseSpec, people, recipients, di
             <>
               <div className="grid gap-1.5">
                 <Label>Material</Label>
-                <Select value={materialKey} onValueChange={setMaterialKey}>
+                <Select value={materialKey} onValueChange={(v) => { setMaterialKey(v); setAreaId(NO_AREA); }}>
                   <SelectTrigger aria-label="Material"><SelectValue placeholder="Pick a material" /></SelectTrigger>
                   <SelectContent>
                     {materials.map((m) => <SelectItem key={m.key} value={m.key}>{m.name} ({m.unit})</SelectItem>)}

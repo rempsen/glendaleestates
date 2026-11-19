@@ -82,7 +82,32 @@ export function countHeatedTileRows(areaUpgrades: AreaUpgrade[] | undefined): nu
  *   heatedFloor and manualPriceNote are normalised.
  * - Stair upgrade flags are forced off when the unit has no stairs.
  */
-export function buildSubmissionUpdatePayload(editData: SubmissionEditState): TablesUpdate<'buyer_selections'> {
+/**
+ * Columns that change what the old engines price (or office pricing itself). The meeting console's "Edit buyer
+ * details" dialog never writes them: quote lines own pricing there, `custom_pricing` is admin-guarded
+ * (`guard_custom_pricing`), and a stale dialog snapshot must not overwrite a newer edit.
+ */
+export const PRICING_FIELDS = [
+  'custom_pricing', 'unit_type', 'has_stairs', 'bedroom_flooring_choice', 'premium_carpet_bedroom', 'premium_underpad_bedroom',
+  'stair_lvp_upgrade_selected', 'stair_upgrade_type', 'stair_premium_carpet_selected', 'premium_underpad_stairs',
+  'backsplash_grout_enabled', 'additional_windows_qty', 'patio_doors_qty', 'automated_windows_qty', 'area_upgrades',
+  'upgrade_floor_selection', 'heated_floor_bathrooms', 'custom_tiled_shower', 'bathroom_tile_ensuite_selected',
+  'bathroom_tile_guest_selected',
+] as const;
+export type PricingField = (typeof PRICING_FIELDS)[number];
+export const isPricingField = (key: string): key is PricingField => (PRICING_FIELDS as readonly string[]).includes(key);
+
+export function buildSubmissionUpdatePayload(
+  editData: SubmissionEditState, opts: { buyerDetailsOnly?: boolean } = {},
+): TablesUpdate<'buyer_selections'> {
+  const full = buildFullPayload(editData);
+  if (!opts.buyerDetailsOnly) return full;
+  const out: Record<string, unknown> = { ...full };
+  for (const k of PRICING_FIELDS) delete out[k];
+  return out as TablesUpdate<'buyer_selections'>;
+}
+
+function buildFullPayload(editData: SubmissionEditState): TablesUpdate<'buyer_selections'> {
   const areaUpgradesJson = (editData.area_upgrades || []).map(upgrade => ({
     ...upgrade,
     heatedFloor: upgrade.heatedFloor || false,

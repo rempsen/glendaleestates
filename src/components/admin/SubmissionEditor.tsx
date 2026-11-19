@@ -42,7 +42,7 @@ import {
 import { useUpgradePricing } from '@/hooks/useUpgradePricing';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { getUnitInfo } from '@/lib/unitData';
-import { buildSubmissionUpdatePayload, countHeatedTileRows, type SubmissionEditState, type AreaUpgrade } from '@/lib/submissionUpdatePayload';
+import { buildSubmissionUpdatePayload, isPricingField, countHeatedTileRows, type SubmissionEditState, type AreaUpgrade } from '@/lib/submissionUpdatePayload';
 
 type BuyerSelection = SubmissionEditState;
 
@@ -127,6 +127,8 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
   };
 
   const handleChange = <K extends keyof BuyerSelection>(field: K, value: BuyerSelection[K]) => {
+    // Console dialog: priced choices are quote lines; their controls are read-only here (and never saved).
+    if (buyerDetailsOnly && isPricingField(String(field))) return;
     setEditData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -184,7 +186,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
     const stairValidationError = validateStairFlooring();
     if (stairValidationError) throw Object.assign(new Error(stairValidationError), { isValidation: true });
 
-    const updatePayload = buildSubmissionUpdatePayload(editData);
+    const updatePayload = buildSubmissionUpdatePayload(editData, { buyerDetailsOnly });
     const { error } = await supabase
       .from('buyer_selections')
       .update(updatePayload)
@@ -193,7 +195,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
 
     // Calculate changes for audit log
     const originalData = (savedRef.current ?? submission) as unknown as Record<string, unknown>;
-    const newData = { ...updatePayload, area_upgrades: editData.area_upgrades } as unknown as Record<string, unknown>;
+    const newData = (buyerDetailsOnly ? { ...updatePayload } : { ...updatePayload, area_upgrades: editData.area_upgrades }) as unknown as Record<string, unknown>;
     const { changes, changedFields } = calculateChanges(originalData, newData);
 
     if (changedFields.length > 0) {
@@ -271,6 +273,12 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
         </div>
       </div>
 
+      {buyerDetailsOnly && (
+        <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          Buyer details and wizard answers only. Priced choices (unit type, stairs, bedroom flooring and premiums, grout,
+          window quantities, area upgrades, bathroom options) are read-only here — change them as quote lines in the console.
+        </p>
+      )}
       <Accordion type="multiple" defaultValue={['buyer-info', 'flooring', 'area-upgrades']} className="space-y-2">
         {/* Buyer Information */}
         <AccordionItem value="buyer-info" className="border rounded-lg px-4">
@@ -526,6 +534,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
                     <div className="flex items-center gap-2 pt-2">
                       <Switch
                         checked={editData.stair_lvp_upgrade_selected || false}
+                        disabled={buyerDetailsOnly}
                         onCheckedChange={(checked) => {
                           handleChange('stair_lvp_upgrade_selected', checked);
                           // Clear carpet color if upgrading to LVP
@@ -704,7 +713,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
         </AccordionItem>
 
         {/* Area Upgrades */}
-        <AccordionItem value="area-upgrades" className="border rounded-lg px-4">
+        {!buyerDetailsOnly && <AccordionItem value="area-upgrades" className="border rounded-lg px-4">
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <Bath className="w-4 h-4" />
@@ -940,7 +949,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
               )}
             </div>
           </AccordionContent>
-        </AccordionItem>
+        </AccordionItem>}
 
         {/* Office pricing & custom line items */}
         {!buyerDetailsOnly && <AccordionItem value="custom-pricing" className="border rounded-lg px-4">

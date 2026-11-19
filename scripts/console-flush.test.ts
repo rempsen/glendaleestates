@@ -70,3 +70,36 @@ describe('guardedAction', () => {
     await expect(guardedAction(target, async () => { throw new Error('pdf failed'); })).rejects.toThrow('pdf failed');
   });
 });
+
+describe('fix round 1: the focused cell commits before the flush', () => {
+  test('commitFocused runs first, its edit is flushed, then the renderer runs', async () => {
+    const calls: string[] = [];
+    let pendingDraft = false; let saved = false;
+    const target: GuardTarget = {
+      commitFocused: () => { calls.push('commit'); queueMicrotask(() => { pendingDraft = true; }); },
+      flush: async () => { calls.push(`flush(pending=${pendingDraft})`); if (pendingDraft) saved = true; },
+      snapshot: () => ({ isDirty: pendingDraft && !saved, saveState: { status: 'saved' } }),
+    };
+    const r = await guardedAction(target, () => { calls.push('render'); });
+    expect(calls).toEqual(['commit', 'flush(pending=true)', 'render']);
+    expect(r.ok).toBe(true);
+  });
+  test('a draft committed by commitFocused that then fails to save refuses the action', async () => {
+    let dirty = false;
+    const target: GuardTarget = {
+      commitFocused: () => { dirty = true; },
+      flush: async () => {},
+      snapshot: () => ({ isDirty: dirty, saveState: { status: 'saving' } }),
+    };
+    const r = await guardedAction(target, () => 1);
+    expect(r.ok).toBe(false);
+  });
+  test('loading refuses before committing anything', async () => {
+    let committed = false;
+    const r = await guardedAction({
+      commitFocused: () => { committed = true; }, flush: async () => {}, snapshot: () => ({ ...clean, loading: true }),
+    }, () => 1);
+    expect(r.ok).toBe(false);
+    expect(committed).toBe(false);
+  });
+});

@@ -1,8 +1,8 @@
 // Phase 1 renderers as the meeting console calls them (until Task 10 moves them onto quote_lines they still read the
-// old buyer_selections model). Same paths as CustomPricingPanel / AdminSubmissions: buyer-facing preview and PDF pass
-// staff=false (no internal notes); the Word export is the staff copy, as in CustomPricingPanel.
+// old buyer_selections model). Which copy (client / staff) each header action asks for lives in consoleActions.ts.
 import { generateSavedSubmissionPdf } from '@/lib/savedSubmissionPdf';
 import { downloadSubmissionWord } from '@/lib/submissionWordExport';
+import type { Renderers } from '@/lib/consoleActions';
 
 function pdfBlobUrl(b64: string): string {
   const raw = b64.includes(',') ? b64.split(',')[1] : b64;
@@ -10,22 +10,13 @@ function pdfBlobUrl(b64: string): string {
   return URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
 }
 
-/**
- * Buyer-facing client preview (CustomPricingPanel.openClientPreview). `win` is a tab opened synchronously in the click
- * handler, before any await, so Safari on the iPad does not block it as a popup.
- */
-export async function openClientPreview(id: string, win: Window | null): Promise<void> {
-  const url = pdfBlobUrl(await generateSavedSubmissionPdf(id, false, false));
-  if (win && !win.closed) win.location.href = url;
-  else window.open(url, '_blank');
-}
-
-/** Buyer PDF download (the AdminSubmissions buildBuyerPdfBase64 path, saved to a file). */
-export async function downloadBuyerPdf(id: string): Promise<void> {
-  await generateSavedSubmissionPdf(id, true, false);
-}
-
-/** Staff Word export (CustomPricingPanel: downloadSubmissionWord(id, true)). */
-export async function downloadWord(id: string): Promise<void> {
-  await downloadSubmissionWord(id, true);
-}
+export const consoleRenderers: Renderers = {
+  pdf: (id, saveToFile, staff) => generateSavedSubmissionPdf(id, saveToFile, staff),
+  word: (id, staff) => downloadSubmissionWord(id, staff),
+  // `win` was opened in the click handler, before any await, so Safari on the iPad does not block it as a popup.
+  showPdf: (b64, win) => {
+    const url = pdfBlobUrl(b64);
+    if (win && !win.closed) win.location.href = url;
+    else window.open(url, '_blank');
+  },
+};

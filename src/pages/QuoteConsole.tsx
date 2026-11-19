@@ -13,13 +13,15 @@ import type { LinePatch, StoredLine } from '@/lib/quoteLinesReducer';
 import { baseSpecFor } from '@/lib/baseSpec';
 import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
 import { parseCustomPricing } from '@/lib/upgradeTotals';
-import { presetSourceFromDynamic, SECTION_LABELS, type LineDraft, type PresetPerson } from '@/lib/addLinePresets';
-import { needsReason, validateStatusChange, STATUS_OPTIONS } from '@/lib/statusChange';
+import { peopleFromDirectory, presetSourceFromDynamic, SECTION_LABELS, type LineDraft, type PresetPerson } from '@/lib/addLinePresets';
+import { needsReason, STATUS_OPTIONS } from '@/lib/statusChange';
+import { applyStatusChange } from '@/lib/lineEdits';
 import { guardedAction } from '@/lib/guardedAction';
 import { RECIPIENTS_KEY, parseStoredRecipients } from '@/lib/notificationRecipients';
-import { openClientPreview, downloadBuyerPdf, downloadWord } from '@/lib/consoleRenderers';
+import { consoleRenderers } from '@/lib/consoleRenderers';
 import type { SubmissionEditState } from '@/lib/submissionUpdatePayload';
-import { ConsoleHeader, type ConsoleAction } from '@/components/quote/ConsoleHeader';
+import { ConsoleHeader } from '@/components/quote/ConsoleHeader';
+import { runOutputAction, type OutputAction } from '@/lib/consoleActions';
 import { SectionGroup } from '@/components/quote/SectionGroup';
 import { isSaveKey, sectionAnchor } from '@/components/quote/consoleCells';
 import { AddLineMenu } from '@/components/quote/AddLineMenu';
@@ -38,19 +40,17 @@ type Row = SubmissionEditState & {
 
 interface ReasonPrompt { line: StoredLine; to: LineStatus; note: string; error: string | null }
 
-/** Staff and admins who can be flagged (profiles joined to user_roles). */
+/** Commits the focused cell's draft (EditableCell commits on blur) before the flush gate runs. */
+const blurFocused = () => {
+  const el = document.activeElement;
+  if (el instanceof HTMLElement) el.blur();
+};
+
+/** Staff and admins who can be flagged, via the staff_directory() RPC (migration 0009: user_roles RLS is admin-or-own). */
 async function loadPeople(): Promise<PresetPerson[]> {
-  const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['admin', 'staff']);
-  const ids = Array.from(new Set((roles ?? []).map((r) => r.user_id)));
-  if (!ids.length) return [];
-  const { data: profs } = await supabase.from('profiles').select('user_id, first_name, last_name, email').in('user_id', ids);
-  return (profs ?? [])
-    .map((p) => ({
-      user_id: p.user_id,
-      name: [p.first_name, p.last_name].filter(Boolean).join(' ') || p.email || 'Staff member',
-      email: p.email,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const { data, error } = await supabase.rpc('staff_directory');
+  if (error) throw error;
+  return peopleFromDirectory(data ?? []);
 }
 
 async function loadRecipients(): Promise<string[] | null> {
@@ -66,7 +66,7 @@ export default function QuoteConsole() {
   const [rowError, setRowError] = useState<string | null>(null);
   const [people, setPeople] = useState<PresetPerson[]>([]);
   const [recipients, setRecipients] = useState<string[] | null>(null);
-  const [busy, setBusy] = useState<ConsoleAction | null>(null);
+  const [busy, setBusy] = useState<OutputAction | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [prompt, setPrompt] = useState<ReasonPrompt | null>(null);
 
@@ -91,7 +91,7 @@ export default function QuoteConsole() {
   const unitCode = row?.unit_type ? normalizeUnitTypeCode(row.unit_type) : null;
   const baseSpec = useMemo(() => baseSpecFor(unitCode), [unitCode]);
   const presetSource = useMemo(
-    () => (dyn.loaded && !dyn.error ? presetSourceFromDynamic(dyn as never, unitCode) : null),
+    () => (dyn.loaded && !dyn.error ? presetSourceFromDynamic(dyn, unitCode) : null),
     [dyn, unitCode],
   );
   const followUps = useMemo(() => parseCustomPricing(row?.custom_pricing).followUps ?? [], [row?.custom_pricing]);
@@ -116,10 +116,10 @@ export default function QuoteConsole() {
   }, [flush]);
 
   /** Flush, then run only if every line saved (Review Focus 1). Refusals toast the reason. */
-  const guarded = useCallback(async (what: ConsoleAction | null, run: () => Promise<void> | void): Promise<boolean> => {
+  const guarded = useCallback(async (what: OutputAction | null, run: () => Promise<void> | void): Promise<boolean> => {
     setBusy(what);
     try {
-      const r = await guardedAction({ flush: q.flush, snapshot: q.snapshot }, run);
+      const r = await guardedAction({ commitFocused: blurFocused, flush: q.flush, snapshot: q.snapshot }, run);
       if (r.ok === false) toast.error('Not yet — changes are not saved', { description: r.reason });
       return r.ok;
     } catch (e) {
@@ -130,13 +130,13 @@ export default function QuoteConsole() {
     }
   }, [q.flush, q.snapshot]);
 
-  const onPreview = () => {
+  const onAction = (action: OutputAction) => {
     if (!id) return;
-    const win = window.open('', '_blank'); // open now (user gesture) so Safari does not block it after the await
-    void guarded('preview', () => openClientPreview(id, win)).then((ok) => { if (!ok && win && !win.closed) win.close(); });
+    // Open the preview tab now (user gesture) so Safari does not block it after the await.
+    const win = action === 'preview' ? window.open('', '_blank') : null;
+    void guarded(action, () => runOutputAction(action, id, consoleRenderers, win))
+      .then((ok) => { if (!ok && win && !win.closed) win.close(); });
   };
-  const onWord = () => { if (id) void guarded('word', () => downloadWord(id)); };
-  const onPdf = () => { if (id) void guarded('pdf', () => downloadBuyerPdf(id)); };
   const onBack = () => { void guarded(null, () => navigate('/admin/quotes')); };
 
   const patch = useCallback((lineId: string, p: LinePatch) => { q.upsert({ id: lineId, ...p }); }, [q]);
@@ -144,16 +144,16 @@ export default function QuoteConsole() {
   const changeStatus = useCallback((line: StoredLine, to: LineStatus) => {
     if (to === line.status) return;
     if (needsReason(to)) { setPrompt({ line, to, note: line.client_note ?? '', error: null }); return; }
-    const r = validateStatusChange(line.status, to, line.client_note);
+    const r = applyStatusChange(line, to);
     if (r.ok === false) { toast.error(r.reason); return; }
-    q.upsert({ id: line.id, status: to });
+    q.upsert({ id: line.id, ...r.patch });
   }, [q]);
 
   const confirmReason = () => {
     if (!prompt) return;
-    const r = validateStatusChange(prompt.line.status, prompt.to, prompt.note);
+    const r = applyStatusChange(prompt.line, prompt.to, prompt.note);
     if (r.ok === false) { setPrompt({ ...prompt, error: r.reason }); return; }
-    q.upsert({ id: prompt.line.id, status: prompt.to, client_note: r.clientNote });
+    q.upsert({ id: prompt.line.id, ...r.patch });
     setPrompt(null);
   };
 
@@ -201,9 +201,7 @@ export default function QuoteConsole() {
           busy={busy}
           outputsDisabled={q.loading || !!q.loadError || !row}
           onBack={onBack}
-          onPreview={onPreview}
-          onWord={onWord}
-          onPdf={onPdf}
+          onAction={onAction}
           onEditBuyer={() => setEditOpen(true)}
         />
 

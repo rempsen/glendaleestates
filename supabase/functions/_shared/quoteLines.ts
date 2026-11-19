@@ -10,6 +10,8 @@
 //
 // Every price comes from `pricing` (pricing_config / upgrade_materials / unit_area_data). Strings copied here
 // (area/material names, buyer wording) carry no prices.
+// `price_source_ref` is always prefixed, as in the console: `material:<key>`, `config:<key>`, `override:<key>`,
+// `manual:<field>`, `custom:<id>`.
 // =====================================================================
 
 export type Section =
@@ -419,7 +421,7 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
       section: 'stairs', location: STAIRS_LOWER,
       label: isPremiumStairLvp ? 'Premium LVP with Custom Stair Nosings' : 'LVP with Custom Stair Nosings',
       quantity: 1, unit: 'flat', unit_price: price, pricing_mode: 'flat_rate',
-      price_source_ref: usePremium ? 'stair_premium_lvp_upgrade_price' : 'stair_lvp_upgrade_price',
+      price_source_ref: usePremium ? 'config:stair_premium_lvp_upgrade_price' : 'config:stair_lvp_upgrade_price',
       wizard_field: 'stair_upgrade_type',
     });
   }
@@ -428,14 +430,14 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
   priced(ov('stairCarpet', stairCarpetActive ? stairCarpetPrice : 0, stairCarpetActive), 'stairCarpet', {
     section: 'stairs', location: STAIRS_LOWER, label: 'Premium carpet', product_colour: text(s.stairCarpetColour),
     quantity: 1, unit: 'flat', unit_price: stairCarpetPrice, pricing_mode: 'flat_rate',
-    price_source_ref: 'premium_carpet_stairs_price', wizard_field: 'stair_premium_carpet_selected',
+    price_source_ref: 'config:premium_carpet_stairs_price', wizard_field: 'stair_premium_carpet_selected',
   });
   const stairUnderpadActive = !!s.premiumUnderpadStairs && !isStairLvp;
   const stairUnderpadPrice = cfg('premium_underpad_stairs_price');
   priced(ov('stairUnderpad', stairUnderpadActive ? stairUnderpadPrice : 0, stairUnderpadActive), 'stairUnderpad', {
     section: 'stairs', location: STAIRS_LOWER, label: 'Premium underpad',
     quantity: 1, unit: 'flat', unit_price: stairUnderpadPrice, pricing_mode: 'flat_rate',
-    price_source_ref: 'premium_underpad_stairs_price', wizard_field: 'premium_underpad_stairs',
+    price_source_ref: 'config:premium_underpad_stairs_price', wizard_field: 'premium_underpad_stairs',
   });
 
   // ---- Bedroom premium carpet / underpad (carpet bedrooms only; hard-surface second bedroom excluded) ----
@@ -453,7 +455,7 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
     priced(ov(key, active ? bedroomCarpetSqyd * cost * (1 + m) : 0, active), key, {
       section: 'flooring', location: bedroomLocation, label, product_colour: text(s.bedroomCarpetColour),
       material_key: material, quantity: bedroomCarpetSqyd, unit: 'sqyd', unit_price: cost * (1 + m),
-      pricing_mode: 'catalog', price_source_ref: material, wizard_field: field,
+      pricing_mode: 'catalog', price_source_ref: `material:${material}`, wizard_field: field,
     });
   };
   bedroomPiece('bedroomCarpet', s.premiumCarpetBedroom, 'carpet', 'Premium carpet', 'premium_carpet_bedroom');
@@ -465,7 +467,7 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
     priced(ov('grout', fee, true), 'grout', {
       section: 'backsplash', location: 'Kitchen', label: 'Custom grout colour', product_colour: text(s.backsplashGrout.groutColor),
       quantity: 1, unit: 'flat', unit_price: fee, pricing_mode: 'flat_rate',
-      price_source_ref: 'grout_color_change_price', wizard_field: 'backsplash_grout_enabled',
+      price_source_ref: 'config:grout_color_change_price', wizard_field: 'backsplash_grout_enabled',
     });
   }
 
@@ -484,7 +486,7 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
   const patioLoc = (i: number) => (pq > 1 ? `Patio Door ${i}` : 'Patio Door');
   const opening = (location: string, label: string, product: string | null, price: number, key: string, field: string) => push({
     section: 'window_coverings', location, label, product_name: product, quantity: 1, unit: 'each',
-    unit_price: price, amount: price, pricing_mode: 'flat_rate', price_source_ref: key, status: 'upgrade', wizard_field: field,
+    unit_price: price, amount: price, pricing_mode: 'flat_rate', price_source_ref: `config:${key}`, status: 'upgrade', wizard_field: field,
   });
   if (aw > 0) for (let i = 1; i <= aq; i++) opening(windowLoc(i), 'Additional window covering', null, aw, 'additional_window_price', 'additional_windows_qty');
   if (pd > 0) for (let i = 1; i <= pq; i++) opening(patioLoc(i), 'Patio door panel track', 'Panel track', pd, 'patio_door_price', 'patio_doors_qty');
@@ -528,7 +530,7 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
       quantity: qty > 0 ? qty : null, unit: SQYD_AREAS.has(sel.areaId) ? 'sqyd' : 'sqft',
       unit_price: manual > 0 ? null : cost * (1 + m), amount,
       pricing_mode: manual > 0 ? 'manual' : 'catalog',
-      price_source_ref: manual > 0 ? `manual:${field}` : mt || null,
+      price_source_ref: manual > 0 ? `manual:${field}` : mt ? `material:${mt}` : null,
       status: 'upgrade', client_note: text(sel.clientComment),
       internal_note: joinNotes(sel.comments, sel.manualPriceNote), wizard_field: field,
     });
@@ -536,7 +538,7 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
       push({
         section: 'bathroom', location, label: 'Heated floor', quantity: 1, unit: 'each',
         unit_price: heatedFloorPrice, amount: heatedFloorPrice, pricing_mode: 'flat_rate',
-        price_source_ref: 'heated_floor_per_bathroom', status: 'upgrade', wizard_field: `${field}.heatedFloor`,
+        price_source_ref: 'config:heated_floor_per_bathroom', status: 'upgrade', wizard_field: `${field}.heatedFloor`,
       });
     }
   }
@@ -573,19 +575,19 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
   priced(ov('bathroomTile', tileCalc, masterOn && !hasPricedBathroomTileAreas), 'bathroomTile', {
     section: 'tile', location: tileLocation, label: 'Porcelain tile floor upgrade', material_key: 'tile',
     quantity: tileSqft > 0 ? tileSqft : null, unit: 'sqft', unit_price: tileCost * (1 + m),
-    pricing_mode: 'catalog', price_source_ref: 'tile', wizard_field: 'bathroom_tile_selected',
+    pricing_mode: 'catalog', price_source_ref: 'material:tile', wizard_field: 'bathroom_tile_selected',
   });
   const n = sectionHeatedFloorCount;
   priced(ov('heatedFloor', n > 0 ? n * heatedFloorPrice : 0, n > 0), 'heatedFloor', {
     section: 'bathroom', location: n > 1 ? 'Bathrooms' : 'Bathroom', label: 'Heated tile floor',
     quantity: n > 0 ? n : null, unit: 'each', unit_price: heatedFloorPrice, pricing_mode: 'flat_rate',
-    price_source_ref: 'heated_floor_per_bathroom', wizard_field: 'heated_floor_bathrooms',
+    price_source_ref: 'config:heated_floor_per_bathroom', wizard_field: 'heated_floor_bathrooms',
   });
   const showerCost = mat('tiled_shower');
   priced(ov('customShower', s.customTiledShower && showerCost > 0 ? showerCost * (1 + m) : 0, !!s.customTiledShower), 'customShower', {
     section: 'bathroom', location: 'Shower', label: 'Custom tiled shower', material_key: 'tiled_shower',
     quantity: 1, unit: 'flat', unit_price: showerCost * (1 + m), pricing_mode: 'catalog',
-    price_source_ref: 'tiled_shower', wizard_field: 'custom_tiled_shower',
+    price_source_ref: 'material:tiled_shower', wizard_field: 'custom_tiled_shower',
   });
 
   // ---- Office custom items (custom_pricing.customItems) ----
@@ -611,7 +613,7 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
       label: text(item.label) || 'Custom Item', material_key: key.startsWith('mat:') ? key.slice(4) : null,
       quantity: q > 0 ? q : null, unit: officeUnit(item.unit, q > 0), unit_price: byQty ? u : null, amount,
       pricing_mode: pricingMode,
-      price_source_ref: key.startsWith('mat:') || key.startsWith('cfg:') ? key.slice(4) : `custom:${item.id || idx}`,
+      price_source_ref: key.startsWith('mat:') ? `material:${key.slice(4)}` : key.startsWith('cfg:') ? `config:${key.slice(4)}` : `custom:${item.id || idx}`,
       status, client_note: text(item.detail),
       internal_note: joinNotes(item.note, raw === 'upgrade' && !hasPrice ? 'Office line has no price yet' : null),
       source: 'office', wizard_field: `custom_pricing.customItems[${item.id || idx}]`,
