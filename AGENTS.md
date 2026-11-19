@@ -66,3 +66,25 @@
 - T16 staff role: `src/lib/rolePermissions.ts`, `src/hooks/useRole.ts`, `src/lib/bulkDelete.ts`, `manage-users/roleGuard.ts`, `resend-corrected-summary/recipient.ts`; `0014_staff_audit_log.sql`.
 - T17 AI: `summarize-upgrade-requests/{handler,prompt}.ts`, `_shared/promptSafety.ts`, `src/lib/aiSummaryError.ts`; `0015_ai_settings.sql`.
 - T18 `src/hooks/useSubmissionLineTotals.ts` (list/report totals from lines), `src/lib/customPricing.ts` (read-only custom_pricing types + parser), `_shared/compareStoredToGenerated.ts` + `audit-pricing-consistency/handler.ts` (stored vs generated drift detector), `scripts/lib/parityPins.ts`; `trackingKeyFor` in `src/lib/submissionLineItems.ts`; `src/lib/followUps.ts` (follow-ups / basement notes writer).
+
+## Phase 2 final fix wave (security notes and itemise-first)
+
+- **Security precondition: Supabase Auth → Providers → Email → Confirm email ON** in every environment buyers use.
+  Buyer identity is the JWT email (`get_my_quote_lines` / `get_my_quote_header` / `request_quote_change` / buyer
+  `quote_line_reviews` policies match `auth.jwt() ->> 'email'`); an in-DB `email_confirmed_at` check cannot help
+  (autoconfirm sets it). `BuyerAuth.tsx` shows "Check your email to confirm" when signUp returns no session
+  (`src/lib/buyerSignUp.ts`). Runbook section 0 lists it with the other merge preconditions.
+- Itemise-first: a submission is itemised when it has a stored `wizard` / `migration` line (`isItemised` in
+  `_shared/savedSubmissionLines.ts`). Otherwise renderers use the generated lines plus any stored office /
+  buyer-request lines appended (`linesSource: 'mixed'`; never a smaller total than the generated quote); the console
+  shows "Itemise this quote" (`src/lib/itemiseQuote.ts`, `ItemiseBanner.tsx`) and locks Add line, status edits,
+  Send for signature and Documents; `request_quote_change` (0012) refuses with `P0002`; the backfill reports
+  `FAIL: partial-lines`. Code that branches on `linesSource` treats `mixed` like `generated` (`!== 'db'`).
+- 0016: staff `documents` are SELECT / INSERT / UPDATE-while-unsigned (may void), no DELETE; `unit-documents`
+  storage is staff INSERT + SELECT (client uploads use `upsert: false`; overwrites are service role only);
+  `quote_line_reviews` staff SELECT only; `quote_lines.updated_by` is trigger-stamped (`FORBIDDEN_WRITE_KEYS`).
+  `scripts/rls-smoke/` (`bun run rls-smoke`, local Supabase only) executes these rules; run it before any staff grant.
+- Console amounts are written in cents (`lineAmount`); `qbo-sync-submission` refuses 409 `amount_sum_mismatch`
+  before contacting QuickBooks and reuses an unmapped Estimate found by its PrivateNote.
+- Buyer-typed text in Teams cards goes through `cardText` (`_shared/adaptiveCard.ts`: no markdown, no URLs);
+  `promptSafety.stripUnsafe` deletes `\p{Cf}` before collapsing whitespace and redacts emails/URLs after.

@@ -4,6 +4,21 @@ Branch `phase2-quote-lines` → `main`. Supabase project `adtbjnwaxmxhyjkjxqoz` 
 Lovable syncs the frontend from GitHub; edge functions deploy on merge. Steps are in order; do not skip the
 checks between them.
 
+## 0. Merge preconditions — all four BEFORE merging (Lovable publishes the frontend and the emails on merge)
+
+1. **0012 approved by Dan and applied** (section 1). The merged frontend links buyers to `/my-quote` and every
+   confirmation email carries that link; without 0012 a buyer's "Request a change" fails (the page itself renders
+   from the lines alone with a "Your quote" title if `get_my_quote_header` is missing, but do not rely on that).
+2. **Supabase Auth → Providers → Email → Confirm email ON** before Publish. Buyer identity is the JWT email
+   (`get_my_quote_*`, `request_quote_change` and `quote_line_reviews` match on it), so an unconfirmed self-signup
+   with a buyer's address would see that buyer's quote. Verify on the deployed site: sign up with a fresh address →
+   the page says "Check your email to confirm" (`BuyerAuth.tsx`, `src/lib/buyerSignUp.ts`) and no session exists until
+   the link is opened.
+3. **`documents.provider` has no column default** (`select column_default from information_schema.columns where
+   table_name = 'documents' and column_name = 'provider';` → NULL). The send claim uses `provider IS NULL`.
+4. **0006 applied before any function redeploy** (done in prod; re-check on any other project): every Phase 2
+   function reads `quote_lines`.
+
 ## 1. Migrations
 
 Applied by hand through the Lovable DB connection, each in one transaction, followed by its journal row in
@@ -17,12 +32,13 @@ Applied by hand through the Lovable DB connection, each in one transaction, foll
 | 0009 | `0009_staff_directory.sql` | 1795500000000 | `098595cb0a6c1402e910085e5092d39cebae879eb42db158875cf4f21e8606c4` | APPLIED |
 | 0010 | `0010_counted_lines_visible.sql` | 1795600000000 | `ac2d43fbd29a993074eddd345e39e04f60529cb793a2d44f611054661653d8e6` | APPLIED |
 | 0011 | `0011_portal_settings_notifications.sql` | 1795700000000 | `bf923f6cc545e33f23df83dfc1ec71e0f7595fb9e55952a787e5469b96b7fd35` | APPLIED |
-| 0012 | `0012_buyer_change_request.sql` | 1795800000000 | `a0d373ad547b4f03ad17b0b75d66599164b427d25c47199eed498a7d119ae6b2` | **PENDING — needs Dan's explicit approval** |
+| 0012 | `0012_buyer_change_request.sql` | 1795800000000 | `7c80f5525bf9e2037a77793c47f6f09a99ab23160f682347f789b393ebf50b8e` | **PENDING — needs Dan's explicit approval; MERGE PRECONDITION** |
 | 0013 | `0013_esign_settings.sql` | 1795900000000 | `d2d2a5830e9c5011097eddf5a8edf277b80b25d3a0ef8f4eb896adaf3440d72c` | PENDING |
 | 0014 | `0014_staff_audit_log.sql` | 1796000000000 | `35bbd849a2c51d3ea5963dc30078a5b79bd589a72195620a4a40a768196fa221` | PENDING |
 | 0015 | `0015_ai_settings.sql` | 1796100000000 | `b8772b49e6b2197d73c237d4fd4d215d4a8066c4bf8c4f8ae049775e294e1ff2` | PENDING |
+| 0016 | `0016_phase2_hardening.sql` | 1796200000000 | `7766f563692e72e0e507a87beb2315a34f5e4c3ea6786e70b2232aa33343e925` | PENDING |
 
-Recompute before inserting: `sha256sum drizzle/migrations/00{12,13,14,15}_*.sql`.
+Recompute before inserting: `sha256sum drizzle/migrations/00{12,13,14,15,16}_*.sql`.
 
 Journal row, per migration (after the migration's own transaction commits):
 
@@ -33,12 +49,21 @@ INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('<sha256>', 
 Notes:
 - **0012 creates SECURITY DEFINER functions** (`get_my_quote_header()`, `request_quote_change(text)`) and replaces
   the `pricing_queue` view. It was refused by the automation classifier and needs Dan's explicit "yes, apply 0012".
-  Without it `/my-quote` cannot load its header and buyer change requests fail.
+  Without it `/my-quote` cannot load its header and buyer change requests fail. `request_quote_change` refuses
+  (`P0002`, "This quote has not been itemised yet; please contact the office") a submission with no stored line
+  other than buyer requests (itemise-first, section 9).
 - 0013 adds e-sign `portal_settings` keys (`ON CONFLICT DO NOTHING`). Before the first send, verify
   `documents.provider` has no column default (the send claim uses `provider IS NULL`).
 - 0014 adds two staff policies on `submission_audit_logs` (SELECT; INSERT of own rows, never
   `pricing_request_notified`). Admin policies are untouched.
 - 0015 adds `ai_monthly_token_cap` (default 2,000,000).
+- 0016 hardens signed records: staff `documents` become SELECT + INSERT + UPDATE only while `draft`/`sent` (may set
+  `voided`), no staff DELETE; `unit-documents` storage is staff INSERT + SELECT only (no overwrite / delete; the
+  e-sign webhook writes as the service role); `quote_line_reviews` are staff SELECT only; `is_staff` /
+  `buyer_can_see_line` EXECUTE is revoked from PUBLIC/anon (granted to authenticated); trigger
+  `quote_lines_set_updated_by` stamps `updated_by = auth.uid()` on every update (feeds `request_quote_change`'s
+  rep lookup). Apply 0016 before the frontend publish: the console now voids a failed draft (no DELETE) and uploads
+  with `upsert: false`, which 0016's policies require.
 - Verify after each: `select hash, created_at from drizzle.__drizzle_migrations order by created_at desc limit 5;`
 
 ## 2. Edge functions to deploy
@@ -127,11 +152,20 @@ The stored refresh token expired on 2026-08-15; every sync fails until this is d
 4. Confirm settings on the same page: default income account, tax code GST 5%, auto-create items on, SKU prefix
    `GLEN-`.
 5. Test with one unit whose lines are all priced: set its status to **quoted**; the Estimate total in QuickBooks
-   must match the console total (sync log: `expected_total`, `qbo_total`, `total_mismatch`,
-   `amount_sum_mismatch`). A 409 "quote has unpriced lines" lists the lines to price or resolve first (Unit 24's
-   stairs line is `under_review` and blocks its sync until resolved).
+   must match the console total (sync log: `expected_total`, `qbo_total`, `total_mismatch`). A 409 "quote has
+   unpriced lines" lists the lines to price or resolve first (Unit 24's stairs line is `under_review` and blocks its
+   sync until resolved). A 409 `amount_sum_mismatch` (`expected`, `actual`) means a line amount has sub-cent digits
+   (Σ line Amount ≠ subtotal); re-type that amount in the console (it now writes cents) and sync again. An Estimate
+   already in QuickBooks for the submission but missing from the map (found under the unit Job by its PrivateNote)
+   is updated, never duplicated.
 
 ## 8. Noni as staff (when Dan approves)
+
+**Before this grant, run the RLS smoke test against a local Supabase** (`supabase start`, Docker required):
+`bun run rls-smoke` (`scripts/rls-smoke/README.md`). It applies 0006–0016 to the local database and asserts the
+buyer / staff / admin boundaries (buyer A cannot read buyer B's lines, header or reviews; staff cannot write
+`pricing_config` or read `user_roles`; staff cannot edit a signed document; the counted-hidden CHECK fires;
+`request_quote_change` refuses an un-itemised quote). It must pass before any real person gets the staff role.
 
 ```sql
 INSERT INTO public.user_roles (user_id, role)
@@ -150,8 +184,16 @@ PM hub, Pipeline and Sales Analytics stay admin-only (their tables are admin-onl
 
 ## 9. Backfill `quote_lines` (`--write`)
 
-**Timing.** Until a submission has stored lines its PM tracking is read-only (the console shows generated lines; the
-tracking panel shows any pre-cutover tracking rows by their legacy key but cannot save new ones). Prod has 0 stored
+**Itemise-first rule.** A submission is itemised once it has a stored `wizard` or `migration` line. Until then every
+renderer (PDF, Word, emails, HubSpot, QBO, exports) shows its generated quote plus any stored office / buyer-request
+lines appended (`linesSource: 'mixed'`, never a smaller total), and the console shows an **"Itemise this quote"**
+banner: its button inserts the generated lines as `source = 'migration'` (the backfill's mapping, through the
+console's audited autosave). Add line, status edits, Send for signature and Documents stay disabled until then;
+buyers' "Request a change" is refused for an un-itemised quote. The backfill reports a submission holding only
+office / buyer-request lines as `FAIL: partial-lines` (exit 1) and never writes it — itemise it from the console.
+
+**Timing.** Until a submission has stored lines its PM tracking is read-only (the console shows the itemise banner;
+the tracking panel shows any pre-cutover tracking rows by their legacy key but cannot save new ones). Prod has 0 stored
 lines today, so run the backfill `--write` for the **eight clean units** with `--unit` (2, 4, 7, 27, 31, 37, 38, 43)
 **immediately after the migrations and the publish**, one unit per run, against the signed-off dry run. Leave Unit 24
 until Dan decides the double count (step 1).
@@ -179,7 +221,9 @@ Prerequisites: 0006–0011 applied (done); Dan has signed off the dry run per un
    write the other eight against the old file first). Exit codes: 0 ok; 1 a row FAILed (nothing wrong written);
    2 refused / runtime error; 3 rollback failed — clean up with
    `DELETE FROM quote_lines WHERE submission_id = '<id>' AND source = 'migration'` and re-run the dry run.
-4. Re-running is safe: submissions that already have lines are `skipped: has lines`.
+4. Re-running is safe: submissions that already have wizard / migration lines are `skipped: has lines`; one with
+   only office / buyer-request lines is `FAIL: partial-lines` (exit 1, nothing written) — use the console's
+   "Itemise this quote" for it.
 
 ## 10. Post-deploy checks
 
