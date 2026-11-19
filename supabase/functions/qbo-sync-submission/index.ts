@@ -4,7 +4,8 @@
 //   Customer (buyer)  →  Sub-customer/Project (unit)  →  Estimate (one line per counted quote_line)
 // Phase 2 Task 15: the estimate is built 1:1 from quote_lines (stored, else generated) by _shared/qboLinesMap.ts;
 // no pricing engine call. Logic (refusals, Item lookup/create, estimate body): ./handler.ts (tested).
-// Idempotent via qbo_entity_map.
+// Idempotent via qbo_entity_map; overlapping syncs of one submission are serialised by a 'pending:<uuid>' estimate
+// placeholder row (handler.ts reserveEstimate: plain INSERT on the unique key → 23505 → 409 sync_in_progress).
 //
 // Caller: admin-only (UI button) OR self-invoked from auto-sync trigger.
 // Self-invocations include header `x-internal-secret = SUPABASE_SERVICE_ROLE_KEY`.
@@ -44,7 +45,7 @@ function makeDeps(admin: any): SyncDeps {
       };
     },
     async getMap(entity_type, portal_ref_type, portal_ref_id) {
-      const { data, error } = await admin.from('qbo_entity_map').select('qbo_id, qbo_sync_token')
+      const { data, error } = await admin.from('qbo_entity_map').select('qbo_id, qbo_sync_token, updated_at')
         .eq('entity_type', entity_type).eq('portal_ref_type', portal_ref_type).eq('portal_ref_id', portal_ref_id).maybeSingle();
       if (error) throw new Error(`qbo_entity_map read failed (${entity_type}/${portal_ref_type}): ${error.message}`);
       return data ?? null;
@@ -54,6 +55,26 @@ function makeDeps(admin: any): SyncDeps {
         entity_type, portal_ref_type, portal_ref_id, qbo_id, qbo_sync_token, metadata, last_synced_at: new Date().toISOString(),
       }, { onConflict: 'entity_type,portal_ref_type,portal_ref_id' });
       if (error) throw new Error(`qbo_entity_map write failed (${entity_type}/${portal_ref_type}): ${error.message}`);
+    },
+    async insertMap(entity_type, portal_ref_type, portal_ref_id, qbo_id) {
+      const { error } = await admin.from('qbo_entity_map').insert({ entity_type, portal_ref_type, portal_ref_id, qbo_id });
+      if (!error) return true;
+      if (error.code === '23505') return false;
+      throw new Error(`qbo_entity_map reserve failed (${entity_type}/${portal_ref_type}): ${error.message}`);
+    },
+    async replaceMap(entity_type, portal_ref_type, portal_ref_id, expected, qbo_id, qbo_sync_token, metadata = {}) {
+      const { data, error } = await admin.from('qbo_entity_map')
+        .update({ qbo_id, qbo_sync_token, metadata, last_synced_at: new Date().toISOString() })
+        .eq('entity_type', entity_type).eq('portal_ref_type', portal_ref_type).eq('portal_ref_id', portal_ref_id)
+        .eq('qbo_id', expected).select('id');
+      if (error) throw new Error(`qbo_entity_map write failed (${entity_type}/${portal_ref_type}): ${error.message}`);
+      return (data ?? []).length > 0;
+    },
+    async deleteMap(entity_type, portal_ref_type, portal_ref_id, expected) {
+      const { error } = await admin.from('qbo_entity_map').delete()
+        .eq('entity_type', entity_type).eq('portal_ref_type', portal_ref_type).eq('portal_ref_id', portal_ref_id)
+        .eq('qbo_id', expected);
+      if (error) throw new Error(`qbo_entity_map release failed (${entity_type}/${portal_ref_type}): ${error.message}`);
     },
     async log(row) {
       try { await admin.from('qbo_sync_log').insert(row); } catch (e) { console.warn('log fail', e); }

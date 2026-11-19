@@ -1,5 +1,5 @@
 // Deno tests: `deno test supabase/functions/`. No-op under bun (mapper suite: scripts/qbo-lines-map.test.ts).
-import { handleQboSync, type MapRow, type QboApi, type SyncDeps } from './handler.ts';
+import { handleQboSync, RESERVATION_STALE_MS, type MapRow, type QboApi, type SyncDeps } from './handler.ts';
 import type { QuoteLine } from '../_shared/quoteLines.ts';
 
 const denoTest = (globalThis as { Deno?: { test: (n: string, f: () => Promise<void> | void) => void } }).Deno?.test;
@@ -58,6 +58,7 @@ if (denoTest) {
   const check = (t: string, r: string) => {
     if (!ENTITY_TYPES.includes(t) || !REF_TYPES.includes(r)) throw new Error(`violates qbo_entity_map check: ${t}/${r}`);
   };
+  const clock = { now: Date.parse('2026-11-19T12:00:00Z') };
   const deps = (lines: QuoteLine[], fake: FakeQbo, logs: Array<Record<string, unknown>> = [], map = new Map<string, MapRow>()) => {
     let qboCalls = 0;
     const d: SyncDeps & { qboCalls: () => number } = {
@@ -68,8 +69,26 @@ if (denoTest) {
       getMap: (t, r, id) => { try { check(t, r); } catch (e) { return Promise.reject(e); } return Promise.resolve(map.get(`${t}|${r}|${id}`) ?? null); },
       setMap: (t, r, id, qbo_id, qbo_sync_token) => {
         try { check(t, r); } catch (e) { return Promise.reject(e); }
-        map.set(`${t}|${r}|${id}`, { qbo_id, qbo_sync_token }); return Promise.resolve();
+        map.set(`${t}|${r}|${id}`, { qbo_id, qbo_sync_token, updated_at: new Date(clock.now).toISOString() }); return Promise.resolve();
       },
+      // Same semantics as the unique key: INSERT fails when the row exists; UPDATE / DELETE filter on the qbo_id.
+      insertMap: (t, r, id, qbo_id) => {
+        try { check(t, r); } catch (e) { return Promise.reject(e); }
+        const k = `${t}|${r}|${id}`;
+        if (map.has(k)) return Promise.resolve(false);
+        map.set(k, { qbo_id, qbo_sync_token: null, updated_at: new Date(clock.now).toISOString() }); return Promise.resolve(true);
+      },
+      replaceMap: (t, r, id, expected, qbo_id, qbo_sync_token) => {
+        const k = `${t}|${r}|${id}`;
+        if (map.get(k)?.qbo_id !== expected) return Promise.resolve(false);
+        map.set(k, { qbo_id, qbo_sync_token, updated_at: new Date(clock.now).toISOString() }); return Promise.resolve(true);
+      },
+      deleteMap: (t, r, id, expected) => {
+        const k = `${t}|${r}|${id}`;
+        if (map.get(k)?.qbo_id === expected) map.delete(k);
+        return Promise.resolve();
+      },
+      now: () => clock.now,
       log: (row) => { logs.push(row); return Promise.resolve(); },
       qboCalls: () => qboCalls,
     };
@@ -197,5 +216,52 @@ if (denoTest) {
     const est = fake.posts.filter((p) => p.path === '/estimate');
     ok(est.length === 1 && est[0].body.Id === 'E-orphan' && est[0].body.SyncToken === '3', JSON.stringify(est[0]?.body));
     ok(fake.queries.some((q) => q.includes("FROM Estimate WHERE CustomerRef = '")), 'looked up by the unit Job');
+  });
+
+  const estimatePosts = (fake: FakeQbo) => fake.posts.filter((p) => p.path === '/estimate');
+
+  denoTest('two overlapping syncs of one submission: one creates the Estimate, the other gets 409 sync_in_progress', async () => {
+    const fake = new FakeQbo();
+    const map = new Map<string, MapRow>();
+    const lines = [line({ material_key: 'carpet' })];
+    const logs: Array<Record<string, unknown>> = [];
+    const [a, b] = await Promise.all([
+      handleQboSync({ submission_id: 's1' }, auto, deps(lines, fake, logs, map)),
+      handleQboSync({ submission_id: 's1' }, auto, deps(lines, fake, logs, map)),
+    ]);
+    eq([a.status, b.status].sort(), [200, 409]);
+    eq((a.status === 409 ? a : b).body, { error: 'sync_in_progress' });
+    eq(estimatePosts(fake).length, 1);
+    eq(map.get('estimate|submission|s1')?.qbo_id, 'E1');
+  });
+
+  denoTest('a failed sync releases its placeholder, so the next sync can create the Estimate', async () => {
+    const fake = new FakeQbo();
+    const map = new Map<string, MapRow>();
+    const lines = [line({ material_key: 'carpet' })];
+    const d = deps(lines, fake, [], map);
+    d.qbo = () => Promise.reject(new Error('No active QuickBooks connection'));
+    const r = await quiet(() => handleQboSync({ submission_id: 's1' }, auto, d));
+    ok(r.status === 500, JSON.stringify(r));
+    ok(!map.has('estimate|submission|s1'), 'placeholder released');
+    const again = await handleQboSync({ submission_id: 's1' }, auto, deps(lines, fake, [], map));
+    ok(again.status === 200 && estimatePosts(fake).length === 1, JSON.stringify(again));
+  });
+
+  denoTest('a fresh placeholder blocks (409, QBO not contacted); one older than 10 minutes is taken over', async () => {
+    const fake = new FakeQbo();
+    const map = new Map<string, MapRow>();
+    const lines = [line({ material_key: 'carpet' })];
+    map.set('estimate|submission|s1', { qbo_id: 'pending:old', qbo_sync_token: null, updated_at: new Date(clock.now - 60_000).toISOString() });
+    const d1 = deps(lines, fake, [], map);
+    eq(await handleQboSync({ submission_id: 's1' }, auto, d1), { status: 409, body: { error: 'sync_in_progress' } });
+    ok(d1.qboCalls() === 0, 'QBO must not be called while another sync holds the reservation');
+    map.set('estimate|submission|s1', { qbo_id: 'pending:old', qbo_sync_token: null,
+      updated_at: new Date(clock.now - RESERVATION_STALE_MS - 1).toISOString() });
+    const r = await handleQboSync({ submission_id: 's1' }, auto, deps(lines, fake, [], map));
+    ok(r.status === 200, JSON.stringify(r));
+    const est = estimatePosts(fake);
+    ok(est.length === 1 && est[0].body.Id === undefined, 'created (a pending: id is never sent as an Estimate Id)');
+    eq(map.get('estimate|submission|s1')?.qbo_id, 'E1');
   });
 }

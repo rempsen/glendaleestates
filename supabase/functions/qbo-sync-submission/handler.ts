@@ -42,7 +42,19 @@ export interface QboApi {
   post(path: string, body: unknown): Promise<any>;
 }
 
-export interface MapRow { qbo_id: string; qbo_sync_token: string | null }
+export interface MapRow { qbo_id: string; qbo_sync_token: string | null; updated_at?: string | null }
+
+/**
+ * Estimate reservation (overlapping syncs of one submission must not both create an Estimate): before creating, the
+ * sync INSERTs a placeholder map row ('estimate','submission',id) with qbo_id = 'pending:<uuid>'; the table's unique
+ * key makes a concurrent second INSERT fail (23505) → 409 sync_in_progress. Success replaces the placeholder with
+ * the real id (update filtered on the placeholder); failure deletes it. A placeholder untouched for
+ * RESERVATION_STALE_MS is an abandoned run and is taken over.
+ */
+export const PENDING_PREFIX = 'pending:';
+export const RESERVATION_STALE_MS = 10 * 60 * 1000;
+export const SYNC_IN_PROGRESS = 'sync_in_progress';
+export const isPendingMap = (row: MapRow | null): boolean => !!row && row.qbo_id.startsWith(PENDING_PREFIX);
 
 export interface TriggeredBy { user_id: string | null; email: string | null; source: 'manual' | 'auto' }
 
@@ -59,6 +71,15 @@ export interface SyncDeps {
   qbo(): Promise<QboApi>;
   getMap(entityType: string, refType: string, refId: string): Promise<MapRow | null>;
   setMap(entityType: string, refType: string, refId: string, qboId: string, syncToken: string | null, metadata?: Record<string, unknown>): Promise<void>;
+  /** Plain INSERT (never upsert); false when the unique key (entity_type, portal_ref_type, portal_ref_id) already exists (23505). */
+  insertMap(entityType: string, refType: string, refId: string, qboId: string): Promise<boolean>;
+  /** UPDATE … WHERE qbo_id = expectedQboId; false when no row matched (the placeholder was taken over or removed). */
+  replaceMap(entityType: string, refType: string, refId: string, expectedQboId: string, qboId: string, syncToken: string | null, metadata?: Record<string, unknown>): Promise<boolean>;
+  /** DELETE … WHERE qbo_id = expectedQboId (releases this run's placeholder only). */
+  deleteMap(entityType: string, refType: string, refId: string, expectedQboId: string): Promise<void>;
+  /** Clock and placeholder id (injected in tests). */
+  now?(): number;
+  newToken?(): string;
   log(row: Record<string, unknown>): Promise<void>;
 }
 
@@ -170,6 +191,26 @@ async function findEstimateBySubmission(api: QboApi, projectId: string, submissi
   return hit ? { qbo_id: hit.Id, qbo_sync_token: hit.SyncToken ?? null } : null;
 }
 
+type Reservation = { kind: 'reserved'; token: string } | { kind: 'mapped'; row: MapRow } | { kind: 'busy' };
+
+/** Reserve the submission's Estimate map row, or report the real row a concurrent sync just wrote, or busy. */
+async function reserveEstimate(deps: SyncDeps, submissionId: string): Promise<Reservation> {
+  const token = `${PENDING_PREFIX}${deps.newToken?.() ?? crypto.randomUUID()}`;
+  const now = deps.now?.() ?? Date.now();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (await deps.insertMap('estimate', 'submission', submissionId, token)) return { kind: 'reserved', token };
+    const row = await deps.getMap('estimate', 'submission', submissionId);
+    if (!row) continue; // released between our INSERT and the read: try once more
+    if (!isPendingMap(row)) return { kind: 'mapped', row };
+    const at = row.updated_at ? Date.parse(row.updated_at) : NaN;
+    if (Number.isNaN(at) || now - at < RESERVATION_STALE_MS) return { kind: 'busy' };
+    // Abandoned placeholder: take it over, conditional on it still being that placeholder.
+    if (await deps.replaceMap('estimate', 'submission', submissionId, row.qbo_id, token, null)) return { kind: 'reserved', token };
+    return { kind: 'busy' };
+  }
+  return { kind: 'busy' };
+}
+
 export async function handleQboSync(body: unknown, triggeredBy: TriggeredBy, deps: SyncDeps): Promise<SyncResult> {
   const submissionId = (body as { submission_id?: unknown } | null)?.submission_id;
   if (typeof submissionId !== 'string' || !submissionId) return { status: 400, body: { error: 'submission_id is required' } };
@@ -198,36 +239,64 @@ export async function handleQboSync(body: unknown, triggeredBy: TriggeredBy, dep
       return await refuse(AMOUNT_SUM_MISMATCH, { expected: r2(map.subtotal), actual: amountSum });
     }
 
-    const api = await deps.qbo();
-    const customerId = await upsertCustomer(api, deps, settings, submission);
-    const projectId = await upsertProject(api, deps, settings, customerId, submission);
+    // A real map row means update in place; otherwise reserve before anything can create an Estimate.
+    const mapped = await deps.getMap('estimate', 'submission', submission.id);
+    let existing: MapRow | null = isPendingMap(mapped) ? null : mapped;
+    let reservation: string | null = null;
+    if (!existing) {
+      const r = await reserveEstimate(deps, submission.id);
+      if (r.kind === 'busy') return await refuse(SYNC_IN_PROGRESS);
+      if (r.kind === 'mapped') existing = r.row;
+      else reservation = r.token;
+    }
 
-    const cache = new Map<string, Promise<string>>();
-    const Line = [];
-    for (const l of map.lines) Line.push(salesItemLine(l, await resolveItem(api, deps, settings, l.sku, cache), settings.default_tax_code_ref));
+    let customerId: string, projectId: string, Line: ReturnType<typeof salesItemLine>[], est: any;
     const amountSumMismatch = false; // refused above; kept in the response / log shape
-    const estimateBody = {
-      CustomerRef: { value: projectId },
-      TxnDate: new Date().toISOString().slice(0, 10),
-      Line,
-      PrivateNote: `Glendale Portal submission ${submission.id} (Unit ${submission.unit_number})`,
-      CustomerMemo: { value: 'Itemized buyer upgrades. See attached selections summary.' },
-      GlobalTaxCalculation: 'TaxExcluded',
-    };
-    const existing = await deps.getMap('estimate', 'submission', submission.id)
-      ?? await findEstimateBySubmission(api, projectId, submission.id);
-    const res = await api.post('/estimate', existing
-      ? { ...estimateBody, Id: existing.qbo_id, SyncToken: existing.qbo_sync_token ?? '0', sparse: false }
-      : estimateBody);
-    const est = res.Estimate;
     const expected = { subtotal: r2(map.subtotal), gst: r2(map.gst), total: r2(map.total) };
+    try {
+      const api = await deps.qbo();
+      customerId = await upsertCustomer(api, deps, settings, submission);
+      projectId = await upsertProject(api, deps, settings, customerId, submission);
+
+      const cache = new Map<string, Promise<string>>();
+      Line = [];
+      for (const l of map.lines) Line.push(salesItemLine(l, await resolveItem(api, deps, settings, l.sku, cache), settings.default_tax_code_ref));
+      const estimateBody = {
+        CustomerRef: { value: projectId },
+        TxnDate: new Date().toISOString().slice(0, 10),
+        Line,
+        PrivateNote: `Glendale Portal submission ${submission.id} (Unit ${submission.unit_number})`,
+        CustomerMemo: { value: 'Itemized buyer upgrades. See attached selections summary.' },
+        GlobalTaxCalculation: 'TaxExcluded',
+      };
+      existing ??= await findEstimateBySubmission(api, projectId, submission.id);
+      const res = await api.post('/estimate', existing
+        ? { ...estimateBody, Id: existing.qbo_id, SyncToken: existing.qbo_sync_token ?? '0', sparse: false }
+        : estimateBody);
+      est = res.Estimate;
+      const metadata = {
+        doc_number: est.DocNumber, total: est.TotalAmt, expected_total: expected.total, lines_source: linesSource,
+        amount_sum_mismatch: amountSumMismatch,
+      };
+      if (reservation) {
+        if (!await deps.replaceMap('estimate', 'submission', submission.id, reservation, est.Id, est.SyncToken, metadata)) {
+          throw new Error(`estimate ${est.Id} saved in QuickBooks but the map reservation was lost; the next sync finds it by PrivateNote`);
+        }
+        reservation = null;
+      } else {
+        await deps.setMap('estimate', 'submission', submission.id, est.Id, est.SyncToken, metadata);
+      }
+    } catch (e) {
+      if (reservation) {
+        try { await deps.deleteMap('estimate', 'submission', submission.id, reservation); } catch (re) {
+          console.warn('[qbo] could not release the estimate reservation (it goes stale in 10 minutes):', re);
+        }
+      }
+      throw e;
+    }
     const qboTotal = typeof est.TotalAmt === 'number' ? est.TotalAmt : null;
     const totalMismatch = qboTotal != null && Math.abs(qboTotal - expected.total) >= 0.005;
     if (totalMismatch) console.warn(`[qbo] estimate ${est.Id} TotalAmt ${qboTotal} ≠ quote total ${expected.total} (check the GST tax code)`);
-    await deps.setMap('estimate', 'submission', submission.id, est.Id, est.SyncToken, {
-      doc_number: est.DocNumber, total: est.TotalAmt, expected_total: expected.total, lines_source: linesSource,
-      amount_sum_mismatch: amountSumMismatch,
-    });
     await deps.log({
       direction: 'outbound', operation: 'sync_submission', status: 'success', ...ref, qbo_id: est.Id, ...who,
       response_payload: { customer_id: customerId, project_id: projectId, doc_number: est.DocNumber, source: triggeredBy.source,
