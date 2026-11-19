@@ -2,6 +2,8 @@
 // window value read quote lines. Before = the Phase 1 engine's numbers; after = sumQuoteLines over the lines; they
 // must agree to the cent on all nine live units.
 import { test, expect, describe } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import liveSubmissions from './fixtures/live-submissions.json';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
 import type { PricingSnapshot } from './lib/fixturePricing';
@@ -178,5 +180,17 @@ describe('HubSpot: pricing unavailable never overwrites CRM values', () => {
   });
   test('generated lines with pricing loaded are sent', () => {
     expect(hubspotPricingProperties(linesFor(rows[0]), GST, { linesSource: 'generated', pricingUnavailable: null })).not.toBeNull();
+  });
+});
+
+describe('sync-hubspot moneyText reuses formatMoney (Task 18)', () => {
+  test('same rounding as the documents, no $ and no grouping', async () => {
+    const { moneyText } = await import('../supabase/functions/sync-hubspot/quoteValues.ts');
+    expect(moneyText(707.175)).toBe(formatMoney(707.175).replace(/[$,]/g, ''));
+    expect(moneyText(12345.6)).toBe('12345.60');
+    expect(moneyText(0)).toBe('0.00');
+    const src = readFileSync(join(import.meta.dir, '../supabase/functions/sync-hubspot/quoteValues.ts'), 'utf8');
+    expect(src).toContain("formatMoney(n).replace(/[$,]/g, '')");
+    expect(src).not.toContain('toLocaleString');
   });
 });

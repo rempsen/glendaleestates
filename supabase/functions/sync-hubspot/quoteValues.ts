@@ -18,11 +18,11 @@ export interface HubspotQuoteValues {
 }
 
 /**
- * Money text for a CRM property: the same rounding as the PDF/emails (formatMoney, Intl), without `$` or grouping.
- * `toFixed(2)` rounds binary halves down (707.175 → "707.17") where the documents print $707.18.
+ * Money text for a CRM property: the documents' formatMoney (PDF/emails, Intl rounding) without `$` or grouping —
+ * one implementation, so a CRM value can never round differently from the printed quote. (`toFixed(2)` would round
+ * binary halves down: 707.175 → "707.17" where the documents print $707.18.)
  */
-export const moneyText = (n: number): string =>
-  n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false });
+export const moneyText = (n: number): string => formatMoney(n).replace(/[$,]/g, '');
 
 const subtotalOf = (lines: QuoteLine[], gstRate: number, pick: (l: QuoteLine) => boolean) =>
   sumQuoteLines(lines.filter(pick), gstRate).subtotal;

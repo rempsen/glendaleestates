@@ -311,14 +311,15 @@ const joinNotes = (...parts: Array<string | null | undefined>) => parts.map((p) 
 const WINDOW_LIKE = /shade|blind|window|patio|panel track|somfy|motori|drape|curtain/i;
 
 /** Office custom item → section, by area first, then label keywords. */
-function officeSection(item: QuoteCustomItem, included: boolean): Section {
+function officeSection(item: QuoteCustomItem): Section {
   const area = String(item.area || '');
   const label = String(item.label || '');
   if (/stair/i.test(area)) return 'stairs';
   if (/basement/i.test(area)) return 'basement';
-  // The engines priced office items as upgrades, never as windows, and parity bound `windowCoverings` to the engine
-  // `windowSubtotal`; so a counted window-like office item stays in 'other'. Included ($0) ones join window_coverings.
-  if (WINDOW_LIKE.test(label)) return included ? 'window_coverings' : 'other';
+  // Window-like office items (itemized shades, motorization, patio-door tracks) are window coverings, counted or
+  // included. (Until Task 18 a counted one stayed in 'other' to match the Phase 1 engines' windowSubtotal; the
+  // grand subtotal never depended on it.)
+  if (WINDOW_LIKE.test(label)) return 'window_coverings';
   if (/grout|backsplash/i.test(label)) return 'backsplash';
   if (/shower|heated/i.test(label)) return 'bathroom';
   if (/tile/i.test(label)) return 'tile';
@@ -703,7 +704,7 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
     const pricingMode: PricingMode = status === 'included' ? 'included'
       : key.startsWith('mat:') ? 'catalog' : key.startsWith('cfg:') ? 'flat_rate' : 'manual';
     push({
-      section: officeSection(item, status === 'included'), location: text(item.area) || 'General',
+      section: officeSection(item), location: text(item.area) || 'General',
       label: text(item.label) || 'Custom Item', material_key: key.startsWith('mat:') ? key.slice(4) : null,
       quantity: q > 0 ? q : null, unit: officeUnit(item.unit, q > 0), unit_price: byQty ? u : null, amount,
       pricing_mode: pricingMode,

@@ -1,13 +1,13 @@
 // Phase 2 Task 11 (spec §6.11): the buyer/office emails (send-selections-email) and the resend copies print quote
 // lines. Edge-string tests over the pure renderers: seven-column header, sections, `Pending` (never $0.00), totals
-// equal to the Phase 1 engine on all nine live units, buyer HTML free of internal text, and the pricing-unavailable
+// equal to the parity pins on all nine live units, buyer HTML free of internal text, and the pricing-unavailable
 // path printing no money at all.
 import { test, expect, describe, spyOn } from 'bun:test';
 import liveSubmissions from './fixtures/live-submissions.json';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
 import type { PricingSnapshot } from './lib/fixturePricing';
 import { buildGenerateInputFromRow, pricingFromRows, referenceTotalsForRow, type SubmissionRow } from './lib/generateInputFromRow';
-import { generateQuoteLines, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
+import { generateQuoteLines, sumQuoteLines, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
 import { LINE_COLUMNS, formatMoney } from '../supabase/functions/_shared/lineRenderRows.ts';
 import { escapeHtml, QUOTE_TO_FOLLOW_TEXT, renderLinesEmailHtml, type EmailLines } from '../supabase/functions/_shared/linesEmailHtml.ts';
 import { serverPricingFromRows } from '../supabase/functions/_shared/loadServerPricing.ts';
@@ -36,11 +36,12 @@ describe('send-selections-email + resend: totals equal the parity pins on every 
   for (const row of rows) {
     test(`Unit ${row.unit_number}`, () => {
       const ref = referenceTotalsForRow(row, pricing);
-      const lines = linesFor(row);
+      // One line carries a staff note so the buyer/staff checks below always have something to look for.
+      const lines = linesFor(row).map((l, i) => (i === 0 ? { ...l, internal_note: `${INTERNAL} (unit ${row.unit_number})` } : l));
       const data = buildPreviewSampleData({ salesComments: SALES, firstName: String(row.first_name ?? 'Buyer') });
       const sub = { ...row, sales_comments: SALES, admin_notes: ADMIN };
       const total = formatMoney(ref.grandTotal);
-      expect(formatMoney(ref.grandTotal)).toBe(total);
+      expect(sumQuoteLines(lines, GST).subtotal.toFixed(2)).toBe(ref.grandSubtotal.toFixed(2));
 
       const buyer = generateBuyerConfirmationEmail(data, 'id', q(lines));
       const office = buildAdminEmailHtml(data, 'id', q(lines));
@@ -57,6 +58,7 @@ describe('send-selections-email + resend: totals equal the parity pins on every 
 
       // Buyer copies: never internal notes, sales comments or admin notes.
       const internal = lines.map((l) => (l.internal_note ?? '').trim()).filter((n) => n.length > 0);
+      expect(internal.length).toBeGreaterThan(0);
       for (const html of [buyer, resendBuyer]) {
         for (const n of internal) expect(html).not.toContain(escapeHtml(n.slice(0, 20)));
         expect(html).not.toContain(SALES);

@@ -204,3 +204,59 @@ export function queueRowsFromRest(rows: ReadonlyArray<Record<string, unknown>>):
     };
   });
 }
+
+// ---------------------------------------------------------------------
+// Buyer responses (spec §6.7, Phase 2 Task 18): the latest quote_line_reviews row per line, for the daily digest.
+// Staff channel only — the buyer's comment is printed (escaped) for the office.
+// ---------------------------------------------------------------------
+
+export interface ReviewRow {
+  line_id: string;
+  submission_id: string;
+  unit_number: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  location: string | null;
+  label: string | null;
+  response: 'accepted' | 'questioned';
+  comment: string | null;
+  created_at: string;
+}
+
+/** The digest's review window: responses created in the 24 h before `now`. */
+export const reviewsSince = (now: Date): Date => new Date(now.getTime() - 24 * 3_600_000);
+
+/** PostgREST embed for the service-role read of quote_line_reviews with the line and the submission. */
+export const REVIEWS_REST_SELECT = 'line_id,response,comment,created_at,'
+  + 'line:quote_lines(submission_id,location,label,buyer:buyer_selections(unit_number,first_name,last_name))';
+
+export function reviewRowsFromRest(rows: ReadonlyArray<Record<string, unknown>>): ReviewRow[] {
+  return rows.map((r) => {
+    const l = r.line as Record<string, unknown> | null | undefined;
+    const b = (l?.buyer ?? null) as Embedded;
+    return {
+      line_id: String(r.line_id),
+      submission_id: String(l?.submission_id ?? ''),
+      unit_number: nul(b?.unit_number),
+      first_name: nul(b?.first_name),
+      last_name: nul(b?.last_name),
+      location: nul(l?.location),
+      label: nul(l?.label),
+      response: r.response === 'accepted' ? 'accepted' : 'questioned',
+      comment: nul(r.comment),
+      created_at: String(r.created_at),
+    };
+  });
+}
+
+/** Latest response per line (newest created_at wins), ordered by unit then line label. */
+export function latestReviewPerLine(rows: ReadonlyArray<ReviewRow>): ReviewRow[] {
+  const latest = new Map<string, ReviewRow>();
+  for (const r of rows) {
+    const cur = latest.get(r.line_id);
+    if (!cur || Date.parse(r.created_at) > Date.parse(cur.created_at)) latest.set(r.line_id, r);
+  }
+  return [...latest.values()].sort((a, b) =>
+    String(a.unit_number ?? '').localeCompare(String(b.unit_number ?? ''), undefined, { numeric: true })
+    || String(a.label ?? '').localeCompare(String(b.label ?? '')));
+}

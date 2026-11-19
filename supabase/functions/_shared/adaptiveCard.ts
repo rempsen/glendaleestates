@@ -87,8 +87,24 @@ export interface DigestLine {
 
 export interface DigestGroup { assigneeName: string; lines: DigestLine[] }
 
+/** One buyer response (latest per line) for the digest's "Buyer responses since yesterday" section. */
+export interface DigestResponse {
+  unit: string;
+  buyerName: string;
+  location: string;
+  label: string;
+  response: 'accepted' | 'questioned';
+  /** Buyer free text: escaped in HTML, plain TextBlock in the card (staff channel only). */
+  comment?: string | null;
+  link: string;
+}
+
+export const BUYER_RESPONSES_HEADING = 'Buyer responses since yesterday';
+
 export interface DigestInput {
   groups: DigestGroup[];
+  /** Latest buyer response per line in the last 24 h; the section is omitted when empty. */
+  responses?: DigestResponse[];
   /** <portal>/admin/pricing-queue */
   queueLink: string;
   escalationHours: number;
@@ -109,7 +125,9 @@ const lineSummary = (l: DigestLine) =>
 export function buildDigestCardOrText(input: DigestInput): DigestOutput {
   const lines = input.groups.flatMap((g) => g.lines);
   const overdue = lines.filter((l) => l.overdue).length;
-  const subject = `Pricing queue: ${lines.length} open, ${overdue} overdue`;
+  const responses = input.responses ?? [];
+  const subject = `Pricing queue: ${lines.length} open, ${overdue} overdue`
+    + (responses.length ? ` · ${responses.length} buyer response${responses.length === 1 ? '' : 's'}` : '');
   const title = input.title ?? 'Open pricing requests';
   const rule = `Overdue = waiting more than ${input.escalationHours} h.`;
 
@@ -153,6 +171,30 @@ export function buildDigestCardOrText(input: DigestInput): DigestOutput {
       html.push('</ul>');
       cardBody.push({ type: 'Container', separator: true, items });
     }
+  }
+  if (responses.length) {
+    const questioned = responses.filter((r) => r.response === 'questioned').length;
+    const head = `${BUYER_RESPONSES_HEADING} (${responses.length}: ${questioned} questioned, ${responses.length - questioned} accepted)`;
+    text.push('', head);
+    html.push(`<h3 style="margin:16px 0 4px">${escapeHtml(head)}</h3><ul style="margin:0;padding-left:18px">`);
+    const items: Json[] = [{ type: 'TextBlock', text: head, weight: 'Bolder', wrap: true }];
+    for (const r of responses) {
+      const what = r.response === 'accepted' ? 'Accepted' : 'Questioned';
+      const summary = [`Unit ${orDash(r.unit)}`, r.buyerName, r.location, r.label].filter(present).join(' · ');
+      text.push(`- ${what}: ${summary}`);
+      if (present(r.comment)) text.push(`  Buyer: ${r.comment.trim()}`);
+      text.push(`  ${r.link}`);
+      html.push(
+        `<li style="margin:4px 0"><strong>${what}</strong>: <a href="${escapeHtml(r.link)}">${escapeHtml(summary)}</a>`
+        + (present(r.comment) ? `<br><span style="color:#6b7280">Buyer: ${escapeHtml(r.comment.trim())}</span>` : '')
+        + '</li>',
+      );
+      items.push({ type: 'TextBlock', wrap: true, spacing: 'Small', text: `${what}: [${summary}](${r.link})`,
+        ...(r.response === 'questioned' ? { color: 'Attention' } : {}) });
+      if (present(r.comment)) items.push({ type: 'TextBlock', wrap: true, isSubtle: true, spacing: 'None', text: `Buyer: ${r.comment.trim()}` });
+    }
+    html.push('</ul>');
+    cardBody.push({ type: 'Container', separator: true, items });
   }
   text.push('', `Pricing queue: ${input.queueLink}`);
   html.push(`<p style="margin-top:16px"><a href="${escapeHtml(input.queueLink)}">Open the pricing queue</a></p></div>`);

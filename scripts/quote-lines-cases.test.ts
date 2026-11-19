@@ -188,15 +188,36 @@ describe('overrides', () => {
 });
 
 describe('windows, heated floors, ordering', () => {
-  test('Unit 24: one line per patio door and a Somfy motorization line per motorized opening', () => {
+  test('Unit 24: one line per patio door, a Somfy motorization line per motorized opening, itemized office shades', () => {
     const win = fromRow('24').filter((l) => l.section === 'window_coverings' && l.status === 'upgrade');
     expect(win.map((l) => [l.location, l.label, l.amount])).toEqual([
       ['Patio Door 1', 'Patio door panel track', 2680.5],
       ['Patio Door 2', 'Patio door panel track', 2680.5],
       ['Patio Door 1', 'Somfy motorization', 645],
       ['Patio Door 2', 'Somfy motorization', 645],
+      ['Living Room', 'Roller shade, 5% openness — Living Room', 673.5],
+      ['Front Entrance', 'Roller shade, 5% openness — Front Entrance', 673.5],
     ]);
-    expect(sumQuoteLines(fromRow('24'), 0.05).windowCoverings).toBe(6651);
+  });
+
+  test('Task 18: itemized office shades are window coverings → Unit 24 Windows $7,998 / Upgrades $2,390.40 (subtotal unchanged)', () => {
+    const lines = fromRow('24');
+    const t = sumQuoteLines(lines, 0.05);
+    expect(t.windowCoverings.toFixed(2)).toBe('7998.00');
+    expect(t.upgrades.toFixed(2)).toBe('2390.40');
+    expect(t.subtotal.toFixed(2)).toBe('10388.40');
+    const shades = lines.filter((l) => l.source === 'office' && /shade/i.test(l.label));
+    expect(shades.length).toBeGreaterThan(0);
+    expect(shades.every((l) => l.section === 'window_coverings')).toBe(true);
+    expect(lines.some((l) => l.section === 'other' && /shade|blind|window|patio|somfy/i.test(l.label))).toBe(false);
+  });
+
+  test('a counted window-like office item is a window covering on any unit; non-window office items keep their section', () => {
+    const lines = gen('C', { customPricing: { customItems: [
+      { id: 'a', label: 'Blackout blind — Den', quantity: 1, unitPrice: 500 },
+      { id: 'b', label: 'Gazebo', amount: 100 },
+    ] } }).filter((l) => l.source === 'office');
+    expect(lines.map((l) => [l.label, l.section])).toEqual([['Blackout blind — Den', 'window_coverings'], ['Gazebo', 'other']]);
   });
 
   test('Unit 4: additional window line priced from pricing_config', () => {

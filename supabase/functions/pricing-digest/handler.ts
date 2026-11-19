@@ -1,8 +1,9 @@
 // Core of pricing-digest with all I/O injected (tested in scripts/pricing-notify.test.ts).
 // Escalation lives here, not in the webhook function: the webhook only sees the moment of flagging.
-import { buildDigestCardOrText, teamsMessage, type DigestGroup } from '../_shared/adaptiveCard.ts';
+import { buildDigestCardOrText, teamsMessage, type DigestGroup, type DigestResponse } from '../_shared/adaptiveCard.ts';
 import {
-  consoleLink, formatAge, groupByAssignee, hoursSince, personName, selectOverdue, type QueueRow,
+  consoleLink, formatAge, groupByAssignee, hoursSince, latestReviewPerLine, personName, reviewsSince, selectOverdue,
+  type QueueRow, type ReviewRow,
 } from '../_shared/pricingQueue.ts';
 import { safeEqual, type HeaderSource } from '../_shared/internalAuth.ts';
 import type { EmailMessage, HandlerResult, SendResult } from '../notify-pricing-request/handler.ts';
@@ -15,6 +16,8 @@ export interface DigestDeps {
   loadSettings(): Promise<DigestSettings>;
   /** Open pricing requests: OPEN_QUEUE_REST_FILTER (flagged pending lines and unassigned buyer requests). */
   loadOpen(): Promise<QueueRow[]>;
+  /** quote_line_reviews created at or after `since` (any order; the handler keeps the latest per line). */
+  loadReviews(since: Date): Promise<ReviewRow[]>;
   sendEmail(msg: Omit<EmailMessage, 'html'> & { html: string }): Promise<SendResult>;
   postTeams(url: string, body: unknown): Promise<SendResult>;
 }
@@ -44,17 +47,32 @@ function toGroups(rows: QueueRow[], deps: DigestDeps, hours: number, now: Date):
   }));
 }
 
+function toResponses(rows: ReviewRow[], deps: DigestDeps): DigestResponse[] {
+  return latestReviewPerLine(rows).map((r) => ({
+    unit: r.unit_number ?? '—',
+    buyerName: personName(r.first_name, r.last_name),
+    location: r.location ?? '',
+    label: r.label ?? '',
+    response: r.response,
+    comment: r.comment,
+    link: consoleLink(deps.portalBase, r.submission_id, r.line_id),
+  }));
+}
+
 export async function handleDigest(deps: DigestDeps): Promise<HandlerResult> {
   const now = deps.now();
   const settings = await deps.loadSettings();
   const rows = await deps.loadOpen();
+  const responses = toResponses(await deps.loadReviews(reviewsSince(now)), deps);
   const hours = settings.escalationHours;
   const queueLink = `${deps.portalBase.replace(/\/+$/, '')}/admin/pricing-queue`;
   const overdueRows = selectOverdue(rows, hours, now);
   const errors: string[] = [];
   const escalated: string[] = [];
 
-  if (!rows.length) return { status: 200, body: { ok: true, open: 0, overdue: 0, escalated: [], summarySent: false } };
+  if (!rows.length && !responses.length) {
+    return { status: 200, body: { ok: true, open: 0, overdue: 0, responses: 0, escalated: [], summarySent: false } };
+  }
 
   // 1. Each assignee gets their own overdue lines.
   for (const g of groupByAssignee(overdueRows, now)) {
@@ -68,8 +86,9 @@ export async function handleDigest(deps: DigestDeps): Promise<HandlerResult> {
     else errors.push(`${g.assigneeEmail}: ${r.error}`);
   }
 
-  // 2. Grouped summary of everything open to the digest recipients (Dan + whoever is set).
-  const summary = buildDigestCardOrText({ groups: toGroups(rows, deps, hours, now), queueLink, escalationHours: hours });
+  // 2. Grouped summary of everything open, plus the latest buyer response per line since yesterday (§6.7), to the
+  //    digest recipients (Dan + whoever is set).
+  const summary = buildDigestCardOrText({ groups: toGroups(rows, deps, hours, now), responses, queueLink, escalationHours: hours });
   let summarySent = false;
   if (settings.recipients.length) {
     const r = await deps.sendEmail({ to: settings.recipients, subject: summary.subject, html: summary.html, text: summary.text });
@@ -81,6 +100,6 @@ export async function handleDigest(deps: DigestDeps): Promise<HandlerResult> {
     if (r.ok === false) errors.push(`teams: ${r.error}`);
   }
 
-  const body = { ok: errors.length === 0, open: rows.length, overdue: overdueRows.length, escalated, summarySent, ...(errors.length ? { errors } : {}) };
+  const body = { ok: errors.length === 0, open: rows.length, overdue: overdueRows.length, responses: responses.length, escalated, summarySent, ...(errors.length ? { errors } : {}) };
   return { status: errors.length && !summarySent ? 502 : 200, body };
 }

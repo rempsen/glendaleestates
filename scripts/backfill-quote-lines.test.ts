@@ -110,7 +110,7 @@ describe('dry run', () => {
     const unit24 = lines.find((l) => l.includes(idOf('24')))!.split('|').map((s) => s.trim());
     expect(unit24[0]).toBe('24');
     expect(unit24[2]).toBe('10388.40');
-    expect(unit24[3]).toBe('6651.00');
+    expect(unit24[3]).toBe('7998.00'); // itemized office shades are window coverings since Task 18
     expect(unit24[6]).toBe('ok');
   });
 

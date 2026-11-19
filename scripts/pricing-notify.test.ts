@@ -2,7 +2,9 @@
 import { test, expect, describe } from 'bun:test';
 import { handleNotify, type NotifyDeps, type LineContext } from '../supabase/functions/notify-pricing-request/handler';
 import { handleDigest, digestAuthorized, type DigestDeps } from '../supabase/functions/pricing-digest/handler';
-import type { QueueRow } from '../supabase/functions/_shared/pricingQueue';
+import { latestReviewPerLine, reviewRowsFromRest, reviewsSince, REVIEWS_REST_SELECT, type QueueRow, type ReviewRow } from '../supabase/functions/_shared/pricingQueue';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const FLAGGED_AT = '2026-11-18T19:00:00+00:00';
 const payload = (over: Record<string, unknown> = {}) => ({
@@ -155,6 +157,7 @@ describe('pricing-digest', () => {
       now: () => NOW,
       loadSettings: async () => ({ teamsUrl: null, escalationHours: 4, recipients: ['dan@bmdmaterials.com', 'brian@bmdmaterials.com'] }),
       loadOpen: async () => rows,
+      loadReviews: async () => [],
       sendEmail: async (m) => { sent.push(m); return { ok: true }; },
       postTeams: async (_u, b) => { teams.push(b); return { ok: true }; },
       ...over,
@@ -181,7 +184,7 @@ describe('pricing-digest', () => {
 
   test('nothing open → no emails', async () => {
     const { d, sent } = ddeps([]);
-    expect((await handleDigest(d)).body).toEqual({ ok: true, open: 0, overdue: 0, escalated: [], summarySent: false });
+    expect((await handleDigest(d)).body).toEqual({ ok: true, open: 0, overdue: 0, responses: 0, escalated: [], summarySent: false });
     expect(sent).toHaveLength(0);
   });
 
@@ -198,5 +201,55 @@ describe('pricing-digest', () => {
     const r = await handleDigest(d);
     expect(r.status).toBe(502);
     expect(r.body).toMatchObject({ ok: false, errors: ['brian@bmdmaterials.com: boom', 'summary: boom'] });
+  });
+
+  // ---- Buyer responses since yesterday (spec §6.7, Task 18) ----
+  const review = (over: Partial<ReviewRow>): ReviewRow => ({
+    line_id: 'l1', submission_id: 's24', unit_number: '24', first_name: 'Mike', last_name: 'B', location: 'Stairs to Lower Level',
+    label: 'Premium carpet', response: 'questioned', comment: 'Is Catalyst the standard <colour>?', created_at: '2026-11-18T15:00:00Z', ...over,
+  });
+
+  test('latest response per line wins; ordered by unit', () => {
+    const latest = latestReviewPerLine([
+      review({ created_at: '2026-11-18T09:00:00Z', response: 'accepted', comment: null }),
+      review({}),
+      review({ line_id: 'l2', unit_number: '7', label: 'Premium underpad', response: 'accepted', comment: null }),
+    ]);
+    expect(latest.map((r) => [r.unit_number, r.line_id, r.response])).toEqual([['7', 'l2', 'accepted'], ['24', 'l1', 'questioned']]);
+  });
+
+  test('digest asks for the last 24 h and prints a "Buyer responses since yesterday" section with the comment', async () => {
+    let since: Date | null = null;
+    const { d, sent } = ddeps([qrow({})], { loadReviews: async (s) => { since = s; return [review({}), review({ line_id: 'l2', response: 'accepted', comment: null, label: 'Patio door panel track' })]; } });
+    const r = await handleDigest(d);
+    expect(since!.toISOString()).toBe(reviewsSince(NOW).toISOString());
+    expect(since!.toISOString()).toBe('2026-11-17T20:00:00.000Z');
+    expect(r.body).toMatchObject({ ok: true, open: 1, responses: 2, summarySent: true });
+    const summary = sent.find((m) => m.to.length === 2)!;
+    expect(summary.subject).toBe('Pricing queue: 1 open, 0 overdue · 2 buyer responses');
+    expect(summary.text).toContain('Buyer responses since yesterday (2: 1 questioned, 1 accepted)');
+    expect(summary.text).toContain('Questioned: Unit 24 · Mike B · Stairs to Lower Level · Premium carpet');
+    expect(summary.text).toContain('Buyer: Is Catalyst the standard <colour>?');
+    expect(summary.text).toContain('/admin/quotes/s24#line-l1');
+    expect((summary as unknown as { html: string }).html).toContain('Is Catalyst the standard &lt;colour&gt;?');
+  });
+
+  test('responses alone (nothing open) still send the summary', async () => {
+    const { d, sent } = ddeps([], { loadReviews: async () => [review({})] });
+    const r = await handleDigest(d);
+    expect(r.body).toMatchObject({ open: 0, responses: 1, summarySent: true });
+    expect(sent).toHaveLength(1);
+    expect(sent[0].text).toContain('No open pricing requests.');
+    expect(sent[0].text).toContain('Buyer responses since yesterday (1: 1 questioned, 0 accepted)');
+  });
+
+  test('REST mapping and query: reviews embed the line and the submission, newest first, since the window', () => {
+    const [r] = reviewRowsFromRest([{ line_id: 'l9', response: 'accepted', comment: null, created_at: '2026-11-18T10:00:00Z',
+      line: { submission_id: 's1', location: 'Kitchen', label: 'Backsplash', buyer: { unit_number: '4', first_name: 'A', last_name: 'B' } } }]);
+    expect(r).toEqual({ line_id: 'l9', submission_id: 's1', unit_number: '4', first_name: 'A', last_name: 'B', location: 'Kitchen',
+      label: 'Backsplash', response: 'accepted', comment: null, created_at: '2026-11-18T10:00:00Z' });
+    const src = readFileSync(join(import.meta.dir, '../supabase/functions/pricing-digest/index.ts'), 'utf8');
+    expect(src).toContain('quote_line_reviews?select=${REVIEWS_REST_SELECT}&created_at=gte.');
+    expect(REVIEWS_REST_SELECT).toContain('line:quote_lines(');
   });
 });

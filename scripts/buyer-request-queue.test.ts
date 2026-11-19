@@ -43,6 +43,7 @@ describe('unassigned buyer requests', () => {
       portalBase: 'https://portal.test', now: () => NOW,
       loadSettings: async () => ({ teamsUrl: null, escalationHours: 4, recipients: ['dan@bmdmaterials.com'] }),
       loadOpen: async () => [flagged, unassigned],
+      loadReviews: async () => [],
       sendEmail: async (m) => { sent.push(m); return { ok: true }; },
       postTeams: async () => ({ ok: true }),
     };

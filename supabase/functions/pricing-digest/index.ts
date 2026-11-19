@@ -1,11 +1,12 @@
 // pricing-digest (Phase 2 Task 12, spec §6.6): daily 08:00 CT digest of open pricing requests.
 //  1. Each assignee is emailed their lines older than portal_settings.pricing_escalation_hours (escalation).
-//  2. pricing_digest_recipients get the summary grouped by assignee (also posted to Teams when teams_webhook_url is set).
+//  2. pricing_digest_recipients get the summary grouped by assignee, plus "Buyer responses since yesterday" (latest
+//     quote_line_reviews row per line, comments included — staff channel), also posted to Teams when set.
 // Called by .github/workflows/pricing-digest.yml. Gate: header x-internal-secret must equal env INTERNAL_SECRET.
 // ENV: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY, INTERNAL_SECRET, optional PORTAL_BASE_URL.
 // Logic: ./handler.ts (tested in scripts/pricing-notify.test.ts).
 import { corsHeaders } from '../_shared/cors.ts';
-import { OPEN_QUEUE_REST_FILTER, queueRowsFromRest } from '../_shared/pricingQueue.ts';
+import { OPEN_QUEUE_REST_FILTER, queueRowsFromRest, REVIEWS_REST_SELECT, reviewRowsFromRest } from '../_shared/pricingQueue.ts';
 import {
   DEFAULT_PORTAL_BASE, loadPricingSettings, postTeams, restClient, sendResendEmail,
 } from '../_shared/notifyTransport.ts';
@@ -39,6 +40,13 @@ Deno.serve(async (req) => {
           `quote_lines?select=${select}&${OPEN_QUEUE_REST_FILTER}&order=flagged_at.asc&limit=1000`,
         );
         return queueRowsFromRest(rows);
+      },
+      async loadReviews(since) {
+        const rows = await rest.get<Array<Record<string, unknown>>>(
+          `quote_line_reviews?select=${REVIEWS_REST_SELECT}&created_at=gte.${encodeURIComponent(since.toISOString())}`
+          + '&order=created_at.desc&limit=1000',
+        );
+        return reviewRowsFromRest(rows);
       },
       sendEmail: (m) => sendResendEmail(resendKey, m),
       postTeams,
