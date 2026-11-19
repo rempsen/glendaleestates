@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRole } from '@/hooks/useRole';
+import { summarizeBulkDelete } from '@/lib/bulkDelete';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminLayout } from '@/components/AdminLayout';
@@ -582,16 +583,20 @@ export default function AdminSubmissions() {
     
     setDeleting(true);
     try {
-      const { error } = await supabase
+      const requested = Array.from(selectedIds);
+      const { data, error } = await supabase
         .from('buyer_selections')
         .delete()
-        .in('id', Array.from(selectedIds));
+        .in('id', requested)
+        .select('id');
 
       if (error) throw error;
 
-      setSubmissions(prev => prev.filter(s => !selectedIds.has(s.id)));
-      toast.success(`Deleted ${selectedIds.size} submission(s)`);
-      setSelectedIds(new Set());
+      const outcome = summarizeBulkDelete(requested, data);
+      setSubmissions(prev => prev.filter(s => !outcome.deletedIds.has(s.id)));
+      if (outcome.kind === 'success') toast.success(outcome.message);
+      else toast.error(outcome.message);
+      setSelectedIds(new Set(requested.filter(id => !outcome.deletedIds.has(id))));
       setDeleteDialogOpen(false);
     } catch (error: any) {
       toast.error('Failed to delete submissions', {
@@ -615,7 +620,7 @@ export default function AdminSubmissions() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {selectedIds.size > 0 && (
+            {isAdmin && selectedIds.size > 0 && (
               <Button 
                 variant="destructive" 
                 onClick={() => setDeleteDialogOpen(true)}
@@ -1349,7 +1354,8 @@ export default function AdminSubmissions() {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      {/* Deleting submissions is admin-only (buyer_selections DELETE RLS). */}
+      {isAdmin && <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Submissions</AlertDialogTitle>
@@ -1369,7 +1375,7 @@ export default function AdminSubmissions() {
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog>}
 
       {/* Email Preview Dialog */}
       {selectedSubmission && (

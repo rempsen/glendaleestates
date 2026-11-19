@@ -188,3 +188,54 @@ describe('RLS: pricing, users, QBO, settings stay admin-only', () => {
     });
   }
 });
+
+describe('RLS: staff edits are audited (0014)', () => {
+  const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
+  const all = squash([
+    ...readdirSync(join(ROOT, 'supabase/migrations')).map((f) => read(`supabase/migrations/${f}`)),
+    ...readdirSync(join(ROOT, 'drizzle/migrations')).filter((f) => f.endsWith('.sql')).map((f) => read(`drizzle/migrations/${f}`)),
+  ].join('\n'));
+  test('staff SELECT and own-row INSERT (never the pricing dedupe claim) on submission_audit_logs', () => {
+    expect(all).toContain('CREATE POLICY "Staff view audit logs" ON public.submission_audit_logs FOR SELECT TO authenticated USING (public.is_staff(auth.uid()));');
+    expect(all).toContain('CREATE POLICY "Staff add audit logs" ON public.submission_audit_logs FOR INSERT TO authenticated '
+      + "WITH CHECK (public.is_staff(auth.uid()) AND changed_by_user_id = auth.uid() AND action_type <> 'pricing_request_notified');");
+  });
+  test('admin audit policies still exist and nothing drops them', () => {
+    expect(all).toContain('CREATE POLICY "Admins can view all audit logs" ON public.submission_audit_logs');
+    expect(all).toContain('CREATE POLICY "Admins can insert audit logs" ON public.submission_audit_logs');
+    expect(all).not.toMatch(/DROP POLICY (IF EXISTS )?"Admins can (view all|insert) audit logs"/);
+  });
+  test('createAuditLog stamps changed_by_user_id with the signed-in user (satisfies the WITH CHECK)', () => {
+    expect(read('src/lib/auditLog.ts')).toContain('changed_by_user_id: user?.id ||');
+  });
+});
+
+describe('Submissions bulk delete is admin-only and honest', () => {
+  test('summarizeBulkDelete counts returned rows, not the selection', async () => {
+    const { summarizeBulkDelete } = await import('../src/lib/bulkDelete');
+    expect(summarizeBulkDelete(['a', 'b'], [])).toMatchObject({ kind: 'none' });
+    expect(summarizeBulkDelete(['a', 'b'], null).deletedIds.size).toBe(0);
+    const partial = summarizeBulkDelete(['a', 'b'], [{ id: 'a' }]);
+    expect(partial.kind).toBe('partial');
+    expect([...partial.deletedIds]).toEqual(['a']);
+    expect(summarizeBulkDelete(['a', 'b'], [{ id: 'a' }, { id: 'b' }])).toMatchObject({ kind: 'success', message: 'Deleted 2 submission(s)' });
+    expect(summarizeBulkDelete(['a'], [{ id: 'zzz' }]).kind).toBe('none');
+  });
+  test('AdminSubmissions renders Delete and its dialog only for admins and selects the deleted ids', () => {
+    const src = read('src/pages/AdminSubmissions.tsx');
+    expect(src).toContain('{isAdmin && selectedIds.size > 0 && (');
+    expect(src).toContain('{isAdmin && <AlertDialog open={deleteDialogOpen}');
+    expect(src).toMatch(/\.delete\(\)\s*\.in\('id', requested\)\s*\.select\('id'\)/);
+    expect(src).toContain('summarizeBulkDelete(requested, data)');
+    expect(src).not.toContain('toast.success(`Deleted ${selectedIds.size} submission(s)`)');
+  });
+});
+
+describe('useRole never caches a failed lookup', () => {
+  test('queryFn throws on error; isError resolves to client', () => {
+    const src = read('src/hooks/useRole.ts');
+    expect(src).toMatch(/if \(error\) \{[\s\S]*?throw error;/);
+    expect(src).not.toMatch(/if \(error\) \{[^}]*return \[\];/);
+    expect(src).toContain('q.isError ? []');
+  });
+});

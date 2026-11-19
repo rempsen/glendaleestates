@@ -2,10 +2,12 @@
 // that were captured in the database but missing from the originally-sent PDF).
 import { corsHeaders } from "../_shared/cors.ts";
 import { authorizeStaffOrAdmin, makeGetUserFromJwt } from "../_shared/internalAuth.ts";
+import { buyerEmailPath, storedBuyerRecipient } from "./recipient.ts";
 
 interface ResendRequestBody {
   submissionId: string;
-  email: string;
+  /** Ignored: the email goes to the submission's stored buyer address only. */
+  email?: string;
   firstName: string;
   lastName: string;
   unitNumber: string;
@@ -31,9 +33,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const body = (await req.json()) as ResendRequestBody;
 
-    if (!body?.submissionId || !body?.email || !body?.pdfBase64) {
+    if (!body?.submissionId || !body?.pdfBase64) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields (submissionId, email, pdfBase64)." }),
+        JSON.stringify({ error: "Missing required fields (submissionId, pdfBase64)." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -46,6 +48,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return new Response(
         JSON.stringify({ error: gate.status === 403 ? "Forbidden — staff or admin role required" : "Unauthorized" }),
         { status: gate.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Recipient: the submission's stored buyer email only; the request's email field is never used.
+    const rowResp = await fetch(`${supabaseUrl}/rest/v1/${buyerEmailPath(String(body.submissionId))}`, {
+      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+    });
+    const rows = rowResp.ok ? await rowResp.json() : [];
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row) {
+      return new Response(
+        JSON.stringify({ error: "Submission not found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const recipient = storedBuyerRecipient(row);
+    if (!recipient) {
+      return new Response(
+        JSON.stringify({ error: "Submission has no buyer email on file" }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -94,7 +116,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       },
       body: JSON.stringify({
         from: "BMD Materials <selections@bmdmaterials.com>",
-        to: [body.email],
+        to: [recipient],
         bcc: ["selections@bmdmaterials.com"],
         subject: `Updated Selection Summary — Unit ${body.unitNumber}`,
         html,
