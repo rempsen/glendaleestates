@@ -153,7 +153,8 @@ test('toBuyerWording renames Master Bedroom to Primary Bedroom', () => {
   expect(toBuyerWording('Master Bedroom (Carpet)')).toBe('Primary Bedroom (Carpet)');
 });
 test('email edge function and CSV carry the exact labels and mirror the laundry constant', () => {
-  const edge = readFileSync(join(import.meta.dir, '../supabase/functions/send-selections-email/index.ts'), 'utf8');
+  // Task 11: the submit emails' renderers moved to send-selections-email/emails.ts (pure, edge-string tested).
+  const edge = readFileSync(join(import.meta.dir, '../supabase/functions/send-selections-email/emails.ts'), 'utf8');
   expect(edge).toContain("const LAUNDRY_STANDARD_LABEL = 'Ceratec Dante 2.0 LVT (standard)'");
   for (const l of ["'Bathroom Tile'", "'Primary Bedroom Flooring'", "'Primary Bedroom Carpet Colour'", "'Stair Flooring – Carpet'", "'Standard Carpet (Included)'", "'Laundry Room'"]) {
     expect(edge).toContain(l);
@@ -161,27 +162,24 @@ test('email edge function and CSV carry the exact labels and mirror the laundry 
   expect(edge.includes('Bathroom/Laundry')).toBe(false);
   expect(edge.includes('Master Bedroom')).toBe(false);
 });
-test('resend-confirmation-email carries the same base-spec labels', () => {
-  const edge = readFileSync(join(import.meta.dir, '../supabase/functions/resend-confirmation-email/index.ts'), 'utf8');
-  expect(edge).toContain("const LAUNDRY_STANDARD_LABEL = 'Ceratec Dante 2.0 LVT (standard)'");
-  for (const l of ["'Bathroom Tile'", "'Primary Bedroom Flooring'", "'Primary Bedroom Carpet Colour'", "'Stair Flooring – Carpet'", "'Standard Carpet (Included)'", "'Laundry Room'"]) expect(edge).toContain(l);
+test('resend-confirmation-email prints the base-spec labels from the lines (no label copies of its own)', () => {
+  const edge = readFileSync(join(import.meta.dir, '../supabase/functions/resend-confirmation-email/emails.ts'), 'utf8');
+  expect(edge).toContain('renderLinesEmailHtml');
   expect(edge.includes('Bathroom/Laundry') || edge.includes('Master Bedroom')).toBe(false);
 });
-test('edge buyerWording mirrors src toBuyerWording and is applied to engine labels', async () => {
+test('edge buyerWording mirrors src toBuyerWording and is applied to every printed line cell', async () => {
   const shared = await import('../supabase/functions/_shared/buyerWording');
   for (const s of ['Master Bedroom (Carpet) (Premium Carpet)', 'Heated Floor (Master Bedroom)', 'Guest Bathroom', '']) expect(shared.toBuyerWording(s)).toBe(toBuyerWording(s));
   expect(shared.toBuyerWording('Master Bedroom (Carpet) (Premium Carpet)')).toBe('Primary Bedroom (Carpet) (Premium Carpet)');
-  for (const f of ['send-selections-email', 'resend-confirmation-email']) {
-    const src = readFileSync(join(import.meta.dir, `../supabase/functions/${f}/index.ts`), 'utf8');
-    expect(src).toContain('toBuyerWording(item.label)');
-    expect(src).toContain('toBuyerWording(item.detail)');
-  }
+  const rows = readFileSync(join(import.meta.dir, '../supabase/functions/_shared/lineRenderRows.ts'), 'utf8');
+  expect(rows).toContain("import { toBuyerWording } from './buyerWording.ts'");
+  expect(rows).toContain('toBuyerWording((s ??');
 });
 
-test('both email edge functions render $0 included custom lines in the standard selections (source assertion; edge code is Deno-only)', () => {
+test('both email edge functions render through the shared line renderer (included lines print Included — $0.00)', () => {
   for (const fn of ['send-selections-email', 'resend-confirmation-email']) {
-    const edge = readFileSync(join(import.meta.dir, `../supabase/functions/${fn}/index.ts`), 'utf8');
-    expect(edge).toContain('includedItems');
-    expect(edge).toContain("'Included — $0.00'");
+    const edge = readFileSync(join(import.meta.dir, `../supabase/functions/${fn}/emails.ts`), 'utf8');
+    expect(edge).toContain('renderLinesEmailHtml(');
   }
+  expect(readFileSync(join(import.meta.dir, '../supabase/functions/_shared/lineRenderRows.ts'), 'utf8')).toContain("INCLUDED_AMOUNT_TEXT = 'Included — $0.00'");
 });

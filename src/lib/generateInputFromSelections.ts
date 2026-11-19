@@ -12,6 +12,7 @@ import {
 } from '@shared/quoteLines';
 import { toQuoteWindows } from '@shared/wizardWindows';
 import { serverPricingFromRows } from '@shared/loadServerPricing';
+import { savedSubmissionLinesCore, type StoredQuoteLineRow } from '@shared/savedSubmissionLines';
 import { baseSpecFor } from '@/lib/baseSpec';
 
 export const unitTypeCodeOf = (row: BuyerSelectionsRowLike): string | null => unitTypeCodeOfRow(row);
@@ -88,26 +89,17 @@ export function wizardQuoteLines(selections: WizardSelections, unitInfo: WizardU
   return generateQuoteLines(buildGenerateInputFromRow(wizardSelectionsToRow(selections, unitInfo), pricing, { windows }));
 }
 
-/** Staff-copy footer note when a saved submission has no stored lines yet; the buyer copy prints nothing about it. */
-export const GENERATED_LINES_NOTE = 'Generated from selections (not yet itemised)';
-
-/** A stored `quote_lines` row, as far as the renderers need it (nullable location, as in the DB). */
-export type StoredQuoteLineRow = Omit<QuoteLine, 'location'> & { location: string | null };
+// Stored lines win; otherwise the generator over the row (one implementation, shared with the edge functions).
+export { GENERATED_LINES_NOTE, type StoredQuoteLineRow } from '@shared/savedSubmissionLines';
 
 /**
- * The lines a saved-submission renderer prints (Phase 2 Task 10). Stored `quote_lines` win (removed dropped, in
- * `sort_order`); a submission with none yet (not backfilled, or pricing unavailable at submit) falls back to the
- * generator over the row — the same mapping the backfill uses — so every existing submission stays renderable.
+ * The lines a saved-submission renderer prints (Phase 2 Task 10): stored `quote_lines` (removed dropped, in
+ * `sort_order`), else the generator over the row with the client base spec (`baseSpecFor`).
  */
 export function savedSubmissionLines(
   stored: ReadonlyArray<StoredQuoteLineRow> | null | undefined,
   row: BuyerSelectionsRowLike,
   pricing: QuotePricing,
 ): { lines: QuoteLine[]; linesSource: 'db' | 'generated' } {
-  const kept = (stored ?? [])
-    .filter((l) => l.status !== 'removed')
-    .map((l) => ({ ...l, location: l.location ?? '' }) as QuoteLine)
-    .sort((a, b) => a.sort_order - b.sort_order);
-  if ((stored ?? []).length > 0) return { lines: kept, linesSource: 'db' };
-  return { lines: generateQuoteLines(buildGenerateInputFromRow(row, pricing)), linesSource: 'generated' };
+  return savedSubmissionLinesCore(stored, row, pricing, baseSpecFor(unitTypeCodeOfRow(row)));
 }

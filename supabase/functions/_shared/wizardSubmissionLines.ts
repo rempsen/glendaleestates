@@ -41,10 +41,15 @@ export function subtotalParityLog(submissionId: string, clientSubtotal: unknown,
   return `[quote_lines] parity submission=${submissionId} client_subtotal=${c.toFixed(2)} server_subtotal=${serverSubtotal.toFixed(2)} ${match ? 'match' : 'MISMATCH'}`;
 }
 
-export type WriteWizardLinesResult =
+/**
+ * Every outcome carries the lines the emails print (Task 11): the inserted lines when written; the same generated
+ * lines when the insert failed; with pricing unavailable, lines generated from the empty pricing for their
+ * locations/labels only (`pricesAvailable: false` — the emails then print no money and say the quote will follow).
+ */
+export type WriteWizardLinesResult = { lines: QuoteLine[]; pricesAvailable: boolean } & (
   | { status: 'written'; count: number }
   | { status: 'skipped'; reason: string }
-  | { status: 'failed'; error: string };
+  | { status: 'failed'; error: string });
 
 /**
  * The submit path's whole quote_lines step. Never throws: the submission row already exists, so every outcome is
@@ -62,25 +67,30 @@ export async function writeWizardLines(args: {
 }): Promise<WriteWizardLinesResult> {
   const log = args.log ?? { info: console.log, warn: console.warn, error: console.error };
   const id = String(args.savedRow?.id ?? '');
+  let generated: QuoteLine[] = [];
   try {
     const unavailable = pricingUnavailableReason(args.pricing);
     if (unavailable) {
       log.warn(`[quote_lines] lines skipped: pricing unavailable (${unavailable}) submission=${id}`);
-      return { status: 'skipped', reason: `pricing unavailable (${unavailable})` };
+      let display: QuoteLine[] = [];
+      try { display = wizardSubmissionLines(args.savedRow, args.rawWindows, args.pricing).lines; } catch { /* emails list nothing */ }
+      return { status: 'skipped', reason: `pricing unavailable (${unavailable})`, lines: display, pricesAvailable: false };
     }
     const wl = wizardSubmissionLines(args.savedRow, args.rawWindows, args.pricing);
+    generated = wl.lines;
     if (wl.windowsRejected) log.warn(`[quote_lines] windows list ignored for ${id} (${wl.windowsRejected}); generic window locations used`);
     log.info(subtotalParityLog(id, args.rawSubtotal, wl.subtotal));
     const { error } = await args.insertRows(wl.inserts);
     if (error) {
       log.error(`[quote_lines] insert failed for ${id} (submission saved; lines missing): ${error}`);
-      return { status: 'failed', error };
+      return { status: 'failed', error, lines: wl.lines, pricesAvailable: true };
     }
     log.info(`[quote_lines] wrote ${wl.inserts.length} lines for ${id}`);
-    return { status: 'written', count: wl.inserts.length };
+    return { status: 'written', count: wl.inserts.length, lines: wl.lines, pricesAvailable: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log.error(`[quote_lines] generation failed for ${id} (submission saved; lines missing): ${msg}`);
-    return { status: 'failed', error: msg };
+    // Priced lines survive an insert throw (the emails still itemise); a generation failure leaves none.
+    return { status: 'failed', error: msg, lines: generated, pricesAvailable: generated.length > 0 };
   }
 }

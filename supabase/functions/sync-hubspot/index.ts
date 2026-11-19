@@ -1,8 +1,9 @@
 import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
 import { authorizeInternalOrAdmin, makeGetUserFromJwt } from "../_shared/internalAuth.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { computeUpgradeTotalsServer, normalizeUnitTypeCode } from "../_shared/upgradeTotalsServer.ts";
 import { clientPricingFetcher, loadServerPricing } from "../_shared/loadServerPricing.ts";
+import { loadSubmissionLinesClient, savedSubmissionLinesCore } from "../_shared/savedSubmissionLines.ts";
+import { hubspotQuoteValues, type HubspotQuoteValues } from "./quoteValues.ts";
 
 interface AreaUpgradeSelection {
   areaId: string;
@@ -58,15 +59,6 @@ interface BuyerSelection {
 }
 
 // Pricing constants (should match database values)
-const PRICING = {
-  additionalWindow: 375,
-  patioDoor: 750,
-  automatedMotor: 450,
-  heatedFloorPerBathroom: 950,
-  stairLvpUpgrade: 2160,
-  groutColorChange: 300,
-  gstRate: 0.05,
-};
 
 // Material type display names
 const MATERIAL_NAMES: Record<string, string> = {
@@ -119,98 +111,18 @@ function formatUpgradeInterests(interests: Record<string, boolean> | null): stri
   return selected.length > 0 ? selected.join(', ') : 'None';
 }
 
-// Calculate upgrade pricing breakdown
-function calculateUpgradePricing(submission: BuyerSelection): {
-  windowCoveringsCost: number;
-  heatedFloorCost: number;
-  stairLvpCost: number;
-  groutColorCost: number;
-  subtotal: number;
-  gst: number;
-  grandTotal: number;
-  breakdown: string;
-} {
-  const additionalWindowsQty = submission.additional_windows_qty || 0;
-  const patioDoorsQty = submission.patio_doors_qty || 0;
-  const automatedWindowsQty = submission.automated_windows_qty || 0;
-  
-  // Window coverings
-  const windowCoveringsCost = 
-    (additionalWindowsQty * PRICING.additionalWindow) +
-    (patioDoorsQty * PRICING.patioDoor) +
-    (automatedWindowsQty * PRICING.automatedMotor);
-  
-  // Heated floors from area upgrades
-  const heatedFloorAreas = (submission.area_upgrades || []).filter(
-    u => u.heatedFloor && ['guestBathroom', 'masterEnsuite'].includes(u.areaId)
-  );
-  const heatedFloorCost = heatedFloorAreas.length * PRICING.heatedFloorPerBathroom;
-  
-  // Stair LVP upgrade
-  const stairLvpCost = submission.stair_lvp_upgrade_selected ? PRICING.stairLvpUpgrade : 0;
-  
-  // Grout color change
-  const groutColorCost = submission.backsplash_grout_enabled ? PRICING.groutColorChange : 0;
-  
-  // Calculate totals
-  const subtotal = windowCoveringsCost + heatedFloorCost + stairLvpCost + groutColorCost;
-  const gst = subtotal * PRICING.gstRate;
-  const grandTotal = subtotal + gst;
-  
-  // Build breakdown string
-  const breakdownParts: string[] = [];
-  if (additionalWindowsQty > 0) {
-    breakdownParts.push(`Additional Windows (${additionalWindowsQty}): $${(additionalWindowsQty * PRICING.additionalWindow).toLocaleString()}`);
-  }
-  if (patioDoorsQty > 0) {
-    breakdownParts.push(`Patio Doors (${patioDoorsQty}): $${(patioDoorsQty * PRICING.patioDoor).toLocaleString()}`);
-  }
-  if (automatedWindowsQty > 0) {
-    breakdownParts.push(`Somfy Automation (${automatedWindowsQty}): $${(automatedWindowsQty * PRICING.automatedMotor).toLocaleString()}`);
-  }
-  if (heatedFloorAreas.length > 0) {
-    breakdownParts.push(`Heated Tile Floors (${heatedFloorAreas.length}): $${heatedFloorCost.toLocaleString()}`);
-  }
-  if (stairLvpCost > 0) {
-    breakdownParts.push(`Stair LVP Upgrade: $${stairLvpCost.toLocaleString()}`);
-  }
-  if (groutColorCost > 0) {
-    breakdownParts.push(`Custom Grout Color: $${groutColorCost.toLocaleString()}`);
-  }
-  
-  const breakdown = breakdownParts.length > 0 
-    ? `${breakdownParts.join('; ')} | Subtotal: $${subtotal.toLocaleString()} + GST: $${gst.toFixed(2)} = Total: $${grandTotal.toFixed(2)}`
-    : 'No upgrades selected';
-  
-  return {
-    windowCoveringsCost,
-    heatedFloorCost,
-    stairLvpCost,
-    groutColorCost,
-    subtotal,
-    gst,
-    grandTotal,
-    breakdown,
-  };
-}
-
-// Window figure for the CRM: the engine's pre-GST windowSubtotal at CURRENT prices, never the stale
-// submit-time total column on buyer_selections (written once at submit, GST-inclusive). Same pricing load as qbo-sync-submission.
-async function computeWindowSubtotal(submission: BuyerSelection): Promise<number> {
+// Pricing properties for the CRM from the submission's quote lines (stored; generator over the saved row when none
+// exist yet), at the same prices the PDF/emails print. Never the stale submit-time window column on the row.
+async function quoteValuesForSubmission(submission: BuyerSelection): Promise<HubspotQuoteValues> {
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   const pricing = await loadServerPricing(clientPricingFetcher(admin));
-  const totals = computeUpgradeTotalsServer({
-    unitTypeCode: normalizeUnitTypeCode(submission.unit_type),
-    areaUpgrades: [],
-    additionalWindowsQty: submission.additional_windows_qty,
-    patioDoorsQty: submission.patio_doors_qty,
-    automatedWindowsQty: submission.automated_windows_qty,
-    // Window subtotal does not depend on these; threaded so every engine caller feeds the same inputs.
-    bedroomFlooringChoice: submission.bedroom_flooring_choice,
-    bedroomPremiumCarpetSelected: !!submission.premium_carpet_bedroom,
-    bedroomPremiumUnderpadSelected: !!submission.premium_underpad_bedroom,
-  }, pricing);
-  return totals.windowSubtotal;
+  if (!submission.id) {
+    return hubspotQuoteValues(savedSubmissionLinesCore([], submission, pricing).lines, pricing.gstRate);
+  }
+  // The saved row (custom_pricing etc.) is the generator's input when no lines are stored; the body is the fallback.
+  const { data: row } = await admin.from('buyer_selections').select('*').eq('id', submission.id).maybeSingle();
+  const { lines } = await loadSubmissionLinesClient(admin, submission.id, row ?? submission, pricing);
+  return hubspotQuoteValues(lines, pricing.gstRate);
 }
 
 // Upload PDF to HubSpot Files and return URL
@@ -345,10 +257,9 @@ Deno.serve(async (req) => {
     const submission: BuyerSelection = await req.json();
     console.log('Syncing submission to HubSpot:', submission.email);
 
-    // Calculate upgrade pricing
-    const pricing = calculateUpgradePricing(submission);
-    const windowSubtotal = await computeWindowSubtotal(submission);
-    console.log('Calculated upgrade pricing:', pricing);
+    // Pricing from quote lines (sumQuoteLines only)
+    const pricing = await quoteValuesForSubmission(submission);
+    console.log('Quote-line pricing for HubSpot:', { subtotal: pricing.subtotal, window: pricing.windowTotal });
 
     // Upload PDF if provided
     let pdfUrl: string | null = null;
@@ -411,7 +322,7 @@ Deno.serve(async (req) => {
       bmd_additional_windows: String(submission.additional_windows_qty || 0),
       bmd_patio_doors: String(submission.patio_doors_qty || 0),
       bmd_automated_windows: String(submission.automated_windows_qty || 0),
-      bmd_window_total: windowSubtotal.toFixed(2), // property name unchanged for CRM history; value is now pre-GST engine windowSubtotal
+      bmd_window_total: pricing.windowTotal.toFixed(2), // property name unchanged for CRM history; value = sumQuoteLines(lines).windowCoverings (pre-GST)
       bmd_window_comments: submission.window_comments || '',
       bmd_hardwood_upgrade: submission.hardwood_upgrade_selected ? 'Yes' : 'No',
       bmd_tile_upgrade: submission.bathroom_tile_selected ? 'Yes' : 'No',
@@ -427,11 +338,11 @@ Deno.serve(async (req) => {
       bmd_upgrade_interests_notes: submission.upgrade_interests_notes || '',
       bmd_submission_status: submission.status,
       // Upgrade pricing breakdown
-      bmd_window_coverings_cost: String(pricing.windowCoveringsCost),
-      bmd_heated_floor_cost: String(pricing.heatedFloorCost),
-      bmd_stair_lvp_cost: String(pricing.stairLvpCost),
-      bmd_grout_color_cost: String(pricing.groutColorCost),
-      bmd_upgrade_subtotal: String(pricing.subtotal),
+      bmd_window_coverings_cost: pricing.windowCoveringsCost.toFixed(2),
+      bmd_heated_floor_cost: pricing.heatedFloorCost.toFixed(2),
+      bmd_stair_lvp_cost: pricing.stairLvpCost.toFixed(2),
+      bmd_grout_color_cost: pricing.groutColorCost.toFixed(2),
+      bmd_upgrade_subtotal: pricing.subtotal.toFixed(2),
       bmd_upgrade_gst: pricing.gst.toFixed(2),
       bmd_upgrade_grand_total: pricing.grandTotal.toFixed(2),
       bmd_upgrade_breakdown: pricing.breakdown,

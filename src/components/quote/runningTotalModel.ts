@@ -9,11 +9,9 @@ export interface NotInTotalEntry { key: string; location: string; label: string;
 export interface TotalRow { label: RowLabel; amount: number; amountText: string }
 export interface RunningTotalModel { counted: CountedEntry[]; notInTotal: NotInTotalEntry[]; rows: TotalRow[] }
 
-export const PENDING_TEXT = 'Pending';
-
-export function formatMoney(n: number): string {
-  return `$${n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+// One money formatter and one "Pending" word for the rail, the documents and the emails.
+import { formatMoney, PENDING_TEXT } from '@shared/lineRenderRows';
+export { formatMoney, PENDING_TEXT };
 
 const STATUS_LABEL: Partial<Record<LineStatus, string>> = {
   pending: 'Pending', under_review: 'Under review', deferred: 'Deferred', upgrade: 'Pending',

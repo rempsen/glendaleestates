@@ -195,6 +195,9 @@ describe('submit path: pricing unavailable', () => {
         insertRows: async () => { calls++; return { error: null }; }, log });
       expect(r.status).toBe('skipped');
       expect(calls).toBe(0);
+      // Task 11: the emails still list the lines (locations/labels), flagged so no price prints.
+      expect(r.pricesAvailable).toBe(false);
+      expect(r.lines.length).toBeGreaterThan(0);
       expect(msgs.some((m) => m.includes('lines skipped: pricing unavailable') && m.includes('sub-p'))).toBe(true);
     });
   }
@@ -204,12 +207,17 @@ describe('submit path: pricing unavailable', () => {
       insertRows: async (rows) => { batches.push(rows); return { error: null }; }, log: quiet().log });
     expect(ok.status).toBe('written');
     expect(batches.length).toBe(1);
+    // Task 11: the emails print exactly the lines that were inserted.
+    expect(ok.pricesAvailable).toBe(true);
+    expect(ok.lines.length).toBe(batches[0].length);
+    expect(ok.lines.map((l) => l.label)).toEqual((batches[0] as Array<{ label: string }>).map((l) => l.label));
     const failed = await writeWizardLines({ savedRow: saved, rawWindows: null, rawSubtotal: 1, pricing,
       insertRows: async () => ({ error: '500 boom' }), log: quiet().log });
-    expect(failed).toEqual({ status: 'failed', error: '500 boom' });
+    expect(failed).toMatchObject({ status: 'failed', error: '500 boom', pricesAvailable: true });
+    expect(failed.lines.length).toBe(batches[0].length);
     const threw = await writeWizardLines({ savedRow: saved, rawWindows: null, rawSubtotal: 1, pricing,
       insertRows: async () => { throw new Error('network'); }, log: quiet().log });
-    expect(threw).toEqual({ status: 'failed', error: 'network' });
+    expect(threw).toMatchObject({ status: 'failed', error: 'network', pricesAvailable: true });
   });
   test('pricingUnavailableReason: null for the fixture snapshot', () => {
     expect(pricingUnavailableReason(pricing)).toBeNull();
