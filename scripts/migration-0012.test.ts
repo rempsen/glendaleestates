@@ -18,10 +18,10 @@ describe('migration 0012 buyer change request', () => {
   const sql = existsSync(sqlPath) ? readFileSync(sqlPath, 'utf8') : '';
   const stmts = splitSqlStatements(sql).map(stripLeadingComments).map(squash);
   const header = stmts.find((s) => s.startsWith('CREATE OR REPLACE FUNCTION public.get_my_quote_header()')) ?? '';
-  const req = stmts.find((s) => s.startsWith('CREATE OR REPLACE FUNCTION public.request_quote_change(_text text)')) ?? '';
+  const req = stmts.find((s) => s.startsWith('CREATE OR REPLACE FUNCTION public.request_quote_change(_text text, _submission_id uuid DEFAULT NULL)')) ?? '';
 
   test('statements: settings key, two definer functions with owner/revoke/grant, queue view, guarded constraint', () => {
-    expect(stmts).toHaveLength(12);
+    expect(stmts).toHaveLength(13);
     expect(stmts[0]).toBe(
       `INSERT INTO public.portal_settings (key, value) VALUES ('${DEFAULT_ASSIGNEE_KEY}', 'null'::jsonb) ON CONFLICT (key) DO NOTHING`,
     );
@@ -29,23 +29,25 @@ describe('migration 0012 buyer change request', () => {
     expect(stmts[2]).toBe('ALTER FUNCTION public.get_my_quote_header() OWNER TO postgres');
     expect(stmts[3]).toBe('REVOKE ALL ON FUNCTION public.get_my_quote_header() FROM PUBLIC, anon');
     expect(stmts[4]).toBe('GRANT EXECUTE ON FUNCTION public.get_my_quote_header() TO authenticated');
-    expect(stmts[5]).toStartWith('CREATE OR REPLACE FUNCTION public.request_quote_change(_text text)');
-    expect(stmts[6]).toBe('ALTER FUNCTION public.request_quote_change(text) OWNER TO postgres');
-    expect(stmts[7]).toBe('REVOKE ALL ON FUNCTION public.request_quote_change(text) FROM PUBLIC, anon');
-    expect(stmts[8]).toBe('GRANT EXECUTE ON FUNCTION public.request_quote_change(text) TO authenticated');
-    expect(stmts[9]).toStartWith('CREATE OR REPLACE VIEW public.pricing_queue WITH (security_invoker = true) AS');
-    expect(stmts[10]).toBe('GRANT SELECT ON public.pricing_queue TO authenticated');
-    expect(stmts[11]).toStartWith("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'quote_line_reviews_comment_length')");
-    expect(stmts[11]).toContain(`CHECK (comment IS NULL OR char_length(comment) <= ${REVIEW_COMMENT_MAX})`);
+    // The one-argument draft signature is dropped (idempotent) so only the (text, uuid) overload exists.
+    expect(stmts[5]).toBe('DROP FUNCTION IF EXISTS public.request_quote_change(text)');
+    expect(stmts[6]).toStartWith('CREATE OR REPLACE FUNCTION public.request_quote_change(_text text, _submission_id uuid DEFAULT NULL)');
+    expect(stmts[7]).toBe('ALTER FUNCTION public.request_quote_change(text, uuid) OWNER TO postgres');
+    expect(stmts[8]).toBe('REVOKE ALL ON FUNCTION public.request_quote_change(text, uuid) FROM PUBLIC, anon');
+    expect(stmts[9]).toBe('GRANT EXECUTE ON FUNCTION public.request_quote_change(text, uuid) TO authenticated');
+    expect(stmts[10]).toStartWith('CREATE OR REPLACE VIEW public.pricing_queue WITH (security_invoker = true) AS');
+    expect(stmts[11]).toBe('GRANT SELECT ON public.pricing_queue TO authenticated');
+    expect(stmts[12]).toStartWith("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'quote_line_reviews_comment_length')");
+    expect(stmts[12]).toContain(`CHECK (comment IS NULL OR char_length(comment) <= ${REVIEW_COMMENT_MAX})`);
   });
 
   test('pricing_queue: same columns as 0006, plus unassigned open buyer requests', () => {
     const v0006 = squash(readFileSync(join(migDir, '0006_quote_lines.sql'), 'utf8'));
     const cols = (v: string) => v.slice(v.indexOf('AS SELECT') + 9, v.indexOf(' FROM public.quote_lines ql'));
     const old = v0006.slice(v0006.indexOf('CREATE OR REPLACE VIEW public.pricing_queue'));
-    expect(cols(stmts[9])).toBe(cols(old));
-    expect(stmts[9]).toContain('LEFT JOIN public.profiles p ON p.user_id = ql.flagged_to');
-    expect(stmts[9]).toEndWith(
+    expect(cols(stmts[10])).toBe(cols(old));
+    expect(stmts[10]).toContain('LEFT JOIN public.profiles p ON p.user_id = ql.flagged_to');
+    expect(stmts[10]).toEndWith(
       "WHERE ql.status = 'pending' AND (ql.flagged_to IS NOT NULL OR ql.source = 'buyer_request') AND public.is_staff(auth.uid())",
     );
   });
@@ -65,10 +67,14 @@ describe('migration 0012 buyer change request', () => {
     // Trims spaces, tabs and newlines; whitespace-only text is refused.
     expect(req).toContain("_body text := btrim(coalesce(_text, ''), E' \\t\\r\\n');");
     expect(req).toContain(`IF _body !~ '\\S' OR char_length(_body) > ${CHANGE_REQUEST_MAX} THEN`);
-    // The submission comes from the caller's email, never from an argument.
-    expect(req).toContain('WHERE lower(bs.email) = _email ORDER BY bs.created_at DESC, bs.id DESC LIMIT 1');
-    expect(req).not.toMatch(/_submission_id|submission_id uuid/);
-    expect(req).toContain("RAISE EXCEPTION 'No quote found for this sign-in'");
+    // A passed submission id must belong to the caller's email (else the same P0002 as no submission at all).
+    expect(req).toContain('IF _submission_id IS NOT NULL THEN SELECT bs.id INTO _submission FROM public.buyer_selections bs '
+      + 'WHERE bs.id = _submission_id AND lower(bs.email) = _email; ELSE');
+    // Without one: the newest itemised submission (as /my-quote shows the newest with lines), else the newest.
+    expect(req).toContain("WHERE lower(bs.email) = _email ORDER BY EXISTS (SELECT 1 FROM public.quote_lines ql "
+      + "WHERE ql.submission_id = bs.id AND ql.source IN ('wizard', 'migration')) DESC, bs.created_at DESC, bs.id DESC LIMIT 1; END IF;");
+    expect(req.match(/INTO _submission/g)).toHaveLength(2);
+    expect(req).toContain("IF _submission IS NULL THEN RAISE EXCEPTION 'No quote found for this sign-in' USING ERRCODE = 'P0002';");
     // label on one line (email subjects); client_note as typed.
     expect(req).toContain("_label := regexp_replace(_body, '[\\r\\n]+', ' ', 'g');");
     expect(req).toContain(
@@ -108,7 +114,8 @@ describe('migration 0012 buyer change request', () => {
   test('no policy, no grant on base tables, no non-idempotent DDL', () => {
     expect(sql).not.toMatch(/CREATE POLICY|ALTER POLICY|GRANT (INSERT|UPDATE|ALL) ON (TABLE )?public\./i);
     expect(sql.match(/GRANT SELECT ON [\w.]+/g)).toEqual(['GRANT SELECT ON public.pricing_queue']);
-    expect(sql).not.toMatch(/CREATE TABLE|CREATE (UNIQUE )?INDEX|DROP /);
+    expect(sql).not.toMatch(/CREATE TABLE|CREATE (UNIQUE )?INDEX/);
+    expect(sql.match(/DROP [^;]*;/g)).toEqual(['DROP FUNCTION IF EXISTS public.request_quote_change(text);']);
     expect(sql).not.toMatch(/CREATE FUNCTION/);
   });
 

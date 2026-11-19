@@ -13,7 +13,7 @@ import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { MyQuoteView } from '@/components/buyer/MyQuoteView';
 import {
-  buildMyQuoteState, changeRequestErrorText, isMissingRpc, OFFICE_CONTACT_TEXT,
+  buildMyQuoteState, changeRequestArgs, changeRequestErrorText, isMissingRpc, OFFICE_CONTACT_TEXT,
   type LineReview, type MyQuoteHeader, type MyQuoteRpcLine, type MyQuoteState, type ReviewResponse,
 } from '@/lib/myQuoteModel';
 import { generateBuyerQuotePdf } from '@/lib/savedSubmissionPdf';
@@ -81,7 +81,8 @@ export default function MyQuote() {
   };
 
   const onRequestChange = async (text: string) => {
-    const { error } = await supabase.rpc('request_quote_change', { _text: text });
+    // To the submission on screen (an older itemised one can be shown above a newer empty one).
+    const { error } = await supabase.rpc('request_quote_change', changeRequestArgs(state, text));
     if (error) { toast.error('Your request was not sent', { description: changeRequestErrorText(error) }); throw error; }
     toast.success('Request sent — we will update your quote');
     await refresh();

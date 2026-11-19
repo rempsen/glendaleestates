@@ -28,6 +28,7 @@ bun run rls-smoke
 | buyer A's `get_my_quote_lines` / `get_my_quote_header` return only A's submission | 0006 / 0012, JWT email match |
 | buyer B cannot read A's reviews, lines, submission, or review A's line | 0006 RLS |
 | `request_quote_change` refuses an un-itemised quote, works on an itemised one | 0012 itemise-first |
+| `request_quote_change` accepts the caller's own `_submission_id`, refuses another buyer's (P0002) | 0012 shown submission |
 | staff cannot write `pricing_config`, cannot read other `user_roles` rows | admin-only tables |
 | staff cannot edit a buyer review | 0016 (staff SELECT only) |
 | staff can add a document but cannot edit or delete a signed one | 0016 |

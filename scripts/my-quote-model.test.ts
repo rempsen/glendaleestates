@@ -8,7 +8,7 @@ import type { PricingSnapshot } from './lib/fixturePricing';
 import { buildGenerateInputFromRow, pricingFromRows, type SubmissionRow } from './lib/generateInputFromRow';
 import { generateQuoteLines, sumQuoteLines, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
 import {
-  buildMyQuoteState, stateFromBuyerLines, pickHeader, isMissingRpc, changeRequestErrorText, NOT_ITEMISED_TEXT, latestReviewByLine, toBuyerLine, validateChangeRequest, validateReviewComment, buyerPdfSelectionsFromHeader,
+  buildMyQuoteState, stateFromBuyerLines, pickHeader, changeRequestArgs, isMissingRpc, changeRequestErrorText, NOT_ITEMISED_TEXT, latestReviewByLine, toBuyerLine, validateChangeRequest, validateReviewComment, buyerPdfSelectionsFromHeader,
   NO_QUOTE_TEXT, UNAVAILABLE_TEXT, CHANGE_REQUEST_MAX, REVIEW_COMMENT_MAX,
   type MyQuoteHeader, type MyQuoteRpcLine, type LineReview,
 } from '../src/lib/myQuoteModel';
@@ -131,6 +131,8 @@ describe('no quote for this sign-in (Review Focus 4)', () => {
     expect(state.submissionId).toBe('old');
     expect(state.header?.unit_number).toBe('7');
     expect(pickHeader(headers, [])?.submission_id).toBe('new');
+    // "Request a change" targets the submission on screen ('old'), not the newer hidden one the RPC would pick.
+    expect(changeRequestArgs(state, 'Add blinds')).toEqual({ _text: 'Add blinds', _submission_id: 'old' });
     expect(pickHeader([], [])).toBeNull();
   });
 
@@ -241,7 +243,7 @@ describe('console Buyer column and sign-in redirect', () => {
     const page = readFileSync(join(root, 'src/pages/MyQuote.tsx'), 'utf8');
     expect(page).toContain("supabase.rpc('get_my_quote_lines')");
     expect(page).toContain("supabase.rpc('get_my_quote_header')");
-    expect(page).toContain("supabase.rpc('request_quote_change'");
+    expect(page).toContain("supabase.rpc('request_quote_change', changeRequestArgs(state, text))");
     // Own reviews only; a failed insert throws so the buyer's comment is kept.
     expect(page).toContain(".eq('buyer_user_id', userId)");
     expect(page).toMatch(/Your response was not saved[^\n]*throw error;/);
@@ -249,5 +251,12 @@ describe('console Buyer column and sign-in redirect', () => {
     expect(readFileSync(join(root, 'src/hooks/useLineReviews.ts'), 'utf8')).not.toMatch(/\.channel\(|postgres_changes/);
     const app = readFileSync(join(root, 'src/App.tsx'), 'utf8');
     expect(app).toContain('<Route path="/my-quote" element={<BuyerRoute><MyQuote /></BuyerRoute>} />');
+  });
+});
+
+describe('changeRequestArgs', () => {
+  test('no ready state → text only (the RPC picks the newest itemised submission)', () => {
+    expect(changeRequestArgs(null, 'x')).toEqual({ _text: 'x' });
+    expect(changeRequestArgs({ kind: 'no_quote', title: 't', contact: 'c' }, 'x')).toEqual({ _text: 'x' });
   });
 });

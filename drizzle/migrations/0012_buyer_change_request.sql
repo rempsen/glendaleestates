@@ -1,6 +1,6 @@
 -- Phase 2 Task 13 (spec §6.7): buyer review page /my-quote. Idempotent; safe to re-run. Adds no policy: buyers still
 -- have no SELECT on buyer_selections or quote_lines and no INSERT on quote_lines. Both functions match the caller by
--- auth.jwt() ->> 'email' (as get_my_quote_lines does) and act only on that buyer's newest submission.
+-- auth.jwt() ->> 'email' (as get_my_quote_lines does) and act only on that buyer's own submissions.
 -- 0. pricing_default_assignee (edited at /admin/settings/notifications): a profiles.user_id, or JSON null. The rep for a
 --    buyer change request when no staff member has edited the unit's lines yet. Existing values are never overwritten.
 INSERT INTO public.portal_settings (key, value) VALUES ('pricing_default_assignee', 'null'::jsonb)
@@ -25,14 +25,21 @@ REVOKE ALL ON FUNCTION public.get_my_quote_header() FROM PUBLIC, anon;
 
 GRANT EXECUTE ON FUNCTION public.get_my_quote_header() TO authenticated;
 
--- 2. request_quote_change(_text): "Request a change" creates one pending buyer_request line on the caller's newest
---    submission, flagged to the unit's rep. buyer_selections has no assigned-rep column, so the rep resolves as:
+-- 2. request_quote_change(_text, _submission_id): "Request a change" creates one pending buyer_request line on the
+--    submission the buyer is reviewing, flagged to the unit's rep. /my-quote passes the submission it displays
+--    (pickHeader: newest with visible lines); it must belong to the caller's email, else P0002 'No quote found' (the
+--    same answer as no submission, so another buyer's id reveals nothing). Without it the target is the caller's newest
+--    itemised submission (a wizard / migration line), else the newest. buyer_selections has no assigned-rep column,
+--    so the rep resolves as:
 --    (1) the staff member who last edited a line of that submission (quote_lines.updated_by or the quote_line_* audit
 --    log), else (2) portal_settings.pricing_default_assignee when it names a staff profile, else (3) NULL — still listed
 --    under "Unassigned" by pricing_queue and the digest (section 4). quote_lines_flag_stamp (0011) stamps flagged_at;
 --    quote_lines_audit logs the insert. `label` is the text on one line (it reaches email subjects); `client_note`
 --    keeps it as typed. At most 20 open buyer requests per submission.
-CREATE OR REPLACE FUNCTION public.request_quote_change(_text text)
+--    The one-argument signature of an earlier draft is dropped first so only one overload exists (idempotent).
+DROP FUNCTION IF EXISTS public.request_quote_change(text);
+
+CREATE OR REPLACE FUNCTION public.request_quote_change(_text text, _submission_id uuid DEFAULT NULL)
 RETURNS uuid LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   _email text := lower(nullif(btrim(coalesce(auth.jwt() ->> 'email', '')), ''));
@@ -51,11 +58,19 @@ BEGIN
     RAISE EXCEPTION 'A change request must be 1 to 300 characters' USING ERRCODE = '22023';
   END IF;
 
-  SELECT bs.id INTO _submission
-  FROM public.buyer_selections bs
-  WHERE lower(bs.email) = _email
-  ORDER BY bs.created_at DESC, bs.id DESC
-  LIMIT 1;
+  IF _submission_id IS NOT NULL THEN
+    SELECT bs.id INTO _submission
+    FROM public.buyer_selections bs
+    WHERE bs.id = _submission_id AND lower(bs.email) = _email;
+  ELSE
+    SELECT bs.id INTO _submission
+    FROM public.buyer_selections bs
+    WHERE lower(bs.email) = _email
+    ORDER BY EXISTS (SELECT 1 FROM public.quote_lines ql
+                     WHERE ql.submission_id = bs.id AND ql.source IN ('wizard', 'migration')) DESC,
+             bs.created_at DESC, bs.id DESC
+    LIMIT 1;
+  END IF;
   IF _submission IS NULL THEN
     RAISE EXCEPTION 'No quote found for this sign-in' USING ERRCODE = 'P0002';
   END IF;
@@ -109,11 +124,11 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION public.request_quote_change(text) OWNER TO postgres;
+ALTER FUNCTION public.request_quote_change(text, uuid) OWNER TO postgres;
 
-REVOKE ALL ON FUNCTION public.request_quote_change(text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.request_quote_change(text, uuid) FROM PUBLIC, anon;
 
-GRANT EXECUTE ON FUNCTION public.request_quote_change(text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.request_quote_change(text, uuid) TO authenticated;
 
 -- 4. pricing_queue also lists open buyer requests nobody is flagged to (assignee fields NULL → the page's "Unassigned"
 --    group), so a request can never be invisible to staff. Same columns, same order as 0006 (CREATE OR REPLACE VIEW).

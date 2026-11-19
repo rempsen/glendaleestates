@@ -32,7 +32,7 @@ Applied by hand through the Lovable DB connection, each in one transaction, foll
 | 0009 | `0009_staff_directory.sql` | 1795500000000 | `098595cb0a6c1402e910085e5092d39cebae879eb42db158875cf4f21e8606c4` | APPLIED |
 | 0010 | `0010_counted_lines_visible.sql` | 1795600000000 | `ac2d43fbd29a993074eddd345e39e04f60529cb793a2d44f611054661653d8e6` | APPLIED |
 | 0011 | `0011_portal_settings_notifications.sql` | 1795700000000 | `bf923f6cc545e33f23df83dfc1ec71e0f7595fb9e55952a787e5469b96b7fd35` | APPLIED |
-| 0012 | `0012_buyer_change_request.sql` | 1795800000000 | `45d8df1158f264e187e5310b348d95ffdd14b2c2e63830a28072ea59012390e6` | **PENDING — needs Dan's explicit approval; MERGE PRECONDITION** |
+| 0012 | `0012_buyer_change_request.sql` | 1795800000000 | `a48b4f2d0645ff67203266c4c2770226470bc12f9e60377cf6f17e2961552246` | **PENDING — needs Dan's explicit approval; MERGE PRECONDITION** |
 | 0013 | `0013_esign_settings.sql` | 1795900000000 | `d2d2a5830e9c5011097eddf5a8edf277b80b25d3a0ef8f4eb896adaf3440d72c` | PENDING |
 | 0014 | `0014_staff_audit_log.sql` | 1796000000000 | `35bbd849a2c51d3ea5963dc30078a5b79bd589a72195620a4a40a768196fa221` | PENDING |
 | 0015 | `0015_ai_settings.sql` | 1796100000000 | `b8772b49e6b2197d73c237d4fd4d215d4a8066c4bf8c4f8ae049775e294e1ff2` | PENDING |
@@ -47,11 +47,14 @@ INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('<sha256>', 
 ```
 
 Notes:
-- **0012 creates SECURITY DEFINER functions** (`get_my_quote_header()`, `request_quote_change(text)`) and replaces
+- **0012 creates SECURITY DEFINER functions** (`get_my_quote_header()`, `request_quote_change(text, uuid)`) and replaces
   the `pricing_queue` view. It was refused by the automation classifier and needs Dan's explicit "yes, apply 0012".
   Without it `/my-quote` cannot load its header and buyer change requests fail. `request_quote_change` refuses
   (`P0002`, "This quote has not been itemised yet; please contact the office") a submission with no stored
-  `wizard` / `migration` line (itemise-first, section 9; the same rule as `isItemised`).
+  `wizard` / `migration` line (itemise-first, section 9; the same rule as `isItemised`). `/my-quote` passes the
+  submission it shows (`_submission_id`, checked against the caller's email, else `P0002`); without it the RPC targets
+  the caller's newest itemised submission, else the newest. 0012 drops any one-argument `request_quote_change(text)`
+  first (`DROP FUNCTION IF EXISTS`), so re-running it is safe.
 - 0013 adds e-sign `portal_settings` keys (`ON CONFLICT DO NOTHING`). Before the first send, verify
   `documents.provider` has no column default (the send claim uses `provider IS NULL`).
 - 0014 adds two staff policies on `submission_audit_logs` (SELECT; INSERT of own rows, never

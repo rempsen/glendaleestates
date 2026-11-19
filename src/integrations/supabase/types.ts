@@ -1425,7 +1425,10 @@ export type Database = {
         Args: { _user_id: string }
         Returns: boolean
       }
-      request_quote_change: { Args: { _text: string }; Returns: string }
+      request_quote_change: {
+        Args: { _submission_id?: string; _text: string }
+        Returns: string
+      }
       staff_directory: {
         Args: never
         Returns: {

@@ -113,6 +113,11 @@ async function main(): Promise<number> {
     check('request_quote_change refuses an un-itemised quote (P0002)', !!bReq.error && /not been itemised/.test(bReq.error.message), bReq.error?.message ?? 'no error');
     const aReq = await A.client.rpc('request_quote_change', { _text: 'Please add blinds' });
     check('request_quote_change works on an itemised quote', !aReq.error, aReq.error?.message);
+    const aOwn = await A.client.rpc('request_quote_change', { _text: 'Please add blinds', _submission_id: subA });
+    check('request_quote_change accepts the shown (own) submission id', !aOwn.error, aOwn.error?.message);
+    const aForeign = await A.client.rpc('request_quote_change', { _text: 'Please add blinds', _submission_id: subB });
+    check("request_quote_change refuses another buyer's submission id (P0002)",
+      !!aForeign.error && /No quote found/.test(aForeign.error.message), aForeign.error?.message ?? 'no error');
 
     // Staff boundaries.
     const sPricing = await S.client.from('pricing_config').insert({ config_key: `rls_smoke_${stamp}`, config_value: 1 });

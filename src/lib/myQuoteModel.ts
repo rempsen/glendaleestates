@@ -111,6 +111,14 @@ export function pickHeader(headers: readonly MyQuoteHeader[], lines: readonly Pi
   return headers.find((h) => withLines.has(h.submission_id)) ?? headers[0] ?? null;
 }
 
+/**
+ * request_quote_change() arguments: the change goes to the submission the page shows (`state.submissionId`, pickHeader's
+ * choice), never to whichever is newest; the RPC re-checks that it belongs to the caller's email.
+ */
+export function changeRequestArgs(state: MyQuoteState | null, text: string): { _text: string; _submission_id?: string } {
+  return state?.kind === 'ready' ? { _text: text, _submission_id: state.submissionId } : { _text: text };
+}
+
 /** PostgREST "function not found": get_my_quote_header (0012) is not applied yet; render from the lines alone. */
 export const isMissingRpc = (e: { code?: string } | null | undefined): boolean => e?.code === 'PGRST202';
 
