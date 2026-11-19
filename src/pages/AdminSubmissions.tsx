@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminLayout } from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
@@ -713,6 +714,9 @@ export default function AdminSubmissions() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link to={`/admin/quotes/${submission.id}`}>Open quote</Link>
+                      </Button>
                       <Button 
                         variant="ghost" 
                         size="sm"

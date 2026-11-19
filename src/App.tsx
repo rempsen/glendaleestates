@@ -2,12 +2,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import BuyerWelcome from "./pages/BuyerWelcome";
 import SelectionWizard from "./pages/SelectionWizard";
 import DraftSaved from "./pages/DraftSaved";
 import Auth from "./pages/Auth";
 import BuyerAuth from "./pages/BuyerAuth";
+import AdminQuotes from "./pages/AdminQuotes";
+import QuoteConsole from "./pages/QuoteConsole";
 import AdminSubmissions from "./pages/AdminSubmissions";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminHomes from "./pages/AdminHomes";
@@ -26,6 +28,11 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
+const ConsoleRedirect = () => {
+  const { id } = useParams<{ id: string }>();
+  return <Navigate to={`/admin/quotes/${id}`} replace />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -40,6 +47,9 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
           <Route path="/admin/pipeline" element={<ProtectedRoute><AdminPipeline /></ProtectedRoute>} />
+          <Route path="/admin/quotes" element={<ProtectedRoute><AdminQuotes /></ProtectedRoute>} />
+          <Route path="/admin/quotes/:id" element={<ProtectedRoute><QuoteConsole /></ProtectedRoute>} />
+          <Route path="/admin/submissions/:id/console" element={<ProtectedRoute><ConsoleRedirect /></ProtectedRoute>} />
           <Route path="/admin/submissions" element={<ProtectedRoute><AdminSubmissions /></ProtectedRoute>} />
           <Route path="/admin/homes" element={<ProtectedRoute><AdminHomes /></ProtectedRoute>} />
           <Route path="/admin/sales-analytics" element={<ProtectedRoute><AdminSalesAnalytics /></ProtectedRoute>} />
