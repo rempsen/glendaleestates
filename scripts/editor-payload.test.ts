@@ -80,3 +80,25 @@ test('heated count ignores non-tile rows (stale heatedFloor on LVP)', () => {
   }));
   expect(p.heated_floor_bathrooms).toBe(1);
 });
+
+// Task 8 fix round 1: the console's "Edit buyer details" dialog must never write pricing or custom_pricing.
+import { PRICING_FIELDS } from '../src/lib/submissionUpdatePayload';
+test('buyerDetailsOnly omits custom_pricing and every pricing-affecting column', () => {
+  const edit = base({
+    custom_pricing: { overrides: { grout: { amount: 0 } } } as never, additional_windows_qty: 3, has_stairs: true,
+    area_upgrades: [{ areaId: 'mainLiving', materialType: 'lvp', productName: '', productColor: '', comments: '' }],
+    first_name: 'Deb', lvp_colour: 'cortland', sales_comments: 'note',
+  });
+  const p = buildSubmissionUpdatePayload(edit, { buyerDetailsOnly: true }) as Record<string, unknown>;
+  for (const k of PRICING_FIELDS) expect(k in p).toBe(false);
+  expect('custom_pricing' in p).toBe(false);
+  expect(p).toMatchObject({ first_name: 'Deb', lvp_colour: 'cortland', sales_comments: 'note', unit_number: '37' });
+  // The legacy editor still writes every selection column, but never custom_pricing (read-only since Task 18).
+  const full = buildSubmissionUpdatePayload(edit) as Record<string, unknown>;
+  expect('custom_pricing' in full).toBe(false);
+  expect(full.additional_windows_qty).toBe(3);
+});
+test('every PRICING_FIELDS key except the read-only custom_pricing is a column the full payload writes', () => {
+  const full = buildSubmissionUpdatePayload(base()) as Record<string, unknown>;
+  for (const k of PRICING_FIELDS) expect(k in full).toBe(k !== 'custom_pricing');
+});

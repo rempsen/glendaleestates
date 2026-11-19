@@ -1,5 +1,7 @@
 import { lvpOptions, spcTileOptions, carpetOptions, toOptionId } from '@/lib/mockData';
+import { useRole } from '@/hooks/useRole';
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,11 +26,7 @@ import {
   WashingMachine, LayoutGrid, Flame, User, ClipboardList
 } from 'lucide-react';
 import { DownstreamTrackingPanel } from './DownstreamTrackingPanel';
-import { CustomPricingPanel } from './CustomPricingPanel';
-import { toBuyerPdfSelections } from '@/lib/buyerPdfSelections';
-import { pricingFromDynamic } from '@/lib/pricingFromDynamic';
-import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
-import { DollarSign } from 'lucide-react';
+import { markedUp, withGst } from '@/lib/quoteLines';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { createAuditLog, calculateChanges, generateChangeSummary } from '@/lib/auditLog';
@@ -42,7 +40,7 @@ import {
 import { useUpgradePricing } from '@/hooks/useUpgradePricing';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { getUnitInfo } from '@/lib/unitData';
-import { buildSubmissionUpdatePayload, countHeatedTileRows, type SubmissionEditState, type AreaUpgrade } from '@/lib/submissionUpdatePayload';
+import { buildSubmissionUpdatePayload, isPricingField, countHeatedTileRows, type SubmissionEditState, type AreaUpgrade } from '@/lib/submissionUpdatePayload';
 
 type BuyerSelection = SubmissionEditState;
 
@@ -72,11 +70,18 @@ interface SubmissionEditorProps {
   /** Called after every successful write (including save-in-place for previews) so the parent row stays current. */
   onSaved?: (updatedSubmission: BuyerSelection) => void;
   onCancel: () => void;
+  /**
+   * Meeting console "Edit buyer details" (Phase 2 Task 8): buyer identity + raw wizard fields only. Hides office
+   * pricing (quote lines replace it in the console) and downstream tracking.
+   */
+  buyerDetailsOnly?: boolean;
 }
 
-export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: SubmissionEditorProps) {
+export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerDetailsOnly = false }: SubmissionEditorProps) {
   const [editData, setEditData] = useState<BuyerSelection>({ ...submission });
   const [saving, setSaving] = useState(false);
+  // Payments / ownership / procurement tables are admin-only RLS: staff do not see that panel.
+  const { isAdmin } = useRole();
   
   // Fetch dynamic pricing
   const { pricingConfig, loading: pricingLoading } = useUpgradePricing();
@@ -88,9 +93,9 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
   }, [pricingConfig]);
   // Bedroom premium rates (per sq yd, marked up) for the switch copy; totals come from the engine.
   const dynamicPricing = useDynamicPricing();
-  const { getMaterialCost: getDynMaterialCost, markupPercentage: dynMarkup } = dynamicPricing;
-  const bedroomCarpetRate = getDynMaterialCost('carpet' as any) * (1 + dynMarkup);
-  const bedroomUnderpadRate = getDynMaterialCost('premium_carpet_underpad' as any) * (1 + dynMarkup);
+  const { getMaterialCost: getDynMaterialCost, markupPercentage: dynMarkup, gstRate: dynGstRate } = dynamicPricing;
+  const bedroomCarpetRate = markedUp(getDynMaterialCost('carpet' as any), dynMarkup);
+  const bedroomUnderpadRate = markedUp(getDynMaterialCost('premium_carpet_underpad' as any), dynMarkup);
   const stairCarpetPrice = pricingConfig.find(c => c.config_key === 'premium_carpet_stairs_price')?.config_value || 0;
   const stairUnderpadPrice = pricingConfig.find(c => c.config_key === 'premium_underpad_stairs_price')?.config_value || 0;
 
@@ -122,6 +127,8 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
   };
 
   const handleChange = <K extends keyof BuyerSelection>(field: K, value: BuyerSelection[K]) => {
+    // Console dialog: priced choices are quote lines; their controls are read-only here (and never saved).
+    if (buyerDetailsOnly && isPricingField(String(field))) return;
     setEditData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -179,7 +186,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
     const stairValidationError = validateStairFlooring();
     if (stairValidationError) throw Object.assign(new Error(stairValidationError), { isValidation: true });
 
-    const updatePayload = buildSubmissionUpdatePayload(editData);
+    const updatePayload = buildSubmissionUpdatePayload(editData, { buyerDetailsOnly });
     const { error } = await supabase
       .from('buyer_selections')
       .update(updatePayload)
@@ -188,7 +195,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
 
     // Calculate changes for audit log
     const originalData = (savedRef.current ?? submission) as unknown as Record<string, unknown>;
-    const newData = { ...updatePayload, area_upgrades: editData.area_upgrades } as unknown as Record<string, unknown>;
+    const newData = (buyerDetailsOnly ? { ...updatePayload } : { ...updatePayload, area_upgrades: editData.area_upgrades }) as unknown as Record<string, unknown>;
     const { changes, changedFields } = calculateChanges(originalData, newData);
 
     if (changedFields.length > 0) {
@@ -229,22 +236,8 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
     }
   };
 
-  /** Save in place (editor stays open) so previews and exports, which read the database, show current edits. */
-  const saveNow = async () => {
-    setSaving(true);
-    try {
-      await persist();
-    } catch (error: any) {
-      toast.error('Could not save before preview', { description: error.message });
-      throw error;
-    } finally {
-      setSaving(false);
-    }
-  };
 
-  const panelSelections = useMemo(() => toBuyerPdfSelections({ ...submission, ...editData } as never), [submission, editData]);
-  const panelPricing = useMemo(() => pricingFromDynamic(dynamicPricing as never), [dynamicPricing]);
-  const panelUnitCode = editData.unit_type ? normalizeUnitTypeCode(editData.unit_type) : null;
+
 
   return (
     <div className="space-y-6">
@@ -252,7 +245,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
       <div className="flex items-center justify-between sticky top-0 bg-background py-2 z-10 border-b border-border -mx-6 px-6">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <Home className="w-5 h-5" />
-          Edit Submission - Unit {editData.unit_number}
+          {buyerDetailsOnly ? 'Buyer details' : 'Edit Submission'} - Unit {editData.unit_number}
         </h3>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={onCancel} disabled={saving}>
@@ -266,6 +259,12 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
         </div>
       </div>
 
+      {buyerDetailsOnly && (
+        <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          Buyer details and wizard answers only. Priced choices (unit type, stairs, bedroom flooring and premiums, grout,
+          window quantities, area upgrades, bathroom options) are read-only here — change them as quote lines in the console.
+        </p>
+      )}
       <Accordion type="multiple" defaultValue={['buyer-info', 'flooring', 'area-upgrades']} className="space-y-2">
         {/* Buyer Information */}
         <AccordionItem value="buyer-info" className="border rounded-lg px-4">
@@ -521,6 +520,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
                     <div className="flex items-center gap-2 pt-2">
                       <Switch
                         checked={editData.stair_lvp_upgrade_selected || false}
+                        disabled={buyerDetailsOnly}
                         onCheckedChange={(checked) => {
                           handleChange('stair_lvp_upgrade_selected', checked);
                           // Clear carpet color if upgrading to LVP
@@ -699,7 +699,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
         </AccordionItem>
 
         {/* Area Upgrades */}
-        <AccordionItem value="area-upgrades" className="border rounded-lg px-4">
+        {!buyerDetailsOnly && <AccordionItem value="area-upgrades" className="border rounded-lg px-4">
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <Bath className="w-4 h-4" />
@@ -846,7 +846,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
                       </p>
                       {Number(upgrade.manualPrice) > 0 && (
                         <p className="text-xs font-medium">
-                          Total with GST: ${(Number(upgrade.manualPrice) * 1.05).toFixed(2)} — this replaces the calculated price for this area.
+                          Total with GST: ${withGst(Number(upgrade.manualPrice), dynGstRate).toFixed(2)} — this replaces the calculated price for this area.
                         </p>
                       )}
                     </div>
@@ -935,30 +935,15 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
               )}
             </div>
           </AccordionContent>
-        </AccordionItem>
+        </AccordionItem>}
 
-        {/* Office pricing & custom line items */}
-        <AccordionItem value="custom-pricing" className="border rounded-lg px-4">
-          <AccordionTrigger className="hover:no-underline">
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-4 h-4" />
-              <span>Office Pricing &amp; Custom Line Items</span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="pt-4 pb-6">
-            <CustomPricingPanel
-              value={editData.custom_pricing}
-              onChange={(v) => handleChange('custom_pricing', v)}
-              submissionId={submission.id}
-              selections={panelSelections}
-              unitCode={panelUnitCode}
-              pricing={panelPricing}
-              onSaveFirst={saveNow}
-              saving={saving}
-              onPatchSelections={(patch) => setEditData(prev => ({ ...prev, ...patch }))}
-            />
-          </AccordionContent>
-        </AccordionItem>
+        {/* Office pricing now lives in the quote console (/admin/quotes/:id); custom_pricing is read-only. */}
+        {!buyerDetailsOnly && (
+          <p className="text-sm text-muted-foreground px-1">
+            Office prices, custom lines and window locations are edited in the{' '}
+            <Link to={`/admin/quotes/${submission.id}`} className="underline">quote console</Link>.
+          </p>
+        )}
 
         {/* Admin Notes */}
         <AccordionItem value="admin" className="border rounded-lg px-4">
@@ -990,7 +975,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
         </AccordionItem>
 
         {/* Downstream Tracking */}
-        <AccordionItem value="downstream" className="border rounded-lg px-4">
+        {!buyerDetailsOnly && isAdmin && <AccordionItem value="downstream" className="border rounded-lg px-4">
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <ClipboardList className="w-4 h-4" />
@@ -1003,7 +988,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
               submission={editData}
             />
           </AccordionContent>
-        </AccordionItem>
+        </AccordionItem>}
       </Accordion>
     </div>
   );

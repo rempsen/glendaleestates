@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { AdminLayout } from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { lvpOptions, spcTileOptions, carpetOptions, windowPricing } from '@/lib/mockData';
+import { lvpOptions, spcTileOptions, carpetOptions } from '@/lib/mockData';
 import { Download, FileText, FileSpreadsheet, Printer, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Tables } from '@/integrations/supabase/types';
-import { useWindowSubtotal } from '@/hooks/useWindowSubtotal';
+import { useSubmissionLineTotals } from '@/hooks/useSubmissionLineTotals';
+import { gatedFigure, lineTotalsGate } from '@/lib/lineTotalsGate';
 
 type BuyerSelection = Tables<'buyer_selections'>;
 
@@ -20,18 +21,31 @@ interface ReportStats {
 }
 
 export default function AdminReports() {
-  const windowSubtotalOf = useWindowSubtotal();
   const [generating, setGenerating] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submissions, setSubmissions] = useState<BuyerSelection[]>([]);
-  const [stats, setStats] = useState<ReportStats>({
-    totalSubmissions: 0,
-    submittedCount: 0,
-    windowExtensionHomes: 0,
-    totalWindowSubtotal: 0,
-    totalWindowGST: 0,
-    totalWindowRevenue: 0,
-  });
+  // Window coverings figures per submission: sumQuoteLines over its window_coverings lines.
+  const lineTotals = useSubmissionLineTotals(submissions);
+  // Every report and export below carries window totals: none runs until the lines are loaded (never $0.00 rows).
+  const totalsGate = lineTotalsGate(lineTotals);
+  const totalsNotReady = () => {
+    if (totalsGate.ready) return false;
+    toast.error('Totals are not ready', { description: totalsGate.message ?? undefined });
+    return true;
+  };
+  const windowTotalsOf = (s: BuyerSelection) => lineTotals.sectionTotalsOf(s.id, 'window_coverings');
+  const windowSubtotalOf = (s: BuyerSelection) => windowTotalsOf(s).subtotal;
+  const stats: ReportStats = useMemo(() => {
+    const windows = submissions.map((s) => lineTotals.sectionTotalsOf(s.id, 'window_coverings'));
+    return {
+      totalSubmissions: submissions.length,
+      submittedCount: submissions.filter(s => s.status === 'submitted').length,
+      windowExtensionHomes: windows.filter((w) => w.subtotal > 0).length,
+      totalWindowSubtotal: windows.reduce((sum, w) => sum + w.subtotal, 0),
+      totalWindowGST: windows.reduce((sum, w) => sum + w.gst, 0),
+      totalWindowRevenue: windows.reduce((sum, w) => sum + w.total, 0),
+    };
+  }, [submissions, lineTotals]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -46,28 +60,6 @@ export default function AdminReports() {
       const subs = data || [];
       setSubmissions(subs);
 
-      // Calculate stats from real data
-      const windowExtensionHomes = subs.filter(
-        s => (s.additional_windows_qty || 0) > 0 || (s.patio_doors_qty || 0) > 0
-      ).length;
-
-      const totalWindowSubtotal = subs.reduce((sum, s) => {
-        const windowCost = (s.additional_windows_qty || 0) * windowPricing.additionalWindow;
-        const patioCost = (s.patio_doors_qty || 0) * windowPricing.patioDoor;
-        return sum + windowCost + patioCost;
-      }, 0);
-
-      const totalWindowGST = totalWindowSubtotal * windowPricing.gstRate;
-      const totalWindowRevenue = totalWindowSubtotal + totalWindowGST;
-
-      setStats({
-        totalSubmissions: subs.length,
-        submittedCount: subs.filter(s => s.status === 'submitted').length,
-        windowExtensionHomes,
-        totalWindowSubtotal,
-        totalWindowGST,
-        totalWindowRevenue,
-      });
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load report data');
@@ -81,6 +73,7 @@ export default function AdminReports() {
   }, []);
 
   const generateSelectionsSummaryCSV = () => {
+    if (totalsNotReady()) return;
     if (submissions.length === 0) {
       toast.error('No submissions to export');
       return;
@@ -148,6 +141,7 @@ export default function AdminReports() {
   };
 
   const generateAllSelectionsPDFReport = async () => {
+    if (totalsNotReady()) return;
     if (submissions.length === 0) {
       toast.error('No submissions to export');
       return;
@@ -204,6 +198,7 @@ export default function AdminReports() {
   };
 
   const generateQuantitiesReport = () => {
+    if (totalsNotReady()) return;
     if (submissions.length === 0) {
       toast.error('No submissions to analyze');
       return;
@@ -319,13 +314,19 @@ export default function AdminReports() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">With Window Add-ons</p>
-                <p className="text-2xl font-serif font-semibold">{stats.windowExtensionHomes}</p>
+                <p className="text-2xl font-serif font-semibold">{gatedFigure(totalsGate, () => String(stats.windowExtensionHomes))}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Revenue</p>
-                <p className="text-2xl font-serif font-semibold text-primary">${stats.totalWindowRevenue.toLocaleString()}</p>
+                <p className="text-2xl font-serif font-semibold text-primary">{gatedFigure(totalsGate, () => `$${stats.totalWindowRevenue.toLocaleString()}`)}</p>
               </div>
             </div>
+          )}
+          {!loading && totalsGate.message && (
+            <p role={totalsGate.state === 'error' ? 'alert' : 'status'}
+              className={`mt-3 text-sm ${totalsGate.state === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
+              {totalsGate.message}
+            </p>
           )}
         </div>
 
@@ -347,7 +348,7 @@ export default function AdminReports() {
                   </p>
                   <Button
                     onClick={generateAllSelectionsPDFReport}
-                    disabled={generating === 'all-pdf' || loading || submissions.length === 0}
+                    disabled={generating === 'all-pdf' || loading || !totalsGate.ready || submissions.length === 0}
                     className="gap-2"
                   >
                     <Download className="w-4 h-4" />
@@ -391,7 +392,7 @@ export default function AdminReports() {
                   <Button
                     variant="outline"
                     onClick={generateSelectionsSummaryCSV}
-                    disabled={generating === 'selections-csv' || loading || submissions.length === 0}
+                    disabled={generating === 'selections-csv' || loading || !totalsGate.ready || submissions.length === 0}
                     className="gap-2"
                   >
                     <Download className="w-4 h-4" />
@@ -412,7 +413,7 @@ export default function AdminReports() {
                   <Button
                     variant="outline"
                     onClick={generateQuantitiesReport}
-                    disabled={generating === 'quantities' || loading || submissions.length === 0}
+                    disabled={generating === 'quantities' || loading || !totalsGate.ready || submissions.length === 0}
                     className="gap-2"
                   >
                     <Download className="w-4 h-4" />

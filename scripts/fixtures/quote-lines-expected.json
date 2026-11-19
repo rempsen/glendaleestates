@@ -1,0 +1,65 @@
+{
+  "2": {
+    "line_count": 13,
+    "counted_lines": 2,
+    "not_in_total": 1,
+    "subtotal": "2460.00",
+    "windows": "0.00"
+  },
+  "4": {
+    "line_count": 15,
+    "counted_lines": 4,
+    "not_in_total": 1,
+    "subtotal": "14334.00",
+    "windows": "3354.00"
+  },
+  "7": {
+    "line_count": 14,
+    "counted_lines": 3,
+    "not_in_total": 1,
+    "subtotal": "3296.70",
+    "windows": "2680.50"
+  },
+  "24": {
+    "line_count": 23,
+    "counted_lines": 10,
+    "not_in_total": 3,
+    "subtotal": "10388.40",
+    "windows": "7998.00"
+  },
+  "27": {
+    "line_count": 10,
+    "counted_lines": 0,
+    "not_in_total": 1,
+    "subtotal": "0.00",
+    "windows": "0.00"
+  },
+  "31": {
+    "line_count": 18,
+    "counted_lines": 7,
+    "not_in_total": 1,
+    "subtotal": "27263.00",
+    "windows": "0.00"
+  },
+  "37": {
+    "line_count": 17,
+    "counted_lines": 6,
+    "not_in_total": 1,
+    "subtotal": "10488.50",
+    "windows": "2680.50"
+  },
+  "38": {
+    "line_count": 12,
+    "counted_lines": 1,
+    "not_in_total": 1,
+    "subtotal": "2680.50",
+    "windows": "2680.50"
+  },
+  "43": {
+    "line_count": 13,
+    "counted_lines": 3,
+    "not_in_total": 1,
+    "subtotal": "23865.00",
+    "windows": "0.00"
+  }
+}

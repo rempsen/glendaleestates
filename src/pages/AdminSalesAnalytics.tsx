@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { AdminLayout } from '@/components/AdminLayout';
 import { StatCard } from '@/components/StatCard';
 import { supabase } from '@/integrations/supabase/client';
-import type { Tables } from '@/integrations/supabase/types';
-import { useWindowSubtotal } from '@/hooks/useWindowSubtotal';
+import { useSubmissionLineTotals } from '@/hooks/useSubmissionLineTotals';
+import { gatedFigure, lineTotalsGate } from '@/lib/lineTotalsGate';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -69,8 +69,10 @@ const CHART_COLORS = [
 const TOTAL_UNITS = 70;
 
 export default function AdminSalesAnalytics() {
-  const windowSubtotalOf = useWindowSubtotal();
   const [selections, setSelections] = useState<BuyerSelection[]>([]);
+  const lineTotals = useSubmissionLineTotals(selections);
+  // Window revenue comes from quote lines: shown as a placeholder (never $0) until they load, '—' on an error.
+  const totalsGate = lineTotalsGate(lineTotals);
   const [pipeline, setPipeline] = useState<PipelineRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -104,8 +106,8 @@ export default function AdminSalesAnalytics() {
   // Selection stats
   const selectionStats = {
     total: selections.length,
-    // pre-GST, engine-computed (the submit-time total column is stale)
-    windowRevenue: selections.reduce((sum, s) => sum + windowSubtotalOf(s as unknown as Tables<'buyer_selections'>), 0),
+    // pre-GST, from quote lines (the submit-time total column is stale)
+    windowRevenue: selections.reduce((sum, s) => sum + lineTotals.sectionTotalsOf(s.id, 'window_coverings').subtotal, 0),
     hardwoodUpgrades: selections.filter(s => s.hardwood_upgrade_selected).length,
     tileUpgrades: selections.filter(s => s.bathroom_tile_selected).length,
     heatedFloors: selections.filter(s => (s.heated_floor_bathrooms || 0) > 0).length,
@@ -168,7 +170,8 @@ export default function AdminSalesAnalytics() {
   const revenueBreakdown = [
     { name: 'Contract Revenue', value: pipelineStats.totalContractValue },
     { name: 'GST Collected', value: pipeline.reduce((sum, p) => sum + (p.tax_amount || 0), 0) },
-    { name: 'Window Revenue (pre-GST)', value: selectionStats.windowRevenue },
+    // Left out of the chart until the lines are loaded, rather than drawn as $0.
+    ...(totalsGate.ready ? [{ name: 'Window Revenue (pre-GST)', value: selectionStats.windowRevenue }] : []),
   ];
 
   if (loading) {
@@ -375,8 +378,8 @@ export default function AdminSalesAnalytics() {
             <p className="text-xs text-muted-foreground">Selections Made</p>
           </div>
           <div className="p-4 rounded-xl border border-border bg-card text-center">
-            <p className="text-2xl font-serif font-semibold text-foreground">${(selectionStats.windowRevenue / 1000).toFixed(1)}k</p>
-            <p className="text-xs text-muted-foreground">Window Revenue (pre-GST)</p>
+            <p className="text-2xl font-serif font-semibold text-foreground">{gatedFigure(totalsGate, () => `$${(selectionStats.windowRevenue / 1000).toFixed(1)}k`)}</p>
+            <p className="text-xs text-muted-foreground" title={totalsGate.message ?? undefined}>Window Revenue (pre-GST)</p>
           </div>
         </div>
       </div>

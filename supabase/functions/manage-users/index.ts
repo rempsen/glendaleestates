@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
+import { adminRemovalRefusal } from "./roleGuard.ts";
 
 // Log user activity
 async function logActivity(
@@ -250,6 +251,25 @@ serve(async (req) => {
             JSON.stringify({ error: "User ID and role are required" }),
             { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
           );
+        }
+
+        // Never remove your own admin role or the last admin (409).
+        if (roleAction === "remove" && role === "admin") {
+          const { data: adminRows, error: adminsError } = await supabaseAdmin
+            .from("user_roles")
+            .select("user_id")
+            .eq("role", "admin");
+          if (adminsError) throw adminsError;
+          const refusal = adminRemovalRefusal({
+            role, roleAction, targetUserId: userId, callerId: requestingUser.id,
+            adminIds: (adminRows ?? []).map((r: { user_id: string }) => r.user_id),
+          });
+          if (refusal) {
+            return new Response(
+              JSON.stringify({ error: refusal }),
+              { status: 409, headers: { ...headers, "Content-Type": "application/json" } }
+            );
+          }
         }
 
         // Get target user email

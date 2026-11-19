@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 import { Mail, Lock, ArrowRight, UserPlus, LogIn, ArrowLeft, KeyRound } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { z } from 'zod';
+import { safeBuyerNext } from '@/lib/buyerNext';
+import { CONFIRM_EMAIL_TEXT, CONFIRM_EMAIL_TITLE, signUpOutcome } from '@/lib/buyerSignUp';
 
 const authSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -21,6 +23,7 @@ type AuthMode = 'signin' | 'signup' | 'forgot' | 'reset';
 export default function BuyerAuth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const nextPath = safeBuyerNext(searchParams.get('next'));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -45,18 +48,18 @@ export default function BuyerAuth() {
         return;
       }
       if (session && mode !== 'reset') {
-        navigate('/select');
+        navigate(nextPath);
       }
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session && mode !== 'reset') {
-        navigate('/select');
+        navigate(nextPath);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, mode]);
+  }, [navigate, mode, nextPath]);
 
   const validateForm = () => {
     if (mode === 'forgot') {
@@ -201,21 +204,21 @@ export default function BuyerAuth() {
           } else {
             throw error;
           }
+        } else if (signUpOutcome(signUpData) === 'confirm_email') {
+          // Confirm email is ON (required in production, runbook): no session until the link is opened, and the
+          // admin signup notification needs the buyer's own session, so it is skipped here.
+          toast.success(CONFIRM_EMAIL_TITLE, { description: CONFIRM_EMAIL_TEXT });
+          setMode('signin');
         } else {
           toast.success('Account created successfully!', {
             description: 'You can now continue with your selections.',
           });
-          // Notify admins of new client signup (fire and forget)
-          // The function only accepts this from a signed-in user about themselves (or an admin),
-          // so it needs the new session. When email confirmation is required there is no session yet.
-          if (signUpData?.session?.access_token) {
-            supabase.functions.invoke('send-user-notification', {
-              body: { type: 'client_signup', userEmail: email },
-              headers: { Authorization: `Bearer ${signUpData.session.access_token}` },
-            }).catch(err => console.error('Failed to send signup notification:', err));
-          } else {
-            console.warn('Signup notification skipped: no session yet (email confirmation pending)');
-          }
+          // Notify admins of new client signup (fire and forget). The function only accepts this from a signed-in
+          // user about themselves (or an admin), so it needs the new session.
+          supabase.functions.invoke('send-user-notification', {
+            body: { type: 'client_signup', userEmail: email },
+            headers: { Authorization: `Bearer ${signUpData.session?.access_token ?? ""}` },
+          }).catch(err => console.error('Failed to send signup notification:', err));
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({

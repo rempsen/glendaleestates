@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { withGst } from '@/lib/quoteLines';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
@@ -60,14 +61,14 @@ export function StairCarpetAddOn() {
           {carpetPrice > 0 && (
             <label className="flex items-center gap-3 text-sm">
               <Checkbox checked={hasCarpet || carpet} disabled={hasCarpet} onCheckedChange={(v) => setCarpet(!!v)} />
-              <span className="flex-1">Premium Carpet — {fmt(carpetPrice)} + GST ({fmt(carpetPrice * (1 + gstRate))} incl. GST)</span>
+              <span className="flex-1">Premium Carpet — {fmt(carpetPrice)} + GST ({fmt(withGst(carpetPrice, gstRate))} incl. GST)</span>
               {hasCarpet && <span className="text-xs text-primary font-medium">Added</span>}
             </label>
           )}
           {underpadPrice > 0 && (
             <label className="flex items-center gap-3 text-sm">
               <Checkbox checked={hasUnderpad || underpad} disabled={hasUnderpad} onCheckedChange={(v) => setUnderpad(!!v)} />
-              <span className="flex-1">Premium Underpad — {fmt(underpadPrice)} + GST ({fmt(underpadPrice * (1 + gstRate))} incl. GST)</span>
+              <span className="flex-1">Premium Underpad — {fmt(underpadPrice)} + GST ({fmt(withGst(underpadPrice, gstRate))} incl. GST)</span>
               {hasUnderpad && <span className="text-xs text-primary font-medium">Added</span>}
             </label>
           )}

@@ -5,7 +5,7 @@ import { UPGRADE_MATERIALS } from '@/lib/upgradeCostData';
 // (scripts/buyer-pdf-selections.test.ts checks the mirror). Change copy here and there together.
 
 // Base spec: Luxury Vinyl Plank throughout; Dante 2.0 tile in washrooms only.
-// Pending Dan's confirmation (controller ruling) — one edit changes every renderer.
+// Confirmed by Dan 2026-11-18 17:00 CT; see LAUNDRY_DEFAULT_PRODUCT in baseSpec.ts. One edit changes every renderer.
 export const LAUNDRY_ROW_LABEL = 'Laundry Room';
 export const LAUNDRY_STANDARD_LABEL = 'Ceratec Dante 2.0 LVT (standard)';
 export const BATHROOM_TILE_LABEL = 'Bathroom Tile';

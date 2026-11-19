@@ -5,6 +5,10 @@ export interface AuthedUser {
   email: string;
   /** True when the user holds the `admin` role (public.user_roles). */
   isAdmin?: boolean;
+  /** True when the user holds the `staff` role (public.is_staff: admin or staff). */
+  isStaff?: boolean;
+  /** auth.users id, when the resolver knows it (audit rows). */
+  id?: string;
 }
 
 export type GetUser = (jwt: string) => Promise<AuthedUser | null>;

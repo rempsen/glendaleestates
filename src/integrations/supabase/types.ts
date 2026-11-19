@@ -221,6 +221,69 @@ export type Database = {
         }
         Relationships: []
       }
+      documents: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          provider: string | null
+          provider_envelope_id: string | null
+          signed_at: string | null
+          signer_email: string | null
+          snapshot_id: string | null
+          status: string
+          storage_path: string | null
+          submission_id: string
+          updated_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          provider?: string | null
+          provider_envelope_id?: string | null
+          signed_at?: string | null
+          signer_email?: string | null
+          snapshot_id?: string | null
+          status?: string
+          storage_path?: string | null
+          submission_id: string
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          provider?: string | null
+          provider_envelope_id?: string | null
+          signed_at?: string | null
+          signer_email?: string | null
+          snapshot_id?: string | null
+          status?: string
+          storage_path?: string | null
+          submission_id?: string
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "quote_snapshots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "buyer_selections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pricing_config: {
         Row: {
           config_key: string
@@ -481,6 +544,203 @@ export type Database = {
           triggered_by_user_id?: string | null
         }
         Relationships: []
+      }
+      quote_line_reviews: {
+        Row: {
+          buyer_user_id: string
+          comment: string | null
+          created_at: string
+          id: string
+          line_id: string
+          response: string
+        }
+        Insert: {
+          buyer_user_id: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          line_id: string
+          response: string
+        }
+        Update: {
+          buyer_user_id?: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          line_id?: string
+          response?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_line_reviews_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "quote_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quote_lines: {
+        Row: {
+          amount: number | null
+          answered_at: string | null
+          answered_by: string | null
+          client_note: string | null
+          client_visible: boolean
+          counts_in_total: boolean | null
+          created_at: string
+          created_by: string | null
+          flagged_at: string | null
+          flagged_to: string | null
+          id: string
+          internal_note: string | null
+          label: string
+          location: string | null
+          material_key: string | null
+          price_source_ref: string | null
+          pricing_mode: string
+          product_colour: string | null
+          product_name: string | null
+          provisional: boolean
+          quantity: number | null
+          section: string
+          sort_order: number
+          source: string
+          status: string
+          submission_id: string
+          unit: string | null
+          unit_price: number | null
+          updated_at: string
+          updated_by: string | null
+          wizard_field: string | null
+        }
+        Insert: {
+          amount?: number | null
+          answered_at?: string | null
+          answered_by?: string | null
+          client_note?: string | null
+          client_visible?: boolean
+          created_at?: string
+          created_by?: string | null
+          flagged_at?: string | null
+          flagged_to?: string | null
+          id?: string
+          internal_note?: string | null
+          label: string
+          location?: string | null
+          material_key?: string | null
+          price_source_ref?: string | null
+          pricing_mode?: string
+          product_colour?: string | null
+          product_name?: string | null
+          provisional?: boolean
+          quantity?: number | null
+          section: string
+          sort_order?: number
+          source?: string
+          status?: string
+          submission_id: string
+          unit?: string | null
+          unit_price?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          wizard_field?: string | null
+        }
+        Update: {
+          amount?: number | null
+          answered_at?: string | null
+          answered_by?: string | null
+          client_note?: string | null
+          client_visible?: boolean
+          created_at?: string
+          created_by?: string | null
+          flagged_at?: string | null
+          flagged_to?: string | null
+          id?: string
+          internal_note?: string | null
+          label?: string
+          location?: string | null
+          material_key?: string | null
+          price_source_ref?: string | null
+          pricing_mode?: string
+          product_colour?: string | null
+          product_name?: string | null
+          provisional?: boolean
+          quantity?: number | null
+          section?: string
+          sort_order?: number
+          source?: string
+          status?: string
+          submission_id?: string
+          unit?: string | null
+          unit_price?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          wizard_field?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_lines_flagged_to_fkey"
+            columns: ["flagged_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "quote_lines_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "buyer_selections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quote_snapshots: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          gst: number
+          id: string
+          lines: Json
+          purpose: string
+          submission_id: string
+          subtotal: number
+          total: number
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          gst: number
+          id?: string
+          lines: Json
+          purpose?: string
+          submission_id: string
+          subtotal: number
+          total: number
+          version: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          gst?: number
+          id?: string
+          lines?: Json
+          purpose?: string
+          submission_id?: string
+          subtotal?: number
+          total?: number
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_snapshots_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "buyer_selections"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sales_pipeline: {
         Row: {
@@ -883,6 +1143,42 @@ export type Database = {
         }
         Relationships: []
       }
+      unit_base_spec: {
+        Row: {
+          created_at: string
+          default_colour_options: Json
+          default_product: string | null
+          id: string
+          is_included: boolean
+          label: string
+          location: string | null
+          section: string
+          unit_type_code: string
+        }
+        Insert: {
+          created_at?: string
+          default_colour_options?: Json
+          default_product?: string | null
+          id?: string
+          is_included?: boolean
+          label: string
+          location?: string | null
+          section: string
+          unit_type_code: string
+        }
+        Update: {
+          created_at?: string
+          default_colour_options?: Json
+          default_product?: string | null
+          id?: string
+          is_included?: boolean
+          label?: string
+          location?: string | null
+          section?: string
+          unit_type_code?: string
+        }
+        Relationships: []
+      }
       upgrade_line_items: {
         Row: {
           apply_to_material_key: string | null
@@ -1026,12 +1322,51 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      pricing_queue: {
+        Row: {
+          age_hours: number | null
+          assignee_email: string | null
+          assignee_first_name: string | null
+          assignee_last_name: string | null
+          email: string | null
+          first_name: string | null
+          flagged_at: string | null
+          flagged_to: string | null
+          internal_note: string | null
+          label: string | null
+          last_name: string | null
+          line_id: string | null
+          location: string | null
+          section: string | null
+          submission_id: string | null
+          unit_number: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_lines_flagged_to_fkey"
+            columns: ["flagged_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "quote_lines_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "buyer_selections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       buyer_add_stair_addon: {
         Args: { _premium_carpet: boolean; _premium_underpad: boolean }
         Returns: undefined
+      }
+      buyer_can_see_line: {
+        Args: { _line_id: string }
+        Returns: boolean
       }
       buyer_get_stair_addon: {
         Args: never
@@ -1044,6 +1379,41 @@ export type Database = {
           unit_number: string
         }[]
       }
+      get_my_quote_header: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string
+          estimated_possession_date: string | null
+          first_name: string
+          last_name: string
+          phone_number: string | null
+          status: string | null
+          submission_id: string
+          unit_number: string
+          unit_type: string | null
+        }[]
+      }
+      get_my_quote_lines: {
+        Args: never
+        Returns: {
+          amount: number | null
+          client_note: string | null
+          id: string
+          label: string
+          location: string | null
+          product_colour: string | null
+          product_name: string | null
+          provisional: boolean
+          quantity: number | null
+          section: string
+          sort_order: number
+          status: string
+          submission_id: string
+          unit: string | null
+          unit_price: number | null
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1051,9 +1421,27 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_staff: {
+        Args: { _user_id: string }
+        Returns: boolean
+      }
+      request_quote_change: {
+        Args: { _submission_id?: string; _text: string }
+        Returns: string
+      }
+      staff_directory: {
+        Args: never
+        Returns: {
+          email: string | null
+          first_name: string | null
+          last_name: string | null
+          role: string
+          user_id: string
+        }[]
+      }
     }
     Enums: {
-      app_role: "admin" | "user"
+      app_role: "admin" | "user" | "staff"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1181,7 +1569,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user"],
+      app_role: ["admin", "user", "staff"],
     },
   },
 } as const

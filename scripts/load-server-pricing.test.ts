@@ -3,7 +3,8 @@ import { test, expect } from 'bun:test';
 import liveSubmissions from './fixtures/live-submissions.json';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
 import { loadServerPricing, clientPricingFetcher, restPricingFetcher, type PricingTable } from '../supabase/functions/_shared/loadServerPricing';
-import { computeUpgradeTotalsServer, normalizeUnitTypeCode } from '../supabase/functions/_shared/upgradeTotalsServer';
+import { generateQuoteLines, sumQuoteLines } from '../supabase/functions/_shared/quoteLines';
+import { buildGenerateInputFromRow } from './lib/generateInputFromRow';
 
 const raw = {
   pricing_config: [{ config_key: 'markup_percentage', config_value: 60, is_active: true }, { config_key: 'gst_rate', config_value: 5, is_active: true }],
@@ -42,16 +43,16 @@ test('REST fetcher hits the same endpoints the email/audit functions used, and t
     return t === 'unit_area_data' ? new Response('no', { status: 500 }) : new Response(JSON.stringify((raw as any)[t]));
   }) as unknown as typeof fetch;
   const p = await loadServerPricing(restPricingFetcher('https://x.supabase.co', 'k', fakeFetch));
-  expect(urls.sort()).toEqual(['https://x.supabase.co/rest/v1/pricing_config', 'https://x.supabase.co/rest/v1/unit_area_data', 'https://x.supabase.co/rest/v1/upgrade_materials?is_active=eq.true']);
+  expect(urls.sort()).toEqual(['https://x.supabase.co/rest/v1/pricing_config?is_active=eq.true', 'https://x.supabase.co/rest/v1/unit_area_data', 'https://x.supabase.co/rest/v1/upgrade_materials?is_active=eq.true']);
   expect(p.gstRate).toBe(0.05);
   expect(p.unitAreas).toEqual({});
 });
 
-// Pinned in scripts/parity.test.ts (client engine); the server engine fed by loadServerPricing must reproduce them.
+// Pinned in scripts/parity.test.ts; the generator fed by loadServerPricing (the edge loader) must reproduce them.
 const PINS: Record<string, number> = { '7': 3296.7, '24': 10388.4, '43': 23865 };
 
 for (const unit of Object.keys(PINS)) {
-  test(`server engine with loadServerPricing reproduces Unit ${unit} parity pin`, async () => {
+  test(`generator with loadServerPricing reproduces Unit ${unit} parity pin`, async () => {
     const snap = pricingSnapshot as any;
     const pricing = await loadServerPricing(fromObject({
       pricing_config: snap.pricing_config.filter((r: any) => r.is_active),
@@ -59,30 +60,8 @@ for (const unit of Object.keys(PINS)) {
       unit_area_data: snap.unit_area_data,
     }));
     const s = (liveSubmissions as any[]).find(r => r.unit_number === unit);
-    // Same input mapping as qbo-sync-submission computeTotalsForSubmission.
-    const t = computeUpgradeTotalsServer({
-      unitTypeCode: normalizeUnitTypeCode(s.unit_type),
-      upgradeFloorSelection: s.upgrade_floor_selection,
-      areaUpgrades: s.area_upgrades || [],
-      backsplashGroutEnabled: s.backsplash_grout_enabled,
-      backsplashGroutColor: s.backsplash_grout_color,
-      stairLvpUpgradeSelected: s.stair_lvp_upgrade_selected,
-      stairPremiumCarpetSelected: s.stair_premium_carpet_selected, stairPremiumUnderpadSelected: s.premium_underpad_stairs,
-      stairUpgradeType: s.stair_upgrade_type,
-      additionalWindowsQty: s.additional_windows_qty,
-      patioDoorsQty: s.patio_doors_qty,
-      automatedWindowsQty: s.automated_windows_qty,
-      bathroomTileSelected: s.bathroom_tile_selected,
-      bathroomTileEnsuiteSelected: s.bathroom_tile_ensuite_selected,
-      bathroomTileGuestSelected: s.bathroom_tile_guest_selected,
-      heatedFloorBathrooms: s.heated_floor_bathrooms,
-      customTiledShower: s.custom_tiled_shower,
-      bedroomFlooringChoice: s.bedroom_flooring_choice,
-      bedroomPremiumCarpetSelected: !!s.premium_carpet_bedroom,
-      bedroomPremiumUnderpadSelected: !!s.premium_underpad_bedroom,
-      customPricing: s.custom_pricing,
-    }, pricing);
-    expect(t.grandSubtotal).toBeCloseTo(PINS[unit], 2);
-    expect(t.grandTotal).toBeCloseTo(PINS[unit] * 1.05, 2);
+    const t = sumQuoteLines(generateQuoteLines(buildGenerateInputFromRow(s, pricing)), pricing.gstRate);
+    expect(t.subtotal).toBeCloseTo(PINS[unit], 2);
+    expect(t.total).toBeCloseTo(PINS[unit] * 1.05, 2);
   });
 }

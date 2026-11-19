@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { rateFromPercent } from '@/lib/quoteLines';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -239,13 +240,13 @@ export function useUpgradePricing() {
   // Get the markup percentage from config
   const getMarkupPercentage = () => {
     const config = pricingConfig.find(c => c.config_key === 'markup_percentage');
-    return config ? config.config_value / 100 : 0.6;
+    return config ? rateFromPercent(config.config_value) : 0.6;
   };
 
   // Get the GST rate from config
   const getGstRate = () => {
     const config = pricingConfig.find(c => c.config_key === 'gst_rate');
-    return config ? config.config_value / 100 : 0.05;
+    return config ? rateFromPercent(config.config_value) : 0.05;
   };
 
   return {

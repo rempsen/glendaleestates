@@ -6,11 +6,10 @@ import {
   GST_RATE as DEFAULT_GST,
   UNIT_AREA_DATA as FALLBACK_UNIT_AREA_DATA,
   UPGRADE_MATERIALS as DEFAULT_MATERIALS,
-  AREA_DEFINITIONS,
   UpgradeArea,
-  AreaUpgradeSelection,
   MaterialType,
 } from '@/lib/upgradeCostData';
+import { gstOn, markedUp, rateFromPercent, withGst } from '@/lib/quoteLines';
 
 interface DatabaseMaterial {
   id: string;
@@ -122,13 +121,13 @@ export function useDynamicPricing() {
   // Get markup percentage (from DB or default)
   const markupPercentage = useMemo(() => {
     const config = state.config.find(c => c.config_key === 'markup_percentage');
-    return config ? config.config_value / 100 : DEFAULT_MARKUP;
+    return config ? rateFromPercent(config.config_value) : DEFAULT_MARKUP;
   }, [state.config]);
 
   // Get GST rate (from DB or default)
   const gstRate = useMemo(() => {
     const config = state.config.find(c => c.config_key === 'gst_rate');
-    return config ? config.config_value / 100 : DEFAULT_GST;
+    return config ? rateFromPercent(config.config_value) : DEFAULT_GST;
   }, [state.config]);
 
   // Get flat-rate pricing values (returns 0 if disabled)
@@ -294,9 +293,9 @@ export function useDynamicPricing() {
     const materialInfo = getMaterialInfo(materialType);
     
     const baseCost = quantity * costPerUnit;
-    const markedUpCost = baseCost * (1 + markupPercentage);
-    const gst = markedUpCost * gstRate;
-    const total = markedUpCost + gst;
+    const markedUpCost = markedUp(baseCost, markupPercentage);
+    const gst = gstOn(markedUpCost, gstRate);
+    const total = withGst(markedUpCost, gstRate);
     const unit = materialInfo?.unit === 'sqyd' ? 'sq yd' : 'sq ft';
 
     return { baseCost, markedUpCost, gst, total, quantity, unit };
@@ -307,38 +306,10 @@ export function useDynamicPricing() {
     const baseCost = getGroutColorFee();
     // Flat fees don't get markup
     const markedUpCost = baseCost;
-    const gst = baseCost * gstRate;
-    const total = baseCost + gst;
+    const gst = gstOn(baseCost, gstRate);
+    const total = withGst(baseCost, gstRate);
     return { baseCost, markedUpCost, gst, total };
   }, [getGroutColorFee, gstRate]);
-
-  // Calculate total for all selected upgrades
-  const calculateTotalUpgradeCost = useCallback((
-    unitTypeCode: string,
-    selections: AreaUpgradeSelection[]
-  ): { subtotal: number; gst: number; total: number; lineItems: Array<{ areaName: string; quantity: number; unit: string; markedUpCost: number }> } => {
-    let subtotal = 0;
-    const lineItems: Array<{ areaName: string; quantity: number; unit: string; markedUpCost: number }> = [];
-
-    for (const selection of selections) {
-      const pricing = calculateAreaUpgradePrice(unitTypeCode, selection.areaId, selection.materialType);
-      if (pricing.markedUpCost > 0) {
-        subtotal += pricing.markedUpCost;
-        const areaInfo = AREA_DEFINITIONS.find(a => a.id === selection.areaId);
-        lineItems.push({
-          areaName: areaInfo?.name || selection.areaId,
-          quantity: pricing.quantity,
-          unit: pricing.unit,
-          markedUpCost: pricing.markedUpCost,
-        });
-      }
-    }
-
-    const gst = subtotal * gstRate;
-    const total = subtotal + gst;
-
-    return { subtotal, gst, total, lineItems };
-  }, [calculateAreaUpgradePrice, gstRate]);
 
   // Force refresh pricing data
   const refreshPricing = useCallback(async () => {
@@ -371,11 +342,12 @@ export function useDynamicPricing() {
     isFlatRateEnabled,
     calculateAreaUpgradePrice,
     calculateBacksplashGroutPrice,
-    calculateTotalUpgradeCost,
     getUnitAreaData,
     refreshPricing,
     materials: state.materials,
     config: state.config,
+    // Raw rows for the quote-line generator (quotePricingFromRows), same rows the edge loader reads.
+    unitAreas: state.unitAreas,
   };
 }
 
@@ -387,12 +359,12 @@ export function createDynamicCalculators(
 ) {
   const markupPercentage = (() => {
     const cfg = config.find(c => c.config_key === 'markup_percentage');
-    return cfg ? cfg.config_value / 100 : DEFAULT_MARKUP;
+    return cfg ? rateFromPercent(cfg.config_value) : DEFAULT_MARKUP;
   })();
 
   const gstRate = (() => {
     const cfg = config.find(c => c.config_key === 'gst_rate');
-    return cfg ? cfg.config_value / 100 : DEFAULT_GST;
+    return cfg ? rateFromPercent(cfg.config_value) : DEFAULT_GST;
   })();
 
   const getMaterialCost = (materialType: MaterialType): number => {

@@ -16,10 +16,7 @@
  *        (defaults to scripts/fixtures/live-submissions.json)
  */
 import { readFileSync } from 'node:fs';
-import { computeUpgradeTotals } from '../src/lib/upgradeTotals';
-import { totalsInputFromSelections } from '../src/lib/buyerPdfGenerator';
-import { toBuyerPdfSelections } from '../src/lib/buyerPdfSelections';
-import { normalizeUnitTypeCode } from '../src/lib/upgradeCostData';
+import { generatedTotalsForRow, pricingFromRows } from './lib/generateInputFromRow';
 
 export const CUTOFF = '2026-11-16';
 
@@ -94,12 +91,8 @@ if (import.meta.main) {
 
   console.log('-- (c) Parity check (comments do not price)');
   const { default: pricingSnapshot } = await import('./fixtures/pricing-snapshot.json');
-  const { loadFixturePricing } = await import('./lib/fixturePricing');
-  const pricing = loadFixturePricing(pricingSnapshot as never);
-  const totalFor = (r: SubmissionRow) => {
-    const unitCode = r.unit_type ? normalizeUnitTypeCode(String(r.unit_type)) : null;
-    return computeUpgradeTotals(totalsInputFromSelections(toBuyerPdfSelections(r as never), unitCode), pricing).grandTotal;
-  };
+  const pricing = pricingFromRows(pricingSnapshot as never);
+  const totalFor = (r: SubmissionRow) => generatedTotalsForRow(r as never, pricing).totals.total;
   const byId = new Map(updates.map(u => [u.id, u]));
   let bad = 0;
   for (const r of rows) {

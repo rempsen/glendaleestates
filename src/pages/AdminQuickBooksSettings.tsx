@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, XCircle, ExternalLink, Loader2, Unplug, Link as LinkIcon } from 'lucide-react';
+import { CheckCircle2, XCircle, ExternalLink, Loader2, Unplug, Link as LinkIcon, AlertTriangle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { qboReconnectReason, type QboSyncLogLike } from '@/lib/qboReconnect';
 import QboSettingsPanel from '@/components/admin/QboSettingsPanel';
 
 interface QboConnection {
@@ -26,6 +28,7 @@ export default function AdminQuickBooksSettings() {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [lastSync, setLastSync] = useState<QboSyncLogLike | null>(null);
 
   const loadConnection = async () => {
     setLoading(true);
@@ -35,6 +38,17 @@ export default function AdminQuickBooksSettings() {
       .eq('is_active', true)
       .maybeSingle();
     setConn((data as QboConnection | null) ?? null);
+    // Latest attempted estimate sync (refusals logged as `skipped` never reach QuickBooks, so they are ignored):
+    // a token-refresh failure after this connection also means "reconnect"; a later success clears it.
+    const { data: log } = await supabase
+      .from('qbo_sync_log' as never)
+      .select('status,error_message,created_at')
+      .eq('operation', 'sync_submission')
+      .in('status', ['success', 'error'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setLastSync((log as QboSyncLogLike | null) ?? null);
     setLoading(false);
   };
 
@@ -90,6 +104,8 @@ export default function AdminQuickBooksSettings() {
     }
   };
 
+  const reconnectReason = loading ? null : qboReconnectReason(conn, lastSync);
+
   return (
     <AdminLayout>
       <div className="max-w-3xl space-y-6">
@@ -100,11 +116,29 @@ export default function AdminQuickBooksSettings() {
           </p>
         </div>
 
+        {reconnectReason && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Reconnect QuickBooks</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p>{reconnectReason} Estimates will not sync until an admin reconnects.</p>
+              <Button size="sm" onClick={handleConnect} disabled={connecting}>
+                {connecting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <LinkIcon className="w-4 h-4 mr-2" />}
+                Reconnect QuickBooks
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>Connection</span>
-              {loading ? null : conn ? (
+              {loading ? null : conn && reconnectReason ? (
+                <Badge variant="destructive">
+                  <AlertTriangle className="w-3 h-3 mr-1" /> Reconnect needed
+                </Badge>
+              ) : conn ? (
                 <Badge variant="default" className="bg-green-600 hover:bg-green-600">
                   <CheckCircle2 className="w-3 h-3 mr-1" /> Connected
                 </Badge>

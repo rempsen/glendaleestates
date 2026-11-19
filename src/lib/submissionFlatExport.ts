@@ -1,17 +1,19 @@
 // =====================================================================
 // Single-tab flat export for buyer submissions.
 // Produces a wide row per client with grouped section headers.
+// Phase 2 Task 11: money comes from the submission's quote lines — one
+// column block per counted line and totals from sumQuoteLines.
 // =====================================================================
 
 import { format } from 'date-fns';
 import { LAUNDRY_ROW_LABEL, laundryValue, STAIR_CARPET_LABEL, STAIR_STANDARD_VALUE } from './outputLabels';
 import {
   buildSubmissionSectionRows,
-  computeTotalsForSubmission,
+  lineItemsText,
+  totalsForLines,
   type BuyerSelection,
-  type ExportPricing,
 } from './submissionExportBuilder';
-import { buildCanonicalLines } from './submissionLineItems';
+import { countsInTotal, type QuoteLine } from '@/lib/quoteLines';
 import type { DownstreamData } from './fetchDownstreamData';
 
 export interface FlatExportColumn {
@@ -42,7 +44,9 @@ type GroupDef = { name: string; cols: ColDef[] };
 interface RowCtx {
   s: BuyerSelection;
   sections: ReturnType<typeof buildSubmissionSectionRows>;
-  totals: ReturnType<typeof computeTotalsForSubmission>;
+  totals: ReturnType<typeof totalsForLines>;
+  lines: QuoteLine[];
+  counted: QuoteLine[];
   downstream: DownstreamData;
 }
 
@@ -115,9 +119,6 @@ const STATIC_GROUPS: GroupDef[] = [
       { label: 'Heated Floor Bathrooms', get: ({ s }) => s.heated_floor_bathrooms ?? 0 },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { label: 'Custom Tiled Shower', get: ({ s }) => yesNo((s as any).custom_tiled_shower) },
-      { label: 'Bathroom Tile $', get: ({ totals }) => money(totals.pieces.bathroomTile) },
-      { label: 'Heated Floor $', get: ({ totals }) => money(totals.pieces.section4HeatedFloor) },
-      { label: 'Custom Shower $', get: ({ totals }) => money(totals.pieces.customShower) },
     ],
   },
   {
@@ -127,7 +128,6 @@ const STATIC_GROUPS: GroupDef[] = [
       { label: 'Grout Change Enabled', get: ({ s }) => yesNo(s.backsplash_grout_enabled) },
       { label: 'Grout Color', get: ({ s }) => s.backsplash_grout_color ?? '' },
       { label: 'Grout Comments', get: ({ s }) => s.backsplash_grout_comments ?? '' },
-      { label: 'Grout $', get: ({ totals }) => money(totals.pieces.grout) },
     ],
   },
   {
@@ -142,9 +142,6 @@ const STATIC_GROUPS: GroupDef[] = [
         return s.stair_carpet_colour ? `${STAIR_STANDARD_VALUE} — ${s.stair_carpet_colour}` : STAIR_STANDARD_VALUE;
       } },
       { label: 'Premium Underpad (Stairs)', get: ({ s }) => yesNo(s.premium_underpad_stairs) },
-      { label: 'Stair LVP $', get: ({ totals }) => money(totals.pieces.stairLvp) },
-      { label: 'Stair Carpet $', get: ({ totals }) => money(totals.pieces.stairCarpet) },
-      { label: 'Stair Underpad $', get: ({ totals }) => money(totals.pieces.stairUnderpad) },
     ],
   },
   {
@@ -163,10 +160,7 @@ const STATIC_GROUPS: GroupDef[] = [
     cols: [
       { label: 'Additional Windows Qty', get: ({ s }) => s.additional_windows_qty ?? 0 },
       { label: 'Patio Doors Qty', get: ({ s }) => s.patio_doors_qty ?? 0 },
-      { label: 'Additional Window $', get: ({ totals }) => money(totals.pieces.windowAdditional) },
-      { label: 'Patio Door $', get: ({ totals }) => money(totals.pieces.windowPatio) },
-      { label: 'Window Automation $', get: ({ totals }) => money(totals.pieces.windowAutomation) },
-      { label: 'Window Subtotal $', get: ({ totals }) => money(totals.windowSubtotal) },
+      { label: 'Window Subtotal $', get: ({ totals }) => money(totals.windowCoverings) },
       { label: 'Window Comments', get: ({ s }) => s.window_comments ?? '' },
     ],
   },
@@ -223,18 +217,12 @@ const STATIC_GROUPS: GroupDef[] = [
   {
     name: 'Pricing Totals',
     cols: [
-      { label: 'Upgrades Subtotal $', get: ({ totals }) => money(totals.upgradesSubtotal) },
-      { label: 'Window Subtotal $', get: ({ totals }) => money(totals.windowSubtotal) },
-      { label: 'Grand Subtotal $', get: ({ totals }) => money(totals.grandSubtotal) },
+      { label: 'Upgrades Subtotal $', get: ({ totals }) => money(totals.upgrades) },
+      { label: 'Window Subtotal $', get: ({ totals }) => money(totals.windowCoverings) },
+      { label: 'Grand Subtotal $', get: ({ totals }) => money(totals.subtotal) },
       { label: 'GST $', get: ({ totals }) => money(totals.gst) },
-      { label: 'Grand Total $', get: ({ totals }) => money(totals.grandTotal) },
-      {
-        label: 'All Line Items',
-        get: ({ totals }) =>
-          totals.lineItems
-            .map((li) => `${li.label}${li.detail ? ` (${li.detail})` : ''}: $${money(li.amount).toFixed(2)}`)
-            .join(' | '),
-      },
+      { label: 'Grand Total $', get: ({ totals }) => money(totals.total) },
+      { label: 'All Line Items', get: ({ lines }) => lineItemsText(lines) },
     ],
   },
   {
@@ -278,8 +266,6 @@ function buildAreaUpgradeGroup(maxCount: number): GroupDef {
       { label: `#${n} Client Note`, get: ({ sections }) => (sections.area_upgrades?.[idx]?.client_comment as string) ?? '' },
       { label: `#${n} Internal Note`, get: ({ sections }) => (sections.area_upgrades?.[idx]?.comments as string) ?? '' },
       { label: `#${n} Heated Floor`, get: ({ sections }) => yesNo(sections.area_upgrades?.[idx]?.heated_floor) },
-      { label: `#${n} Amount $`, get: ({ sections }) => Number(sections.area_upgrades?.[idx]?.amount ?? 0) },
-      { label: `#${n} Heated Floor $`, get: ({ sections }) => Number(sections.area_upgrades?.[idx]?.heated_floor_amount ?? 0) },
       { label: `#${n} Approval Status`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[lk]?.approval_status ?? '' },
       { label: `#${n} Supplier`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[lk]?.supplier ?? '' },
       { label: `#${n} SKU`, get: ({ downstream, s }) => downstream.lineItems[s.id]?.[lk]?.sku ?? '' },
@@ -296,6 +282,32 @@ function buildAreaUpgradeGroup(maxCount: number): GroupDef {
     );
   }
   return { name: `Area Upgrades (up to ${maxCount})`, cols };
+}
+
+// One column block per counted quote line (location / item / qty / unit price / amount), plus its procurement
+// tracking by quote_line_id (submission_line_items rows keyed by the line id).
+function buildQuoteLineGroup(maxCount: number): GroupDef {
+  const cols: ColDef[] = [];
+  for (let i = 0; i < maxCount; i++) {
+    const idx = i;
+    const n = i + 1;
+    const ln = (ctx: RowCtx) => ctx.counted[idx];
+    const tr = (ctx: RowCtx) => { const l = ln(ctx); return l?.id ? ctx.downstream.lineItems[ctx.s.id]?.[l.id] : undefined; };
+    cols.push(
+      { label: `Line #${n} Section`, get: (c) => ln(c)?.section ?? '' },
+      { label: `Line #${n} Location`, get: (c) => ln(c)?.location ?? '' },
+      { label: `Line #${n} Item`, get: (c) => ln(c)?.label ?? '' },
+      { label: `Line #${n} Product`, get: (c) => { const l = ln(c); return l ? [l.product_name, l.product_colour].filter(Boolean).join(' — ') : ''; } },
+      { label: `Line #${n} Qty`, get: (c) => ln(c)?.quantity ?? '' },
+      { label: `Line #${n} Unit Price $`, get: (c) => { const u = ln(c)?.unit_price; return u == null ? '' : money(u); } },
+      { label: `Line #${n} Amount $`, get: (c) => { const l = ln(c); return l ? money(l.amount as number) : ''; } },
+      { label: `Line #${n} Status`, get: (c) => ln(c)?.status ?? '' },
+      { label: `Line #${n} Supplier`, get: (c) => tr(c)?.supplier ?? '' },
+      { label: `Line #${n} PO #`, get: (c) => tr(c)?.po_number ?? '' },
+      { label: `Line #${n} Installation Status`, get: (c) => tr(c)?.installation_status ?? '' },
+    );
+  }
+  return { name: `Quote Lines (up to ${maxCount})`, cols };
 }
 
 // Builds a procurement group for the fixed (non-area-upgrade) line keys.
@@ -338,28 +350,27 @@ const EMPTY_DOWNSTREAM: _DD = { payments: {}, ownership: {}, lineItems: {} };
 
 export function buildFlatExport(
   targets: BuyerSelection[],
-  pricing: ExportPricing,
+  linesBySubmission: Record<string, QuoteLine[]>,
+  gstRate: number,
   downstream: _DD = EMPTY_DOWNSTREAM,
 ): FlatExportResult {
-  // Pre-compute sections + totals so we can size the dynamic Area Upgrades group.
-  const computed = targets.map((s) => {
-    const sections = buildSubmissionSectionRows(s, pricing);
-    const totals = computeTotalsForSubmission(s, pricing);
-    return { s, sections, totals, downstream };
+  // Pre-compute sections + totals so we can size the dynamic groups.
+  const computed: RowCtx[] = targets.map((s) => {
+    const lines = linesBySubmission[s.id] ?? [];
+    const sections = buildSubmissionSectionRows(s, lines, gstRate);
+    const totals = totalsForLines(lines, gstRate);
+    return { s, sections, totals, lines, counted: lines.filter(countsInTotal), downstream };
   });
 
-  const maxAreaUpgrades = Math.max(
-    1,
-    ...computed.map((c) => (c.sections.area_upgrades || []).length),
-  );
+  const maxAreaUpgrades = Math.max(1, ...computed.map((c) => (c.sections.area_upgrades || []).length));
+  const maxLines = Math.max(1, ...computed.map((c) => c.counted.length));
 
-  // Insert Area Upgrades group right after Window Coverings, then fixed procurement at the end.
+  // Area Upgrades right after Window Coverings; quote lines after Pricing Totals; fixed procurement at the end.
   const groups: GroupDef[] = [];
   for (const g of STATIC_GROUPS) {
     groups.push(g);
-    if (g.name === 'Window Coverings') {
-      groups.push(buildAreaUpgradeGroup(maxAreaUpgrades));
-    }
+    if (g.name === 'Window Coverings') groups.push(buildAreaUpgradeGroup(maxAreaUpgrades));
+    if (g.name === 'Pricing Totals') groups.push(buildQuoteLineGroup(maxLines));
   }
   groups.push(buildFixedProcurementGroup());
 

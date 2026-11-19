@@ -4,6 +4,9 @@ import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { usePricingQueueCount } from '@/hooks/usePricingQueue';
+import { useRole } from '@/hooks/useRole';
+import { navItemsFor } from '@/lib/rolePermissions';
 import { 
   LayoutDashboard, 
   Home, 
@@ -28,29 +31,37 @@ interface AdminLayoutProps {
   children: React.ReactNode;
 }
 
-import { GitGraph } from 'lucide-react';
+import { GitGraph, FileSearch, Hourglass } from 'lucide-react';
 
-const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
-  { icon: GitGraph, label: 'Pipeline', path: '/admin/pipeline' },
-  { icon: Inbox, label: 'Submissions', path: '/admin/submissions' },
-  { icon: Home, label: 'All Homes', path: '/admin/homes' },
-  { icon: ClipboardList, label: 'Project Management', path: '/admin/project-management' },
-  { icon: BarChart3, label: 'Sales Analytics', path: '/admin/sales-analytics' },
-  { icon: FileText, label: 'Reports', path: '/admin/reports' },
-  { icon: Download, label: 'Export', path: '/admin/export' },
-  { icon: DollarSign, label: 'Pricing Control', path: '/admin/pricing' },
-  { icon: Users, label: 'User Management', path: '/admin/users' },
-  { icon: Mail, label: 'Email Preview', path: '/admin/email-preview' },
-  { icon: Receipt, label: 'QuickBooks', path: '/admin/settings/quickbooks' },
-  { icon: Bell, label: 'Notifications', path: '/admin/settings/notifications' },
-];
+const PRICING_QUEUE_PATH = '/admin/pricing-queue';
+
+// Which items a role sees lives in src/lib/rolePermissions.ts (staff: no Pricing Control, Users, QuickBooks, settings).
+const NAV_ICONS: Record<string, typeof Home> = {
+  '/admin/quotes': FileSearch,
+  [PRICING_QUEUE_PATH]: Hourglass,
+  '/admin': LayoutDashboard,
+  '/admin/pipeline': GitGraph,
+  '/admin/submissions': Inbox,
+  '/admin/homes': Home,
+  '/admin/project-management': ClipboardList,
+  '/admin/sales-analytics': BarChart3,
+  '/admin/reports': FileText,
+  '/admin/export': Download,
+  '/admin/pricing': DollarSign,
+  '/admin/users': Users,
+  '/admin/email-preview': Mail,
+  '/admin/settings/quickbooks': Receipt,
+  '/admin/settings/notifications': Bell,
+};
 
 export function AdminLayout({ children }: AdminLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const queueCount = usePricingQueueCount();
+  const { role } = useRole();
+  const navItems = navItemsFor(role).map((i) => ({ ...i, icon: NAV_ICONS[i.path] ?? Settings }));
 
   const handleSignOut = async () => {
     await signOut();
@@ -116,7 +127,15 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 >
                   <item.icon className="w-5 h-5" />
                   {item.label}
-                  {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
+                  {item.path === PRICING_QUEUE_PATH && !!queueCount && (
+                    <span
+                      className="ml-auto min-w-5 rounded-full bg-amber-500 px-1.5 text-center text-xs font-semibold leading-5 text-white"
+                      aria-label={`${queueCount} open pricing request${queueCount === 1 ? '' : 's'}`}
+                    >
+                      {queueCount}
+                    </span>
+                  )}
+                  {isActive && <ChevronRight className={cn('w-4 h-4', !(item.path === PRICING_QUEUE_PATH && queueCount) && 'ml-auto')} />}
                 </Link>
               );
             })}

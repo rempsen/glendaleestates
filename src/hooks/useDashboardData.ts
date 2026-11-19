@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { DateRange } from '@/components/dashboard/types';
 import { isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
-import type { Tables } from '@/integrations/supabase/types';
-import { useWindowSubtotal } from '@/hooks/useWindowSubtotal';
+import { useSubmissionLineTotals } from '@/hooks/useSubmissionLineTotals';
+import { lineTotalsGate } from '@/lib/lineTotalsGate';
 
 interface BuyerSelection {
   id: string;
@@ -47,7 +47,6 @@ interface PipelineRecord {
 const TOTAL_UNITS = 70;
 
 export function useDashboardData(dateRange: DateRange) {
-  const windowSubtotalOf = useWindowSubtotal();
   const [submissions, setSubmissions] = useState<BuyerSelection[]>([]);
   const [pipeline, setPipeline] = useState<PipelineRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,6 +98,10 @@ export function useDashboardData(dateRange: DateRange) {
     });
   }, [pipeline, dateRange]);
 
+  // Window coverings figures come from quote lines (sumQuoteLines over the window_coverings section).
+  const lineTotals = useSubmissionLineTotals(submissions);
+  const windowSubtotalOf = useCallback((s: BuyerSelection) => lineTotals.sectionTotalsOf(s.id, 'window_coverings').subtotal, [lineTotals]);
+
   // Calculate all stats
   const stats = useMemo(() => {
     // Submission stats
@@ -148,8 +151,8 @@ export function useDashboardData(dateRange: DateRange) {
     // Selection stats
     const selectionStats = {
       total: filteredSubmissions.length,
-      // pre-GST, engine-computed (the submit-time total column is stale)
-      windowRevenue: filteredSubmissions.reduce((sum, s) => sum + windowSubtotalOf(s as unknown as Tables<'buyer_selections'>), 0),
+      // pre-GST, from quote lines (the submit-time total column is stale)
+      windowRevenue: filteredSubmissions.reduce((sum, s) => sum + windowSubtotalOf(s), 0),
       hardwoodUpgrades: filteredSubmissions.filter(s => s.hardwood_upgrade_selected).length,
       tileUpgrades: filteredSubmissions.filter(s => s.bathroom_tile_selected).length,
       heatedFloors: filteredSubmissions.filter(s => (s.heated_floor_bathrooms || 0) > 0).length,
@@ -189,7 +192,7 @@ export function useDashboardData(dateRange: DateRange) {
       selectionStats,
       lvpColorData,
       carpetColorData,
-      recentSubmissions: filteredSubmissions.slice(0, 5).map(s => ({ ...s, window_subtotal: windowSubtotalOf(s as unknown as Tables<'buyer_selections'>) })),
+      recentSubmissions: filteredSubmissions.slice(0, 5).map(s => ({ ...s, window_subtotal: windowSubtotalOf(s) })),
     };
   }, [filteredSubmissions, filteredPipeline, windowSubtotalOf]);
 
@@ -202,6 +205,8 @@ export function useDashboardData(dateRange: DateRange) {
     allPipeline: pipeline,
     stats,
     loading,
+    /** Window revenue figures come from quote lines; the CSV export waits for them (never $0.00 while loading). */
+    totalsGate: lineTotalsGate(lineTotals),
     refreshing,
     refetch,
     totalUnits: TOTAL_UNITS,

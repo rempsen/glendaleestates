@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Sparkles, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { summaryErrorMessage } from '@/lib/aiSummaryError';
 
 // Staff-only AI summary of a buyer's upgrade requests and recent changes.
 export function UpgradeRequestSummary({ submissionId }: { submissionId: string }) {
@@ -13,9 +14,15 @@ export function UpgradeRequestSummary({ submissionId }: { submissionId: string }
   const run = async () => {
     setLoading(true);
     const { data, error } = await supabase.functions.invoke('summarize-upgrade-requests', { body: { submissionId } });
+    if (error || (data as { error?: string })?.error) {
+      // Non-2xx: supabase-js puts the Response on error.context; read its status and JSON body for the message.
+      const ctx = (error as { context?: Response } | null)?.context;
+      const body = ctx && typeof ctx.json === 'function' ? await ctx.clone().json().catch(() => null) : data;
+      setLoading(false);
+      toast.error('Could not summarize', { description: summaryErrorMessage(ctx?.status ?? null, body) });
+      return;
+    }
     setLoading(false);
-    const msg = (data as { error?: string })?.error;
-    if (error || msg) { toast.error('Could not summarize', { description: msg || 'Please try again.' }); return; }
     setSummary((data as { summary: string }).summary);
     setAt((data as { generatedAt: string }).generatedAt);
   };

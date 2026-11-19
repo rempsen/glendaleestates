@@ -1,4 +1,5 @@
-// Parity baseline for the Phase 1 pricing cleanup.
+// Parity pins (lines only since Phase 2 Task 18): the nine live submissions' pre-GST subtotals, from
+// sumQuoteLines(generateQuoteLines(input)). They are the Phase 1 engine values and must not move by a cent.
 // Motorization backfill check (spec section 8, item 8), recorded 2026-11-18: comparing window_total against
 // ((additional x 673.50) + (patio x 2,680.50)) x 1.05 implied motorization only for Unit 24 (already backfilled).
 // Units 2, 4 and 38 carry window_total values from older price lists (3,172.37 / 3,172.37 / 2,984.94) and get no
@@ -6,49 +7,30 @@
 import { test, expect } from 'bun:test';
 import liveSubmissions from './fixtures/live-submissions.json';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
-import { loadFixturePricing, type PricingSnapshot } from './lib/fixturePricing';
-import { computeUpgradeTotals } from '../src/lib/upgradeTotals';
-import { totalsInputFromSelections } from '../src/lib/buyerPdfGenerator';
-import { toBuyerPdfSelections } from '../src/lib/buyerPdfSelections';
-import { normalizeUnitTypeCode } from '../src/lib/upgradeCostData';
+import type { PricingSnapshot } from './lib/fixturePricing';
+import { generatedTotalsForRow, pricingFromRows, type SubmissionRow } from './lib/generateInputFromRow';
+import { PINNED_SUBTOTALS } from './lib/parityPins';
 
-// Pre-GST grandSubtotal per unit, captured from the client engine at HEAD.
-const EXPECTED_SUBTOTALS: Record<string, number> = {
-  '2': 2460,
-  '4': 14334,
-  '7': 3296.7, // 2026-11-18: +451.20 premium underpad (flag was never priced); reported to Dan by the controller, no override written
-  '24': 10388.4,
-  '27': 0,
-  // Engine subtotal 27,263.00 vs. the staff note of 2026-11-16 "$27,204.50 plus GST" (gap $58.50, origin unknown).
-  // Pinned at the engine value on 2026-11-18; to be investigated in Phase 2 parity work.
-  '31': 27263,
-  '37': 10488.5,
-  '38': 2680.5,
-  '43': 23865,
-};
-
-const pricing = loadFixturePricing(pricingSnapshot as unknown as PricingSnapshot);
-const rows = liveSubmissions as unknown as Parameters<typeof toBuyerPdfSelections>[0][];
-
-function totalsFor(row: (typeof rows)[number]) {
-  const unitCode = row.unit_type ? normalizeUnitTypeCode(row.unit_type) : null;
-  return computeUpgradeTotals(totalsInputFromSelections(toBuyerPdfSelections(row), unitCode), pricing);
-}
+const pricing = pricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
+const rows = liveSubmissions as unknown as SubmissionRow[];
 
 test('fixture holds all nine live submissions', () => {
   expect(rows.length).toBe(9);
+  expect(Object.keys(PINNED_SUBTOTALS).sort()).toEqual(rows.map((r) => String(r.unit_number)).sort());
 });
 
-test('pre-GST subtotal matches the pinned value for every live submission', () => {
+test('pre-GST subtotal (sum of counted lines) matches the pinned value to the cent for every live submission', () => {
   for (const row of rows) {
-    expect(EXPECTED_SUBTOTALS[row.unit_number]).toBeDefined();
-    expect(totalsFor(row).grandSubtotal).toBeCloseTo(EXPECTED_SUBTOTALS[row.unit_number], 2);
+    const { totals } = generatedTotalsForRow(row, pricing);
+    expect(totals.subtotal.toFixed(2)).toBe(PINNED_SUBTOTALS[String(row.unit_number)].toFixed(2));
   }
 });
 
-test('grandTotal is grandSubtotal plus 5% GST for every live submission', () => {
+test('total is subtotal plus GST at the configured rate for every live submission', () => {
+  expect(pricing.gstRate).toBe(0.05);
   for (const row of rows) {
-    const t = totalsFor(row);
-    expect(t.grandTotal).toBeCloseTo(t.grandSubtotal * 1.05, 2);
+    const { totals } = generatedTotalsForRow(row, pricing);
+    expect(totals.total).toBeCloseTo(totals.subtotal + totals.gst, 6);
+    expect(totals.gst).toBeCloseTo(totals.subtotal * 0.05, 6);
   }
 });

@@ -1,5 +1,5 @@
 // Deno tests: `deno test supabase/functions/_shared/`. No-op under bun (mirror: scripts/internal-auth.test.ts).
-import { authorizeInternalOrAdmin, isSelf } from './internalAuth.ts';
+import { authorizeInternalOrAdmin, authorizeStaffOrAdmin, isSelf } from './internalAuth.ts';
 
 const denoTest = (globalThis as { Deno?: { test: (n: string, f: () => Promise<void> | void) => void } }).Deno?.test;
 const eq = (a: unknown, e: unknown) => { if (JSON.stringify(a) !== JSON.stringify(e)) throw new Error(`expected ${JSON.stringify(e)}, got ${JSON.stringify(a)}`); };
@@ -23,4 +23,16 @@ if (denoTest) {
     eq(isSelf('Buyer@Example.com', ' buyer@example.com '), true);
     eq(isSelf('Buyer@Example.com', 'x@y.co'), false);
   });
+  // Phase 2 Task 16: authorizeStaffOrAdmin.
+  const getUser2 = (jwt: string) => Promise.resolve(
+    jwt === 'admin-jwt' ? { email: 'dan@bmdmaterials.com', isAdmin: true, isStaff: true }
+    : jwt === 'staff-jwt' ? { email: 'noni@bmdmaterials.com', isStaff: true }
+    : jwt === 'buyer-jwt' ? { email: 'buyer@example.com' } : null);
+  const bearer = (t: string) => req({ Authorization: `Bearer ${t}` });
+  denoTest('staffOrAdmin: admin ok', async () => eq(await authorizeStaffOrAdmin(bearer('admin-jwt'), env, getUser2), { ok: true, kind: 'admin', email: 'dan@bmdmaterials.com' }));
+  denoTest('staffOrAdmin: staff ok', async () => eq(await authorizeStaffOrAdmin(bearer('staff-jwt'), env, getUser2), { ok: true, kind: 'staff', email: 'noni@bmdmaterials.com' }));
+  denoTest('staffOrAdmin: client 403', async () => eq(await authorizeStaffOrAdmin(bearer('buyer-jwt'), env, getUser2), { ok: false, status: 403 }));
+  denoTest('staffOrAdmin: no JWT 401', async () => eq(await authorizeStaffOrAdmin(req({}), env, getUser2), { ok: false, status: 401 }));
+  denoTest('staffOrAdmin: anon 401', async () => eq(await authorizeStaffOrAdmin(bearer('anon'), env, getUser2), { ok: false, status: 401 }));
+  denoTest('internalOrAdmin: staff still 401', async () => eq(await authorizeInternalOrAdmin(bearer('staff-jwt'), env, getUser2), { ok: false, status: 401 }));
 }

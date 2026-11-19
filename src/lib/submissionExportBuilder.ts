@@ -3,33 +3,18 @@
 // Produces section-organized row data for a buyer_selections record.
 // Used by AdminExport for both XLSX (one sheet per section) and
 // CSV ZIP (one CSV per section) outputs.
-// All money values use computeUpgradeTotals so they match the rest of
-// the app/pdf/email exactly.
+// Phase 2 Task 11 (spec §6.11): every money value comes from the
+// submission's quote lines — one `quote_lines` row per counted line, and
+// totals from sumQuoteLines — so the export matches the PDF, Word, emails
+// and the RunningTotal rail. No per-column price recomputation.
 // =====================================================================
 
 import { format } from 'date-fns';
-import { computeUpgradeTotals, UpgradeTotalsPricing } from '@/lib/upgradeTotals';
-import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
+import { countsInTotal, sumQuoteLines, type QuoteLine } from '@/lib/quoteLines';
+import { AREA_DEFINITIONS, UPGRADE_MATERIALS } from '@/lib/upgradeCostData';
 import type { Tables } from '@/integrations/supabase/types';
 
 export type BuyerSelection = Tables<'buyer_selections'>;
-
-export interface ExportPricing {
-  markupPercentage: number;
-  gstRate: number;
-  patioDoorPrice: number;
-  additionalWindowPrice: number;
-  automatedMotorPrice: number;
-  heatedFloorPrice: number;
-  backsplashGroutPrice: number;
-  stairLvpUpgradePrice: number;
-  stairPremiumLvpUpgradePrice?: number;
-  stairCarpetUpgradePrice: number;
-  stairUnderpadUpgradePrice?: number;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  getMaterialCost: (m: any) => number;
-  getUnitAreaData: (code: string) => Record<string, number | undefined> | null;
-}
 
 export interface SectionDef {
   id: string;
@@ -76,7 +61,6 @@ export const EXPORT_SECTIONS: SectionDef[] = [
       'bathroom_tile_selected', 'bathroom_tile_ensuite_selected', 'bathroom_tile_guest_selected',
       'spc_tile_colour', 'spc_tile_comments',
       'heated_floor_bathrooms', 'custom_tiled_shower',
-      'bathroom_tile_charge', 'heated_floor_charge', 'custom_shower_charge',
     ],
   },
   {
@@ -87,7 +71,6 @@ export const EXPORT_SECTIONS: SectionDef[] = [
     columns: [
       'submission_id', 'unit_number', 'backsplash_orientation',
       'backsplash_grout_enabled', 'backsplash_grout_color', 'backsplash_grout_comments',
-      'backsplash_grout_charge',
     ],
   },
   {
@@ -99,7 +82,6 @@ export const EXPORT_SECTIONS: SectionDef[] = [
       'submission_id', 'unit_number', 'has_stairs',
       'stair_upgrade_type', 'stair_lvp_upgrade_selected',
       'stair_carpet_colour', 'premium_underpad_stairs',
-      'stair_lvp_charge', 'stair_carpet_charge',
     ],
   },
   {
@@ -121,8 +103,7 @@ export const EXPORT_SECTIONS: SectionDef[] = [
     filename: '08-window-coverings.csv',
     columns: [
       'submission_id', 'unit_number',
-      'additional_windows_qty', 'patio_doors_qty',
-      'additional_window_charge', 'patio_door_charge', 'window_automation_charge',
+      'additional_windows_qty', 'patio_doors_qty', 'automated_windows_qty',
       'window_subtotal', 'window_comments',
     ],
   },
@@ -136,7 +117,7 @@ export const EXPORT_SECTIONS: SectionDef[] = [
       'submission_id', 'unit_number', 'first_name', 'last_name',
       'area_id', 'area_name', 'material_type', 'material_name',
       'product_name', 'product_color', 'client_comment', 'comments',
-      'heated_floor', 'amount', 'heated_floor_amount',
+      'heated_floor',
     ],
   },
   {
@@ -174,6 +155,18 @@ export const EXPORT_SECTIONS: SectionDef[] = [
       'all_line_items',
     ],
   },
+  {
+    id: 'quote_lines',
+    number: 14,
+    name: '14 Quote Lines (priced)',
+    filename: '14-quote-lines.csv',
+    // long form: one row per line counted in the total (pending / deferred lines are not priced)
+    columns: [
+      'submission_id', 'unit_number', 'first_name', 'last_name',
+      'quote_line_id', 'section', 'location', 'label', 'product', 'quantity', 'unit', 'unit_price', 'amount', 'status',
+      'client_note',
+    ],
+  },
 ];
 
 // ---------- helpers ----------
@@ -181,65 +174,19 @@ const fmtDate = (v: string | null | undefined) =>
   v ? format(new Date(v), 'yyyy-MM-dd HH:mm') : '';
 
 const fmtMoney = (n: number) => Math.round(n * 100) / 100;
+const AREA_NAME = new Map(AREA_DEFINITIONS.map((a) => [a.id as string, a.name]));
+const MATERIAL_NAME = new Map(UPGRADE_MATERIALS.map((m) => [m.id as string, m.name]));
 
-function buildPricingAdapter(p: ExportPricing): UpgradeTotalsPricing {
-  return {
-    markupPercentage: p.markupPercentage,
-    gstRate: p.gstRate,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    getMaterialCost: (m: any) => p.getMaterialCost(m),
-    getGroutColorFee: () => p.backsplashGroutPrice,
-    getAdditionalWindowPrice: () => p.additionalWindowPrice,
-    getPatioDoorPrice: () => p.patioDoorPrice,
-    getAutomatedMotorPrice: () => p.automatedMotorPrice,
-    getHeatedFloorPrice: () => p.heatedFloorPrice,
-    getStairLvpUpgradePrice: () => p.stairLvpUpgradePrice,
-    getStairPremiumLvpUpgradePrice: () => (p as any).stairPremiumLvpUpgradePrice || 0,
-    getStairCarpetUpgradePrice: () => p.stairCarpetUpgradePrice,
-    getStairUnderpadUpgradePrice: () => (p as any).stairUnderpadUpgradePrice || 0,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    getUnitAreaData: (code: string) => p.getUnitAreaData(code) as any,
-  };
+/** Totals for a submission's lines: sumQuoteLines, nothing else. */
+export function totalsForLines(lines: QuoteLine[], gstRate: number) {
+  return sumQuoteLines(lines.filter((l) => l.status !== 'removed'), gstRate);
 }
 
-export function computeTotalsForSubmission(s: BuyerSelection, pricing: ExportPricing) {
-  return computeUpgradeTotals(
-    {
-      unitTypeCode: s.unit_type ? normalizeUnitTypeCode(s.unit_type) : null,
-      upgradeFloorSelection: (s.upgrade_floor_selection as '1' | '2' | null) || null,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      areaUpgrades: ((s.area_upgrades || []) as any[]),
-      backsplashGrout: s.backsplash_grout_enabled
-        ? {
-            enabled: true,
-            groutColor: s.backsplash_grout_color || '',
-            comments: s.backsplash_grout_comments || '',
-          }
-        : null,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      stairLvpUpgradeSelected: !!(s as any).stair_lvp_upgrade_selected,
-      stairUpgradeType: (s as any).stair_upgrade_type || null,
-      stairPremiumCarpetSelected: !!(s as any).stair_premium_carpet_selected,
-      stairPremiumUnderpadSelected: !!(s as any).premium_underpad_stairs,
-      additionalWindowsQty: s.additional_windows_qty || 0,
-      patioDoorsQty: s.patio_doors_qty || 0,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      automatedWindowsQty: (s as any).automated_windows_qty || 0,
-      bathroomTileSelected: !!s.bathroom_tile_selected,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      bathroomTileEnsuiteSelected: (s as any).bathroom_tile_ensuite_selected ?? undefined,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      bathroomTileGuestSelected: (s as any).bathroom_tile_guest_selected ?? undefined,
-      heatedFloorBathrooms: s.heated_floor_bathrooms || 0,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      customTiledShower: !!(s as any).custom_tiled_shower,
-      customPricing: (s as any).custom_pricing,
-      bedroomFlooringChoice: ((s as any).bedroom_flooring_choice === 'carpet' ? 'carpet' : (s as any).bedroom_flooring_choice === 'lvp' ? 'lvp' : ''),
-      bedroomPremiumCarpetSelected: !!(s as any).premium_carpet_bedroom,
-      bedroomPremiumUnderpadSelected: !!(s as any).premium_underpad_bedroom,
-    },
-    buildPricingAdapter(pricing),
-  );
+/** "Location — Label: $x" for every counted line (the all_line_items cell). */
+export function lineItemsText(lines: QuoteLine[]): string {
+  return lines.filter(countsInTotal)
+    .map((l) => `${[l.location, l.label].filter(Boolean).join(' — ')}${l.product_name ? ` (${l.product_name})` : ''}: $${fmtMoney(l.amount as number).toFixed(2)}`)
+    .join(' | ');
 }
 
 // Returns rows per section. Each entry is an array of plain objects keyed by the
@@ -248,9 +195,10 @@ export function computeTotalsForSubmission(s: BuyerSelection, pricing: ExportPri
 // rows per submission).
 export function buildSubmissionSectionRows(
   s: BuyerSelection,
-  pricing: ExportPricing,
+  lines: QuoteLine[],
+  gstRate: number,
 ): Record<string, Record<string, unknown>[]> {
-  const totals = computeTotalsForSubmission(s, pricing);
+  const totals = totalsForLines(lines, gstRate);
   const id = s.id;
   const unit = s.unit_number;
   const first = s.first_name;
@@ -304,9 +252,6 @@ export function buildSubmissionSectionRows(
     heated_floor_bathrooms: s.heated_floor_bathrooms ?? 0,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     custom_tiled_shower: !!(s as any).custom_tiled_shower,
-    bathroom_tile_charge: fmtMoney(totals.pieces.bathroomTile),
-    heated_floor_charge: fmtMoney(totals.pieces.section4HeatedFloor),
-    custom_shower_charge: fmtMoney(totals.pieces.customShower),
   }];
 
   out.backsplash = [{
@@ -316,7 +261,6 @@ export function buildSubmissionSectionRows(
     backsplash_grout_enabled: !!s.backsplash_grout_enabled,
     backsplash_grout_color: s.backsplash_grout_color ?? '',
     backsplash_grout_comments: s.backsplash_grout_comments ?? '',
-    backsplash_grout_charge: fmtMoney(totals.pieces.grout),
   }];
 
   out.stairs = [{
@@ -327,8 +271,6 @@ export function buildSubmissionSectionRows(
     stair_lvp_upgrade_selected: !!s.stair_lvp_upgrade_selected,
     stair_carpet_colour: s.stair_carpet_colour ?? '',
     premium_underpad_stairs: !!s.premium_underpad_stairs,
-    stair_lvp_charge: fmtMoney(totals.pieces.stairLvp),
-    stair_carpet_charge: fmtMoney(totals.pieces.stairCarpet),
   }];
 
   out.bedroom_flooring = [{
@@ -347,44 +289,30 @@ export function buildSubmissionSectionRows(
     unit_number: unit,
     additional_windows_qty: s.additional_windows_qty ?? 0,
     patio_doors_qty: s.patio_doors_qty ?? 0,
-    additional_window_charge: fmtMoney(totals.pieces.windowAdditional),
-    patio_door_charge: fmtMoney(totals.pieces.windowPatio),
-    window_automation_charge: fmtMoney(totals.pieces.windowAutomation),
-    window_subtotal: fmtMoney(totals.windowSubtotal),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    automated_windows_qty: (s as any).automated_windows_qty ?? 0,
+    window_subtotal: fmtMoney(totals.windowCoverings),
     window_comments: s.window_comments ?? '',
   }];
 
-  // Long form: area upgrades
-  out.area_upgrades = (totals.pieces.flooringUpgrades || []).map((u) => ({
+  // Long form: area upgrades — the buyer's selections (prices are on the quote_lines rows)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawAreaUpgrades = Array.isArray(s.area_upgrades) ? (s.area_upgrades as any[]) : [];
+  out.area_upgrades = rawAreaUpgrades.filter(Boolean).map((u) => ({
     submission_id: id,
     unit_number: unit,
     first_name: first,
     last_name: last,
-    area_id: u.areaId,
-    area_name: u.areaName,
-    material_type: '',
-    material_name: u.materialName,
+    area_id: u.areaId ?? '',
+    area_name: AREA_NAME.get(u.areaId) ?? u.areaLabel ?? u.areaId ?? '',
+    material_type: u.materialType ?? '',
+    material_name: MATERIAL_NAME.get(u.materialType) ?? u.materialType ?? '',
     product_name: u.productName ?? '',
     product_color: u.productColor ?? '',
-    client_comment: '',
-    comments: '',
-    heated_floor: u.heatedFloorAmount > 0,
-    amount: fmtMoney(u.amount),
-    heated_floor_amount: fmtMoney(u.heatedFloorAmount),
+    client_comment: u.clientComment ?? '',
+    comments: u.comments ?? '', // internal
+    heated_floor: !!u.heatedFloor,
   }));
-
-  // Pull comments + material_type from the raw selection (computeUpgradeTotals
-  // strips them) and merge by index.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rawAreaUpgrades = Array.isArray(s.area_upgrades) ? (s.area_upgrades as any[]) : [];
-  out.area_upgrades.forEach((row, i) => {
-    const raw = rawAreaUpgrades[i];
-    if (raw) {
-      row.material_type = raw.materialType ?? row.material_type;
-      row.client_comment = raw.clientComment ?? '';
-      row.comments = raw.comments ?? ''; // internal
-    }
-  });
 
   out.hardwood = [{
     submission_id: id,
@@ -438,15 +366,32 @@ export function buildSubmissionSectionRows(
     spc_tile_comments: s.spc_tile_comments ?? '',
     backsplash_grout_comments: s.backsplash_grout_comments ?? '',
     admin_notes: s.admin_notes ?? '',
-    window_subtotal: fmtMoney(totals.windowSubtotal),
-    upgrades_subtotal: fmtMoney(totals.upgradesSubtotal),
-    grand_subtotal: fmtMoney(totals.grandSubtotal),
+    window_subtotal: fmtMoney(totals.windowCoverings),
+    upgrades_subtotal: fmtMoney(totals.upgrades),
+    grand_subtotal: fmtMoney(totals.subtotal),
     gst: fmtMoney(totals.gst),
-    grand_total: fmtMoney(totals.grandTotal),
-    all_line_items: totals.lineItems
-      .map((li) => `${li.label}${li.detail ? ` (${li.detail})` : ''}: $${fmtMoney(li.amount).toFixed(2)}`)
-      .join(' | '),
+    grand_total: fmtMoney(totals.total),
+    all_line_items: lineItemsText(lines),
   }];
+
+  // Long form: one row per counted quote line (location / label / qty / unit price / amount)
+  out.quote_lines = lines.filter(countsInTotal).map((l) => ({
+    submission_id: id,
+    unit_number: unit,
+    first_name: first,
+    last_name: last,
+    quote_line_id: l.id ?? '',
+    section: l.section,
+    location: l.location,
+    label: l.label,
+    product: [l.product_name, l.product_colour].filter(Boolean).join(' — '),
+    quantity: l.quantity ?? '',
+    unit: l.unit,
+    unit_price: l.unit_price == null ? '' : fmtMoney(l.unit_price),
+    amount: fmtMoney(l.amount as number),
+    status: l.status,
+    client_note: l.client_note ?? '',
+  }));
 
   return out;
 }

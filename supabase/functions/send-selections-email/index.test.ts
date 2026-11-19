@@ -10,10 +10,10 @@ function eq(actual: unknown, expected: unknown) {
 }
 
 if (denoTest) {
-  const getUser = async (jwt: string) =>
+  const getUser = (jwt: string) => Promise.resolve(
     jwt === 'buyer-jwt' ? { email: 'Buyer@Example.com' }
     : jwt === 'admin-jwt' ? { email: 'dan@bmdmaterials.com', isAdmin: true }
-    : null;
+    : null);
 
   denoTest('no header -> 401', async () => eq(await authorizeSubmission(null, 'buyer@example.com', getUser), { ok: false, status: 401 }));
   denoTest('anon key -> 401', async () => eq(await authorizeSubmission('Bearer anon', 'buyer@example.com', getUser), { ok: false, status: 401 }));

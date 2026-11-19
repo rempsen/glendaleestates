@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { gstOn, markedUp, withGst } from '@/lib/quoteLines';
 import { AdminLayout } from '@/components/AdminLayout';
 import { useUpgradePricing } from '@/hooks/useUpgradePricing';
 import { CustomFlatRateManager } from '@/components/admin/CustomFlatRateManager';
@@ -126,12 +127,9 @@ export default function AdminPricingControl() {
   const calculateCustomerPrice = (baseCost: number, materialKey: string) => {
     if (NO_MARKUP_MATERIALS.has(materialKey)) {
       // Grout color is charged at a flat rate with no markup
-      const gst = baseCost * getGstRate();
-      return baseCost + gst;
+      return withGst(baseCost, getGstRate());
     }
-    const markedUp = baseCost * (1 + getMarkupPercentage());
-    const gst = markedUp * getGstRate();
-    return markedUp + gst;
+    return withGst(markedUp(baseCost, getMarkupPercentage()), getGstRate());
   };
 
   if (loading) {
@@ -256,7 +254,7 @@ export default function AdminPricingControl() {
               {(() => {
                 const config = pricingConfig.find(c => c.config_key === 'additional_window_price');
                 if (!config) return null;
-                const withGst = config.config_value * (1 + getGstRate());
+                const inclGst = withGst(config.config_value, getGstRate());
                 const isActive = (config as any).is_active !== false;
                 return (
                   <div className={`space-y-3 p-4 border rounded-lg transition-opacity ${!isActive ? 'opacity-50 bg-muted/50' : ''}`}>
@@ -290,7 +288,7 @@ export default function AdminPricingControl() {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Per additional window • Client sees: <span className="font-medium text-primary">${withGst.toFixed(2)}</span> incl. GST
+                      Per additional window • Client sees: <span className="font-medium text-primary">${inclGst.toFixed(2)}</span> incl. GST
                     </p>
                   </div>
                 );
@@ -300,7 +298,7 @@ export default function AdminPricingControl() {
               {(() => {
                 const config = pricingConfig.find(c => c.config_key === 'patio_door_price');
                 if (!config) return null;
-                const withGst = config.config_value * (1 + getGstRate());
+                const inclGst = withGst(config.config_value, getGstRate());
                 const isActive = (config as any).is_active !== false;
                 return (
                   <div className={`space-y-3 p-4 border rounded-lg transition-opacity ${!isActive ? 'opacity-50 bg-muted/50' : ''}`}>
@@ -334,7 +332,7 @@ export default function AdminPricingControl() {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Per patio door • Client sees: <span className="font-medium text-primary">${withGst.toFixed(2)}</span> incl. GST
+                      Per patio door • Client sees: <span className="font-medium text-primary">${inclGst.toFixed(2)}</span> incl. GST
                     </p>
                   </div>
                 );
@@ -344,7 +342,7 @@ export default function AdminPricingControl() {
               {(() => {
                 const config = pricingConfig.find(c => c.config_key === 'automated_motor_price');
                 if (!config) return null;
-                const withGst = config.config_value * (1 + getGstRate());
+                const inclGst = withGst(config.config_value, getGstRate());
                 const isActive = (config as any).is_active !== false;
                 return (
                   <div className={`space-y-3 p-4 border rounded-lg transition-opacity ${!isActive ? 'opacity-50 bg-muted/50' : ''}`}>
@@ -378,7 +376,7 @@ export default function AdminPricingControl() {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Per window (motor + hub + install) • Client sees: <span className="font-medium text-primary">${withGst.toFixed(2)}</span> incl. GST
+                      Per window (motor + hub + install) • Client sees: <span className="font-medium text-primary">${inclGst.toFixed(2)}</span> incl. GST
                     </p>
                   </div>
                 );
@@ -388,7 +386,7 @@ export default function AdminPricingControl() {
               {(() => {
                 const config = pricingConfig.find(c => c.config_key === 'heated_floor_per_bathroom');
                 if (!config) return null;
-                const withGst = config.config_value * (1 + getGstRate());
+                const inclGst = withGst(config.config_value, getGstRate());
                 const isActive = (config as any).is_active !== false;
                 return (
                   <div className={`space-y-3 p-4 border rounded-lg transition-opacity ${!isActive ? 'opacity-50 bg-muted/50' : ''}`}>
@@ -422,7 +420,7 @@ export default function AdminPricingControl() {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Per bathroom • Client sees: <span className="font-medium text-primary">${withGst.toFixed(2)}</span> incl. GST
+                      Per bathroom • Client sees: <span className="font-medium text-primary">${inclGst.toFixed(2)}</span> incl. GST
                     </p>
                   </div>
                 );
@@ -432,7 +430,7 @@ export default function AdminPricingControl() {
               {(() => {
                 const config = pricingConfig.find(c => c.config_key === 'grout_color_change_price');
                 if (!config) return null;
-                const withGst = config.config_value * (1 + getGstRate());
+                const inclGst = withGst(config.config_value, getGstRate());
                 const isActive = (config as any).is_active !== false;
                 return (
                   <div className={`space-y-3 p-4 border rounded-lg transition-opacity ${!isActive ? 'opacity-50 bg-muted/50' : ''}`}>
@@ -466,7 +464,7 @@ export default function AdminPricingControl() {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Flat fee (no markup) • Client sees: <span className="font-medium text-primary">${withGst.toFixed(2)}</span> incl. GST
+                      Flat fee (no markup) • Client sees: <span className="font-medium text-primary">${inclGst.toFixed(2)}</span> incl. GST
                     </p>
                   </div>
                 );
@@ -476,7 +474,7 @@ export default function AdminPricingControl() {
               {(() => {
                 const config = pricingConfig.find(c => c.config_key === 'premium_carpet_stairs_price');
                 if (!config) return null;
-                const withGst = config.config_value * (1 + getGstRate());
+                const inclGst = withGst(config.config_value, getGstRate());
                 const isActive = (config as any).is_active !== false;
                 return (
                   <div className={`space-y-3 p-4 border rounded-lg transition-opacity ${!isActive ? 'opacity-50 bg-muted/50' : ''}`}>
@@ -510,7 +508,7 @@ export default function AdminPricingControl() {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Flat fee for stair carpet upgrade • Client sees: <span className="font-medium text-primary">${withGst.toFixed(2)}</span> incl. GST
+                      Flat fee for stair carpet upgrade • Client sees: <span className="font-medium text-primary">${inclGst.toFixed(2)}</span> incl. GST
                     </p>
                   </div>
                 );
@@ -520,7 +518,7 @@ export default function AdminPricingControl() {
               {(() => {
                 const config = pricingConfig.find(c => c.config_key === 'stair_lvp_upgrade_price');
                 if (!config) return null;
-                const withGst = config.config_value * (1 + getGstRate());
+                const inclGst = withGst(config.config_value, getGstRate());
                 const isActive = (config as any).is_active !== false;
                 return (
                   <div className={`space-y-3 p-4 border rounded-lg transition-opacity ${!isActive ? 'opacity-50 bg-muted/50' : ''}`}>
@@ -554,7 +552,7 @@ export default function AdminPricingControl() {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      LVP with custom flush nosings • Client sees: <span className="font-medium text-primary">${withGst.toFixed(2)}</span> incl. GST
+                      LVP with custom flush nosings • Client sees: <span className="font-medium text-primary">${inclGst.toFixed(2)}</span> incl. GST
                     </p>
                   </div>
                 );
@@ -564,7 +562,7 @@ export default function AdminPricingControl() {
               {(() => {
                 const config = pricingConfig.find(c => c.config_key === 'stair_premium_lvp_upgrade_price');
                 if (!config) return null;
-                const withGst = config.config_value * (1 + getGstRate());
+                const inclGst = withGst(config.config_value, getGstRate());
                 const isActive = (config as any).is_active !== false;
                 return (
                   <div className={`space-y-3 p-4 border rounded-lg transition-opacity ${!isActive ? 'opacity-50 bg-muted/50' : ''}`}>
@@ -598,7 +596,7 @@ export default function AdminPricingControl() {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Premium LVP with custom flush nosings • Client sees: <span className="font-medium text-primary">${withGst.toFixed(2)}</span> incl. GST
+                      Premium LVP with custom flush nosings • Client sees: <span className="font-medium text-primary">${inclGst.toFixed(2)}</span> incl. GST
                     </p>
                   </div>
                 );
@@ -608,7 +606,7 @@ export default function AdminPricingControl() {
               {(() => {
                 const config = pricingConfig.find(c => c.config_key === 'premium_underpad_stairs_price');
                 if (!config) return null;
-                const withGst = config.config_value * (1 + getGstRate());
+                const inclGst = withGst(config.config_value, getGstRate());
                 const isActive = (config as any).is_active !== false;
                 return (
                   <div className={`space-y-3 p-4 border rounded-lg transition-opacity ${!isActive ? 'opacity-50 bg-muted/50' : ''}`}>
@@ -642,7 +640,7 @@ export default function AdminPricingControl() {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Flat fee for stair underpad upgrade • Client sees: <span className="font-medium text-primary">${withGst.toFixed(2)}</span> incl. GST
+                      Flat fee for stair underpad upgrade • Client sees: <span className="font-medium text-primary">${inclGst.toFixed(2)}</span> incl. GST
                     </p>
                   </div>
                 );
@@ -1129,9 +1127,9 @@ export default function AdminPricingControl() {
               {materials.filter(m => m.is_active).slice(0, 6).map((material) => {
                 const exampleArea = material.unit_type === 'sqyd' ? 25 : 200;
                 const baseCost = material.unit_type === 'flat' ? material.cost_per_unit : material.cost_per_unit * exampleArea;
-                const markedUp = material.unit_type === 'flat' ? baseCost : baseCost * (1 + getMarkupPercentage());
-                const gst = markedUp * getGstRate();
-                const total = markedUp + gst;
+                const customerPrice = material.unit_type === 'flat' ? baseCost : markedUp(baseCost, getMarkupPercentage());
+                const gst = gstOn(customerPrice, getGstRate());
+                const total = withGst(customerPrice, getGstRate());
                 
                 return (
                   <div key={material.id} className="p-4 border rounded-lg bg-muted/30">
@@ -1150,7 +1148,7 @@ export default function AdminPricingControl() {
                       {material.unit_type !== 'flat' && (
                         <div className="flex justify-between text-muted-foreground">
                           <span>+ Markup ({getMarkupPercentage() * 100}%):</span>
-                          <span>${(markedUp - baseCost).toFixed(2)}</span>
+                          <span>${(customerPrice - baseCost).toFixed(2)}</span>
                         </div>
                       )}
                       <div className="flex justify-between text-muted-foreground">

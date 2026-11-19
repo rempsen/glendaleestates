@@ -32,7 +32,7 @@ export default function AdminDashboard() {
     deleteLayout,
   } = useDashboardLayout();
 
-  const { stats, loading, refreshing, refetch, submissions, pipeline, totalUnits } = useDashboardData(dateRange);
+  const { stats, loading, totalsGate, refreshing, refetch, submissions, pipeline, totalUnits } = useDashboardData(dateRange);
 
   // Track container width for responsive grid
   useEffect(() => {
@@ -76,6 +76,9 @@ export default function AdminDashboard() {
   return (
     <AdminLayout>
       <div className="space-y-6">
+        {totalsGate.state === 'error' && (
+          <p role="alert" className="text-sm text-destructive">{totalsGate.message}</p>
+        )}
         {/* Header */}
         <div className="flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -95,8 +98,10 @@ export default function AdminDashboard() {
               <Button 
                 variant="outline" 
                 size="icon" 
-                title="Export Report"
+                title={totalsGate.message ?? 'Export Report'}
+                disabled={!totalsGate.ready}
                 onClick={() => {
+                  if (!totalsGate.ready) { toast.error('Totals are not ready', { description: totalsGate.message ?? undefined }); return; }
                   // Export dashboard data as CSV
                   const csvData = [
                     ['Metric', 'Value'],
