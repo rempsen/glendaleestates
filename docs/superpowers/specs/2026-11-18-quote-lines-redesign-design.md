@@ -318,7 +318,8 @@ Acceptance status (2026-11-18):
 - Unit 24 scripted walkthrough (Mike's 12 corrections): pending (controller, after deploy).
 - Word/PDF six columns + status: done (T10).
 - Pending line → Teams within 1 minute / email fallback: code done (T12); needs the Teams URL and the Database Webhook in prod.
-- No code path computes a price outside line generation: enforced by `scripts/callers.test.ts` (T18).
+- Price arithmetic is confined to `_shared/quoteLines.ts` (`markedUp`/`withGst`), enforced by `scripts/callers.test.ts` (T18); option hints and legacy `area_upgrades[].manualPrice` writes remain as Phase 3 items.
+- Ledger (Phase 3): (1) wizard / Pricing Control option hints still compute an option's price in parallel to the generator (through the primitives) — derive each from generated lines as the bedroom premium hint does; (2) the legacy editor still writes `area_upgrades[].manualPrice`, a price on a selection field the generator honours — move it to console lines.
 - Noni: any unit from `/admin/quotes` in two clicks; running total moves before save; wizard shows the total from the first priced step: done (T7, T8, T9); walkthrough with Noni pending.
 - Deploy: `docs/deploy/phase2-runbook.md`.
 

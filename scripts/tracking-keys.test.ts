@@ -29,6 +29,14 @@ test('a generated (not yet stored) line is read-only', () => {
   expect(trackingKeyFor(cl, undefined, {})).toEqual({ key: cl.quote_line_id, editable: false });
 });
 
+test('a generated line with a legacy tracking row shows that row, read-only (prod before the backfill)', () => {
+  const lines = [line({})];
+  const canonical = buildPmCanonicalLines(lines);
+  const legacy = legacyKeysForLines(lines, canonical);
+  expect(legacy.get(canonical[0].quote_line_id)).toBe('bathroom_tile');
+  expect(trackingKeyFor(canonical[0], legacy.get(canonical[0].quote_line_id), { bathroom_tile: {} })).toEqual({ key: 'bathroom_tile', editable: false });
+});
+
 test('legacy keys resolve end to end for stored lines', () => {
   const lines = [line({ id: 'q-9' })];
   const canonical = buildPmCanonicalLines(lines);

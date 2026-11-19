@@ -150,6 +150,12 @@ PM hub, Pipeline and Sales Analytics stay admin-only (their tables are admin-onl
 
 ## 9. Backfill `quote_lines` (`--write`)
 
+**Timing.** Until a submission has stored lines its PM tracking is read-only (the console shows generated lines; the
+tracking panel shows any pre-cutover tracking rows by their legacy key but cannot save new ones). Prod has 0 stored
+lines today, so run the backfill `--write` for the **eight clean units** with `--unit` (2, 4, 7, 27, 31, 37, 38, 43)
+**immediately after the migrations and the publish**, one unit per run, against the signed-off dry run. Leave Unit 24
+until Dan decides the double count (step 1).
+
 Prerequisites: 0006–0011 applied (done); Dan has signed off the dry run per unit and Unit 7's +$451.20.
 
 1. **Decide Unit 24 first.** The live row has `additional_windows_qty = 2` *and* the two itemized office shades
@@ -195,7 +201,8 @@ Prerequisites: 0006–0011 applied (done); Dan has signed off the dry run per un
   tell Dan the itemized shades moved from Upgrades to Window coverings.
 - **Office pricing moved.** The editor no longer has the Office Pricing & Custom Line Items panel; overrides,
   custom lines, window locations, Client preview and the staff Word copy are in the quote console.
-  `custom_pricing` is read-only; its follow-ups still print but are not editable anywhere yet.
+  `custom_pricing` is read-only for pricing; follow-ups and basement notes are edited in the console's Notes panels
+  (the only `custom_pricing` writer, `src/lib/followUps.ts`, audited as `followups_update`).
 - Pending line → Teams within 1 minute (flag a test line in the console); daily digest (run the workflow by hand:
   Actions → Pricing digest → Run workflow) shows open requests and "Buyer responses since yesterday".
 - `bun test`, `deno test supabase/functions/` green on `main` after the merge.

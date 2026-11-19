@@ -6,7 +6,7 @@ import { lineAmount } from '@/lib/lineAmount';
 import { needsReason, validateStatusChange } from '@/lib/statusChange';
 
 type Line = Pick<QuoteLine, 'status' | 'quantity' | 'unit_price' | 'amount' | 'pricing_mode' | 'client_note'>;
-export type EditPatch = Partial<Pick<QuoteLine, 'status' | 'quantity' | 'unit_price' | 'amount' | 'pricing_mode' | 'client_note'>>;
+export type EditPatch = Partial<Pick<QuoteLine, 'status' | 'quantity' | 'unit_price' | 'amount' | 'pricing_mode' | 'client_note' | 'provisional'>>;
 export type EditResult = { ok: true; patch: EditPatch } | { ok: false; reason: string };
 
 /**
@@ -55,4 +55,12 @@ export function clientNoteEdit(line: Line, draft: string): EditResult {
     return { ok: false, reason: 'This line is under review or deferred — the buyer needs the reason. Change the status first.' };
   }
   return { ok: true, patch: { client_note: note } };
+}
+
+/**
+ * Provisional toggle (e.g. "LVP colour provisional"): staff clear it once the buyer has chosen. Only the flag
+ * changes; status and amount are untouched.
+ */
+export function provisionalEdit(line: Pick<QuoteLine, 'provisional'>, provisional: boolean): EditResult {
+  return { ok: true, patch: line.provisional === provisional ? {} : { provisional } };
 }

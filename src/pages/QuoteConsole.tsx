@@ -27,6 +27,7 @@ import { SectionGroup } from '@/components/quote/SectionGroup';
 import { isSaveKey, lineAnchor, sectionAnchor } from '@/components/quote/consoleCells';
 import { AddLineMenu } from '@/components/quote/AddLineMenu';
 import { NotesPanels } from '@/components/quote/NotesPanels';
+import { FOLLOWUPS_CONFLICT_MESSAGE, saveNotes, type NotesPatch } from '@/lib/followUps';
 import { DocumentsPanel } from '@/components/quote/DocumentsPanel';
 import { RunningTotal } from '@/components/quote/RunningTotal';
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
@@ -37,7 +38,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 type Row = SubmissionEditState & {
   id: string; unit_number: string; first_name: string; last_name: string; unit_type: string | null;
-  estimated_possession_date?: string | null; status?: string | null; custom_pricing?: unknown;
+  estimated_possession_date?: string | null; status?: string | null; custom_pricing?: unknown; updated_at?: string;
 };
 
 interface ReasonPrompt { line: StoredLine; to: LineStatus; note: string; error: string | null }
@@ -98,6 +99,21 @@ export default function QuoteConsole() {
     [dyn, unitCode],
   );
   const followUps = useMemo(() => parseCustomPricing(row?.custom_pricing).followUps ?? [], [row?.custom_pricing]);
+  const basementNotes = useMemo(() => parseCustomPricing(row?.custom_pricing).basementNotes ?? '', [row?.custom_pricing]);
+  const [notesSaving, setNotesSaving] = useState(false);
+  // Follow-ups / basement notes: the only custom_pricing writer (src/lib/followUps.ts), conditional on updated_at.
+  const onSaveNotes = useCallback(async (patch: NotesPatch) => {
+    if (!row) return;
+    setNotesSaving(true);
+    try {
+      const r = await saveNotes(supabase as never, row.id, row.updated_at, patch);
+      if (r.ok === true) setRow((prev) => (prev ? { ...prev, custom_pricing: r.custom_pricing, updated_at: r.updated_at } as Row : prev));
+      else if (r.conflict === true) { toast.warning(FOLLOWUPS_CONFLICT_MESSAGE); await loadRow(); }
+      else toast.error('Could not save notes', { description: r.error });
+    } finally {
+      setNotesSaving(false);
+    }
+  }, [row, loadRow]);
 
   const bySection = useMemo(() => {
     const m = new Map<Section, StoredLine[]>(SECTION_ORDER.map((s) => [s, []]));
@@ -274,7 +290,7 @@ export default function QuoteConsole() {
               />
             ))}
 
-            <NotesPanels lines={q.lines} followUps={followUps} />
+            <NotesPanels lines={q.lines} followUps={followUps} basementNotes={basementNotes} onSaveNotes={(p) => { void onSaveNotes(p); }} saving={notesSaving} />
 
             <DocumentsPanel
               submission={row ? { id: row.id, unit_number: row.unit_number, email: row.email ?? null } : null}

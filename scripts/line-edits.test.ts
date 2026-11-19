@@ -1,7 +1,7 @@
 // Task 8 fix round 1: pending lines carry no amount; under review / deferred keep their client reason.
 import { test, expect, describe } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { applyStatusChange, priceEditPatch, clientNoteEdit } from '../src/lib/lineEdits';
+import { applyStatusChange, priceEditPatch, clientNoteEdit, provisionalEdit } from '../src/lib/lineEdits';
 
 const line = (over: Record<string, unknown> = {}) => ({
   status: 'upgrade' as const, quantity: 2, unit_price: 100, amount: 200, pricing_mode: 'catalog' as const, client_note: null, ...over,
@@ -84,5 +84,18 @@ describe('clientNoteEdit', () => {
   test('edits allowed otherwise; blank clears', () => {
     expect(clientNoteEdit(line({ status: 'under_review' }), ' new reason ')).toEqual({ ok: true, patch: { client_note: 'new reason' } });
     expect(clientNoteEdit(line(), '')).toEqual({ ok: true, patch: { client_note: null } });
+  });
+});
+
+describe('provisional toggle (Task 18 fix round 1)', () => {
+  test('clearing a provisional line patches only the flag; a no-op toggle patches nothing', () => {
+    expect(provisionalEdit({ provisional: true }, false)).toEqual({ ok: true, patch: { provisional: false } });
+    expect(provisionalEdit({ provisional: false }, true)).toEqual({ ok: true, patch: { provisional: true } });
+    expect(provisionalEdit({ provisional: false }, false)).toEqual({ ok: true, patch: {} });
+  });
+  test('LineRow exposes the toggle through provisionalEdit', () => {
+    const src = readFileSync(new URL('../src/components/quote/LineRow.tsx', import.meta.url), 'utf8');
+    expect(src).toContain('aria-label="Provisional"');
+    expect(src).toContain('provisionalEdit(line, c === true)');
   });
 });

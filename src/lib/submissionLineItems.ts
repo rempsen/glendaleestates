@@ -107,13 +107,16 @@ export const isGeneratedLineKey = (key: string): boolean => key.startsWith('gene
  * Which `submission_line_items.line_key` the tracking panel reads and writes for a canonical line: an existing row
  * under the quote_line_id (new rows), else an existing row under the line's legacy key (saved before the cutover;
  * kept so it is updated, not duplicated), else the quote_line_id. Lines not yet stored (`generated:` ids) are
- * read-only: tracking must hang off a stored line, so staff save the quote first.
+ * read-only (tracking must hang off a stored line, so staff save the quote first) but still show a legacy row.
  */
 export function trackingKeyFor(
   cl: Pick<PmCanonicalLine, 'quote_line_id'>, legacyKey: string | undefined, existing: ReadonlySet<string> | Record<string, unknown>,
 ): { key: string; editable: boolean } {
   const has = (k: string) => (existing instanceof Set ? existing.has(k) : Object.prototype.hasOwnProperty.call(existing, k));
-  if (isGeneratedLineKey(cl.quote_line_id)) return { key: cl.quote_line_id, editable: false };
+  // Not stored yet (before the backfill): tracking saved before the cutover still shows, read-only, by legacy key.
+  if (isGeneratedLineKey(cl.quote_line_id)) {
+    return { key: legacyKey && has(legacyKey) ? legacyKey : cl.quote_line_id, editable: false };
+  }
   if (has(cl.quote_line_id)) return { key: cl.quote_line_id, editable: true };
   if (legacyKey && has(legacyKey)) return { key: legacyKey, editable: true };
   return { key: cl.quote_line_id, editable: true };

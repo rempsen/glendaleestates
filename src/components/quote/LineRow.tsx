@@ -6,7 +6,7 @@ import { ArrowDown, ArrowUp, MoreVertical, NotebookPen, Trash2 } from 'lucide-re
 import type { LineStatus, LineUnit } from '@/lib/quoteLines';
 import type { LinePatch, StoredLine } from '@/lib/quoteLinesReducer';
 import type { PresetPerson } from '@/lib/addLinePresets';
-import { priceEditPatch, clientNoteEdit, type EditResult } from '@/lib/lineEdits';
+import { priceEditPatch, clientNoteEdit, provisionalEdit, type EditResult } from '@/lib/lineEdits';
 import { toast } from 'sonner';
 import { formatMoney, PENDING_TEXT } from '@/components/quote/runningTotalModel';
 import { StatusSelect } from '@/components/quote/StatusSelect';
@@ -199,6 +199,15 @@ export function LineRow({ line, people, onPatch, onStatusChange, onRemove, onMov
             aria-label="Visible to buyer"
           />
           Visible
+        </label>
+        <label className="flex h-9 items-center gap-1.5 text-xs text-muted-foreground" title="Provisional — clear once the buyer has chosen">
+          <Checkbox
+            data-console-cell
+            checked={!!line.provisional}
+            onCheckedChange={(c) => { const r = provisionalEdit(line, c === true); if (r.ok === true && Object.keys(r.patch).length) onPatch(r.patch); }}
+            aria-label="Provisional"
+          />
+          Provisional
         </label>
         <Select
           value={line.flagged_to ?? NO_ONE}

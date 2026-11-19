@@ -163,18 +163,26 @@ describe('nothing reads the stale window_total column', () => {
   });
 });
 
-// custom_pricing stays on buyer_selections, READ-ONLY for audit. Office edits live in the console (quote_lines).
-describe('custom_pricing has no writers', () => {
-  test('no update/upsert/insert payload sets custom_pricing', () => {
+// custom_pricing stays on buyer_selections, READ-ONLY for pricing. The one writer is src/lib/followUps.ts, which
+// read-modify-writes only `followUps` and `basementNotes` (scripts/follow-ups.test.ts proves every other key survives).
+const CUSTOM_PRICING_WRITERS = new Set(['src/lib/followUps.ts']);
+describe('custom_pricing has one writer (follow-ups / basement notes)', () => {
+  // A `custom_pricing:` key in code (not a type annotation, a comment, or React state set from a saved result).
+  const writes = (line: string) =>
+    !/^\s*(\/\/|\/\*|\*)/.test(line) && !/\bset[A-Z]\w*\(/.test(line)
+    && /\bcustom_pricing\s*:/.test(line) && !/\bcustom_pricing\s*:\s*(?:unknown|Json|any|CustomPricing|string|null\s*\|)/.test(line);
+  test('no update/upsert/insert payload sets custom_pricing outside the allowlisted writer', () => {
     const bad: string[] = [];
     for (const f of sources) {
-      if (/\.test\.tsx?$/.test(f.rel) || f.rel.endsWith('integrations/supabase/types.ts')) continue;
-      f.text.split('\n').forEach((line, i) => {
-        if (/\bcustom_pricing\s*:/.test(line) && !/\bcustom_pricing\s*:\s*(?:unknown|Json|any|CustomPricing|string|null\s*\|)/.test(line)) {
-          bad.push(`${f.rel}:${i + 1} ${line.trim()}`);
-        }
-      });
+      if (/\.test\.tsx?$/.test(f.rel) || f.rel.endsWith('integrations/supabase/types.ts') || CUSTOM_PRICING_WRITERS.has(f.rel)) continue;
+      f.text.split('\n').forEach((line, i) => { if (writes(line)) bad.push(`${f.rel}:${i + 1} ${line.trim()}`); });
     }
     expect(bad).toEqual([]);
+  });
+  test('the allowlisted writer exists and writes custom_pricing only through applyNotesPatch', () => {
+    const t = sources.find((f) => f.rel === 'src/lib/followUps.ts')!.text;
+    expect(t.split('\n').filter(writes)).toContain('    .update({ custom_pricing: next })');
+    expect(t.match(/\.update\(/g)).toHaveLength(1);
+    expect(t).toContain('const next = applyNotesPatch(before, patch);');
   });
 });
