@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { splitSqlStatements, stripLeadingComments } from './lib/parseSql';
 import { CHANGE_REQUEST_MAX, REVIEW_COMMENT_MAX } from '../src/lib/myQuoteModel';
 import { DEFAULT_ASSIGNEE_KEY } from '../supabase/functions/_shared/pricingQueue';
+import { ITEMISED_SOURCES } from '../supabase/functions/_shared/savedSubmissionLines';
 
 const root = join(import.meta.dir, '..');
 const migDir = join(root, 'drizzle/migrations');
@@ -77,8 +78,9 @@ describe('migration 0012 buyer change request', () => {
     expect(req).toContain('RETURNING id INTO _id');
   });
 
-  test('request_quote_change refuses an un-itemised quote (no stored line other than buyer requests), before the insert', () => {
-    const guard = "IF NOT EXISTS (SELECT 1 FROM public.quote_lines ql WHERE ql.submission_id = _submission AND ql.source <> 'buyer_request') THEN "
+  test('request_quote_change refuses an un-itemised quote (no wizard / migration line, as isItemised), before the insert', () => {
+    expect([...ITEMISED_SOURCES].sort()).toEqual(['migration', 'wizard']);
+    const guard = "IF NOT EXISTS (SELECT 1 FROM public.quote_lines ql WHERE ql.submission_id = _submission AND ql.source IN ('wizard', 'migration')) THEN "
       + "RAISE EXCEPTION 'This quote has not been itemised yet; please contact the office' USING ERRCODE = 'P0002'; END IF;";
     expect(req).toContain(guard);
     expect(req.indexOf(guard)).toBeGreaterThan(req.indexOf("RAISE EXCEPTION 'No quote found for this sign-in'"));

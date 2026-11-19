@@ -32,11 +32,11 @@ Applied by hand through the Lovable DB connection, each in one transaction, foll
 | 0009 | `0009_staff_directory.sql` | 1795500000000 | `098595cb0a6c1402e910085e5092d39cebae879eb42db158875cf4f21e8606c4` | APPLIED |
 | 0010 | `0010_counted_lines_visible.sql` | 1795600000000 | `ac2d43fbd29a993074eddd345e39e04f60529cb793a2d44f611054661653d8e6` | APPLIED |
 | 0011 | `0011_portal_settings_notifications.sql` | 1795700000000 | `bf923f6cc545e33f23df83dfc1ec71e0f7595fb9e55952a787e5469b96b7fd35` | APPLIED |
-| 0012 | `0012_buyer_change_request.sql` | 1795800000000 | `7c80f5525bf9e2037a77793c47f6f09a99ab23160f682347f789b393ebf50b8e` | **PENDING — needs Dan's explicit approval; MERGE PRECONDITION** |
+| 0012 | `0012_buyer_change_request.sql` | 1795800000000 | `45d8df1158f264e187e5310b348d95ffdd14b2c2e63830a28072ea59012390e6` | **PENDING — needs Dan's explicit approval; MERGE PRECONDITION** |
 | 0013 | `0013_esign_settings.sql` | 1795900000000 | `d2d2a5830e9c5011097eddf5a8edf277b80b25d3a0ef8f4eb896adaf3440d72c` | PENDING |
 | 0014 | `0014_staff_audit_log.sql` | 1796000000000 | `35bbd849a2c51d3ea5963dc30078a5b79bd589a72195620a4a40a768196fa221` | PENDING |
 | 0015 | `0015_ai_settings.sql` | 1796100000000 | `b8772b49e6b2197d73c237d4fd4d215d4a8066c4bf8c4f8ae049775e294e1ff2` | PENDING |
-| 0016 | `0016_phase2_hardening.sql` | 1796200000000 | `7766f563692e72e0e507a87beb2315a34f5e4c3ea6786e70b2232aa33343e925` | PENDING |
+| 0016 | `0016_phase2_hardening.sql` | 1796200000000 | `3054aba371ad8dbe70616af6d3f867e2b4838c5bec9b064f619875ec240aedf6` | PENDING |
 
 Recompute before inserting: `sha256sum drizzle/migrations/00{12,13,14,15,16}_*.sql`.
 
@@ -50,8 +50,8 @@ Notes:
 - **0012 creates SECURITY DEFINER functions** (`get_my_quote_header()`, `request_quote_change(text)`) and replaces
   the `pricing_queue` view. It was refused by the automation classifier and needs Dan's explicit "yes, apply 0012".
   Without it `/my-quote` cannot load its header and buyer change requests fail. `request_quote_change` refuses
-  (`P0002`, "This quote has not been itemised yet; please contact the office") a submission with no stored line
-  other than buyer requests (itemise-first, section 9).
+  (`P0002`, "This quote has not been itemised yet; please contact the office") a submission with no stored
+  `wizard` / `migration` line (itemise-first, section 9; the same rule as `isItemised`).
 - 0013 adds e-sign `portal_settings` keys (`ON CONFLICT DO NOTHING`). Before the first send, verify
   `documents.provider` has no column default (the send claim uses `provider IS NULL`).
 - 0014 adds two staff policies on `submission_audit_logs` (SELECT; INSERT of own rows, never
@@ -62,7 +62,11 @@ Notes:
   e-sign webhook writes as the service role); `quote_line_reviews` are staff SELECT only; `is_staff` /
   `buyer_can_see_line` EXECUTE is revoked from PUBLIC/anon (granted to authenticated); trigger
   `quote_lines_set_updated_by` stamps `updated_by = auth.uid()` on every update (feeds `request_quote_change`'s
-  rep lookup). Apply 0016 before the frontend publish: the console now voids a failed draft (no DELETE) and uploads
+  rep lookup); partial unique index `quote_lines_one_migration_set` (`submission_id` WHERE `source = 'migration'
+  AND sort_order = 1`) so a concurrent second "Itemise this quote" fails as a whole (the console reloads). Before
+  applying, check no submission already holds two migration lines at sort_order 1:
+  `select submission_id from quote_lines where source = 'migration' and sort_order = 1 group by 1 having count(*) > 1;`
+  (expect 0 rows). Apply 0016 before the frontend publish: the console now voids a failed draft (no DELETE) and uploads
   with `upsert: false`, which 0016's policies require.
 - Verify after each: `select hash, created_at from drizzle.__drizzle_migrations order by created_at desc limit 5;`
 
@@ -188,7 +192,8 @@ PM hub, Pipeline and Sales Analytics stay admin-only (their tables are admin-onl
 renderer (PDF, Word, emails, HubSpot, QBO, exports) shows its generated quote plus any stored office / buyer-request
 lines appended (`linesSource: 'mixed'`, never a smaller total), and the console shows an **"Itemise this quote"**
 banner: its button inserts the generated lines as `source = 'migration'` (the backfill's mapping, through the
-console's audited autosave). Add line, status edits, Send for signature and Documents stay disabled until then;
+console, in one audited insert with sort_order 1..N; it re-checks for an existing set first and a concurrent duplicate
+is rejected by 0016's index, so two staff can never double a quote). Add line, status edits, Send for signature and Documents stay disabled until then;
 buyers' "Request a change" is refused for an un-itemised quote. The backfill reports a submission holding only
 office / buyer-request lines as `FAIL: partial-lines` (exit 1) and never writes it — itemise it from the console.
 

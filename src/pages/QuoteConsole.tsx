@@ -30,7 +30,7 @@ import { NotesPanels } from '@/components/quote/NotesPanels';
 import { FOLLOWUPS_CONFLICT_MESSAGE, saveNotes, type NotesPatch } from '@/lib/followUps';
 import { DocumentsPanel } from '@/components/quote/DocumentsPanel';
 import { ItemiseBanner } from '@/components/quote/ItemiseBanner';
-import { consoleItemiseState, fetchItemiseInputs, ITEMISE_LOCKED_REASON } from '@/lib/itemiseQuote';
+import { ALREADY_ITEMISED_TEXT, consoleItemiseState, itemiseSubmission, ITEMISE_LOCKED_REASON } from '@/lib/itemiseQuote';
 import { RunningTotal } from '@/components/quote/RunningTotal';
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
 import { Button } from '@/components/ui/button';
@@ -193,12 +193,13 @@ export default function QuoteConsole() {
     if (!id) return;
     setItemising(true);
     try {
-      const inputs = await fetchItemiseInputs(supabase, id);
-      if (!inputs.length) { toast.error('Nothing to itemise for this unit'); return; }
-      // One createLine per generated line: each is audited and autosaved like any console insert.
-      for (const input of inputs) q.createLine(input);
+      // Flush first so no local edit is pending when the stored set is reloaded.
       await q.flush();
-      toast.success(`Itemised: ${inputs.length} lines`);
+      const r = await itemiseSubmission(supabase, id);
+      if (r.status === 'empty') { toast.error('Nothing to itemise for this unit'); return; }
+      if (r.status === 'already') toast.info(ALREADY_ITEMISED_TEXT);
+      else toast.success(`Itemised: ${r.count} lines`);
+      await q.refresh();
     } catch (e) {
       toast.error('Could not itemise this quote', { description: e instanceof Error ? e.message : String(e) });
     } finally {

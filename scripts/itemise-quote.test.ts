@@ -12,7 +12,8 @@ import { buildGenerateInputFromRow, pricingFromRows, type SubmissionRow } from '
 import { generateQuoteLines, sumQuoteLines, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
 import { savedSubmissionLines } from '../src/lib/generateInputFromSelections';
 import {
-  consoleItemiseState, fetchItemiseInputs, itemiseLineInputs, ITEMISE_BANNER_TITLE, ITEMISE_LOCKED_REASON,
+  consoleItemiseState, fetchItemiseInputs, itemiseLineInputs, itemiseSubmission, ITEMISE_BANNER_TITLE, ITEMISE_LOCKED_REASON,
+  ALREADY_ITEMISED_TEXT,
 } from '../src/lib/itemiseQuote';
 import { ItemiseBanner } from '../src/components/quote/ItemiseBanner';
 import { PINNED_SUBTOTALS } from './lib/parityPins';
@@ -53,6 +54,7 @@ describe('itemising inserts the generated quote (source migration); totals uncha
       const generated = generateQuoteLines(buildGenerateInputFromRow(row, pricing));
       const inputs = itemiseLineInputs(row, pricing);
       expect(inputs.length).toBe(generated.length);
+      expect(inputs.map((i) => i.sort_order)).toEqual(inputs.map((_, k) => k + 1)); // deterministic 1..N (sentinel = 1)
       for (const i of inputs) {
         expect(i.source).toBe('migration');
         expect('id' in i).toBe(false);
@@ -108,6 +110,65 @@ test('console wiring: banner on needsItemising; Add line, status edits and Docum
   expect(src).toContain('const addDisabled = itemise.locked;');
   expect(src).toContain("if (itemise.locked) { toast.error(ITEMISE_LOCKED_REASON); return; }");
   expect(src).toContain('lockedReason={itemise.locked ? ITEMISE_LOCKED_REASON : null}');
-  expect(src).toContain('for (const input of inputs) q.createLine(input);');
+  expect(src).toContain('const r = await itemiseSubmission(supabase, id);');
+  expect(src).toContain("if (r.status === 'already') toast.info(ALREADY_ITEMISED_TEXT);");
+  expect(src).toContain('await q.refresh();');
+  expect(ALREADY_ITEMISED_TEXT).toBe('Already itemised — reloading');
   expect(ITEMISE_LOCKED_REASON).toBe('Itemise this quote first');
+});
+
+describe('itemise race: client re-check and the 23505 sentinel collision', () => {
+  const row = rows[0];
+  const snap = pricingSnapshot as unknown as PricingSnapshot;
+  function fakeDb(opts: { existing?: number; insertError?: { code: string; message: string } } = {}) {
+    const inserts: Array<Array<Record<string, unknown>>> = [];
+    const tables: Record<string, unknown> = {
+      buyer_selections: row, pricing_config: snap.pricing_config, upgrade_materials: snap.upgrade_materials, unit_area_data: snap.unit_area_data,
+      quote_lines: Array.from({ length: opts.existing ?? 0 }, (_, i) => ({ id: `e${i}` })),
+    };
+    const client = {
+      from: (t: string) => {
+        const res = () => Promise.resolve({ data: tables[t], error: null });
+        const q: Record<string, unknown> = {};
+        Object.assign(q, {
+          select: () => q, eq: () => q, in: () => q, limit: () => q, single: res,
+          insert: (r: Array<Record<string, unknown>>) => { inserts.push(r); return Promise.resolve({ data: null, error: opts.insertError ?? null }); },
+          then: (a: (v: unknown) => unknown, b: (e: unknown) => unknown) => res().then(a, b),
+        });
+        return q;
+      },
+    };
+    return { client, inserts };
+  }
+
+  test('no stored set: ONE insert of the whole set, sort_order 1..N, source migration, no forbidden keys', async () => {
+    const db = fakeDb();
+    const r = await itemiseSubmission(db.client, row.id);
+    expect(r.status).toBe('itemised');
+    expect(db.inserts).toHaveLength(1);
+    const batch = db.inserts[0];
+    expect(batch.map((l) => l.sort_order)).toEqual(batch.map((_, k) => k + 1));
+    for (const l of batch) {
+      expect(l.source).toBe('migration');
+      expect(l.submission_id).toBe(row.id);
+      for (const k of ['id', 'updated_at', 'counts_in_total', 'updated_by']) expect(k in l).toBe(false);
+    }
+    if (r.status === 'itemised') expect(r.count).toBe(batch.length);
+  });
+
+  test('another tab already itemised (a wizard / migration line exists): nothing inserted, "already"', async () => {
+    const db = fakeDb({ existing: 1 });
+    expect(await itemiseSubmission(db.client, row.id)).toEqual({ status: 'already' });
+    expect(db.inserts).toHaveLength(0);
+  });
+
+  test('concurrent second set hits quote_lines_one_migration_set (23505): "already", not an error', async () => {
+    const db = fakeDb({ insertError: { code: '23505', message: 'duplicate key value violates unique constraint "quote_lines_one_migration_set"' } });
+    expect(await itemiseSubmission(db.client, row.id)).toEqual({ status: 'already' });
+  });
+
+  test('any other insert error is thrown (toast in the console)', async () => {
+    const db = fakeDb({ insertError: { code: '23514', message: 'quote_lines_counted_visible' } });
+    await expect(itemiseSubmission(db.client, row.id)).rejects.toMatchObject({ code: '23514' });
+  });
 });

@@ -5,6 +5,7 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { splitSqlStatements, stripLeadingComments } from './lib/parseSql';
 import { FORBIDDEN_WRITE_KEYS } from '../src/lib/quoteLinesReducer';
+import { ITEMISE_SENTINEL_SORT_ORDER } from '../src/lib/itemiseQuote';
 
 const root = join(import.meta.dir, '..');
 const migDir = join(root, 'drizzle/migrations');
@@ -46,6 +47,8 @@ describe('migration 0016 phase 2 hardening', () => {
         + 'BEGIN NEW.updated_by := coalesce(auth.uid(), NEW.updated_by); RETURN NEW; END; $$',
       'DROP TRIGGER IF EXISTS quote_lines_set_updated_by ON public.quote_lines',
       'CREATE TRIGGER quote_lines_set_updated_by BEFORE UPDATE ON public.quote_lines FOR EACH ROW EXECUTE FUNCTION public.quote_lines_set_updated_by()',
+      'CREATE UNIQUE INDEX IF NOT EXISTS quote_lines_one_migration_set ON public.quote_lines (submission_id) '
+        + "WHERE source = 'migration' AND sort_order = 1",
     ]);
   });
 
@@ -74,6 +77,11 @@ describe('migration 0016 phase 2 hardening', () => {
       expect(stmts.slice(0, i)).toContain(drop);
     });
     expect(all).not.toMatch(/CREATE TABLE|ALTER TABLE|DELETE FROM|TRUNCATE|UPDATE public\./i);
+  });
+
+  test('one migration set per submission: sentinel index on sort_order = 1 matches the itemise insert', () => {
+    expect(all).toContain("ON public.quote_lines (submission_id) WHERE source = 'migration' AND sort_order = 1");
+    expect(ITEMISE_SENTINEL_SORT_ORDER).toBe(1);
   });
 
   test('updated_by stays client-forbidden (the trigger owns it)', () => {

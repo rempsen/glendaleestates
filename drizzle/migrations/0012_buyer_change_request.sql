@@ -60,10 +60,10 @@ BEGIN
     RAISE EXCEPTION 'No quote found for this sign-in' USING ERRCODE = 'P0002';
   END IF;
 
-  -- Itemise-first (final fix wave C1): a request on a submission whose quote has not been itemised (no stored line
-  -- other than buyer requests) would become its only stored line and hide the generated quote on every surface.
+  -- Itemise-first (final fix wave C1): the submission must hold a generator-written line (wizard / migration, the
+  -- same rule as isItemised in _shared/savedSubmissionLines.ts); office / buyer-request lines alone do not count.
   IF NOT EXISTS (SELECT 1 FROM public.quote_lines ql
-                 WHERE ql.submission_id = _submission AND ql.source <> 'buyer_request') THEN
+                 WHERE ql.submission_id = _submission AND ql.source IN ('wizard', 'migration')) THEN
     RAISE EXCEPTION 'This quote has not been itemised yet; please contact the office' USING ERRCODE = 'P0002';
   END IF;
 

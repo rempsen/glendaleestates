@@ -77,7 +77,9 @@
 - Itemise-first: a submission is itemised when it has a stored `wizard` / `migration` line (`isItemised` in
   `_shared/savedSubmissionLines.ts`). Otherwise renderers use the generated lines plus any stored office /
   buyer-request lines appended (`linesSource: 'mixed'`; never a smaller total than the generated quote); the console
-  shows "Itemise this quote" (`src/lib/itemiseQuote.ts`, `ItemiseBanner.tsx`) and locks Add line, status edits,
+  shows "Itemise this quote" (`src/lib/itemiseQuote.ts`, `ItemiseBanner.tsx`: re-check, then one insert with
+  sort_order 1..N; 0016's `quote_lines_one_migration_set` index on the sort_order-1 sentinel makes a concurrent
+  second set fail with 23505 → "Already itemised — reloading"; never write sort_order 1 elsewhere) and locks Add line, status edits,
   Send for signature and Documents; `request_quote_change` (0012) refuses with `P0002`; the backfill reports
   `FAIL: partial-lines`. Code that branches on `linesSource` treats `mixed` like `generated` (`!== 'db'`).
 - 0016: staff `documents` are SELECT / INSERT / UPDATE-while-unsigned (may void), no DELETE; `unit-documents`

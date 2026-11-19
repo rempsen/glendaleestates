@@ -63,3 +63,10 @@ DROP TRIGGER IF EXISTS quote_lines_set_updated_by ON public.quote_lines;
 
 CREATE TRIGGER quote_lines_set_updated_by BEFORE UPDATE ON public.quote_lines
 FOR EACH ROW EXECUTE FUNCTION public.quote_lines_set_updated_by();
+
+-- 6. One itemised (source = 'migration') set per submission. The console's "Itemise this quote" inserts the whole set
+--    in one statement with sort_order 1..N; a concurrent second set (two staff, a stale tab) carries sort_order 1 too
+--    and fails as a whole with 23505 (the client reloads). Keyed on the sentinel row only (sort_order = 1): new lines
+--    and reorders use multiples of 10, so per-line reorder updates can never collide with this index.
+CREATE UNIQUE INDEX IF NOT EXISTS quote_lines_one_migration_set ON public.quote_lines (submission_id)
+  WHERE source = 'migration' AND sort_order = 1;
