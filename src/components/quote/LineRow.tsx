@@ -10,7 +10,7 @@ import { priceEditPatch, clientNoteEdit, type EditResult } from '@/lib/lineEdits
 import { toast } from 'sonner';
 import { formatMoney, PENDING_TEXT } from '@/components/quote/runningTotalModel';
 import { StatusSelect } from '@/components/quote/StatusSelect';
-import { UNIT_OPTIONS, focusNextCell, isSaveKey, parseNumber } from '@/components/quote/consoleCells';
+import { UNIT_OPTIONS, focusNextCell, isSaveKey, lineAnchor, parseNumber } from '@/components/quote/consoleCells';
 
 const NO_ONE = '__none';
 import { Button } from '@/components/ui/button';
@@ -133,8 +133,9 @@ export function LineRow({ line, people, onPatch, onStatusChange, onRemove, onMov
 
   return (
     <li
+      id={lineAnchor(line.id)}
       className={cn(
-        'rounded-md border border-border bg-background p-2 pl-3 border-l-4',
+        'scroll-mt-24 rounded-md border border-border bg-background p-2 pl-3 border-l-4 transition-shadow',
         line.status === 'upgrade' && 'border-l-primary',
         included && 'border-l-muted-foreground/30',
         (line.status === 'pending' || line.status === 'under_review') && 'border-l-amber-500',

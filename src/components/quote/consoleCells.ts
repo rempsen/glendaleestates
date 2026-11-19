@@ -24,3 +24,6 @@ export function parseNumber(raw: string): number | null | undefined {
 }
 
 export const sectionAnchor = (s: Section) => `section-${s}`;
+
+/** DOM id of a console line row; the pricing queue / Teams deep link is /admin/quotes/:id#line-:lineId. */
+export const lineAnchor = (lineId: string) => `line-${lineId}`;

@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import BuyerAuth from "./pages/BuyerAuth";
 import AdminQuotes from "./pages/AdminQuotes";
 import QuoteConsole from "./pages/QuoteConsole";
+import AdminPricingQueue from "./pages/AdminPricingQueue";
 import AdminSubmissions from "./pages/AdminSubmissions";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminHomes from "./pages/AdminHomes";
@@ -49,6 +50,7 @@ const App = () => (
           <Route path="/admin/pipeline" element={<ProtectedRoute><AdminPipeline /></ProtectedRoute>} />
           <Route path="/admin/quotes" element={<ProtectedRoute><AdminQuotes /></ProtectedRoute>} />
           <Route path="/admin/quotes/:id" element={<ProtectedRoute><QuoteConsole /></ProtectedRoute>} />
+          <Route path="/admin/pricing-queue" element={<ProtectedRoute><AdminPricingQueue /></ProtectedRoute>} />
           <Route path="/admin/submissions/:id/console" element={<ProtectedRoute><ConsoleRedirect /></ProtectedRoute>} />
           <Route path="/admin/submissions" element={<ProtectedRoute><AdminSubmissions /></ProtectedRoute>} />
           <Route path="/admin/homes" element={<ProtectedRoute><AdminHomes /></ProtectedRoute>} />

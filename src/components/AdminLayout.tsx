@@ -4,6 +4,7 @@ import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { usePricingQueueCount } from '@/hooks/usePricingQueue';
 import { 
   LayoutDashboard, 
   Home, 
@@ -28,10 +29,13 @@ interface AdminLayoutProps {
   children: React.ReactNode;
 }
 
-import { GitGraph, FileSearch } from 'lucide-react';
+import { GitGraph, FileSearch, Hourglass } from 'lucide-react';
+
+const PRICING_QUEUE_PATH = '/admin/pricing-queue';
 
 const navItems = [
   { icon: FileSearch, label: 'Quotes', path: '/admin/quotes' },
+  { icon: Hourglass, label: 'Pricing queue', path: PRICING_QUEUE_PATH },
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
   { icon: GitGraph, label: 'Pipeline', path: '/admin/pipeline' },
   { icon: Inbox, label: 'Submissions', path: '/admin/submissions' },
@@ -52,6 +56,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const queueCount = usePricingQueueCount();
 
   const handleSignOut = async () => {
     await signOut();
@@ -117,7 +122,15 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 >
                   <item.icon className="w-5 h-5" />
                   {item.label}
-                  {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
+                  {item.path === PRICING_QUEUE_PATH && !!queueCount && (
+                    <span
+                      className="ml-auto min-w-5 rounded-full bg-amber-500 px-1.5 text-center text-xs font-semibold leading-5 text-white"
+                      aria-label={`${queueCount} open pricing request${queueCount === 1 ? '' : 's'}`}
+                    >
+                      {queueCount}
+                    </span>
+                  )}
+                  {isActive && <ChevronRight className={cn('w-4 h-4', !(item.path === PRICING_QUEUE_PATH && queueCount) && 'ml-auto')} />}
                 </Link>
               );
             })}

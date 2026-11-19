@@ -1,8 +1,8 @@
 // Meeting console (Phase 2 Task 8, spec §6.10 + §6.16): the one screen where staff rework a buyer's quote with the
 // buyer beside them. Lines edit inline and autosave (useQuoteLines); RunningTotal is the only place totals render;
 // every preview / export / navigation goes through guardedAction (flush first, refuse while unsaved).
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminLayout } from '@/components/AdminLayout';
@@ -23,7 +23,7 @@ import type { SubmissionEditState } from '@/lib/submissionUpdatePayload';
 import { ConsoleHeader } from '@/components/quote/ConsoleHeader';
 import { runOutputAction, type OutputAction } from '@/lib/consoleActions';
 import { SectionGroup } from '@/components/quote/SectionGroup';
-import { isSaveKey, sectionAnchor } from '@/components/quote/consoleCells';
+import { isSaveKey, lineAnchor, sectionAnchor } from '@/components/quote/consoleCells';
 import { AddLineMenu } from '@/components/quote/AddLineMenu';
 import { NotesPanels } from '@/components/quote/NotesPanels';
 import { RunningTotal } from '@/components/quote/RunningTotal';
@@ -103,6 +103,21 @@ export default function QuoteConsole() {
   }, [q.lines]);
 
   // ⌘/Ctrl+S saves now. Cells commit their draft on the same keydown before this handler runs.
+  // Deep link #line-<id> (pricing queue, Teams card): scroll to the row once it has rendered and flash it.
+  const location = useLocation();
+  const scrolledTo = useRef<string | null>(null);
+  useEffect(() => {
+    const hash = decodeURIComponent(location.hash.replace(/^#/, ''));
+    if (!hash.startsWith(lineAnchor('')) || scrolledTo.current === hash) return;
+    const el = document.getElementById(hash);
+    if (!el) return;
+    scrolledTo.current = hash;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('ring-2', 'ring-amber-500');
+    // No cleanup: the effect re-runs on every line change and must not cancel the un-highlight.
+    window.setTimeout(() => el.classList.remove('ring-2', 'ring-amber-500'), 2500);
+  }, [location.hash, q.lines]);
+
   const { flush } = q;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
