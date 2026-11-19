@@ -72,9 +72,14 @@ interface SubmissionEditorProps {
   /** Called after every successful write (including save-in-place for previews) so the parent row stays current. */
   onSaved?: (updatedSubmission: BuyerSelection) => void;
   onCancel: () => void;
+  /**
+   * Meeting console "Edit buyer details" (Phase 2 Task 8): buyer identity + raw wizard fields only. Hides office
+   * pricing (quote lines replace it in the console) and downstream tracking.
+   */
+  buyerDetailsOnly?: boolean;
 }
 
-export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: SubmissionEditorProps) {
+export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerDetailsOnly = false }: SubmissionEditorProps) {
   const [editData, setEditData] = useState<BuyerSelection>({ ...submission });
   const [saving, setSaving] = useState(false);
   
@@ -252,7 +257,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
       <div className="flex items-center justify-between sticky top-0 bg-background py-2 z-10 border-b border-border -mx-6 px-6">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <Home className="w-5 h-5" />
-          Edit Submission - Unit {editData.unit_number}
+          {buyerDetailsOnly ? 'Buyer details' : 'Edit Submission'} - Unit {editData.unit_number}
         </h3>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={onCancel} disabled={saving}>
@@ -938,7 +943,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
         </AccordionItem>
 
         {/* Office pricing & custom line items */}
-        <AccordionItem value="custom-pricing" className="border rounded-lg px-4">
+        {!buyerDetailsOnly && <AccordionItem value="custom-pricing" className="border rounded-lg px-4">
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <DollarSign className="w-4 h-4" />
@@ -958,7 +963,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
               onPatchSelections={(patch) => setEditData(prev => ({ ...prev, ...patch }))}
             />
           </AccordionContent>
-        </AccordionItem>
+        </AccordionItem>}
 
         {/* Admin Notes */}
         <AccordionItem value="admin" className="border rounded-lg px-4">
@@ -990,7 +995,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
         </AccordionItem>
 
         {/* Downstream Tracking */}
-        <AccordionItem value="downstream" className="border rounded-lg px-4">
+        {!buyerDetailsOnly && <AccordionItem value="downstream" className="border rounded-lg px-4">
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <ClipboardList className="w-4 h-4" />
@@ -1003,7 +1008,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel }: Subm
               submission={editData}
             />
           </AccordionContent>
-        </AccordionItem>
+        </AccordionItem>}
       </Accordion>
     </div>
   );
