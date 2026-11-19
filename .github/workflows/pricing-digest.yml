@@ -1,0 +1,33 @@
+# Daily pricing-request digest + escalation (Phase 2 Task 12, spec §6.6).
+# 14:00 UTC = 08:00 Winnipeg in winter (CST); 09:00 during daylight time (CDT) — GitHub cron is UTC only.
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_URL     https://<project-ref>.supabase.co
+#   INTERNAL_SECRET  same value as the INTERNAL_SECRET edge-function secret
+# The service-role key is never used here.
+name: Pricing digest
+
+on:
+  schedule:
+    - cron: '0 14 * * *'
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call pricing-digest
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          INTERNAL_SECRET: ${{ secrets.INTERNAL_SECRET }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$INTERNAL_SECRET" ]; then
+            echo "::error::SUPABASE_URL and INTERNAL_SECRET repository secrets are required"
+            exit 1
+          fi
+          curl --fail-with-body -sS -X POST "${SUPABASE_URL%/}/functions/v1/pricing-digest" \
+            -H "x-internal-secret: ${INTERNAL_SECRET}" \
+            -H 'Content-Type: application/json' \
+            -d '{}'

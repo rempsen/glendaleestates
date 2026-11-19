@@ -29,3 +29,11 @@ verify_jwt = false
 
 [functions.qbo-sync-submission]
 verify_jwt = false
+
+# Phase 2 Task 12, gated in-function: notify-pricing-request = service-role Bearer (Database Webhook) or admin JWT (test card);
+# pricing-digest = header x-internal-secret equal to env INTERNAL_SECRET (GitHub Actions).
+[functions.notify-pricing-request]
+verify_jwt = false
+
+[functions.pricing-digest]
+verify_jwt = false
