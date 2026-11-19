@@ -1,3 +1,5 @@
+// deno-lint-ignore-file no-explicit-any -- QBO JSON responses are untyped
+/* eslint-disable @typescript-eslint/no-explicit-any -- QBO JSON responses are untyped */
 // Pushes a buyer_selections submission into QuickBooks Online as:
 //   Customer (buyer)  →  Sub-customer/Project (unit)  →  Estimate (one line per counted quote_line)
 // Phase 2 Task 15: the estimate is built 1:1 from quote_lines (stored, else generated) by _shared/qboLinesMap.ts;
@@ -18,8 +20,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-internal-secret',
 };
 
-// deno-lint-ignore no-explicit-any
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function makeDeps(admin: any): SyncDeps {
   return {
     async loadSubmission(id) {
@@ -44,14 +44,16 @@ function makeDeps(admin: any): SyncDeps {
       };
     },
     async getMap(entity_type, portal_ref_type, portal_ref_id) {
-      const { data } = await admin.from('qbo_entity_map').select('qbo_id, qbo_sync_token')
+      const { data, error } = await admin.from('qbo_entity_map').select('qbo_id, qbo_sync_token')
         .eq('entity_type', entity_type).eq('portal_ref_type', portal_ref_type).eq('portal_ref_id', portal_ref_id).maybeSingle();
+      if (error) throw new Error(`qbo_entity_map read failed (${entity_type}/${portal_ref_type}): ${error.message}`);
       return data ?? null;
     },
     async setMap(entity_type, portal_ref_type, portal_ref_id, qbo_id, qbo_sync_token, metadata = {}) {
-      await admin.from('qbo_entity_map').upsert({
+      const { error } = await admin.from('qbo_entity_map').upsert({
         entity_type, portal_ref_type, portal_ref_id, qbo_id, qbo_sync_token, metadata, last_synced_at: new Date().toISOString(),
       }, { onConflict: 'entity_type,portal_ref_type,portal_ref_id' });
+      if (error) throw new Error(`qbo_entity_map write failed (${entity_type}/${portal_ref_type}): ${error.message}`);
     },
     async log(row) {
       try { await admin.from('qbo_sync_log').insert(row); } catch (e) { console.warn('log fail', e); }

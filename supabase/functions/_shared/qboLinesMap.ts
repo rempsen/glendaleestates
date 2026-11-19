@@ -43,9 +43,13 @@ export function qboSlug(s: string): string {
   return slug || 'item';
 }
 
+/** QBO Item Name limit; the SKU doubles as the Name, so the whole SKU is capped here. */
+export const QBO_SKU_MAX = 100;
+
+/** One string used for Sku, Name and both lookups. material_key is sanitised to [a-z0-9_-]. */
 export function qboSku(line: Pick<QuoteLine, 'section' | 'material_key' | 'label'>, prefix: string = QBO_SKU_PREFIX): string {
-  const key = (line.material_key ?? '').trim();
-  return `${prefix}${String(line.section).toUpperCase()}-${key || qboSlug(line.label)}`;
+  const key = String(line.material_key ?? '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+  return `${prefix}${String(line.section).toUpperCase()}-${key || qboSlug(line.label)}`.slice(0, QBO_SKU_MAX);
 }
 
 const clean = (s: string | null | undefined) => toBuyerWording((s ?? '').trim());

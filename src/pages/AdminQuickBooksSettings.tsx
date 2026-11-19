@@ -38,11 +38,13 @@ export default function AdminQuickBooksSettings() {
       .eq('is_active', true)
       .maybeSingle();
     setConn((data as QboConnection | null) ?? null);
-    // Latest estimate sync: a token-refresh failure after this connection also means "reconnect".
+    // Latest attempted estimate sync (refusals logged as `skipped` never reach QuickBooks, so they are ignored):
+    // a token-refresh failure after this connection also means "reconnect"; a later success clears it.
     const { data: log } = await supabase
       .from('qbo_sync_log' as never)
       .select('status,error_message,created_at')
       .eq('operation', 'sync_submission')
+      .in('status', ['success', 'error'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();

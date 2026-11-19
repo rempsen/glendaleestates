@@ -76,6 +76,13 @@ describe('SKU scheme GLEN-{SECTION}-{material_key | slug(label)}', () => {
     expect(s).toBe('an-extremely-long-office-custom-item-lab');
     expect(qboSku(line({ label: 'a'.repeat(80) }))).toBe(`GLEN-OTHER-${'a'.repeat(40)}`);
   });
+  test('material_key sanitised to [a-z0-9_-]; whole SKU capped at 100 (QBO Name)', () => {
+    expect(qboSku(line({ section: 'flooring', material_key: ' Premium Carpet/Underpad ' }))).toBe('GLEN-FLOORING-premium-carpet-underpad');
+    expect(qboSku(line({ section: 'flooring', material_key: 'premium_carpet_underpad' }))).toBe('GLEN-FLOORING-premium_carpet_underpad');
+    const long = qboSku(line({ section: 'flooring', material_key: 'k'.repeat(150) }));
+    expect(long.length).toBe(100);
+    expect(long.startsWith('GLEN-FLOORING-kkk')).toBe(true);
+  });
   test('the SKU prefix can be passed (qbo_settings.item_sku_prefix); every SKU fits QBO Name (≤ 100)', () => {
     expect(qboSku(line({ section: 'tile', material_key: 'tile' }), 'GLEN-')).toBe('GLEN-TILE-tile');
     for (const row of rows) for (const l of estimateLinesFromQuoteLines(linesFor(row), { gstRate: GST }).lines) {
@@ -96,6 +103,15 @@ describe('quantity and unit price', () => {
   });
   test('no quantity → Qty 1', () => {
     expect(estimateLinesFromQuoteLines([line({ quantity: null, amount: 250 })], { gstRate: GST }).lines[0]).toMatchObject({ Qty: 1, UnitPrice: 250 });
+  });
+});
+
+describe('sub-cent amounts', () => {
+  test('Amount is rounded to the cent for QBO; Σ Amount can then differ from the subtotal (the function flags it)', () => {
+    const r = estimateLinesFromQuoteLines([line({ amount: 12.345 }), line({ amount: 12.345 })], { gstRate: GST });
+    expect(r.lines.map((l) => l.Amount)).toEqual([12.35, 12.35]);
+    expect(cents(r.subtotal)).toBe(2469);
+    expect(cents(r.lines.reduce((a, l) => a + l.Amount, 0))).toBe(2470);
   });
 });
 

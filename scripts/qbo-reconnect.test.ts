@@ -25,3 +25,8 @@ test('the page uses the helper and the existing connect flow, with no hard-coded
   expect(src).toContain("'qbo-oauth-start'");
   expect(src).not.toMatch(/2026-08-15|August 15/);
 });
+test('the sync-log read ignores `skipped` refusals (409s never reach QuickBooks)', () => {
+  const src = readFileSync(new URL('../src/pages/AdminQuickBooksSettings.tsx', import.meta.url), 'utf8');
+  expect(src).toContain(".in('status', ['success', 'error'])");
+  expect(qboReconnectReason(conn(null), { status: 'skipped', error_message: 'QBO token refresh failed', created_at: '2026-11-10T00:00:00Z' }, NOW)).toBeNull();
+});
