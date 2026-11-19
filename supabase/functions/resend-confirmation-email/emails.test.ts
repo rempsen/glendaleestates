@@ -5,6 +5,7 @@ import { LINE_COLUMNS } from '../_shared/lineRenderRows.ts';
 import { savedSubmissionLinesCore } from '../_shared/savedSubmissionLines.ts';
 import { PREVIEW_PRICING } from '../send-selections-email/emails.ts';
 import { sumQuoteLines, type QuoteLine } from '../_shared/quoteLines.ts';
+import { MY_QUOTE_LINK_TEXT, MY_QUOTE_URL } from '../_shared/buyerContact.ts';
 
 const denoTest = (globalThis as { Deno?: { test: (n: string, f: () => Promise<void> | void) => void } }).Deno?.test;
 const ok = (c: unknown, m: string) => { if (!c) throw new Error(m); };
@@ -54,5 +55,10 @@ if (denoTest) {
     const err = console.error; console.error = () => {};
     try { ok(linesGrandTotal({ lines: [...stored, hidden], gstRate: 0.05, pricesAvailable: true }) === null, 'expected null for a hidden counted line'); }
     finally { console.error = err; }
+  });
+
+  denoTest('buyer copy links to the live quote at /my-quote', () => {
+    const html = buildBuyerHtml(sub, { lines: stored, gstRate: 0.05, pricesAvailable: true });
+    ok(html.includes(`href="${MY_QUOTE_URL}"`) && html.includes(MY_QUOTE_LINK_TEXT), 'missing /my-quote link');
   });
 }

@@ -7,6 +7,7 @@ import { type EmailLines, escapeHtml, linesCsvRows, renderLinesEmailHtml } from 
 import { buyerSelectionsInsertRow, type AreaUpgrade, type SelectionData } from "../_shared/submissionRow.ts";
 import { savedSubmissionLinesCore } from "../_shared/savedSubmissionLines.ts";
 import type { QuotePricing } from "../_shared/quoteLines.ts";
+import { MY_QUOTE_LINK_TEXT, MY_QUOTE_URL } from "../_shared/buyerContact.ts";
 
 export { escapeHtml, type EmailLines };
 
@@ -380,6 +381,8 @@ export function generateBuyerConfirmationEmail(data: SelectionData, selectionId:
               <tr>
                 <td style="background: #ffffff; padding: 0 40px 30px;">
                   ${linesBlock.html}
+                  <p style="margin: 20px 0 0; text-align: center;"><a href="${MY_QUOTE_URL}" style="display: inline-block; background: #2d463c; color: #ffffff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">${MY_QUOTE_LINK_TEXT}</a></p>
+                  <p style="margin: 8px 0 0; text-align: center; color: #4b5563; font-size: 12px;">Sign in with this email address to accept each line, ask a question or request a change.</p>
                 </td>
               </tr>
               

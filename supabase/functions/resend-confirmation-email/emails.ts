@@ -4,6 +4,7 @@
 // sumQuoteLines only, `Pending` never $0.00. The buyer copy never carries internal notes, sales comments or admin notes.
 import { type EmailLines, escapeHtml, renderLinesEmailHtml } from "../_shared/linesEmailHtml.ts";
 import { EMAIL_THEME, styles, wrapEmailShell } from "../_shared/emailTheme.ts";
+import { MY_QUOTE_LINK_TEXT, MY_QUOTE_URL } from "../_shared/buyerContact.ts";
 
 // deno-lint-ignore no-explicit-any
 type SubmissionRow = Record<string, any>;
@@ -30,6 +31,7 @@ export function buildBuyerHtml(sub: SubmissionRow, q: EmailLines): string {
     <p style="${styles.textMuted}">Updated on ${submissionDate}${sub.id ? ` · Reference: ${escapeHtml(String(sub.id).slice(0, 8))}` : ''}</p>
     ${sub.upgrade_floor_selection ? `<p style="${styles.text}"><strong>Floor Selection:</strong> Floor ${escapeHtml(String(sub.upgrade_floor_selection))}</p>` : ''}
     ${linesBlock.html}
+    <p style="${styles.text}"><a href="${MY_QUOTE_URL}" style="color:${EMAIL_THEME.colors.accent};font-weight:600;">${MY_QUOTE_LINK_TEXT}</a> — sign in with this email address to accept each line, ask a question or request a change.</p>
     ${interestsHtml}
     <p style="${styles.textMuted}">Questions? Contact us at <a href="mailto:office@bmdmaterials.com" style="color:${EMAIL_THEME.colors.accent};">office@bmdmaterials.com</a>.</p>
   `;
