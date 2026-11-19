@@ -37,6 +37,19 @@ export function serverPricingFromRows(rows: { pricing_config?: any[] | null; upg
   return { materials, config, unitAreas, markupPercentage, gstRate };
 }
 
+/**
+ * Why a loaded ServerPricing cannot price a permanent record, or null when it can. restPricingFetcher turns a non-OK
+ * response into [] (so emails keep their historical fallbacks), which leaves a table empty; pricing_config,
+ * upgrade_materials and unit_area_data are never legitimately empty, so an empty one means the fetch failed.
+ */
+export function pricingUnavailableReason(p: ServerPricing): string | null {
+  const empty: string[] = [];
+  if (Object.keys(p.config).length === 0) empty.push("pricing_config");
+  if (Object.keys(p.materials).length === 0) empty.push("upgrade_materials");
+  if (Object.keys(p.unitAreas).length === 0) empty.push("unit_area_data");
+  return empty.length ? `empty ${empty.join(", ")}` : null;
+}
+
 export async function loadServerPricing(fetchRows: PricingRowFetcher): Promise<ServerPricing> {
   const [pricing_config, upgrade_materials, unit_area_data] = await Promise.all([
     fetchRows("pricing_config"), fetchRows("upgrade_materials"), fetchRows("unit_area_data"),

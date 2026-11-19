@@ -14,7 +14,8 @@ import {
 } from '../supabase/functions/_shared/quoteLines.ts';
 import { validateWizardWindows, MAX_WIZARD_WINDOWS } from '../supabase/functions/_shared/wizardWindows.ts';
 import { baseSpecForCode } from '../supabase/functions/_shared/baseSpecData.ts';
-import { wizardSubmissionLines, subtotalParityLog } from '../supabase/functions/_shared/wizardSubmissionLines.ts';
+import { wizardSubmissionLines, subtotalParityLog, writeWizardLines } from '../supabase/functions/_shared/wizardSubmissionLines.ts';
+import { pricingUnavailableReason, serverPricingFromRows } from '../supabase/functions/_shared/loadServerPricing.ts';
 import {
   buildGenerateInputFromRow, quotePricingFromRows, wizardQuoteLines, wizardSelectionsToRow, wizardSubmitBody,
 } from '../src/lib/generateInputFromSelections';
@@ -163,6 +164,58 @@ describe('row mapping parity on every live fixture', () => {
   }
 });
 
+describe('server ignores client-sent prices (tamper)', () => {
+  test('windows rows carrying unit_price/amount and a wrong subtotal do not change server lines or subtotal', () => {
+    const sel = typeCWizard(LOCATED);
+    const saved = { ...wizardSelectionsToRow(sel, UNIT_C), id: 'sub-t' };
+    const honest = wizardSubmissionLines(saved, toWire(LOCATED), pricing);
+    const tampered = LOCATED.map((w) => ({ ...w, unit_price: 0.01, amount: 0.01, price_source_ref: 'manual:x', status: 'included' }));
+    const t = wizardSubmissionLines(saved, toWire(tampered), pricing);
+    expect(t.windowsRejected).toBeNull();
+    expect(t.lines).toEqual(honest.lines);
+    expect(t.subtotal).toBe(honest.subtotal);
+    expect(subtotalParityLog('sub-t', 0.01, t.subtotal)).toContain('MISMATCH');
+    expect(t.subtotal).toBe(sumQuoteLines(wizardQuoteLines(sel, UNIT_C, pricing), 0.05).subtotal);
+  });
+});
+
+describe('submit path: pricing unavailable', () => {
+  const sel = typeCWizard(LOCATED);
+  const saved = { ...wizardSelectionsToRow(sel, UNIT_C), id: 'sub-p' };
+  const quiet = () => { const msgs: string[] = []; const f = (m: string) => { msgs.push(m); }; return { msgs, log: { info: f, warn: f, error: f } }; };
+  for (const [name, broken] of [
+    ['all tables empty (failed fetches)', serverPricingFromRows({ pricing_config: [], upgrade_materials: [], unit_area_data: [] })],
+    ['pricing_config empty', { ...pricing, config: {} }],
+    ['upgrade_materials empty', { ...pricing, materials: {} }],
+  ] as const) {
+    test(`${name}: no insert attempted, step resolves (email path continues)`, async () => {
+      let calls = 0;
+      const { msgs, log } = quiet();
+      const r = await writeWizardLines({ savedRow: saved, rawWindows: toWire(LOCATED), rawSubtotal: 1, pricing: broken,
+        insertRows: async () => { calls++; return { error: null }; }, log });
+      expect(r.status).toBe('skipped');
+      expect(calls).toBe(0);
+      expect(msgs.some((m) => m.includes('lines skipped: pricing unavailable') && m.includes('sub-p'))).toBe(true);
+    });
+  }
+  test('complete pricing: one batch insert; an insert error or a throw is reported, never thrown', async () => {
+    const batches: unknown[][] = [];
+    const ok = await writeWizardLines({ savedRow: saved, rawWindows: toWire(LOCATED), rawSubtotal: 1, pricing,
+      insertRows: async (rows) => { batches.push(rows); return { error: null }; }, log: quiet().log });
+    expect(ok.status).toBe('written');
+    expect(batches.length).toBe(1);
+    const failed = await writeWizardLines({ savedRow: saved, rawWindows: null, rawSubtotal: 1, pricing,
+      insertRows: async () => ({ error: '500 boom' }), log: quiet().log });
+    expect(failed).toEqual({ status: 'failed', error: '500 boom' });
+    const threw = await writeWizardLines({ savedRow: saved, rawWindows: null, rawSubtotal: 1, pricing,
+      insertRows: async () => { throw new Error('network'); }, log: quiet().log });
+    expect(threw).toEqual({ status: 'failed', error: 'network' });
+  });
+  test('pricingUnavailableReason: null for the fixture snapshot', () => {
+    expect(pricingUnavailableReason(pricing)).toBeNull();
+  });
+});
+
 describe('server windows validation', () => {
   test('absent → null; valid rows trimmed and capped at 80 chars', () => {
     expect(validateWizardWindows(undefined)).toEqual({ ok: true, windows: null });
@@ -225,14 +278,16 @@ describe('old drafts: integer-only windows are migrated to rows', () => {
     expect(key(after)).toEqual(key(before));
   });
 
-  test('a draft that already has windows keeps them (idempotent) and drops junk rows', () => {
-    const rowsIn = [{ id: 'a', location: 'Dining', kind: 'roller_1', motorized: true }, null, { location: 'Den', kind: 'nope' }];
+  test('a draft that already has windows keeps them (idempotent) and drops junk rows and unknown kinds', () => {
+    const rowsIn = [{ id: 'a', location: 'Dining', kind: 'roller_1', motorized: true }, null, { location: 'Den', kind: 'nope' },
+      { location: 'Office', kind: 'roller_5' }];
     const out = migrateDraftWindows({ additionalWindowsQty: 7, windows: rowsIn }, [], ids());
     expect(out.windows).toEqual([
       { id: 'a', location: 'Dining', kind: 'roller_1', motorized: true },
-      { id: 'd1', location: 'Den', kind: 'roller_5', motorized: false },
+      { id: 'd1', location: 'Office', kind: 'roller_5', motorized: false },
     ]);
     expect(out.additionalWindowsQty).toBe(2);
+    expect(out.automatedWindowsQty).toBe(1);
     expect(migrateDraftWindows(out, [], ids())).toEqual(out);
   });
 });

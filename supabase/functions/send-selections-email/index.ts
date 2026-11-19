@@ -15,7 +15,7 @@ import {
   parseSelectionBody,
   type SelectionData,
 } from "../_shared/submissionRow.ts";
-import { subtotalParityLog, wizardSubmissionLines } from "../_shared/wizardSubmissionLines.ts";
+import { writeWizardLines } from "../_shared/wizardSubmissionLines.ts";
 
 // Dynamic CORS headers will be used for responses
 
@@ -686,23 +686,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // === QUOTE LINES (Phase 2 Task 9) ===
     // Regenerated here from the SAVED row with the shared generator; client lines/amounts are never trusted. The
     // client `windows` list is validated (<= 50 rows, allowed kinds, location <= 80 chars) and names window lines
-    // only. Written in one batch with source='wizard'. On any failure the submission is already saved: log it
-    // (as for post_save_failed) and carry on to the emails.
-    try {
-      const wl = wizardSubmissionLines(savedSelection, rawData.windows, pricing);
-      if (wl.windowsRejected) {
-        console.warn(`[quote_lines] windows list ignored for ${insertedSubmissionId} (${wl.windowsRejected}); generic window locations used`);
-      }
-      console.log(subtotalParityLog(insertedSubmissionId, rawData.subtotal, wl.subtotal));
-      const { error: linesError } = await supabaseInsertRows("quote_lines", wl.inserts);
-      if (linesError) {
-        console.error(`[quote_lines] insert failed for ${insertedSubmissionId} (submission saved; lines missing):`, linesError);
-      } else {
-        console.log(`[quote_lines] wrote ${wl.inserts.length} lines for ${insertedSubmissionId}`);
-      }
-    } catch (linesErr) {
-      console.error(`[quote_lines] generation failed for ${insertedSubmissionId} (submission saved; lines missing):`, linesErr);
-    }
+    // only. Written in one batch with source='wizard'. On any failure, or when pricing is unavailable, the
+    // submission is already saved: log it (as for post_save_failed) and carry on to the emails.
+    // writeWizardLines never throws; with pricing unavailable it skips the insert ("lines skipped: pricing
+    // unavailable"), and the backfill can write the lines later.
+    await writeWizardLines({
+      savedRow: savedSelection,
+      rawWindows: rawData.windows,
+      rawSubtotal: rawData.subtotal,
+      pricing,
+      insertRows: (rows) => supabaseInsertRows("quote_lines", rows),
+    });
 
     // === SINGLE SOURCE OF TRUTH ===
     // computeUpgradeTotalsServer() is the byte-for-byte mirror of the UI's

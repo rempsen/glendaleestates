@@ -38,7 +38,9 @@ export function synthesizeWindows(c: WindowCountsLike, includedLocations: readon
 function cleanRow(r: unknown, makeId: () => string): WizardWindow | null {
   if (!r || typeof r !== 'object') return null;
   const o = r as Record<string, unknown>;
-  const kind = (WIZARD_WINDOW_KINDS as readonly string[]).includes(String(o.kind)) ? o.kind as QuoteWindowKind : 'roller_5';
+  // Unknown kinds are dropped, never coerced to a priced kind (the server validator rejects them too).
+  if (!(WIZARD_WINDOW_KINDS as readonly string[]).includes(String(o.kind))) return null;
+  const kind = o.kind as QuoteWindowKind;
   return {
     id: typeof o.id === 'string' && o.id ? o.id : makeId(),
     location: String(o.location ?? '').slice(0, MAX_WINDOW_LOCATION),
