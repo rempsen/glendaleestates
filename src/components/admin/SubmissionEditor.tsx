@@ -1,6 +1,7 @@
 import { lvpOptions, spcTileOptions, carpetOptions, toOptionId } from '@/lib/mockData';
 import { useRole } from '@/hooks/useRole';
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,11 +26,7 @@ import {
   WashingMachine, LayoutGrid, Flame, User, ClipboardList
 } from 'lucide-react';
 import { DownstreamTrackingPanel } from './DownstreamTrackingPanel';
-import { CustomPricingPanel } from './CustomPricingPanel';
-import { toBuyerPdfSelections } from '@/lib/buyerPdfSelections';
-import { pricingFromDynamic } from '@/lib/pricingFromDynamic';
-import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
-import { DollarSign } from 'lucide-react';
+import { markedUp, withGst } from '@/lib/quoteLines';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { createAuditLog, calculateChanges, generateChangeSummary } from '@/lib/auditLog';
@@ -96,9 +93,9 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
   }, [pricingConfig]);
   // Bedroom premium rates (per sq yd, marked up) for the switch copy; totals come from the engine.
   const dynamicPricing = useDynamicPricing();
-  const { getMaterialCost: getDynMaterialCost, markupPercentage: dynMarkup } = dynamicPricing;
-  const bedroomCarpetRate = getDynMaterialCost('carpet' as any) * (1 + dynMarkup);
-  const bedroomUnderpadRate = getDynMaterialCost('premium_carpet_underpad' as any) * (1 + dynMarkup);
+  const { getMaterialCost: getDynMaterialCost, markupPercentage: dynMarkup, gstRate: dynGstRate } = dynamicPricing;
+  const bedroomCarpetRate = markedUp(getDynMaterialCost('carpet' as any), dynMarkup);
+  const bedroomUnderpadRate = markedUp(getDynMaterialCost('premium_carpet_underpad' as any), dynMarkup);
   const stairCarpetPrice = pricingConfig.find(c => c.config_key === 'premium_carpet_stairs_price')?.config_value || 0;
   const stairUnderpadPrice = pricingConfig.find(c => c.config_key === 'premium_underpad_stairs_price')?.config_value || 0;
 
@@ -239,22 +236,8 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
     }
   };
 
-  /** Save in place (editor stays open) so previews and exports, which read the database, show current edits. */
-  const saveNow = async () => {
-    setSaving(true);
-    try {
-      await persist();
-    } catch (error: any) {
-      toast.error('Could not save before preview', { description: error.message });
-      throw error;
-    } finally {
-      setSaving(false);
-    }
-  };
 
-  const panelSelections = useMemo(() => toBuyerPdfSelections({ ...submission, ...editData } as never), [submission, editData]);
-  const panelPricing = useMemo(() => pricingFromDynamic(dynamicPricing as never), [dynamicPricing]);
-  const panelUnitCode = editData.unit_type ? normalizeUnitTypeCode(editData.unit_type) : null;
+
 
   return (
     <div className="space-y-6">
@@ -863,7 +846,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
                       </p>
                       {Number(upgrade.manualPrice) > 0 && (
                         <p className="text-xs font-medium">
-                          Total with GST: ${(Number(upgrade.manualPrice) * 1.05).toFixed(2)} — this replaces the calculated price for this area.
+                          Total with GST: ${withGst(Number(upgrade.manualPrice), dynGstRate).toFixed(2)} — this replaces the calculated price for this area.
                         </p>
                       )}
                     </div>
@@ -954,28 +937,13 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
           </AccordionContent>
         </AccordionItem>}
 
-        {/* Office pricing & custom line items */}
-        {!buyerDetailsOnly && <AccordionItem value="custom-pricing" className="border rounded-lg px-4">
-          <AccordionTrigger className="hover:no-underline">
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-4 h-4" />
-              <span>Office Pricing &amp; Custom Line Items</span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="pt-4 pb-6">
-            <CustomPricingPanel
-              value={editData.custom_pricing}
-              onChange={(v) => handleChange('custom_pricing', v)}
-              submissionId={submission.id}
-              selections={panelSelections}
-              unitCode={panelUnitCode}
-              pricing={panelPricing}
-              onSaveFirst={saveNow}
-              saving={saving}
-              onPatchSelections={(patch) => setEditData(prev => ({ ...prev, ...patch }))}
-            />
-          </AccordionContent>
-        </AccordionItem>}
+        {/* Office pricing now lives in the quote console (/admin/quotes/:id); custom_pricing is read-only. */}
+        {!buyerDetailsOnly && (
+          <p className="text-sm text-muted-foreground px-1">
+            Office prices, custom lines and window locations are edited in the{' '}
+            <Link to={`/admin/quotes/${submission.id}`} className="underline">quote console</Link>.
+          </p>
+        )}
 
         {/* Admin Notes */}
         <AccordionItem value="admin" className="border rounded-lg px-4">

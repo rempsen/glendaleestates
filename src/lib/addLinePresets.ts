@@ -1,7 +1,7 @@
 // Add-line presets for the meeting console (Phase 2 Task 8, spec §6.10). Pure: a pricing source in, a new-line draft out.
 // Every number comes from the source (upgrade_materials / pricing_config / unit_area_data via useDynamicPricing);
 // this file holds keys and wording only — scripts/add-line-presets.test.ts fails on any numeric literal here.
-import type { LineStatus, LineUnit, PricingMode, QuoteLine, Section } from '@/lib/quoteLines';
+import { markedUp, type LineStatus, type LineUnit, type PricingMode, type QuoteLine, type Section } from '@/lib/quoteLines';
 import { lineAmount } from '@/lib/lineAmount';
 import { AREA_DEFINITIONS } from '@/lib/upgradeCostData';
 import type { useDynamicPricing } from '@/hooks/useDynamicPricing';
@@ -129,7 +129,7 @@ export function catalogLine(src: PresetSource, input: {
     if (!area) return { error: 'That area has no measured size for this unit type.' };
     quantity = area.quantity;
   }
-  const unitPrice = m.costPerUnit * (1 + src.markupPercentage);
+  const unitPrice = markedUp(m.costPerUnit, src.markupPercentage);
   return {
     ...base(input.section, input.location, m.name),
     product_name: clean(input.productName) || null, product_colour: clean(input.productColour) || null,

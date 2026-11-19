@@ -1,4 +1,4 @@
-import type { OverrideKey } from '@/lib/upgradeTotals';
+import type { OverrideKey } from '@/lib/customPricing';
 
 /** Office price override rows in the Custom Pricing panel; one per engine override key (guarded by scripts/custom-pricing-overrides.test.ts). */
 export const OVERRIDES: Array<{ key: OverrideKey; title: string; hint: string }> = [

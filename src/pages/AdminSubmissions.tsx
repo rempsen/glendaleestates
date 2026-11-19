@@ -47,10 +47,10 @@ import { toast } from 'sonner';
 import { Search, Eye, RefreshCw, Home, Download, Pencil, Save, X, DollarSign, Trash2, Mail, GitCompare, History, Send, AlertTriangle } from 'lucide-react';
 import { generateSavedSubmissionPdf, loadSavedSubmissionContext } from '@/lib/savedSubmissionPdf';
 import { format } from 'date-fns';
-import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
-import { computeUpgradeTotals } from '@/lib/upgradeTotals';
+import { SECTION_ORDER } from '@/lib/quoteLines';
+import { SECTION_LABELS } from '@/lib/addLinePresets';
+import { useSubmissionLineTotals } from '@/hooks/useSubmissionLineTotals';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
-import { useUnitAreaData } from '@/hooks/useUnitAreaData';
 import { StatusWorkflowControl } from '@/components/admin/StatusWorkflowControl';
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
 import { SubmissionComparisonView } from '@/components/admin/SubmissionComparisonView';
@@ -95,92 +95,6 @@ const MATERIAL_NAMES: Record<string, string> = {
   nonstandard_tile: 'Non Standard Tile Color',
   premium_carpet_underpad: 'Premium Underpad',
 };
-
-// Pricing interface for dynamic values
-interface PricingValues {
-  patioDoorPrice: number;
-  additionalWindowPrice: number;
-  automatedMotorPrice: number;
-  heatedFloorPrice: number;
-  backsplashGroutPrice: number;
-  stairLvpUpgradePrice: number;
-  stairPremiumLvpUpgradePrice?: number;
-  stairCarpetUpgradePrice: number;
-  stairUnderpadUpgradePrice?: number;
-  markupPercentage: number;
-  gstRate: number;
-  getMaterialCost: (materialType: any) => number;
-  getUnitAreaData: (unitTypeCode: string) => any;
-}
-
-// Calculate all pricing for a submission using dynamic values
-function calculateSubmissionPricing(submission: BuyerSelection, pricing: PricingValues): {
-  windowCoverings: { subtotal: number; gst: number; total: number };
-  flooringUpgrades: { subtotal: number; gst: number; total: number };
-  tileUpgrades: { subtotal: number; gst: number; total: number };
-  heatedFloors: { subtotal: number; gst: number; total: number };
-  backsplashGrout: { subtotal: number; gst: number; total: number };
-  grandTotal: { subtotal: number; gst: number; total: number };
-} {
-  const totals = computeUpgradeTotals({
-    unitTypeCode: submission.unit_type ? normalizeUnitTypeCode(submission.unit_type) : null,
-    upgradeFloorSelection: (submission.upgrade_floor_selection as '1' | '2' | null) || null,
-    areaUpgrades: (submission.area_upgrades || []) as any,
-    backsplashGrout: submission.backsplash_grout_enabled ? {
-      enabled: true,
-      groutColor: submission.backsplash_grout_color || '',
-      comments: submission.backsplash_grout_comments || '',
-    } : null,
-    stairLvpUpgradeSelected: !!(submission as any).stair_lvp_upgrade_selected,
-    stairUpgradeType: (submission as any).stair_upgrade_type || null,
-    stairPremiumCarpetSelected: !!(submission as any).stair_premium_carpet_selected,
-    stairPremiumUnderpadSelected: !!(submission as any).premium_underpad_stairs,
-    additionalWindowsQty: submission.additional_windows_qty || 0,
-    patioDoorsQty: submission.patio_doors_qty || 0,
-    automatedWindowsQty: (submission as any).automated_windows_qty || 0,
-    bathroomTileSelected: !!submission.bathroom_tile_selected,
-    bathroomTileEnsuiteSelected: (submission as any).bathroom_tile_ensuite_selected ?? undefined,
-    bathroomTileGuestSelected: (submission as any).bathroom_tile_guest_selected ?? undefined,
-    heatedFloorBathrooms: submission.heated_floor_bathrooms || 0,
-    customTiledShower: !!(submission as any).custom_tiled_shower,
-    customPricing: (submission as any).custom_pricing,
-    bedroomFlooringChoice: ((submission as any).bedroom_flooring_choice === 'carpet' ? 'carpet' : (submission as any).bedroom_flooring_choice === 'lvp' ? 'lvp' : ''),
-    bedroomPremiumCarpetSelected: !!(submission as any).premium_carpet_bedroom,
-    bedroomPremiumUnderpadSelected: !!(submission as any).premium_underpad_bedroom,
-  }, {
-    markupPercentage: pricing.markupPercentage,
-    gstRate: pricing.gstRate,
-    getMaterialCost: pricing.getMaterialCost,
-    getGroutColorFee: () => pricing.backsplashGroutPrice,
-    getAdditionalWindowPrice: () => pricing.additionalWindowPrice,
-    getPatioDoorPrice: () => pricing.patioDoorPrice,
-    getAutomatedMotorPrice: () => pricing.automatedMotorPrice,
-    getHeatedFloorPrice: () => pricing.heatedFloorPrice,
-    getStairLvpUpgradePrice: () => pricing.stairLvpUpgradePrice,
-    getStairPremiumLvpUpgradePrice: () => (pricing as any).stairPremiumLvpUpgradePrice || 0,
-    getStairCarpetUpgradePrice: () => pricing.stairCarpetUpgradePrice,
-    getStairUnderpadUpgradePrice: () => (pricing as any).stairUnderpadUpgradePrice || 0,
-    getUnitAreaData: pricing.getUnitAreaData,
-  });
-
-  const flooringSubtotal = totals.lineItems.filter(i => i.group === 'flooring' && !i.label.includes('Heated Floor')).reduce((s, i) => s + i.amount, 0);
-  const tileSubtotal = totals.pieces.bathroomTile;
-  const heatedSubtotal = totals.pieces.section4HeatedFloor + totals.pieces.flooringUpgrades.reduce((s, i) => s + i.heatedFloorAmount, 0);
-  const groutSubtotal = totals.pieces.grout;
-  const windowSubtotal = totals.windowSubtotal;
-  const grandSubtotal = totals.grandSubtotal;
-  const grandGst = totals.gst;
-  const grandTotal = totals.grandTotal;
-  
-  return {
-    windowCoverings: { subtotal: windowSubtotal, gst: windowSubtotal * pricing.gstRate, total: windowSubtotal * (1 + pricing.gstRate) },
-    flooringUpgrades: { subtotal: flooringSubtotal, gst: flooringSubtotal * pricing.gstRate, total: flooringSubtotal * (1 + pricing.gstRate) },
-    tileUpgrades: { subtotal: tileSubtotal, gst: tileSubtotal * pricing.gstRate, total: tileSubtotal * (1 + pricing.gstRate) },
-    heatedFloors: { subtotal: heatedSubtotal, gst: heatedSubtotal * pricing.gstRate, total: heatedSubtotal * (1 + pricing.gstRate) },
-    backsplashGrout: { subtotal: groutSubtotal, gst: groutSubtotal * pricing.gstRate, total: groutSubtotal * (1 + pricing.gstRate) },
-    grandTotal: { subtotal: grandSubtotal, gst: grandGst, total: grandTotal },
-  };
-}
 
 interface BuyerSelection {
   id: string;
@@ -261,54 +175,11 @@ export default function AdminSubmissions() {
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string>('');
   const [pdfPreviewLoading, setPdfPreviewLoading] = useState(false);
 
-  // Use dynamic pricing from database
-  const {
-    getAdditionalWindowPrice,
-    getPatioDoorPrice,
-    getAutomatedMotorPrice,
-    getHeatedFloorPrice,
-    getGroutColorChangePrice,
-    getStairLvpUpgradePrice,
-    getStairPremiumLvpUpgradePrice,
-    getStairCarpetUpgradePrice,
-    getUnderpadStairsPrice,
-    getMaterialCost,
-    markupPercentage,
-    gstRate,
-  } = useDynamicPricing();
-  const { unitAreaData } = useUnitAreaData();
+  // Flat rates shown next to selections (display only; amounts come from quote lines).
+  const { getStairLvpUpgradePrice, getGroutColorChangePrice } = useDynamicPricing();
 
-  // Build pricing values object for calculations
-  const pricingValues: PricingValues = {
-    patioDoorPrice: getPatioDoorPrice(),
-    additionalWindowPrice: getAdditionalWindowPrice(),
-    automatedMotorPrice: getAutomatedMotorPrice(),
-    heatedFloorPrice: getHeatedFloorPrice(),
-    backsplashGroutPrice: getGroutColorChangePrice(),
-    stairLvpUpgradePrice: getStairLvpUpgradePrice(),
-    stairPremiumLvpUpgradePrice: getStairPremiumLvpUpgradePrice(),
-    stairCarpetUpgradePrice: getStairCarpetUpgradePrice(),
-    stairUnderpadUpgradePrice: getUnderpadStairsPrice(),
-    markupPercentage,
-    gstRate,
-    getMaterialCost,
-    getUnitAreaData: (unitTypeCode: string) => {
-      const row = unitAreaData.find(u => u.unit_type_code?.toUpperCase() === unitTypeCode?.toUpperCase());
-      if (!row) return null;
-      return {
-        allLvp: Number(row.all_lvp) || 0,
-        mainLiving: Number(row.main_living) || 0,
-        secondBedroom: Number(row.second_bedroom) || 0,
-        masterBedroomLvp: Number((row as any).master_bedroom_lvp) || 0,
-        masterBedroom: Number(row.master_bedroom) || 0,
-        secondBedroomCarpet: Number(row.second_bedroom_carpet) || 0,
-        guestBathroom: Number(row.guest_bathroom) || 0,
-        masterEnsuite: Number(row.master_ensuite) || 0,
-        laundry: Number(row.laundry) || 0,
-        backsplash: Number(row.backsplash) || 0,
-      };
-    },
-  };
+  // Every figure on this page comes from quote lines (stored, else generated), summed by sumQuoteLines.
+  const lineTotals = useSubmissionLineTotals(submissions);
 
   const fetchSubmissions = async () => {
     setLoading(true);
@@ -943,90 +814,41 @@ export default function AdminSubmissions() {
                   );
                 })()}
 
-                {/* Pricing Summary - FIRST */}
+                {/* Pricing Summary - FIRST (from quote lines) */}
                 {(() => {
-                  const pricing = calculateSubmissionPricing(selectedSubmission, pricingValues);
-                  const hasAnyUpgrades = pricing.grandTotal.total > 0;
-                  
+                  const grand = lineTotals.totalsOf(selectedSubmission.id);
+                  const hasAnyUpgrades = grand.total > 0;
+                  const sections = SECTION_ORDER
+                    .map((section) => ({ section, t: lineTotals.sectionTotalsOf(selectedSubmission.id, section) }))
+                    .filter(({ t }) => t.subtotal > 0);
+
                   return hasAnyUpgrades ? (
                     <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
                       <div className="flex items-center gap-2 mb-4">
                         <DollarSign className="w-5 h-5 text-primary" />
                         <h4 className="font-semibold text-foreground">Upgrade Pricing Summary</h4>
                       </div>
-                      
+
                       <div className="space-y-3">
-                        {/* Window Coverings */}
-                        {pricing.windowCoverings.subtotal > 0 && (
-                          <div className="flex justify-between items-center py-2 border-b border-border/50">
-                            <div>
-                              <p className="font-medium text-sm">Window Coverings</p>
-                              <p className="text-xs text-muted-foreground">
-                                {selectedSubmission.patio_doors_qty > 0 && `${selectedSubmission.patio_doors_qty} Patio Door(s)`}
-                                {selectedSubmission.patio_doors_qty > 0 && selectedSubmission.additional_windows_qty > 0 && ' + '}
-                                {selectedSubmission.additional_windows_qty > 0 && `${selectedSubmission.additional_windows_qty} Window(s)`}
-                              </p>
-                            </div>
-                            <span className="font-medium">${pricing.windowCoverings.total.toFixed(2)}</span>
+                        {sections.map(({ section, t }) => (
+                          <div key={section} className="flex justify-between items-center py-2 border-b border-border/50">
+                            <p className="font-medium text-sm">{SECTION_LABELS[section]}</p>
+                            <span className="font-medium">${t.total.toFixed(2)}</span>
                           </div>
-                        )}
-                        
-                        {/* Flooring Upgrades */}
-                        {pricing.flooringUpgrades.subtotal > 0 && (
-                          <div className="flex justify-between items-center py-2 border-b border-border/50">
-                            <div>
-                              <p className="font-medium text-sm">Flooring Upgrades</p>
-                              <p className="text-xs text-muted-foreground">LVP, Hardwood, Carpet</p>
-                            </div>
-                            <span className="font-medium">${pricing.flooringUpgrades.total.toFixed(2)}</span>
-                          </div>
-                        )}
-                        
-                        {/* Tile Upgrades */}
-                        {pricing.tileUpgrades.subtotal > 0 && (
-                          <div className="flex justify-between items-center py-2 border-b border-border/50">
-                            <div>
-                              <p className="font-medium text-sm">Tile Upgrades</p>
-                              <p className="text-xs text-muted-foreground">Porcelain tile, backsplash</p>
-                            </div>
-                            <span className="font-medium">${pricing.tileUpgrades.total.toFixed(2)}</span>
-                          </div>
-                        )}
-                        
-                        {/* Heated Floors */}
-                        {pricing.heatedFloors.subtotal > 0 && (
-                          <div className="flex justify-between items-center py-2 border-b border-border/50">
-                            <div>
-                              <p className="font-medium text-sm">Heated Floors</p>
-                              <p className="text-xs text-muted-foreground">{selectedSubmission.heated_floor_bathrooms} bathroom(s)</p>
-                            </div>
-                            <span className="font-medium">${pricing.heatedFloors.total.toFixed(2)}</span>
-                          </div>
-                        )}
-                        
-                        {/* Backsplash Grout */}
-                        {pricing.backsplashGrout.subtotal > 0 && (
-                          <div className="flex justify-between items-center py-2 border-b border-border/50">
-                            <div>
-                              <p className="font-medium text-sm">Custom Grout Color</p>
-                              <p className="text-xs text-muted-foreground">{selectedSubmission.backsplash_grout_color}</p>
-                            </div>
-                            <span className="font-medium">${pricing.backsplashGrout.total.toFixed(2)}</span>
-                          </div>
-                        )}
-                        
+                        ))}
+
                         {/* Grand Total */}
                         <div className="flex justify-between items-center pt-3">
                           <div>
                             <p className="font-bold text-foreground">Grand Total</p>
                             <p className="text-xs text-muted-foreground">
-                              Subtotal: ${pricing.grandTotal.subtotal.toFixed(2)} + GST: ${pricing.grandTotal.gst.toFixed(2)}
+                              Subtotal: ${grand.subtotal.toFixed(2)} + GST: ${grand.gst.toFixed(2)}
                             </p>
                           </div>
-                          <span className="text-xl font-bold text-primary">${pricing.grandTotal.total.toFixed(2)}</span>
+                          <span className="text-xl font-bold text-primary">${grand.total.toFixed(2)}</span>
                         </div>
                       </div>
-                      
+
                       {/* Payment Terms */}
                       <div className="mt-4 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground">
                         <p className="font-medium text-foreground mb-1">Payment Terms:</p>
@@ -1155,7 +977,7 @@ export default function AdminSubmissions() {
                         {(selectedSubmission as any).stair_lvp_upgrade_selected ? (
                           <span className="ml-2">
                             <Badge className="bg-primary/10 text-primary border-primary/30">
-                              LVP Upgrade with Custom Stair Nosings (${pricingValues.stairLvpUpgradePrice.toLocaleString()} + GST)
+                              LVP Upgrade with Custom Stair Nosings (${getStairLvpUpgradePrice().toLocaleString()} + GST)
                             </Badge>
                           </span>
                         ) : (
@@ -1200,7 +1022,7 @@ export default function AdminSubmissions() {
                   </div>
                   {selectedSubmission.backsplash_grout_enabled && (
                     <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
-                      <span className="font-medium text-warning">Custom Grout Color Change: ${pricingValues.backsplashGroutPrice.toLocaleString()} + GST</span>
+                      <span className="font-medium text-warning">Custom Grout Color Change: ${getGroutColorChangePrice().toLocaleString()} + GST</span>
                       {selectedSubmission.backsplash_grout_comments && (
                         <p className="mt-1 text-muted-foreground">Comments: {selectedSubmission.backsplash_grout_comments}</p>
                       )}
@@ -1223,7 +1045,7 @@ export default function AdminSubmissions() {
                       </div>
                       <div>
                         <span className="text-muted-foreground">Total (before GST):</span>
-                        <span className="ml-2 font-medium">${calculateSubmissionPricing(selectedSubmission, pricingValues).windowCoverings.subtotal.toFixed(2)}</span>
+                        <span className="ml-2 font-medium">${lineTotals.sectionTotalsOf(selectedSubmission.id, 'window_coverings').subtotal.toFixed(2)}</span>
                       </div>
                     </div>
                     {selectedSubmission.window_comments && (

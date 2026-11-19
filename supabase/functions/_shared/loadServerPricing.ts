@@ -1,8 +1,11 @@
-// Single loader for the edge engine's ServerPricing (pricing_config / upgrade_materials / unit_area_data).
+// Single loader for the generator's pricing (`QuotePricing`, alias `ServerPricing`) from pricing_config /
+// upgrade_materials / unit_area_data.
 // Dependency-free: callers pass a row fetcher (REST via fetch, or a supabase-js service-role client), so it
 // runs under Deno and bun tests alike. pricing_config stores percentages as whole numbers (markup_percentage = 60,
-// gst_rate = 5); the engine wants fractions (0.6, 0.05), so both are divided by 100 here and nowhere else.
-import type { ServerPricing } from "./upgradeTotalsServer.ts";
+// gst_rate = 5); prices use fractions (0.6, 0.05), converted here by the generator's `rateFromPercent`.
+import { rateFromPercent, type QuotePricing } from "./quoteLines.ts";
+
+export type ServerPricing = QuotePricing;
 
 export type PricingTable = "pricing_config" | "upgrade_materials" | "unit_area_data";
 // deno-lint-ignore no-explicit-any
@@ -24,8 +27,8 @@ export function serverPricingFromRows(rows: { pricing_config?: any[] | null; upg
   for (const m of (rows.upgrade_materials ?? []).filter(active)) materials[m.material_key] = Number(m.cost_per_unit);
   for (const c of (rows.pricing_config ?? []).filter(active)) {
     config[c.config_key] = Number(c.config_value);
-    if (c.config_key === "markup_percentage") markupPercentage = Number(c.config_value) / 100;
-    if (c.config_key === "gst_rate") gstRate = Number(c.config_value) / 100;
+    if (c.config_key === "markup_percentage") markupPercentage = rateFromPercent(Number(c.config_value));
+    if (c.config_key === "gst_rate") gstRate = rateFromPercent(Number(c.config_value));
   }
   const n = (v: unknown) => Number(v || 0);
   for (const u of rows.unit_area_data ?? []) {

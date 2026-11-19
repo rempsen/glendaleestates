@@ -6,7 +6,7 @@ import { test, expect, describe, spyOn } from 'bun:test';
 import liveSubmissions from './fixtures/live-submissions.json';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
 import type { PricingSnapshot } from './lib/fixturePricing';
-import { buildGenerateInputFromRow, enginePricingFromRows, engineTotalsForRow, type SubmissionRow } from './lib/generateInputFromRow';
+import { buildGenerateInputFromRow, pricingFromRows, referenceTotalsForRow, type SubmissionRow } from './lib/generateInputFromRow';
 import { generateQuoteLines, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
 import { LINE_COLUMNS, formatMoney } from '../supabase/functions/_shared/lineRenderRows.ts';
 import { escapeHtml, QUOTE_TO_FOLLOW_TEXT, renderLinesEmailHtml, type EmailLines } from '../supabase/functions/_shared/linesEmailHtml.ts';
@@ -17,30 +17,30 @@ import {
 } from '../supabase/functions/send-selections-email/emails.ts';
 import { buildAdminHtml, buildBuyerHtml, linesGrandTotal } from '../supabase/functions/resend-confirmation-email/emails.ts';
 
-const pricing = enginePricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
+const pricing = pricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
 const rows = liveSubmissions as unknown as SubmissionRow[];
-const GST = pricing.serverPricing.gstRate;
+const GST = pricing.gstRate;
 const SALES = 'SALES-ONLY: buyer is negotiating hard, hold the discount';
 const ADMIN = 'ADMIN-ONLY: check deposit cheque';
 const INTERNAL = 'INTERNAL-ONLY: supplier backorder risk';
 
 const headerCells = (html: string) => [...html.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
-const linesFor = (row: SubmissionRow) => generateQuoteLines(buildGenerateInputFromRow(row, pricing.serverPricing));
+const linesFor = (row: SubmissionRow) => generateQuoteLines(buildGenerateInputFromRow(row, pricing));
 const q = (lines: QuoteLine[], pricesAvailable = true): EmailLines => ({ lines, gstRate: GST, pricesAvailable });
 const line = (over: Partial<QuoteLine>): QuoteLine => ({
   sort_order: 900, section: 'other', location: 'Kitchen', label: 'Test line', unit: 'flat', pricing_mode: 'manual',
   status: 'upgrade', client_visible: true, source: 'office', provisional: false, amount: 100, ...over,
 });
 
-describe('send-selections-email + resend: totals equal the Phase 1 engine on every live unit', () => {
+describe('send-selections-email + resend: totals equal the parity pins on every live unit', () => {
   for (const row of rows) {
     test(`Unit ${row.unit_number}`, () => {
-      const { client, server } = engineTotalsForRow(row, pricing);
+      const ref = referenceTotalsForRow(row, pricing);
       const lines = linesFor(row);
       const data = buildPreviewSampleData({ salesComments: SALES, firstName: String(row.first_name ?? 'Buyer') });
       const sub = { ...row, sales_comments: SALES, admin_notes: ADMIN };
-      const total = formatMoney(client.grandTotal);
-      expect(formatMoney(server.grandTotal)).toBe(total);
+      const total = formatMoney(ref.grandTotal);
+      expect(formatMoney(ref.grandTotal)).toBe(total);
 
       const buyer = generateBuyerConfirmationEmail(data, 'id', q(lines));
       const office = buildAdminEmailHtml(data, 'id', q(lines));
@@ -51,8 +51,8 @@ describe('send-selections-email + resend: totals equal the Phase 1 engine on eve
         const ths = headerCells(html);
         for (const c of LINE_COLUMNS) expect(ths).toContain(c);
         expect(html).toContain(total);
-        expect(html).toContain(formatMoney(client.windowSubtotal));
-        expect(html).toContain(formatMoney(client.gst));
+        expect(html).toContain(formatMoney(ref.windowSubtotal));
+        expect(html).toContain(formatMoney(ref.gst));
       }
 
       // Buyer copies: never internal notes, sales comments or admin notes.
@@ -104,8 +104,8 @@ describe('rendering rules', () => {
   });
 
   test('resend grandTotal is the buyer copy\'s Total: null when the buyer copy printed no prices', () => {
-    const { client } = engineTotalsForRow(rows[0], pricing);
-    expect(linesGrandTotal(q(base))!.toFixed(2)).toBe(client.grandTotal.toFixed(2));
+    const ref = referenceTotalsForRow(rows[0], pricing);
+    expect(linesGrandTotal(q(base))!.toFixed(2)).toBe(ref.grandTotal.toFixed(2));
     expect(linesGrandTotal(q(base, false))).toBeNull();
     const err = spyOn(console, 'error').mockImplementation(() => {});
     expect(linesGrandTotal(q([...base, line({ amount: 500, client_visible: false })]))).toBeNull();
@@ -113,12 +113,12 @@ describe('rendering rules', () => {
   });
 
   test('the office CSV lists every line once and ends with the five totals', () => {
-    const { client } = engineTotalsForRow(rows[0], pricing);
+    const ref = referenceTotalsForRow(rows[0], pricing);
     const csv = generateCSV(buildPreviewSampleData({}), 'id', q(base));
     expect(csv).toContain('--- QUOTE LINES ---');
     expect(csv).toContain(`Section,${LINE_COLUMNS.join(',')}`);
     const totalRow = csv.split('\n').find((l) => l.startsWith('Totals,,Total,'))!;
-    expect(totalRow).toContain(`"${formatMoney(client.grandTotal)}"`); // money with a thousands comma is CSV-quoted
+    expect(totalRow).toContain(`"${formatMoney(ref.grandTotal)}"`); // money with a thousands comma is CSV-quoted
   });
 
   test('no price constants left in the CSV (grout used to print a hard-coded $300)', () => {

@@ -93,12 +93,12 @@ test('buyerDetailsOnly omits custom_pricing and every pricing-affecting column',
   for (const k of PRICING_FIELDS) expect(k in p).toBe(false);
   expect('custom_pricing' in p).toBe(false);
   expect(p).toMatchObject({ first_name: 'Deb', lvp_colour: 'cortland', sales_comments: 'note', unit_number: '37' });
-  // The legacy editor still writes everything.
+  // The legacy editor still writes every selection column, but never custom_pricing (read-only since Task 18).
   const full = buildSubmissionUpdatePayload(edit) as Record<string, unknown>;
-  expect(full.custom_pricing).toEqual({ overrides: { grout: { amount: 0 } } });
+  expect('custom_pricing' in full).toBe(false);
   expect(full.additional_windows_qty).toBe(3);
 });
-test('every PRICING_FIELDS key is a column the full payload writes', () => {
+test('every PRICING_FIELDS key except the read-only custom_pricing is a column the full payload writes', () => {
   const full = buildSubmissionUpdatePayload(base()) as Record<string, unknown>;
-  for (const k of PRICING_FIELDS) expect(k in full).toBe(true);
+  for (const k of PRICING_FIELDS) expect(k in full).toBe(k !== 'custom_pricing');
 });

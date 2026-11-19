@@ -13,7 +13,7 @@ import { SECTION_ORDER, type LineStatus, type Section } from '@/lib/quoteLines';
 import type { LinePatch, StoredLine } from '@/lib/quoteLinesReducer';
 import { baseSpecFor } from '@/lib/baseSpec';
 import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
-import { parseCustomPricing } from '@/lib/upgradeTotals';
+import { parseCustomPricing } from '@/lib/customPricing';
 import { peopleFromDirectory, presetSourceFromDynamic, SECTION_LABELS, type LineDraft, type PresetPerson } from '@/lib/addLinePresets';
 import { needsReason, STATUS_OPTIONS } from '@/lib/statusChange';
 import { applyStatusChange } from '@/lib/lineEdits';

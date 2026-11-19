@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { AdminLayout } from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { lvpOptions, spcTileOptions, carpetOptions, windowPricing } from '@/lib/mockData';
+import { lvpOptions, spcTileOptions, carpetOptions } from '@/lib/mockData';
 import { Download, FileText, FileSpreadsheet, Printer, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Tables } from '@/integrations/supabase/types';
-import { useWindowSubtotal } from '@/hooks/useWindowSubtotal';
+import { useSubmissionLineTotals } from '@/hooks/useSubmissionLineTotals';
 
 type BuyerSelection = Tables<'buyer_selections'>;
 
@@ -20,18 +20,24 @@ interface ReportStats {
 }
 
 export default function AdminReports() {
-  const windowSubtotalOf = useWindowSubtotal();
   const [generating, setGenerating] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submissions, setSubmissions] = useState<BuyerSelection[]>([]);
-  const [stats, setStats] = useState<ReportStats>({
-    totalSubmissions: 0,
-    submittedCount: 0,
-    windowExtensionHomes: 0,
-    totalWindowSubtotal: 0,
-    totalWindowGST: 0,
-    totalWindowRevenue: 0,
-  });
+  // Window coverings figures per submission: sumQuoteLines over its window_coverings lines.
+  const lineTotals = useSubmissionLineTotals(submissions);
+  const windowTotalsOf = (s: BuyerSelection) => lineTotals.sectionTotalsOf(s.id, 'window_coverings');
+  const windowSubtotalOf = (s: BuyerSelection) => windowTotalsOf(s).subtotal;
+  const stats: ReportStats = useMemo(() => {
+    const windows = submissions.map((s) => lineTotals.sectionTotalsOf(s.id, 'window_coverings'));
+    return {
+      totalSubmissions: submissions.length,
+      submittedCount: submissions.filter(s => s.status === 'submitted').length,
+      windowExtensionHomes: windows.filter((w) => w.subtotal > 0).length,
+      totalWindowSubtotal: windows.reduce((sum, w) => sum + w.subtotal, 0),
+      totalWindowGST: windows.reduce((sum, w) => sum + w.gst, 0),
+      totalWindowRevenue: windows.reduce((sum, w) => sum + w.total, 0),
+    };
+  }, [submissions, lineTotals]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -46,28 +52,6 @@ export default function AdminReports() {
       const subs = data || [];
       setSubmissions(subs);
 
-      // Calculate stats from real data
-      const windowExtensionHomes = subs.filter(
-        s => (s.additional_windows_qty || 0) > 0 || (s.patio_doors_qty || 0) > 0
-      ).length;
-
-      const totalWindowSubtotal = subs.reduce((sum, s) => {
-        const windowCost = (s.additional_windows_qty || 0) * windowPricing.additionalWindow;
-        const patioCost = (s.patio_doors_qty || 0) * windowPricing.patioDoor;
-        return sum + windowCost + patioCost;
-      }, 0);
-
-      const totalWindowGST = totalWindowSubtotal * windowPricing.gstRate;
-      const totalWindowRevenue = totalWindowSubtotal + totalWindowGST;
-
-      setStats({
-        totalSubmissions: subs.length,
-        submittedCount: subs.filter(s => s.status === 'submitted').length,
-        windowExtensionHomes,
-        totalWindowSubtotal,
-        totalWindowGST,
-        totalWindowRevenue,
-      });
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load report data');

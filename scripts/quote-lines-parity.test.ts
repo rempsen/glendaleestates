@@ -1,41 +1,23 @@
-// Phase 2 Task 3: generated quote lines must reproduce BOTH Phase 1 engines to the cent on every live unit,
-// line for line. The engines stay the oracle until Task 18 deletes them.
+// Phase 2 Task 3 (lines only since Task 18, when the Phase 1 engines that were the oracle were deleted): generated
+// quote lines on every live unit — subtotal to the cent = the pins, one window line per opening, valid vocabulary,
+// deterministic. Line-for-line parity with both engines was proven here until Task 18 (commit history).
 import { test, expect, describe } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import liveSubmissions from './fixtures/live-submissions.json';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
 import type { PricingSnapshot } from './lib/fixturePricing';
-import {
-  buildGenerateInputFromRow, enginePricingFromRows, engineTotalsForRow, type SubmissionRow,
-} from './lib/generateInputFromRow';
+import { buildGenerateInputFromRow, pricingFromRows, type SubmissionRow } from './lib/generateInputFromRow';
 import { generateQuoteLines, sumQuoteLines, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
-import { expectedLines, matchByKey } from './lib/engineLineKeys';
-
-// Copied verbatim from scripts/parity.test.ts (EXPECTED_SUBTOTALS); these pins never change.
-const EXPECTED_SUBTOTALS: Record<string, number> = {
-  '2': 2460,
-  '4': 14334,
-  '7': 3296.7, // 2026-11-18: +451.20 premium underpad (flag was never priced); reported to Dan by the controller, no override written
-  '24': 10388.4,
-  '27': 0,
-  // Engine subtotal 27,263.00 vs. the staff note of 2026-11-16 "$27,204.50 plus GST" (gap $58.50, origin unknown).
-  // Pinned at the engine value on 2026-11-18; to be investigated in Phase 2 parity work.
-  '31': 27263,
-  '37': 10488.5,
-  '38': 2680.5,
-  '43': 23865,
-};
+import { PINNED_SUBTOTALS as EXPECTED_SUBTOTALS } from './lib/parityPins';
 
 const snapshot = pricingSnapshot as unknown as PricingSnapshot;
 // Shared with scripts/backfill-quote-lines.ts: the backfill builds its inputs with exactly these functions.
-const pricing = enginePricingFromRows(snapshot);
+const pricing = pricingFromRows(snapshot);
 const rows = liveSubmissions as unknown as SubmissionRow[];
 
 function engines(row: SubmissionRow) {
-  const { client, server } = engineTotalsForRow(row, pricing);
-  const lines = generateQuoteLines(buildGenerateInputFromRow(row, pricing.serverPricing));
-  return { client, server, lines };
+  return { lines: generateQuoteLines(buildGenerateInputFromRow(row, pricing)) };
 }
 
 const counted = (lines: QuoteLine[]) => lines.filter((l) => l.status === 'upgrade' && l.amount != null);
@@ -45,60 +27,25 @@ test('fixture holds all nine live submissions', () => {
   expect(rows.length).toBe(9);
 });
 
-describe('generateQuoteLines parity with both engines', () => {
+describe('generateQuoteLines on the live units', () => {
   for (const row of rows) {
     const unit = row.unit_number;
-    test(`Unit ${unit}: subtotal to the cent = client engine = server engine = pin`, () => {
-      const { client, server, lines } = engines(row);
+    test(`Unit ${unit}: subtotal to the cent = pin; total = subtotal + GST`, () => {
+      const { lines } = engines(row);
       const sum = sumQuoteLines(lines, 0.05);
       expect(EXPECTED_SUBTOTALS[unit]).toBeDefined();
       expect(sum.subtotal.toFixed(2)).toBe(EXPECTED_SUBTOTALS[unit].toFixed(2));
-      expect(sum.subtotal.toFixed(2)).toBe(client.grandSubtotal.toFixed(2));
-      expect(sum.subtotal.toFixed(2)).toBe(server.grandSubtotal.toFixed(2));
-      expect(sum.windowCoverings.toFixed(2)).toBe(client.windowSubtotal.toFixed(2));
-      expect(sum.windowCoverings.toFixed(2)).toBe(server.windowSubtotal.toFixed(2));
-      expect(sum.upgrades.toFixed(2)).toBe(client.upgradesSubtotal.toFixed(2));
-      expect(sum.gst.toFixed(2)).toBe(client.gst.toFixed(2));
-      expect(sum.total.toFixed(2)).toBe(client.grandTotal.toFixed(2));
-    });
-
-    test(`Unit ${unit}: line for line against client lineItems (wizard_field + amount + section)`, () => {
-      const { client, lines } = engines(row);
-      const exp = expectedLines(client.lineItems, { areaUpgrades: row.area_upgrades as never, customPricing: row.custom_pricing });
-      const { unmatched, wrong, extra } = matchByKey(exp, lines);
-      expect(unmatched).toEqual([]);
-      expect(wrong).toEqual([]);
-      // Strict: every counted line is an engine item (the client lists $0 area rows too).
-      expect(show(extra)).toEqual([]);
-    });
-
-    test(`Unit ${unit}: line for line against server lineItems (wizard_field + amount + section)`, () => {
-      const { server, lines } = engines(row);
-      const exp = expectedLines(server.lineItems, { areaUpgrades: row.area_upgrades as never, customPricing: row.custom_pricing });
-      const { unmatched, wrong, extra } = matchByKey(exp, lines);
-      expect(unmatched).toEqual([]);
-      expect(wrong).toEqual([]);
-      // The server engine drops $0 area rows; those are the only counted lines it may lack.
-      expect(show(extra.filter((l) => l.amount !== 0))).toEqual([]);
+      expect((sum.upgrades + sum.windowCoverings).toFixed(2)).toBe(sum.subtotal.toFixed(2));
+      expect(sum.total).toBeCloseTo(sum.subtotal + sum.gst, 6);
     });
 
     test(`Unit ${unit}: one window line per opening at the pricing_config unit price`, () => {
-      const { client, lines } = engines(row);
+      const { lines } = engines(row);
       const win = counted(lines).filter((l) => l.section === 'window_coverings');
       for (const l of win) { expect(l.quantity).toBe(1); expect(l.unit).toBe('each'); expect(l.amount).toBe(l.unit_price as number); }
       expect(win.filter((l) => l.wizard_field === 'additional_windows_qty')).toHaveLength(row.additional_windows_qty || 0);
       expect(win.filter((l) => l.wizard_field === 'patio_doors_qty')).toHaveLength(row.patio_doors_qty || 0);
       expect(win.filter((l) => l.wizard_field === 'automated_windows_qty')).toHaveLength(row.automated_windows_qty || 0);
-      const windowItems = client.lineItems.filter((li) => li.group === 'window').length;
-      expect(windowItems).toBe([row.additional_windows_qty, row.patio_doors_qty, row.automated_windows_qty].filter((q) => (q || 0) > 0).length);
-    });
-
-    test(`Unit ${unit}: office items map one-to-one with engine includedItems and uncommittedItems`, () => {
-      const { client, lines } = engines(row);
-      const office = lines.filter((l) => l.source === 'office');
-      expect(office.filter((l) => l.status === 'included')).toHaveLength(client.pieces.includedItems.length);
-      const notCounted = office.filter((l) => l.status !== 'included' && !(l.status === 'upgrade' && l.amount != null));
-      expect(notCounted.map((l) => l.amount)).toEqual(client.pieces.uncommittedItems.map((i) => i.amount));
     });
 
     test(`Unit ${unit}: vocabulary — no removed, valid enums, included lines at $0`, () => {

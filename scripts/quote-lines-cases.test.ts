@@ -2,8 +2,7 @@
 import { test, expect, describe } from 'bun:test';
 import liveSubmissions from './fixtures/live-submissions.json';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
-import { loadFixturePricing, type PricingSnapshot } from './lib/fixturePricing';
-import { computeUpgradeTotals, type UpgradeTotalsInput } from '../src/lib/upgradeTotals';
+import type { PricingSnapshot } from './lib/fixturePricing';
 import { serverPricingFromRows } from '../supabase/functions/_shared/loadServerPricing';
 import { toBuyerPdfSelections } from '../src/lib/buyerPdfSelections';
 import { normalizeUnitTypeCode } from '../src/lib/upgradeCostData';
@@ -12,7 +11,6 @@ import { STAIR_CARPET_LABEL, LAUNDRY_ROW_LABEL } from '../src/lib/outputLabels';
 import { generateQuoteLines, sumQuoteLines, type GenerateInput, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
 
 const snapshot = pricingSnapshot as unknown as PricingSnapshot;
-const clientPricing = loadFixturePricing(snapshot);
 const pricing = serverPricingFromRows({
   pricing_config: snapshot.pricing_config,
   upgrade_materials: snapshot.upgrade_materials.filter((m) => m.is_active),
@@ -71,12 +69,9 @@ describe('bedroom premium carpet / underpad', () => {
     for (const [code, floor] of [['G', '1'], ['G', null], ['G-1', null], ['G', '2']] as const) {
       const sel = { bedroomFlooringChoice: 'carpet' as const, premiumCarpetBedroom: true, upgradeFloorSelection: floor };
       const [c] = byField(gen(code, sel), 'premium_carpet_bedroom');
-      const engine = computeUpgradeTotals({ unitTypeCode: code, upgradeFloorSelection: floor, areaUpgrades: [],
-        bedroomFlooringChoice: 'carpet', bedroomPremiumCarpetSelected: true } as UpgradeTotalsInput, clientPricing);
       expect(c.quantity).toBe(120);
       expect(c.location).toBe('Bedrooms');
       expect(c.amount).toBe(4800);
-      expect(c.amount).toBeCloseTo(engine.pieces.bedroomCarpet, 6);
     }
   });
 });
@@ -177,14 +172,12 @@ describe('overrides', () => {
     expect(pad.label).toBe('Premium Underpad — Stairs to Upper Level');
   });
 
-  test('override of 0 → included $0 line with the override ref (never a $0 upgrade); total matches the engine', () => {
+  test('override of 0 → included $0 line with the override ref (never a $0 upgrade); total is 0', () => {
     const sel = { backsplashGrout: { enabled: true, groutColor: 'black', comments: '' }, customPricing: { overrides: { grout: { amount: 0 } } } };
     const lines = gen('C', sel);
     const [g] = byField(lines, 'backsplash_grout_enabled');
     expect(g).toMatchObject({ amount: 0, status: 'included', pricing_mode: 'included', price_source_ref: 'override:grout', section: 'backsplash' });
-    const engine = computeUpgradeTotals({ unitTypeCode: 'C', areaUpgrades: [], backsplashGrout: sel.backsplashGrout, customPricing: sel.customPricing }, clientPricing);
-    expect(engine.lineItems).toHaveLength(0);
-    expect(sumQuoteLines(lines, 0.05).subtotal).toBe(engine.grandSubtotal);
+    expect(sumQuoteLines(lines, 0.05).subtotal).toBe(0);
   });
 
   test('stair override 0 with carpet also selected: LVP still wins, no carpet line', () => {
@@ -233,44 +226,27 @@ describe('windows, heated floors, ordering', () => {
   });
 });
 
-// ---- Fix round 1: robustness, engine rules pinned against computeUpgradeTotals, window cap ----
+// ---- Fix round 1: robustness, Phase 1 engine rules (values pinned from computeUpgradeTotals before Task 18), window cap ----
 
-/** Client + server pricing from an edited copy of the fixture snapshot. */
+/** Generator pricing from an edited copy of the fixture snapshot. */
 function pricingFrom(edit: (s: PricingSnapshot) => void) {
   const snap = JSON.parse(JSON.stringify(snapshot)) as PricingSnapshot;
   edit(snap);
-  return {
-    client: loadFixturePricing(snap),
-    server: serverPricingFromRows({ pricing_config: snap.pricing_config, upgrade_materials: snap.upgrade_materials.filter((m) => m.is_active), unit_area_data: snap.unit_area_data }),
-  };
+  return serverPricingFromRows({ pricing_config: snap.pricing_config, upgrade_materials: snap.upgrade_materials.filter((m) => m.is_active), unit_area_data: snap.unit_area_data });
 }
-/** Runs the generator and the client engine on the same crafted input; returns both. */
-function both(code: string, sel: Partial<Sel>, p = { client: clientPricing, server: pricing }) {
+/** Runs the generator on a crafted input; returns the lines and their totals. */
+function both(code: string, sel: Partial<Sel>, p = pricing) {
   const selections = { ...base, ...sel } as Sel;
-  const lines = generateQuoteLines({ selections, unitTypeCode: code, pricing: p.server, baseSpec: baseSpecFor(code) });
-  const engine = computeUpgradeTotals({
-    unitTypeCode: code, upgradeFloorSelection: selections.upgradeFloorSelection as '1' | '2' | null,
-    areaUpgrades: selections.areaUpgrades as never, backsplashGrout: selections.backsplashGrout as never,
-    stairLvpUpgradeSelected: selections.stairLvpUpgradeSelected, stairUpgradeType: selections.stairUpgradeType,
-    stairPremiumCarpetSelected: selections.stairPremiumCarpetSelected, stairPremiumUnderpadSelected: selections.premiumUnderpadStairs,
-    bedroomFlooringChoice: selections.bedroomFlooringChoice, bedroomPremiumCarpetSelected: selections.premiumCarpetBedroom,
-    bedroomPremiumUnderpadSelected: selections.premiumUnderpadBedroom, additionalWindowsQty: selections.additionalWindowsQty,
-    patioDoorsQty: selections.patioDoorsQty, automatedWindowsQty: selections.automatedWindowsQty,
-    bathroomTileSelected: selections.bathroomTileSelected, bathroomTileEnsuiteSelected: selections.bathroomTileEnsuiteSelected,
-    bathroomTileGuestSelected: selections.bathroomTileGuestSelected, heatedFloorBathrooms: selections.heatedFloorBathrooms,
-    customTiledShower: selections.customTiledShower, customPricing: selections.customPricing as never,
-  }, p.client);
-  const sum = sumQuoteLines(lines, 0.05);
-  return { lines, engine, sum };
+  const lines = generateQuoteLines({ selections, unitTypeCode: code, pricing: p, baseSpec: baseSpecFor(code) });
+  return { lines, sum: sumQuoteLines(lines, 0.05) };
 }
 
 describe('robustness on real rows', () => {
   test('area row with a missing materialType → a $0 line, as the engine prices it', () => {
-    const { lines, engine, sum } = both('C', { areaUpgrades: [{ areaId: 'laundry' } as never] });
+    const { lines, sum } = both('C', { areaUpgrades: [{ areaId: 'laundry' } as never] });
     const [l] = byField(lines, 'area_upgrades[laundry]');
     expect(l).toMatchObject({ amount: 0, status: 'upgrade', label: 'Upgrade', material_key: null, location: 'Laundry Room' });
-    expect(engine.lineItems.map((li) => li.amount)).toEqual([0]);
-    expect(sum.subtotal).toBe(engine.grandSubtotal);
+    expect(sum.subtotal).toBe(0);
   });
 
   test('null baseSpec → no standard rows, no throw', () => {
@@ -292,59 +268,53 @@ describe('robustness on real rows', () => {
   });
 });
 
-describe('engine rules (each pinned against computeUpgradeTotals)', () => {
+describe('Phase 1 engine rules (values pinned from computeUpgradeTotals)', () => {
   test('ov() active gate: an override on an unselected piece is ignored', () => {
-    const { lines, engine, sum } = both('C', { stairPremiumCarpetSelected: false, customPricing: { overrides: { stairCarpet: { amount: 700 }, grout: { amount: 50 } } } });
-    expect(engine.grandSubtotal).toBe(0);
+    const { lines, sum } = both('C', { stairPremiumCarpetSelected: false, customPricing: { overrides: { stairCarpet: { amount: 700 }, grout: { amount: 50 } } } });
     expect(sum.subtotal).toBe(0);
     expect(byField(lines, 'stair_premium_carpet_selected')).toHaveLength(0);
   });
 
   test('bathroom tile (Section 4) is not priced when a bathroom area row is already tile', () => {
-    const { lines, engine, sum } = both('C', {
+    const { lines, sum } = both('C', {
       bathroomTileSelected: true, bathroomTileEnsuiteSelected: true, bathroomTileGuestSelected: true,
       areaUpgrades: [{ areaId: 'masterEnsuite', materialType: 'tile', productName: '', productColor: '' }],
     });
-    expect(engine.pieces.bathroomTile).toBe(0);
     expect(byField(lines, 'bathroom_tile_selected')).toHaveLength(0);
-    expect(sum.subtotal).toBeCloseTo(engine.grandSubtotal, 6);
+    expect(sum.subtotal).toBeCloseTo(2176, 6); // the area row only
   });
 
   test('guest bathroom tile only counts a positive guest area', () => {
     const p = pricingFrom((s) => { s.unit_area_data.find((a) => a.unit_type_code === 'C')!.guest_bathroom = -10; });
-    const { lines, engine, sum } = both('C', { bathroomTileSelected: true, bathroomTileEnsuiteSelected: true, bathroomTileGuestSelected: true }, p);
-    expect(engine.pieces.bathroomTileSqft).toBe(80);
+    const { lines, sum } = both('C', { bathroomTileSelected: true, bathroomTileEnsuiteSelected: true, bathroomTileGuestSelected: true }, p);
     const [t] = byField(lines, 'bathroom_tile_selected');
     expect(t).toMatchObject({ quantity: 80, location: 'Primary Ensuite' });
-    expect(t.amount).toBeCloseTo(engine.pieces.bathroomTile, 6);
-    expect(sum.subtotal).toBeCloseTo(engine.grandSubtotal, 6);
+    expect(t.amount).toBeCloseTo(2176, 6);
+    expect(sum.subtotal).toBeCloseTo(2176, 6);
   });
 
   test('legacy row: master tile flag without sub-flags tiles both bathrooms', () => {
-    const { lines, engine, sum } = both('C', { bathroomTileSelected: true });
-    expect(engine.pieces.bathroomTileSqft).toBe(140);
+    const { lines, sum } = both('C', { bathroomTileSelected: true });
     const [t] = byField(lines, 'bathroom_tile_selected');
     expect(t).toMatchObject({ quantity: 140, location: 'Main Bathroom & Primary Ensuite' });
-    expect(t.amount).toBeCloseTo(engine.pieces.bathroomTile, 6);
-    expect(sum.subtotal).toBeCloseTo(engine.grandSubtotal, 6);
+    expect(t.amount).toBeCloseTo(3808, 6);
+    expect(sum.subtotal).toBeCloseTo(3808, 6);
   });
 
   test('stairs area row is skipped unless the office set a manual price', () => {
     const plain = both('C', { areaUpgrades: [{ areaId: 'stairs', materialType: 'carpet', productName: '', productColor: '' }] });
-    expect(plain.engine.lineItems).toHaveLength(0);
+    expect(plain.sum.subtotal).toBe(0);
     expect(byField(plain.lines, 'area_upgrades[stairs]')).toHaveLength(0);
     const manual = both('C', { areaUpgrades: [{ areaId: 'stairs', materialType: 'carpet', manualPrice: 900, productName: '', productColor: '' }] });
-    expect(manual.engine.grandSubtotal).toBe(900);
     expect(byField(manual.lines, 'area_upgrades[stairs]')[0]).toMatchObject({ amount: 900, section: 'stairs', pricing_mode: 'manual' });
     expect(manual.sum.subtotal).toBe(900);
   });
 
   test('premium stair LVP falls back to the LVP price when the premium price is 0', () => {
     const p = pricingFrom((s) => { s.pricing_config.find((c) => c.config_key === 'stair_premium_lvp_upgrade_price')!.config_value = 0; });
-    const { lines, engine, sum } = both('C', { stairUpgradeType: 'premium_lvp', stairLvpUpgradeSelected: true }, p);
-    expect(engine.pieces.stairLvp).toBe(2160);
+    const { lines, sum } = both('C', { stairUpgradeType: 'premium_lvp', stairLvpUpgradeSelected: true }, p);
     expect(byField(lines, 'stair_upgrade_type')[0]).toMatchObject({ amount: 2160, price_source_ref: 'config:stair_lvp_upgrade_price' });
-    expect(sum.subtotal).toBe(engine.grandSubtotal);
+    expect(sum.subtotal).toBe(2160);
   });
 });
 

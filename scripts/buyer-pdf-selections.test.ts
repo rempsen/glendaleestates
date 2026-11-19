@@ -87,13 +87,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
 import type { PricingSnapshot } from './lib/fixturePricing';
-import { buildGenerateInputFromRow, enginePricingFromRows } from './lib/generateInputFromRow';
+import { buildGenerateInputFromRow, pricingFromRows } from './lib/generateInputFromRow';
 import { generateQuoteLines } from '../supabase/functions/_shared/quoteLines.ts';
 import { buildLineRows, INCLUDED_AMOUNT_TEXT, type LineRow } from '../src/lib/lineRenderRows';
 import { buildWordLineTables } from '../src/lib/submissionWordRows';
 import { LAUNDRY_STANDARD_LABEL, toBuyerWording } from '../src/lib/outputLabels';
 
-const linePricing = enginePricingFromRows(pricingSnapshot as unknown as PricingSnapshot).serverPricing;
+const linePricing = pricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
 
 const typeC = {
   ...record, unit_type: 'Unit Type C', has_stairs: true,

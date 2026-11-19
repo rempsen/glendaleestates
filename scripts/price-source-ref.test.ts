@@ -3,11 +3,11 @@ import { test, expect } from 'bun:test';
 import liveSubmissions from './fixtures/live-submissions.json';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
 import type { PricingSnapshot } from './lib/fixturePricing';
-import { buildGenerateInputFromRow, enginePricingFromRows, type SubmissionRow } from './lib/generateInputFromRow';
+import { buildGenerateInputFromRow, pricingFromRows, type SubmissionRow } from './lib/generateInputFromRow';
 import { generateQuoteLines } from '../supabase/functions/_shared/quoteLines.ts';
 
 const PREFIXED = /^(material|config|override|manual|custom):[\w.[\]-]+$/;
-const { serverPricing } = enginePricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
+const serverPricing = pricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
 const rows = liveSubmissions as unknown as SubmissionRow[];
 const all = rows.flatMap((r) => generateQuoteLines(buildGenerateInputFromRow(r, serverPricing)));
 

@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { withGst } from '@/lib/quoteLines';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sofa, BedDouble, Bed, Grid3x3, Bath, ShowerHead, 
@@ -507,7 +508,7 @@ export function RoomUpgradePicker({
                           const materialName = UPGRADE_MATERIALS.find(m => m.id === materialType)?.name;
                           const price = getAreaPricing(area.id, materialType);
                           const hasHeatedFloor = (editingSelection?.heatedFloor || selection?.heatedFloor) && (materialType === 'tile' || materialType === 'nonstandard_tile');
-                          const heatedFloorCostWithGst = heatedFloorPrice * (1 + gstRate);
+                          const heatedFloorCostWithGst = withGst(heatedFloorPrice, gstRate);
                           const totalWithHeated = hasHeatedFloor ? (price?.markedUpCost || 0) + heatedFloorPrice : (price?.markedUpCost || 0);
                           
                           // For stairs, show which upgrade type

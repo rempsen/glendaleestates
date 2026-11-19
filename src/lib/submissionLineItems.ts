@@ -5,7 +5,6 @@
 // re-exports and edits.
 // =====================================================================
 
-import type { BuyerSelection } from './submissionExportBuilder';
 import { countsInTotal, type QuoteLine } from '@/lib/quoteLines';
 
 export interface CanonicalLine {
@@ -100,105 +99,24 @@ export function legacyKeysForLines(lines: QuoteLine[], canonical: PmCanonicalLin
   return out;
 }
 
-/** Engine-pieces canonical lines (legacy keys). Still used by DownstreamTrackingPanel until Task 18. */
-export function buildCanonicalLines(
-  s: BuyerSelection,
-  totals: {
-    pieces: {
-      bathroomTile: number;
-      bathroomTileSqft?: number;
-      section4HeatedFloor: number;
-      customShower: number;
-      grout: number;
-      stairLvp: number;
-      stairCarpet: number;
-      stairUnderpad?: number;
-      bedroomCarpet?: number;
-      bedroomUnderpad?: number;
-      bedroomCarpetSqyd?: number;
-      windowAdditional: number;
-      windowPatio: number;
-      windowAutomation: number;
-      flooringUpgrades: { areaId: string; areaName: string; materialName: string; amount: number; heatedFloorAmount: number; productName?: string; productColor?: string; sqft?: number }[];
-    };
-    lineItems?: { label: string; amount: number }[];
-  },
-): CanonicalLine[] {
-  const out: CanonicalLine[] = [];
-  const push = (
-    k: string, l: string, a: number,
-    extra: Partial<CanonicalLine> = {},
-  ) => {
-    if (a > 0) out.push({
-      line_key: k, line_label: l, amount: a,
-      material_key: null, color_name: null, area_type: null,
-      quantity: 1, unit_of_measure: 'unit',
-      ...extra,
-    });
-  };
-  push('bathroom_tile', 'Bathroom Tile', totals.pieces.bathroomTile, {
-    material_key: 'tile', area_type: 'bathroom', unit_of_measure: 'sqft',
-    quantity: Number(totals.pieces.bathroomTileSqft) || 1,
-  });
-  push('heated_floor', 'Heated Floor (Bathrooms)', totals.pieces.section4HeatedFloor, {
-    material_key: 'heated_floor', area_type: 'bathroom',
-    quantity: Number((s as { heated_floor_bathrooms?: number }).heated_floor_bathrooms) || 1,
-  });
-  push('custom_shower', 'Custom Tiled Shower', totals.pieces.customShower, {
-    material_key: 'tiled_shower', area_type: 'bathroom',
-  });
-  push('grout', 'Backsplash Grout', totals.pieces.grout, {
-    material_key: 'grout', color_name: (s as { backsplash_grout_color?: string }).backsplash_grout_color || null,
-    area_type: 'kitchen',
-  });
-  (totals.pieces as { customItems?: Array<{ label: string; amount: number }> }).customItems?.forEach((ci, idx) => {
-    push(`custom_${idx + 1}`, ci.label, ci.amount, { material_key: 'custom', area_type: 'custom' });
-  });
-  push('stair_lvp', 'Stair LVP Upgrade', totals.pieces.stairLvp, {
-    material_key: 'stair_lvp', area_type: 'stairs',
-  });
-  push('stair_underpad', 'Stair Premium Underpad', totals.pieces.stairUnderpad || 0, {
-    material_key: 'premium_underpad_stairs', area_type: 'stairs',
-  });
-  push('stair_carpet', 'Stair Carpet Upgrade', totals.pieces.stairCarpet, {
-    material_key: 'stair_carpet', area_type: 'stairs',
-  });
-  // Reuse the engine's own label (carries the sq yd and the Primary Bedroom variant).
-  const engineLabel = (prefix: string, fallback: string) =>
-    totals.lineItems?.find(l => l.label.startsWith(prefix))?.label || fallback;
-  const bedroomExtra = { area_type: 'bedroom', unit_of_measure: 'sqyd', quantity: Number(totals.pieces.bedroomCarpetSqyd) || 1 };
-  push('bedroom_carpet', engineLabel('Premium Carpet — ', 'Premium Carpet — Bedrooms'), totals.pieces.bedroomCarpet || 0, {
-    material_key: 'carpet', ...bedroomExtra,
-  });
-  push('bedroom_underpad', engineLabel('Premium Underpad — ', 'Premium Underpad — Bedrooms'), totals.pieces.bedroomUnderpad || 0, {
-    material_key: 'premium_carpet_underpad', ...bedroomExtra,
-  });
-  push('window_additional', 'Additional Windows', totals.pieces.windowAdditional, {
-    material_key: 'window_blind', area_type: 'window',
-    quantity: Number((s as { additional_windows_qty?: number }).additional_windows_qty) || 1,
-  });
-  push('window_patio', 'Patio Doors', totals.pieces.windowPatio, {
-    material_key: 'patio_door', area_type: 'window',
-    quantity: Number((s as { patio_doors_qty?: number }).patio_doors_qty) || 1,
-  });
-  push('window_automation', 'Window Automation', totals.pieces.windowAutomation, {
-    material_key: 'window_automation', area_type: 'window',
-    quantity: Number((s as { automated_windows_qty?: number }).automated_windows_qty) || 1,
-  });
 
-  (totals.pieces.flooringUpgrades || []).forEach((u, i) => {
-    out.push({
-      line_key: `area_upgrade:${i}`,
-      line_label: `${u.areaName} - ${u.materialName}`,
-      amount: u.amount + u.heatedFloorAmount,
-      material_key: u.materialName,
-      color_name: u.productColor || u.productName || null,
-      area_type: u.areaId,
-      quantity: Number(u.sqft) || 1,
-      unit_of_measure: 'sqft',
-    });
-  });
-  return out;
+/** True for a PM line that has no stored quote line yet (generator fallback): it cannot carry tracking. */
+export const isGeneratedLineKey = (key: string): boolean => key.startsWith('generated:');
+
+/**
+ * Which `submission_line_items.line_key` the tracking panel reads and writes for a canonical line: an existing row
+ * under the quote_line_id (new rows), else an existing row under the line's legacy key (saved before the cutover;
+ * kept so it is updated, not duplicated), else the quote_line_id. Lines not yet stored (`generated:` ids) are
+ * read-only: tracking must hang off a stored line, so staff save the quote first.
+ */
+export function trackingKeyFor(
+  cl: Pick<PmCanonicalLine, 'quote_line_id'>, legacyKey: string | undefined, existing: ReadonlySet<string> | Record<string, unknown>,
+): { key: string; editable: boolean } {
+  const has = (k: string) => (existing instanceof Set ? existing.has(k) : Object.prototype.hasOwnProperty.call(existing, k));
+  if (isGeneratedLineKey(cl.quote_line_id)) return { key: cl.quote_line_id, editable: false };
+  if (has(cl.quote_line_id)) return { key: cl.quote_line_id, editable: true };
+  if (legacyKey && has(legacyKey)) return { key: legacyKey, editable: true };
+  return { key: cl.quote_line_id, editable: true };
 }
 
 export const APPROVAL_STATUSES = [

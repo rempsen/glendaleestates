@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import liveSubmissions from './fixtures/live-submissions.json';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
 import type { PricingSnapshot } from './lib/fixturePricing';
-import { buildGenerateInputFromRow, enginePricingFromRows, type SubmissionRow } from './lib/generateInputFromRow';
+import { buildGenerateInputFromRow, pricingFromRows, type SubmissionRow } from './lib/generateInputFromRow';
 import { generateQuoteLines, sumQuoteLines, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
 import {
   buildMyQuoteState, stateFromBuyerLines, latestReviewByLine, toBuyerLine, validateChangeRequest, validateReviewComment, buyerPdfSelectionsFromHeader,
@@ -15,8 +15,8 @@ import {
 import { OFFICE_CONTACT_TEXT, OFFICE_EMAIL } from '../supabase/functions/_shared/buyerContact.ts';
 import { MyQuoteView } from '../src/components/buyer/MyQuoteView';
 
-const pricing = enginePricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
-const GST = pricing.serverPricing.gstRate;
+const pricing = pricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
+const GST = pricing.gstRate;
 const SECRETS = ['INTERNAL-SECRET', 'SALES-SECRET', 'ADMIN-SECRET', 'flag-user-uuid', 'material:secret-ref'];
 
 const header = (over: Partial<MyQuoteHeader> = {}): MyQuoteHeader => ({
@@ -160,7 +160,7 @@ describe('totals equal sumQuoteLines on the nine live units', () => {
   test('fixture has nine units', () => expect(rows.length).toBe(9));
   for (const row of rows) {
     test(`Unit ${row.unit_number}`, () => {
-      const lines = generateQuoteLines(buildGenerateInputFromRow(row, pricing.serverPricing));
+      const lines = generateQuoteLines(buildGenerateInputFromRow(row, pricing));
       const rpcRows = asRpc(lines, 'sub-x');
       const state = buildMyQuoteState({ headers: [header({ submission_id: 'sub-x' })], lines: rpcRows, reviews: [], gstRate: GST });
       if (state.kind !== 'ready') throw new Error(state.kind);

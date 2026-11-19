@@ -23,7 +23,7 @@ import { useDraftSave } from '@/hooks/useDraftSave';
 import { migrateDraftClientComments } from '@/lib/draftClientComments';
 import { migrateDraftWindows } from '@/lib/draftWindows';
 import { quotePricingFromRows, wizardQuoteLines, wizardSubmitBody } from '@/lib/generateInputFromSelections';
-import { sumQuoteLines, windowCounts, WINDOW_KIND_PRODUCTS } from '@/lib/quoteLines';
+import { markedUp, sumQuoteLines, windowCounts, withGst, WINDOW_KIND_PRODUCTS } from '@/lib/quoteLines';
 import { baseSpecFor } from '@/lib/baseSpec';
 import type { WizardWindow } from '@shared/wizardWindows';
 import { 
@@ -39,7 +39,6 @@ import {
   resolveOptionName,
 } from '@/lib/mockData';
 import { getUnitInfo, UnitInfo } from '@/lib/unitData';
-import { computeUpgradeTotals } from '@/lib/upgradeTotals';
 import { 
   AreaUpgradeSelection,
   BacksplashGroutSelection,
@@ -156,7 +155,6 @@ export default function SelectionWizard() {
   
   // Use dynamic pricing from database
   const { 
-    calculateTotalUpgradeCost, 
     calculateBacksplashGroutPrice, 
     markupPercentage, 
     gstRate, 
@@ -464,39 +462,13 @@ export default function SelectionWizard() {
     }
   };
 
-  // Bedroom premium carpet / underpad prices shown in the wizard come from the
-  // same engine that prices the quote, so the buyer sees the number the quote
-  // will carry. Flags are forced on so the price is visible before selecting.
+  // Bedroom premium carpet / underpad prices shown in the wizard come from the generator that prices the quote,
+  // so the buyer sees the number the quote will carry. Flags are forced on so the price is visible before selecting.
   const bedroomPremiumPrices = useMemo(() => {
-    const pricing = {
-      markupPercentage,
-      gstRate,
-      getMaterialCost,
-      getGroutColorFee,
-      getAdditionalWindowPrice,
-      getPatioDoorPrice,
-      getAutomatedMotorPrice,
-      getHeatedFloorPrice,
-      getStairLvpUpgradePrice,
-      getStairPremiumLvpUpgradePrice,
-      getUnitAreaData,
-    };
-    const base = {
-      unitTypeCode: unitInfo?.typeCode ?? null,
-      upgradeFloorSelection: selections.upgradeFloorSelection,
-      areaUpgrades: selections.areaUpgrades || [],
-      bedroomFlooringChoice: selections.bedroomFlooringChoice,
-      bedroomPremiumCarpetSelected: true,
-      bedroomPremiumUnderpadSelected: true,
-    };
-    const { pieces } = computeUpgradeTotals(base, pricing);
-    return { carpet: pieces.bedroomCarpet, underpad: pieces.bedroomUnderpad };
-  }, [
-    markupPercentage, gstRate, getMaterialCost, getGroutColorFee, getAdditionalWindowPrice,
-    getPatioDoorPrice, getAutomatedMotorPrice, getHeatedFloorPrice, getStairLvpUpgradePrice,
-    getStairPremiumLvpUpgradePrice, getUnitAreaData, unitInfo?.typeCode,
-    selections.upgradeFloorSelection, selections.areaUpgrades, selections.bedroomFlooringChoice,
-  ]);
+    const forced = wizardQuoteLines({ ...selections, premiumCarpetBedroom: true, premiumUnderpadBedroom: true }, unitInfo, quotePricing);
+    const amount = (field: string) => forced.find((l) => l.wizard_field === field)?.amount ?? 0;
+    return { carpet: amount('premium_carpet_bedroom'), underpad: amount('premium_underpad_bedroom') };
+  }, [selections, unitInfo, quotePricing]);
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -505,7 +477,7 @@ export default function SelectionWizard() {
     try {
       // The submit-time window figure (GST-inclusive) and the logged subtotal come from the lines the rail shows.
       const linesSum = sumQuoteLines(quoteLines, quotePricing.gstRate);
-      const windowTotal = linesSum.windowCoverings * (1 + quotePricing.gstRate);
+      const windowTotal = sumQuoteLines(quoteLines.filter((l) => l.section === 'window_coverings'), quotePricing.gstRate).total;
       
       // Step 1: Generate PDF
       setSubmissionStep('generating-pdf');
@@ -1482,8 +1454,8 @@ export default function SelectionWizard() {
                     ensuiteArea = areaData?.masterEnsuite || 0;
                   }
                   const hasSecondBath = guestBathArea > 0;
-                  const ensuiteTotal = ensuiteArea * tileCost * (1 + markupPercentage) * (1 + gstRate);
-                  const guestTotal = guestBathArea * tileCost * (1 + markupPercentage) * (1 + gstRate);
+                  const ensuiteTotal = withGst(markedUp(ensuiteArea * tileCost, markupPercentage), gstRate);
+                  const guestTotal = withGst(markedUp(guestBathArea * tileCost, markupPercentage), gstRate);
                   const tileMaster = selections.bathroomTileSelected;
 
                   return (
@@ -1610,7 +1582,7 @@ export default function SelectionWizard() {
                           Radiant in-floor heating for your tiled bathroom — includes porcelain tile plus in-floor heat
                         </p>
                         {(() => {
-                          const heatWithGst = heatedFloorPrice * (1 + gstRate);
+                          const heatWithGst = withGst(heatedFloorPrice, gstRate);
                           return heatWithGst > 0 ? (
                             <p className="text-sm font-medium text-primary mt-1">
                               ${heatWithGst.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} per bathroom (incl. GST)
@@ -1668,8 +1640,7 @@ export default function SelectionWizard() {
                     {(() => {
                       const showerCost = getMaterialCost('tiled_shower' as MaterialType);
                       if (!showerCost) return null;
-                      const markedUp = showerCost * (1 + markupPercentage);
-                      const total = markedUp * (1 + gstRate);
+                      const total = withGst(markedUp(showerCost, markupPercentage), gstRate);
                       return (
                         <p className="text-sm font-medium text-primary mt-1">
                           ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (incl. GST)
@@ -2032,7 +2003,7 @@ export default function SelectionWizard() {
               {/* Premium Carpet Upgrade - show if carpet selected */}
               {selections.bedroomFlooringChoice === 'carpet' && (() => {
                 const premiumCarpetMarkedUp = bedroomPremiumPrices.carpet;
-                const premiumCarpetWithGst = premiumCarpetMarkedUp * (1 + gstRate);
+                const premiumCarpetWithGst = withGst(premiumCarpetMarkedUp, gstRate);
                 return premiumCarpetMarkedUp > 0 ? (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
@@ -2094,7 +2065,7 @@ export default function SelectionWizard() {
               {/* Premium Underpad Upgrade - show if carpet selected */}
               {selections.bedroomFlooringChoice === 'carpet' && (() => {
                 const underpadMarkedUp = bedroomPremiumPrices.underpad;
-                const underpadWithGst = underpadMarkedUp * (1 + gstRate);
+                const underpadWithGst = withGst(underpadMarkedUp, gstRate);
                 return underpadMarkedUp > 0 ? (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
@@ -2330,7 +2301,7 @@ export default function SelectionWizard() {
                             <div className="flex justify-between items-center text-sm">
                               <span className="text-foreground font-medium">Total with GST:</span>
                               <span className="text-primary font-semibold text-lg">
-                                ${(stairPremiumLvpUpgradePrice * (1 + gstRate)).toFixed(2)}
+                                ${withGst(stairPremiumLvpUpgradePrice, gstRate).toFixed(2)}
                               </span>
                             </div>
                           </div>
@@ -2388,7 +2359,7 @@ export default function SelectionWizard() {
                             <div className="flex justify-between items-center text-sm">
                               <span className="text-foreground font-medium">Total with GST:</span>
                               <span className="text-primary font-semibold text-lg">
-                                ${(stairLvpUpgradePrice * (1 + gstRate)).toFixed(2)}
+                                ${withGst(stairLvpUpgradePrice, gstRate).toFixed(2)}
                               </span>
                             </div>
                           </div>
@@ -2467,7 +2438,7 @@ export default function SelectionWizard() {
                         {selections.stairPremiumCarpetSelected && (
                           <div className="mt-2 pt-3 border-t border-border flex justify-between items-center text-sm">
                             <span className="text-foreground font-medium">Total with GST:</span>
-                            <span className="text-primary font-semibold text-lg">${(stairCarpetUpgradePrice * (1 + gstRate)).toFixed(2)}</span>
+                            <span className="text-primary font-semibold text-lg">${withGst(stairCarpetUpgradePrice, gstRate).toFixed(2)}</span>
                           </div>
                         )}
                       </div>
@@ -2513,7 +2484,7 @@ export default function SelectionWizard() {
                             <div className="flex justify-between items-center text-sm">
                               <span className="text-foreground font-medium">Total with GST:</span>
                               <span className="text-primary font-semibold text-lg">
-                                ${(underpadStairsPrice * (1 + gstRate)).toFixed(2)}
+                                ${withGst(underpadStairsPrice, gstRate).toFixed(2)}
                               </span>
                             </div>
                           </div>

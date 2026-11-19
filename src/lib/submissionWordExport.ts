@@ -1,5 +1,5 @@
 import { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, HeadingLevel, WidthType, AlignmentType } from 'docx';
-import { parseCustomPricing } from '@/lib/upgradeTotals';
+import { parseCustomPricing } from '@/lib/customPricing';
 import { internalAreaNotes } from '@/lib/areaNotes';
 import { buildLineRows, LINE_COLUMNS, INTERNAL_NOTES_HEADING } from '@/lib/lineRenderRows';
 import { buildWordDetailRows, buildWordLineTables, buildWordOpenQuestions } from '@/lib/submissionWordRows';

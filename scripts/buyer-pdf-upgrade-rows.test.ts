@@ -4,17 +4,17 @@ import { test, expect } from 'bun:test';
 import liveSubmissions from './fixtures/live-submissions.json';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
 import type { PricingSnapshot } from './lib/fixturePricing';
-import { buildGenerateInputFromRow, enginePricingFromRows, engineTotalsForRow, type SubmissionRow } from './lib/generateInputFromRow';
+import { buildGenerateInputFromRow, pricingFromRows, referenceTotalsForRow, type SubmissionRow } from './lib/generateInputFromRow';
 import { generateQuoteLines } from '../supabase/functions/_shared/quoteLines.ts';
 import { buildLineRows } from '../src/lib/lineRenderRows';
 
-const pricing = enginePricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
+const pricing = pricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
 const rows = liveSubmissions as unknown as SubmissionRow[];
 const cents = (s: string) => Math.round(Number(s.replace(/[$,]/g, '')) * 100);
 
 function rowsFor(row: SubmissionRow) {
-  const totals = engineTotalsForRow(row, pricing).client;
-  const model = buildLineRows(generateQuoteLines(buildGenerateInputFromRow(row, pricing.serverPricing)), { buyerView: true, gstRate: pricing.serverPricing.gstRate });
+  const totals = referenceTotalsForRow(row, pricing);
+  const model = buildLineRows(generateQuoteLines(buildGenerateInputFromRow(row, pricing)), { buyerView: true, gstRate: pricing.gstRate });
   const upgradeRows = model.upgrades.bySection.filter(s => s.section !== 'window_coverings').flatMap(s => s.rows);
   const windowRows = model.upgrades.bySection.filter(s => s.section === 'window_coverings').flatMap(s => s.rows);
   return { totals, model, upgradeRows, windowRows };

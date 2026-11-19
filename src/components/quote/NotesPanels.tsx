@@ -1,7 +1,7 @@
 // Notes under the console's lines: client notes (printed), internal notes (never printed), follow-ups (read-only
 // from custom_pricing.followUps until a later task moves them).
 import type { StoredLine } from '@/lib/quoteLinesReducer';
-import type { FollowUp } from '@/lib/upgradeTotals';
+import type { FollowUp } from '@/lib/customPricing';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export interface NotesPanelsProps {

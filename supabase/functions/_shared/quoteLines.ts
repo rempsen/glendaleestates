@@ -4,9 +4,9 @@
 // ZERO IMPORTS, no Deno/Node/browser globals: the same bytes run in the browser (via the `@shared/*` alias,
 // re-exported by src/lib/quoteLines.ts), in edge functions and in bun tests.
 //
-// Until Task 18 deletes them, `computeUpgradeTotals` (src/lib/upgradeTotals.ts) and `computeUpgradeTotalsServer`
-// (./upgradeTotalsServer.ts) are the oracle: every rule below mirrors them, and scripts/quote-lines-parity.test.ts
-// proves that the counted lines sum to their grandSubtotal to the cent, line for line, on all 9 live units.
+// This file is the only place that does price arithmetic (markup, GST, percent → rate); scripts/callers.test.ts
+// fails on any other file that does. The Phase 1 engines it replaced were deleted in Phase 2 Task 18; the nine
+// live-unit subtotals they produced stay pinned, to the cent, in scripts/parity.test.ts.
 //
 // Every price comes from `pricing` (pricing_config / upgrade_materials / unit_area_data). Strings copied here
 // (area/material names, buyer wording) carry no prices.
@@ -50,13 +50,26 @@ export interface QuoteLine {
 }
 
 /** Spec section order; `sort_order` follows it, then insertion order. */
+// ---- Price arithmetic primitives ----
+// Everything outside this file that needs a marked-up or GST-inclusive figure (option hints in the wizard, Pricing
+// Control previews, console presets, pricing loaders) calls these instead of multiplying itself.
+
+/** pricing_config stores percentages as whole numbers (markup 60, GST 5); prices use fractions (0.6, 0.05). */
+export const rateFromPercent = (percent: number): number => Number(percent) / 100;
+/** Customer price of a base cost: cost × (1 + markup). */
+export const markedUp = (cost: number, markup: number): number => cost * (1 + markup);
+/** GST on a pre-GST amount. */
+export const gstOn = (amount: number, gstRate: number): number => amount * gstRate;
+/** A pre-GST amount with GST added (display hints; quote totals come from `sumQuoteLines`). */
+export const withGst = (amount: number, gstRate: number): number => amount + gstOn(amount, gstRate);
+
 export const SECTION_ORDER: readonly Section[] = [
   'standard', 'flooring', 'tile', 'backsplash', 'stairs', 'window_coverings', 'bathroom', 'basement', 'other',
 ];
 
 // ---- Input shapes (structural copies; no imports) ----
 
-/** Same shape as `ServerPricing` from ./upgradeTotalsServer.ts (built by `loadServerPricing`). */
+/** Built from pricing_config / upgrade_materials / unit_area_data by `serverPricingFromRows` (./loadServerPricing.ts). */
 export interface QuoteUnitArea { [key: string]: number | undefined }
 export interface QuotePricing {
   materials: Record<string, number>;
@@ -222,7 +235,7 @@ const AREA_LOCATIONS: Record<string, string> = {
 };
 const SQYD_AREAS = new Set(['masterBedroom', 'secondBedroomCarpet', 'masterBedroomCarpet', 'stairs']);
 
-/** Material names as in UPGRADE_MATERIALS (src/lib/upgradeCostData.ts) / MATERIAL_NAMES (upgradeTotalsServer.ts). */
+/** Material names as in UPGRADE_MATERIALS (src/lib/upgradeCostData.ts). */
 const MATERIAL_NAMES: Record<string, string> = {
   lvp: 'Premium LVP',
   hardwood: 'Hardwood',
@@ -297,13 +310,13 @@ const joinNotes = (...parts: Array<string | null | undefined>) => parts.map((p) 
 
 const WINDOW_LIKE = /shade|blind|window|patio|panel track|somfy|motori|drape|curtain/i;
 
-/** Office custom item → section, by area first, then label keywords. See the Unit 24 note at `windowLike`. */
+/** Office custom item → section, by area first, then label keywords. */
 function officeSection(item: QuoteCustomItem, included: boolean): Section {
   const area = String(item.area || '');
   const label = String(item.label || '');
   if (/stair/i.test(area)) return 'stairs';
   if (/basement/i.test(area)) return 'basement';
-  // The engines price office items as upgrades, never as windows, and parity binds `windowCoverings` to the engine
+  // The engines priced office items as upgrades, never as windows, and parity bound `windowCoverings` to the engine
   // `windowSubtotal`; so a counted window-like office item stays in 'other'. Included ($0) ones join window_coverings.
   if (WINDOW_LIKE.test(label)) return included ? 'window_coverings' : 'other';
   if (/grout|backsplash/i.test(label)) return 'backsplash';

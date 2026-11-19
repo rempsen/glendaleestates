@@ -172,7 +172,6 @@ function buildFullPayload(editData: SubmissionEditState): TablesUpdate<'buyer_se
     custom_tiled_shower: !!editData.custom_tiled_shower,
     bathroom_tile_ensuite_selected: !!editData.bathroom_tile_ensuite_selected,
     bathroom_tile_guest_selected: !!editData.bathroom_tile_guest_selected,
-    custom_pricing: (editData.custom_pricing ?? {}) as unknown as Json,
 
     // Admin
     sales_comments: editData.sales_comments,

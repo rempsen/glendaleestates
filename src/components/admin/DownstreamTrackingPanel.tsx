@@ -22,17 +22,16 @@ import {
 import { DollarSign, Users, Package, Save } from 'lucide-react';
 import {
   APPROVAL_STATUSES, INSTALLATION_STATUSES, RISK_LEVELS, PAYMENT_STATUSES,
-  buildCanonicalLines,
+  buildPmCanonicalLines, isGeneratedLineKey, legacyKeysForLines, trackingKeyFor,
 } from '@/lib/submissionLineItems';
 import {
   type SubmissionPaymentRow,
   type SubmissionOwnershipRow,
   type SubmissionLineItemRow,
 } from '@/lib/fetchDownstreamData';
-import { computeUpgradeTotals } from '@/lib/upgradeTotals';
-import { useDynamicPricing } from '@/hooks/useDynamicPricing';
-import { useUnitAreaData } from '@/hooks/useUnitAreaData';
-import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
+import { loadLinesForSubmissions } from '@/lib/submissionLinesLoader';
+import type { QuoteLine } from '@/lib/quoteLines';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Props {
   submissionId: string;
@@ -69,70 +68,22 @@ export function DownstreamTrackingPanel({ submissionId, submission }: Props) {
   const [own, setOwn] = useState<SubmissionOwnershipRow>(emptyOwn(submissionId));
   const [lines, setLines] = useState<Record<string, Partial<SubmissionLineItemRow>>>({});
 
-  // pricing for canonical line synthesis
-  const pricing = useDynamicPricing();
-  const { unitAreaData } = useUnitAreaData();
+  // Tracking hangs off quote lines (stored, else generated until the quote is saved), keyed by quote_line_id;
+  // rows saved before the Phase 2 cutover keep their legacy line_key and still attach.
+  const [quoteLines, setQuoteLines] = useState<QuoteLine[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    loadLinesForSubmissions([{ ...submission, id: submissionId }])
+      .then((r) => { if (!cancelled) setQuoteLines(r.linesBySubmission[submissionId] ?? []); })
+      .catch((e) => { if (!cancelled) toast.error('Could not load quote lines', { description: e?.message }); });
+    return () => { cancelled = true; };
+  }, [submission, submissionId]);
 
   const canonicalLines = useMemo(() => {
-    if (!pricing.loaded) return [];
-    const totals = computeUpgradeTotals(
-      {
-        unitTypeCode: submission.unit_type ? normalizeUnitTypeCode(submission.unit_type) : null,
-        upgradeFloorSelection: submission.upgrade_floor_selection || null,
-        areaUpgrades: submission.area_upgrades || [],
-        backsplashGrout: submission.backsplash_grout_enabled
-          ? { enabled: true, groutColor: submission.backsplash_grout_color || '', comments: '' }
-          : null,
-        stairLvpUpgradeSelected: !!submission.stair_lvp_upgrade_selected,
-        stairUpgradeType: (submission as any).stair_upgrade_type || null,
-        stairPremiumCarpetSelected: !!(submission as any).stair_premium_carpet_selected,
-        stairPremiumUnderpadSelected: !!(submission as any).premium_underpad_stairs,
-        additionalWindowsQty: submission.additional_windows_qty || 0,
-        patioDoorsQty: submission.patio_doors_qty || 0,
-        automatedWindowsQty: submission.automated_windows_qty || 0,
-        bathroomTileSelected: !!submission.bathroom_tile_selected,
-        bathroomTileEnsuiteSelected: submission.bathroom_tile_ensuite_selected,
-        bathroomTileGuestSelected: submission.bathroom_tile_guest_selected,
-        heatedFloorBathrooms: submission.heated_floor_bathrooms || 0,
-        customTiledShower: !!submission.custom_tiled_shower,
-        customPricing: (submission as any).custom_pricing,
-        bedroomFlooringChoice: ((submission as any).bedroom_flooring_choice === 'carpet' ? 'carpet' : (submission as any).bedroom_flooring_choice === 'lvp' ? 'lvp' : ''),
-        bedroomPremiumCarpetSelected: !!(submission as any).premium_carpet_bedroom,
-        bedroomPremiumUnderpadSelected: !!(submission as any).premium_underpad_bedroom,
-      },
-      {
-        markupPercentage: pricing.markupPercentage,
-        gstRate: pricing.gstRate,
-        getMaterialCost: pricing.getMaterialCost,
-        getGroutColorFee: () => pricing.getGroutColorChangePrice(),
-        getAdditionalWindowPrice: () => pricing.getAdditionalWindowPrice(),
-        getPatioDoorPrice: () => pricing.getPatioDoorPrice(),
-        getAutomatedMotorPrice: () => pricing.getAutomatedMotorPrice(),
-        getHeatedFloorPrice: () => pricing.getHeatedFloorPrice(),
-        getStairLvpUpgradePrice: () => pricing.getStairLvpUpgradePrice(),
-        getStairCarpetUpgradePrice: () => pricing.getStairCarpetUpgradePrice(),
-        getStairUnderpadUpgradePrice: () => pricing.getUnderpadStairsPrice(),
-        getUnitAreaData: (code: string) => {
-          const row = unitAreaData.find((u) => u.unit_type_code?.toUpperCase() === code?.toUpperCase());
-          if (!row) return null;
-          return {
-            allLvp: Number(row.all_lvp) || 0,
-            mainLiving: Number(row.main_living) || 0,
-            secondBedroom: Number(row.second_bedroom) || 0,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            masterBedroomLvp: Number((row as any).master_bedroom_lvp) || 0,
-            masterBedroom: Number(row.master_bedroom) || 0,
-            secondBedroomCarpet: Number(row.second_bedroom_carpet) || 0,
-            guestBathroom: Number(row.guest_bathroom) || 0,
-            masterEnsuite: Number(row.master_ensuite) || 0,
-            laundry: Number(row.laundry) || 0,
-            backsplash: Number(row.backsplash) || 0,
-          };
-        },
-      },
-    );
-    return buildCanonicalLines(submission, totals);
-  }, [submission, pricing, unitAreaData]);
+    const canonical = buildPmCanonicalLines(quoteLines);
+    const legacy = legacyKeysForLines(quoteLines, canonical);
+    return canonical.map((cl) => ({ ...cl, ...trackingKeyFor(cl, legacy.get(cl.quote_line_id), lines) }));
+  }, [quoteLines, lines]);
 
   useEffect(() => {
     let cancelled = false;
@@ -174,7 +125,7 @@ export function DownstreamTrackingPanel({ submissionId, submission }: Props) {
       if (oe) throw oe;
 
       const rows = Object.values(lines)
-        .filter((l) => l.line_key)
+        .filter((l) => l.line_key && !isGeneratedLineKey(l.line_key))
         .map((l) => ({
           submission_id: submissionId,
           line_key: l.line_key!,
@@ -313,18 +264,13 @@ export function DownstreamTrackingPanel({ submissionId, submission }: Props) {
               <p className="text-sm text-muted-foreground">No upgrade line items on this submission.</p>
             )}
             {canonicalLines.map((cl) => {
-              const cur = lines[cl.line_key] || {};
-              return (
-                <div key={cl.line_key} className="border rounded-lg p-3 space-y-2 bg-card">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">{cl.line_label}</div>
-                    <div className="text-xs text-muted-foreground">${cl.amount.toFixed(2)}</div>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              const cur = lines[cl.key] || {};
+              const fields = (
+                  <fieldset disabled={!cl.editable} className="grid grid-cols-2 md:grid-cols-3 gap-2 disabled:opacity-60">
                     <div><Label className="text-xs">Approval</Label>
                       <Select
                         value={cur.approval_status ?? 'pending_client_confirmation'}
-                        onValueChange={(v) => updateLine(cl.line_key, cl.line_label, { approval_status: v })}
+                        onValueChange={(v) => updateLine(cl.key, cl.line_label, { approval_status: v })}
                       >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -334,44 +280,44 @@ export function DownstreamTrackingPanel({ submissionId, submission }: Props) {
                     </div>
                     <div><Label className="text-xs">Supplier</Label>
                       <Input value={cur.supplier ?? ''}
-                        onChange={(e) => updateLine(cl.line_key, cl.line_label, { supplier: e.target.value })} />
+                        onChange={(e) => updateLine(cl.key, cl.line_label, { supplier: e.target.value })} />
                     </div>
                     <div><Label className="text-xs">SKU</Label>
                       <Input value={cur.sku ?? ''}
-                        onChange={(e) => updateLine(cl.line_key, cl.line_label, { sku: e.target.value })} />
+                        onChange={(e) => updateLine(cl.key, cl.line_label, { sku: e.target.value })} />
                     </div>
                     <div><Label className="text-xs">Qty Required</Label>
                       <Input type="number" value={cur.quantity_required ?? ''}
-                        onChange={(e) => updateLine(cl.line_key, cl.line_label, { quantity_required: e.target.value === '' ? null : Number(e.target.value) })} />
+                        onChange={(e) => updateLine(cl.key, cl.line_label, { quantity_required: e.target.value === '' ? null : Number(e.target.value) })} />
                     </div>
                     <div><Label className="text-xs">Qty Ordered</Label>
                       <Input type="number" value={cur.quantity_ordered ?? ''}
-                        onChange={(e) => updateLine(cl.line_key, cl.line_label, { quantity_ordered: e.target.value === '' ? null : Number(e.target.value) })} />
+                        onChange={(e) => updateLine(cl.key, cl.line_label, { quantity_ordered: e.target.value === '' ? null : Number(e.target.value) })} />
                     </div>
                     <div><Label className="text-xs">PO #</Label>
                       <Input value={cur.po_number ?? ''}
-                        onChange={(e) => updateLine(cl.line_key, cl.line_label, { po_number: e.target.value })} />
+                        onChange={(e) => updateLine(cl.key, cl.line_label, { po_number: e.target.value })} />
                     </div>
                     <div><Label className="text-xs">Order Date</Label>
                       <Input type="date" value={cur.order_date ?? ''}
-                        onChange={(e) => updateLine(cl.line_key, cl.line_label, { order_date: e.target.value || null })} />
+                        onChange={(e) => updateLine(cl.key, cl.line_label, { order_date: e.target.value || null })} />
                     </div>
                     <div><Label className="text-xs">Expected Delivery</Label>
                       <Input type="date" value={cur.expected_delivery ?? ''}
-                        onChange={(e) => updateLine(cl.line_key, cl.line_label, { expected_delivery: e.target.value || null })} />
+                        onChange={(e) => updateLine(cl.key, cl.line_label, { expected_delivery: e.target.value || null })} />
                     </div>
                     <div><Label className="text-xs">Received Date</Label>
                       <Input type="date" value={cur.received_date ?? ''}
-                        onChange={(e) => updateLine(cl.line_key, cl.line_label, { received_date: e.target.value || null })} />
+                        onChange={(e) => updateLine(cl.key, cl.line_label, { received_date: e.target.value || null })} />
                     </div>
                     <div><Label className="text-xs">Storage Location</Label>
                       <Input value={cur.storage_location ?? ''}
-                        onChange={(e) => updateLine(cl.line_key, cl.line_label, { storage_location: e.target.value })} />
+                        onChange={(e) => updateLine(cl.key, cl.line_label, { storage_location: e.target.value })} />
                     </div>
                     <div><Label className="text-xs">Installation Status</Label>
                       <Select
                         value={cur.installation_status ?? 'not_started'}
-                        onValueChange={(v) => updateLine(cl.line_key, cl.line_label, { installation_status: v })}
+                        onValueChange={(v) => updateLine(cl.key, cl.line_label, { installation_status: v })}
                       >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -382,7 +328,7 @@ export function DownstreamTrackingPanel({ submissionId, submission }: Props) {
                     <div><Label className="text-xs">Risk</Label>
                       <Select
                         value={cur.risk_level ?? 'green'}
-                        onValueChange={(v) => updateLine(cl.line_key, cl.line_label, { risk_level: v })}
+                        onValueChange={(v) => updateLine(cl.key, cl.line_label, { risk_level: v })}
                       >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -392,9 +338,24 @@ export function DownstreamTrackingPanel({ submissionId, submission }: Props) {
                     </div>
                     <div className="col-span-2 md:col-span-3"><Label className="text-xs">Notes</Label>
                       <Input value={cur.notes ?? ''}
-                        onChange={(e) => updateLine(cl.line_key, cl.line_label, { notes: e.target.value })} />
+                        onChange={(e) => updateLine(cl.key, cl.line_label, { notes: e.target.value })} />
                     </div>
+                  </fieldset>
+              );
+              return (
+                <div key={cl.key} className="border rounded-lg p-3 space-y-2 bg-card">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium">{cl.line_label}</div>
+                    <div className="text-xs text-muted-foreground">${cl.amount.toFixed(2)}</div>
                   </div>
+                  {cl.editable ? fields : (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild><div tabIndex={0} aria-label="Save the quote first">{fields}</div></TooltipTrigger>
+                        <TooltipContent>Save the quote first</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                 </div>
               );
             })}

@@ -8,16 +8,13 @@ import liveSubmissions from './fixtures/live-submissions.json';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
 import expectedShape from './fixtures/quote-lines-expected.json';
 import type { PricingSnapshot } from './lib/fixturePricing';
-import { enginePricingFromRows, engineTotalsForRow, type SubmissionRow } from './lib/generateInputFromRow';
+import type { SubmissionRow } from './lib/generateInputFromRow';
+import { PINNED_SUBTOTALS as EXPECTED_SUBTOTALS } from './lib/parityPins';
 import {
   runBackfill, parseArgs, formatTable, main, exitCodeFor, BackfillRefused, expectedShapeFromReport,
   type BackfillDb, type BackfillReport, type InsertLine,
 } from './backfill-quote-lines';
 
-// Copied verbatim from scripts/parity.test.ts (EXPECTED_SUBTOTALS); these pins never change.
-const EXPECTED_SUBTOTALS: Record<string, number> = {
-  '2': 2460, '4': 14334, '7': 3296.7, '24': 10388.4, '27': 0, '31': 27263, '37': 10488.5, '38': 2680.5, '43': 23865,
-};
 
 const rows = liveSubmissions as unknown as SubmissionRow[];
 
@@ -87,9 +84,7 @@ describe('dry run', () => {
     for (const r of report.rows) {
       expect(r.status).toBe('ok');
       expect(r.reasons).toEqual([]);
-      expect(r.engine_subtotal.toFixed(2)).toBe(EXPECTED_SUBTOTALS[r.unit].toFixed(2));
       expect(r.lines_subtotal.toFixed(2)).toBe(EXPECTED_SUBTOTALS[r.unit].toFixed(2));
-      expect(r.windows_lines.toFixed(2)).toBe(r.windows_engine.toFixed(2));
       expect(r.written).toBe(0);
     }
     expect(report.writes).toBe(0);
@@ -109,13 +104,14 @@ describe('dry run', () => {
     const report = await runBackfill(stubDb(), { write: false });
     const lines = formatTable(report).split('\n');
     expect(lines[0].split('|').map((s) => s.trim())).toEqual([
-      'unit', 'submission_id', 'engine_subtotal', 'lines_subtotal', 'windows_engine', 'windows_lines',
+      'unit', 'submission_id', 'lines_subtotal', 'windows_lines',
       'counted_lines', 'not_in_total', 'status',
     ]);
     const unit24 = lines.find((l) => l.includes(idOf('24')))!.split('|').map((s) => s.trim());
     expect(unit24[0]).toBe('24');
     expect(unit24[2]).toBe('10388.40');
-    expect(unit24[8]).toBe('ok');
+    expect(unit24[3]).toBe('6651.00');
+    expect(unit24[6]).toBe('ok');
   });
 
   test('pinned expected shape (scripts/fixtures/quote-lines-expected.json) regenerates identically', async () => {
@@ -125,20 +121,24 @@ describe('dry run', () => {
 });
 
 describe('frozen shape cross-check (not self-referential)', () => {
-  test('counted_lines = engine lineItems with amount > 0, windows itemised one line per opening', () => {
-    const pricing = enginePricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
-    const shape = expectedShape as Record<string, { counted_lines: number }>;
+  test('counted lines: one per priced window opening plus one per other priced selection; subtotals are the pins', () => {
+    const shape = expectedShape as Record<string, { counted_lines: number; subtotal: string; windows: string }>;
     for (const row of rows) {
-      const { client, server } = engineTotalsForRow(row, pricing);
+      expect(shape[row.unit_number].subtotal).toBe(EXPECTED_SUBTOTALS[row.unit_number].toFixed(2));
       const openings = (row.additional_windows_qty || 0) + (row.patio_doors_qty || 0) + (row.automated_windows_qty || 0);
-      for (const eng of [client, server]) {
-        const priced = eng.lineItems.filter((li) => li.amount > 0);
-        const priceWindows = priced.filter((li) => li.group === 'window');
-        expect(shape[row.unit_number].counted_lines).toBe(priced.length - priceWindows.length + openings);
-        // Where every window column has quantity 1, it is exactly the engine's priced item count.
-        if (openings === priceWindows.length) expect(shape[row.unit_number].counted_lines).toBe(priced.length);
-      }
+      expect(shape[row.unit_number].counted_lines).toBeGreaterThanOrEqual(openings);
+      if (openings > 0) expect(Number(shape[row.unit_number].windows)).toBeGreaterThan(0);
     }
+  });
+
+  test('a non-numeric amount is FAIL in a dry run (nothing to write)', async () => {
+    const target = idOf('2');
+    const report = await runBackfill(stubDb(), { write: false }, {
+      transformLines: (lines, row) => row.id !== target ? lines : lines.map((l, i) => (i === 0 ? { ...l, amount: Number.NaN } : l)),
+    });
+    const r2 = report.rows.find((r) => r.unit === '2')!;
+    expect(r2.status).toBe('FAIL');
+    expect(r2.reasons.join(' ')).toContain('non-numeric amount');
   });
 });
 
@@ -181,8 +181,7 @@ describe('--write', () => {
     const r31 = report.rows.find((r) => r.unit === '31')!;
     expect(r31.status).toBe('FAIL');
     expect(r31.errored).toBe(false);
-    expect(r31.reasons.length).toBeGreaterThan(0);
-    expect(r31.lines_subtotal - r31.engine_subtotal).toBeCloseTo(1, 6);
+    expect(r31.reasons.join(' ')).toContain('differs from signed-off report: lines_subtotal 27263.00 → 27264.00');
     expect(r31.written).toBe(0);
     expect(db.store.get(target)).toBeUndefined();
     expect(report.writes).toBe(8);
@@ -248,7 +247,7 @@ describe('--write against the signed-off report (--expect)', () => {
     expect(withPatio.length).toBeGreaterThan(0);
     for (const r of report.rows) {
       if (withPatio.includes(r.unit)) {
-        // Parity with the (changed) engines still holds; only the sign-off check catches it.
+        // The lines are well-formed at the new price; only the sign-off check catches it.
         expect(r.reasons.every((x) => x.startsWith('differs from signed-off report'))).toBe(true);
         expect(r.status).toBe('FAIL');
         expect(r.written).toBe(0);

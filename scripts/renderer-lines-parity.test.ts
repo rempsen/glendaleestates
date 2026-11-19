@@ -8,15 +8,15 @@ import liveSubmissions from './fixtures/live-submissions.json';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
 import type { PricingSnapshot } from './lib/fixturePricing';
 import {
-  buildGenerateInputFromRow, enginePricingFromRows, engineTotalsForRow, type SubmissionRow,
+  buildGenerateInputFromRow, pricingFromRows, referenceTotalsForRow, type SubmissionRow,
 } from './lib/generateInputFromRow';
 import { generateQuoteLines, countsInTotal, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
 import { buildLineRows, CountedHiddenLineError, LINE_COLUMNS, INCLUDED_AMOUNT_TEXT, type LineRow } from '../src/lib/lineRenderRows';
 import { savedSubmissionLines, GENERATED_LINES_NOTE } from '../src/lib/generateInputFromSelections';
 
-const pricing = enginePricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
+const pricing = pricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
 const rows = liveSubmissions as unknown as SubmissionRow[];
-const GST = pricing.serverPricing.gstRate;
+const GST = pricing.gstRate;
 const cents = (s: string) => Math.round(Number(s.replace(/[$,]/g, '')) * 100);
 const allRows = (m: ReturnType<typeof buildLineRows>): LineRow[] =>
   [...m.standard, ...m.upgrades.bySection.flatMap((s) => s.rows), ...m.notInTotal];
@@ -28,22 +28,22 @@ const line = (over: Partial<QuoteLine>): QuoteLine => ({
 
 test('fixture holds all nine live submissions', () => expect(rows.length).toBe(9));
 
-describe('line-rendered totals equal the Phase 1 engine (before = after)', () => {
+describe('line-rendered totals equal the parity pins and sumQuoteLines', () => {
   for (const row of rows) {
     for (const buyerView of [true, false]) {
       test(`Unit ${row.unit_number} (${buyerView ? 'buyer' : 'staff'} copy)`, () => {
-        const { client, server } = engineTotalsForRow(row, pricing);
-        const lines = generateQuoteLines(buildGenerateInputFromRow(row, pricing.serverPricing));
+        const ref = referenceTotalsForRow(row, pricing);
+        const lines = generateQuoteLines(buildGenerateInputFromRow(row, pricing));
         const m = buildLineRows(lines, { buyerView, gstRate: GST });
 
-        // Before (engine arithmetic in the renderer) = after (sumQuoteLines over lines), to the cent.
-        expect(m.upgrades.subtotal.toFixed(2)).toBe(client.upgradesSubtotal.toFixed(2));
-        expect(m.upgrades.subtotal.toFixed(2)).toBe(server.upgradesSubtotal.toFixed(2));
-        expect(m.totals.windowCoverings.toFixed(2)).toBe(client.windowSubtotal.toFixed(2));
-        expect(m.totals.subtotal.toFixed(2)).toBe(client.grandSubtotal.toFixed(2));
-        expect(m.totals.gst.toFixed(2)).toBe(client.gst.toFixed(2));
-        expect(m.totals.total.toFixed(2)).toBe(client.grandTotal.toFixed(2));
-        expect(m.totals.total.toFixed(2)).toBe(server.grandTotal.toFixed(2));
+        // Renderer totals = sumQuoteLines over the lines = the parity pin, to the cent.
+        expect(m.upgrades.subtotal.toFixed(2)).toBe(ref.upgradesSubtotal.toFixed(2));
+        expect(m.upgrades.subtotal.toFixed(2)).toBe(ref.upgradesSubtotal.toFixed(2));
+        expect(m.totals.windowCoverings.toFixed(2)).toBe(ref.windowSubtotal.toFixed(2));
+        expect(m.totals.subtotal.toFixed(2)).toBe(ref.grandSubtotal.toFixed(2));
+        expect(m.totals.gst.toFixed(2)).toBe(ref.gst.toFixed(2));
+        expect(m.totals.total.toFixed(2)).toBe(ref.grandTotal.toFixed(2));
+        expect(m.totals.total.toFixed(2)).toBe(ref.grandTotal.toFixed(2));
 
         // Every counted line is printed exactly once, and the printed rows add up to the printed totals.
         const countedRows = m.upgrades.bySection.flatMap((s) => s.rows);
@@ -55,7 +55,7 @@ describe('line-rendered totals equal the Phase 1 engine (before = after)', () =>
         }
         expect(m.totals.rows.map((r) => r.label)).toEqual(['Upgrades', 'Window coverings', 'Subtotal', 'GST 5%', 'Total']);
         expect(m.totals.rows.find((r) => r.label === 'Total')!.amountText).toBe(
-          `$${client.grandTotal.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+          `$${ref.grandTotal.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
       });
     }
   }
@@ -65,7 +65,7 @@ describe('rendering rules', () => {
   test('seven cells per row, matching the column header (location · item · product/colour · qty · unit price · amount · status)', () => {
     expect(LINE_COLUMNS).toEqual(['Location', 'Item', 'Product / colour', 'Qty', 'Unit price', 'Amount', 'Status']);
     for (const row of rows) {
-      const m = buildLineRows(generateQuoteLines(buildGenerateInputFromRow(row, pricing.serverPricing)), { buyerView: false, gstRate: GST });
+      const m = buildLineRows(generateQuoteLines(buildGenerateInputFromRow(row, pricing)), { buyerView: false, gstRate: GST });
       for (const r of allRows(m)) expect(r.cells.length).toBe(LINE_COLUMNS.length);
     }
   });
@@ -182,11 +182,11 @@ describe('rendering rules', () => {
 describe('saved-submission line source (fallback until the backfill runs)', () => {
   const row = rows.find((r) => r.unit_number === '31')!;
   test('no stored lines → generated from the row, marked generated', () => {
-    const { lines, linesSource } = savedSubmissionLines([], row, pricing.serverPricing);
+    const { lines, linesSource } = savedSubmissionLines([], row, pricing);
     expect(linesSource).toBe('generated');
-    expect(lines).toEqual(generateQuoteLines(buildGenerateInputFromRow(row, pricing.serverPricing)));
+    expect(lines).toEqual(generateQuoteLines(buildGenerateInputFromRow(row, pricing)));
     const m = buildLineRows(lines, { buyerView: true, gstRate: GST });
-    expect(m.totals.total.toFixed(2)).toBe(engineTotalsForRow(row, pricing).client.grandTotal.toFixed(2));
+    expect(m.totals.total.toFixed(2)).toBe(referenceTotalsForRow(row, pricing).grandTotal.toFixed(2));
     expect(GENERATED_LINES_NOTE).toBe('Generated from selections (not yet itemised)');
   });
   test('stored lines win, in sort_order, without removed ones', () => {
@@ -196,7 +196,7 @@ describe('saved-submission line source (fallback until the backfill runs)', () =
       { ...line({ label: 'A', sort_order: 10 }), id: 'a' },
     ];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { lines, linesSource } = savedSubmissionLines(stored as any, row, pricing.serverPricing);
+    const { lines, linesSource } = savedSubmissionLines(stored as any, row, pricing);
     expect(linesSource).toBe('db');
     expect(lines.map((l) => l.label)).toEqual(['A', 'B']);
     expect(lines[1].location).toBe('');
@@ -211,7 +211,7 @@ describe('all-removed stored lines (fix round 1)', () => {
       { ...line({ label: 'GONE-B', status: 'removed', section: 'standard' }), id: 'b' },
     ];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { lines, linesSource } = savedSubmissionLines(stored as any, row, pricing.serverPricing);
+    const { lines, linesSource } = savedSubmissionLines(stored as any, row, pricing);
     expect(linesSource).toBe('db');
     expect(lines).toEqual([]);
     const m = buildLineRows(lines, { buyerView: true, gstRate: GST });
@@ -239,7 +239,6 @@ describe('the two renderers carry no arithmetic of their own', () => {
   test('Word export fails closed: staff defaults to false; staff call sites pass true explicitly', () => {
     expect(src('submissionWordExport.ts')).toContain('export async function downloadSubmissionWord(id: string, staff = false)');
     const root = join(import.meta.dir, '..');
-    expect(readFileSync(join(root, 'src/components/admin/CustomPricingPanel.tsx'), 'utf8')).toContain('downloadSubmissionWord(submissionId, true)');
     expect(readFileSync(join(root, 'src/lib/consoleActions.ts'), 'utf8')).toContain("case 'word_staff': await r.word(id, true)");
   });
   test('both renderers read lines through buildLineRows and the shared context', () => {
@@ -296,13 +295,13 @@ describe('colour names (fix round 1): stored ids print as names, as Phase 1 reso
   const SLUG = /^[a-z0-9]+(-[a-z0-9]+)+$/;
   test('no slug-shaped product/colour text in any buyer row across the 9 fixtures', () => {
     for (const row of rows) {
-      const m = buildLineRows(generateQuoteLines(buildGenerateInputFromRow(row, pricing.serverPricing)), { buyerView: true, gstRate: GST });
+      const m = buildLineRows(generateQuoteLines(buildGenerateInputFromRow(row, pricing)), { buyerView: true, gstRate: GST });
       for (const r of allRows(m)) for (const part of r.product.split(' — ')) expect(`${row.unit_number}: ${SLUG.test(part) ? part : ''}`).toBe(`${row.unit_number}: `);
     }
   });
   test('the units that printed raw ids now print names', () => {
     const product = (unit: string, item: string) => {
-      const m = buildLineRows(generateQuoteLines(buildGenerateInputFromRow(rows.find((r) => r.unit_number === unit)!, pricing.serverPricing)), { buyerView: true, gstRate: GST });
+      const m = buildLineRows(generateQuoteLines(buildGenerateInputFromRow(rows.find((r) => r.unit_number === unit)!, pricing)), { buyerView: true, gstRate: GST });
       return allRows(m).filter((r) => r.item === item).map((r) => r.product);
     };
     expect(product('43', 'Bathroom Tile')).toEqual(['Ceratec Dante 2.0 — Venatino Auguste', 'Ceratec Dante 2.0 — Venatino Auguste']);

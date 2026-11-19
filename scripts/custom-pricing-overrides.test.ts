@@ -1,30 +1,24 @@
 import { test, expect } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { OVERRIDES } from '../src/lib/customPricingOverrides';
-import { computeUpgradeTotals, type UpgradeTotalsPricing } from '../src/lib/upgradeTotals';
+import { generateQuoteLines, type GenerateInput, type QuotePricing } from '../supabase/functions/_shared/quoteLines';
 
-const engineKeys = (path: string) =>
-  [...new Set([...readFileSync(new URL(path, import.meta.url), 'utf8').matchAll(/\bov\('([a-zA-Z]+)'/g)].map(m => m[1]))].sort();
+// custom_pricing is read-only since Task 18; OVERRIDES labels the keys the generator still honours.
+const generatorKeys = () =>
+  [...new Set([...readFileSync(new URL('../supabase/functions/_shared/quoteLines.ts', import.meta.url), 'utf8').matchAll(/\b(?:ov|bedroomPiece)\('([a-zA-Z]+)'/g)].map(m => m[1]))].sort();
 
-test('Custom Pricing panel lists every override key the client engine prices', () => {
-  expect(OVERRIDES.map(o => o.key).sort()).toEqual(engineKeys('../src/lib/upgradeTotals.ts'));
-});
-test('... and every key the server engine prices', () => {
-  expect(OVERRIDES.map(o => o.key).sort()).toEqual(engineKeys('../supabase/functions/_shared/upgradeTotalsServer.ts'));
+test('OVERRIDES lists every override key the generator prices', () => {
+  expect(OVERRIDES.map(o => o.key).sort()).toEqual(generatorKeys());
 });
 test('bedroom premium rows use the agreed labels', () => {
   expect(OVERRIDES.find(o => o.key === 'bedroomCarpet')?.title).toBe('Primary Bedroom premium carpet');
   expect(OVERRIDES.find(o => o.key === 'bedroomUnderpad')?.title).toBe('Primary Bedroom premium underpad');
 });
-test('Unit 7 waiver path: bedroomUnderpad override amount 0 (what the panel writes for "0") zeroes the charge', () => {
-  const pricing: UpgradeTotalsPricing = {
-    markupPercentage: 0.6, gstRate: 0.05, getMaterialCost: k => (k === 'premium_carpet_underpad' ? 6 : 0),
-    getGroutColorFee: () => 0, getAdditionalWindowPrice: () => 0, getPatioDoorPrice: () => 0, getAutomatedMotorPrice: () => 0,
-    getHeatedFloorPrice: () => 0, getStairLvpUpgradePrice: () => 0, getStairPremiumLvpUpgradePrice: () => 0,
-    getStairCarpetUpgradePrice: () => 0, getStairUnderpadUpgradePrice: () => 0,
-    getUnitAreaData: () => ({ masterBedroom: 30, secondBedroomCarpet: 17 } as any),
-  };
-  const input = { unitTypeCode: 'A', areaUpgrades: [], bedroomFlooringChoice: 'carpet', bedroomPremiumUnderpadSelected: true } as any;
-  expect(computeUpgradeTotals(input, pricing).pieces.bedroomUnderpad).toBeGreaterThan(0);
-  expect(computeUpgradeTotals({ ...input, customPricing: { overrides: { bedroomUnderpad: { amount: 0 } } } }, pricing).pieces.bedroomUnderpad).toBe(0);
+test('Unit 7 waiver path: bedroomUnderpad override amount 0 zeroes the charge', () => {
+  const pricing: QuotePricing = { materials: { premium_carpet_underpad: 6 }, config: {}, unitAreas: { A: { masterBedroom: 30, secondBedroomCarpet: 17 } }, markupPercentage: 0.6, gstRate: 0.05 };
+  const sel = { areaUpgrades: [], bedroomFlooringChoice: 'carpet', premiumUnderpadBedroom: true } as unknown as GenerateInput['selections'];
+  const amount = (s: GenerateInput['selections']) =>
+    generateQuoteLines({ selections: s, unitTypeCode: 'A', pricing, baseSpec: [] }).find((l) => l.wizard_field === 'premium_underpad_bedroom')!;
+  expect(amount(sel).amount).toBeGreaterThan(0);
+  expect(amount({ ...sel, customPricing: { overrides: { bedroomUnderpad: { amount: 0 } } } })).toMatchObject({ amount: 0, status: 'included' });
 });

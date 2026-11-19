@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import liveSubmissions from './fixtures/live-submissions.json';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
 import type { PricingSnapshot } from './lib/fixturePricing';
-import { enginePricingFromRows, type SubmissionRow } from './lib/generateInputFromRow';
+import { pricingFromRows, type SubmissionRow } from './lib/generateInputFromRow';
 import { generateBaseSpecTs } from './gen-base-spec-sql';
 import {
   generateQuoteLines, sumQuoteLines, windowCounts, type QuoteLine, type QuoteWindow,
@@ -25,7 +25,7 @@ import { toBuyerPdfSelections } from '../src/lib/buyerPdfSelections';
 
 const root = join(import.meta.dir, '..');
 const snapshot = pricingSnapshot as unknown as PricingSnapshot;
-const pricing = enginePricingFromRows(snapshot).serverPricing;
+const pricing = pricingFromRows(snapshot);
 const cfg = (k: string) => Number(snapshot.pricing_config.find((c) => c.config_key === k)!.config_value);
 const rows = liveSubmissions as unknown as SubmissionRow[];
 

@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import liveSubmissions from './fixtures/live-submissions.json';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
 import type { PricingSnapshot } from './lib/fixturePricing';
-import { buildGenerateInputFromRow, enginePricingFromRows, engineTotalsForRow, type SubmissionRow } from './lib/generateInputFromRow';
+import { buildGenerateInputFromRow, pricingFromRows, referenceTotalsForRow, type SubmissionRow } from './lib/generateInputFromRow';
 import { countsInTotal, generateQuoteLines, sumQuoteLines, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
 import { estimateLinesFromQuoteLines, qboSku, qboSlug, QBO_UNPRICED_REASON } from '../supabase/functions/_shared/qboLinesMap.ts';
 
@@ -16,11 +16,11 @@ const EXPECTED_SUBTOTALS: Record<string, number> = {
   '2': 2460, '4': 14334, '7': 3296.7, '24': 10388.4, '27': 0, '31': 27263, '37': 10488.5, '38': 2680.5, '43': 23865,
 };
 
-const pricing = enginePricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
+const pricing = pricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
 const rows = liveSubmissions as unknown as SubmissionRow[];
-const GST = pricing.serverPricing.gstRate;
+const GST = pricing.gstRate;
 const cents = (n: number) => Math.round(n * 100);
-const linesFor = (row: SubmissionRow) => generateQuoteLines(buildGenerateInputFromRow(row, pricing.serverPricing));
+const linesFor = (row: SubmissionRow) => generateQuoteLines(buildGenerateInputFromRow(row, pricing));
 const line = (over: Partial<QuoteLine>): QuoteLine => ({
   sort_order: 900, section: 'other', location: 'Kitchen', label: 'Test line', unit: 'flat', pricing_mode: 'manual',
   status: 'upgrade', client_visible: true, source: 'office', provisional: false, amount: 100, ...over,
@@ -31,19 +31,19 @@ describe('totals equal sumQuoteLines and the Phase 1 engine pins on every live u
     test(`Unit ${row.unit_number}`, () => {
       const lines = linesFor(row);
       const sum = sumQuoteLines(lines, GST);
-      const { client, server } = engineTotalsForRow(row, pricing);
+      const ref = referenceTotalsForRow(row, pricing);
       const r = estimateLinesFromQuoteLines(lines, { gstRate: GST });
       // Unit 24 carries a priced but disputed `under_review` line (stairs carpet, $1,005): under_review blocks the sync
       // (controller ruling), whatever its amount; the totals are still the console's.
       const held = lines.filter((l) => l.status === 'pending' || l.status === 'under_review').map((l) => l.id ?? `sort:${l.sort_order}`);
       if (String(row.unit_number) === '24') expect(held.length).toBe(1);
       expect(r.blocked).toEqual(held.length ? { reason: QBO_UNPRICED_REASON, lineIds: held } : undefined);
-      // Pins unchanged; both engines agree.
+      // Pins unchanged.
       expect(cents(r.subtotal)).toBe(cents(EXPECTED_SUBTOTALS[String(row.unit_number)]));
-      expect(cents(r.subtotal)).toBe(cents(client.grandSubtotal));
-      expect(cents(r.subtotal)).toBe(cents(server.grandSubtotal));
-      expect(cents(r.gst)).toBe(cents(client.gst));
-      expect(cents(r.total)).toBe(cents(client.grandTotal));
+      expect(cents(r.subtotal)).toBe(cents(ref.grandSubtotal));
+      expect(cents(r.subtotal)).toBe(cents(ref.grandSubtotal));
+      expect(cents(r.gst)).toBe(cents(ref.gst));
+      expect(cents(r.total)).toBe(cents(ref.grandTotal));
       // Equal to sumQuoteLines exactly (no separate arithmetic).
       expect(r.subtotal).toBe(sum.subtotal);
       expect(r.gst).toBe(sum.gst);

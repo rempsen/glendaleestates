@@ -1,73 +1,45 @@
-// One mapping from a `buyer_selections` row to (a) both engines' inputs (the oracle, test/backfill only) and (b)
-// `GenerateInput` for generateQuoteLines. (b) lives in src/lib/generateInputFromSelections.ts (shared with the wizard
-// and, via _shared/quoteSelectionsFromRow.ts, with send-selections-email) and is re-exported here.
-// scripts/quote-lines-parity.test.ts proves this mapping on the 9 live units, and scripts/backfill-quote-lines.ts uses
-// the same functions, so the backfill cannot drift from what was proven.
-import { loadFixturePricing, type PricingSnapshot } from './fixturePricing';
-import { computeUpgradeTotals, type UpgradeTotalsPricing } from '../../src/lib/upgradeTotals';
-import {
-  computeUpgradeTotalsServer, type ServerAreaUpgrade, type ServerPricing,
-} from '../../supabase/functions/_shared/upgradeTotalsServer';
+// One mapping from a `buyer_selections` row to `GenerateInput` for generateQuoteLines. It lives in
+// src/lib/generateInputFromSelections.ts (shared with the wizard and, via _shared/quoteSelectionsFromRow.ts, with the
+// edge functions) and is re-exported here for the tests and scripts/backfill-quote-lines.ts.
 import { serverPricingFromRows } from '../../supabase/functions/_shared/loadServerPricing';
-import { totalsInputFromSelections } from '../../src/lib/buyerPdfGenerator';
+import { generateQuoteLines, sumQuoteLines, type QuotePricing } from '../../supabase/functions/_shared/quoteLines';
 import { toBuyerPdfSelections } from '../../src/lib/buyerPdfSelections';
 import { buildGenerateInputFromRow, unitTypeCodeOf } from '../../src/lib/generateInputFromSelections';
+import type { PricingSnapshot } from './fixturePricing';
+import { PINNED_SUBTOTALS } from './parityPins';
 
 export { buildGenerateInputFromRow, unitTypeCodeOf };
 
 export type SubmissionRow = Parameters<typeof toBuyerPdfSelections>[0];
 
-export interface EnginePricing { clientPricing: UpgradeTotalsPricing; serverPricing: ServerPricing }
+/** Generator pricing from raw pricing rows (inactive rows dropped, as every live loader does). */
+export function pricingFromRows(rows: PricingSnapshot): QuotePricing {
+  return serverPricingFromRows({
+    pricing_config: rows.pricing_config,
+    upgrade_materials: rows.upgrade_materials,
+    unit_area_data: rows.unit_area_data,
+  });
+}
+
+/** The lines the generator produces for a row, and their totals (sumQuoteLines). */
+export function generatedTotalsForRow(row: SubmissionRow, pricing: QuotePricing) {
+  const lines = generateQuoteLines(buildGenerateInputFromRow(row, pricing));
+  return { lines, totals: sumQuoteLines(lines, pricing.gstRate) };
+}
 
 /**
- * Both engines' pricing from the raw pricing rows. The client side mirrors loadSavedSubmissionContext (inactive
- * config fees read as 0, inactive materials dropped); the server side reads the rows the edge loader reads
- * (restPricingFetcher: all pricing_config rows, upgrade_materials filtered to is_active).
+ * Reference totals a renderer must reproduce for a fixture row: `grandSubtotal` is the parity pin (the Phase 1
+ * engines' value, scripts/lib/parityPins.ts); the section split, GST and total are sumQuoteLines over the generated
+ * lines. Field names follow the old engine result so the renderer tests read the same before and after Task 18.
  */
-export function enginePricingFromRows(rows: PricingSnapshot): EnginePricing {
+export function referenceTotalsForRow(row: SubmissionRow, pricing: QuotePricing) {
+  const { totals } = generatedTotalsForRow(row, pricing);
+  const pin = PINNED_SUBTOTALS[String(row.unit_number)];
   return {
-    clientPricing: loadFixturePricing(rows),
-    serverPricing: serverPricingFromRows({
-      pricing_config: rows.pricing_config,
-      upgrade_materials: rows.upgrade_materials.filter((m) => m.is_active),
-      unit_area_data: rows.unit_area_data,
-    }),
+    grandSubtotal: pin ?? totals.subtotal,
+    windowSubtotal: totals.windowCoverings,
+    upgradesSubtotal: totals.upgrades,
+    gst: totals.gst,
+    grandTotal: totals.total,
   };
-}
-
-/** Raw row → ServerTotalsInput: the same mapping as audit-pricing-consistency / qbo-sync-submission. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function serverTotalsInputFromRow(row: SubmissionRow): Parameters<typeof computeUpgradeTotalsServer>[0] {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sub = row as any;
-  return {
-    unitTypeCode: unitTypeCodeOf(row),
-    upgradeFloorSelection: sub.upgrade_floor_selection,
-    areaUpgrades: (sub.area_upgrades as ServerAreaUpgrade[]) || [],
-    backsplashGroutEnabled: sub.backsplash_grout_enabled,
-    backsplashGroutColor: sub.backsplash_grout_color,
-    stairLvpUpgradeSelected: sub.stair_lvp_upgrade_selected,
-    stairPremiumCarpetSelected: sub.stair_premium_carpet_selected, stairPremiumUnderpadSelected: sub.premium_underpad_stairs,
-    stairUpgradeType: sub.stair_upgrade_type,
-    additionalWindowsQty: sub.additional_windows_qty,
-    patioDoorsQty: sub.patio_doors_qty,
-    automatedWindowsQty: sub.automated_windows_qty,
-    bathroomTileSelected: sub.bathroom_tile_selected,
-    bathroomTileEnsuiteSelected: sub.bathroom_tile_ensuite_selected,
-    bathroomTileGuestSelected: sub.bathroom_tile_guest_selected,
-    heatedFloorBathrooms: sub.heated_floor_bathrooms,
-    customTiledShower: sub.custom_tiled_shower,
-    bedroomFlooringChoice: sub.bedroom_flooring_choice,
-    bedroomPremiumCarpetSelected: !!sub.premium_carpet_bedroom,
-    bedroomPremiumUnderpadSelected: !!sub.premium_underpad_bedroom,
-    customPricing: sub.custom_pricing,
-  };
-}
-
-/** Both Phase 1 engines (the oracle) for one row. */
-export function engineTotalsForRow(row: SubmissionRow, pricing: EnginePricing) {
-  const selections = toBuyerPdfSelections(row);
-  const client = computeUpgradeTotals(totalsInputFromSelections(selections, unitTypeCodeOf(row)), pricing.clientPricing);
-  const server = computeUpgradeTotalsServer(serverTotalsInputFromRow(row), pricing.serverPricing);
-  return { client, server };
 }

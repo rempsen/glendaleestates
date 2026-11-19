@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { AdminLayout } from '@/components/AdminLayout';
 import { StatCard } from '@/components/StatCard';
 import { supabase } from '@/integrations/supabase/client';
-import type { Tables } from '@/integrations/supabase/types';
-import { useWindowSubtotal } from '@/hooks/useWindowSubtotal';
+import { useSubmissionLineTotals } from '@/hooks/useSubmissionLineTotals';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -69,8 +68,8 @@ const CHART_COLORS = [
 const TOTAL_UNITS = 70;
 
 export default function AdminSalesAnalytics() {
-  const windowSubtotalOf = useWindowSubtotal();
   const [selections, setSelections] = useState<BuyerSelection[]>([]);
+  const lineTotals = useSubmissionLineTotals(selections);
   const [pipeline, setPipeline] = useState<PipelineRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -104,8 +103,8 @@ export default function AdminSalesAnalytics() {
   // Selection stats
   const selectionStats = {
     total: selections.length,
-    // pre-GST, engine-computed (the submit-time total column is stale)
-    windowRevenue: selections.reduce((sum, s) => sum + windowSubtotalOf(s as unknown as Tables<'buyer_selections'>), 0),
+    // pre-GST, from quote lines (the submit-time total column is stale)
+    windowRevenue: selections.reduce((sum, s) => sum + lineTotals.sectionTotalsOf(s.id, 'window_coverings').subtotal, 0),
     hardwoodUpgrades: selections.filter(s => s.hardwood_upgrade_selected).length,
     tileUpgrades: selections.filter(s => s.bathroom_tile_selected).length,
     heatedFloors: selections.filter(s => (s.heated_floor_bathrooms || 0) > 0).length,

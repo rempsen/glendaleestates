@@ -3,14 +3,12 @@ import autoTable from 'jspdf-autotable';
 import { AREA_DEFINITIONS, type AreaUpgradeSelection, type BacksplashGroutSelection } from '@/lib/upgradeCostData';
 import { toBuyerWording } from '@/lib/outputLabels';
 import { clientAreaNotes, type AreaNote } from '@/lib/areaNotes';
-import { parseCustomPricing, type CustomPricing } from '@/lib/upgradeTotals';
+import { parseCustomPricing, type CustomPricing } from '@/lib/customPricing';
 import type { QuoteLine } from '@/lib/quoteLines';
 import { buildLineRows, LINE_COLUMNS, INTERNAL_NOTES_HEADING, type LineRow } from '@/lib/lineRenderRows';
 
 // Phase 2 Task 10 (spec §6.11): the PDF renders quote lines. Rows come from buildLineRows and every total from
-// sumQuoteLines (via the same module), so this file holds no pricing arithmetic. The Phase 1 engine inputs moved to
-// engineTotalsInput.ts and are re-exported here for the engine's remaining callers.
-export { totalsInputFromSelections, type PdfPricingConfig, type UnitAreaDataForPdf } from '@/lib/engineTotalsInput';
+// sumQuoteLines (via the same module), so this file holds no pricing arithmetic.
 
 // BMD brand colors
 const COLORS = {
