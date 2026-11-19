@@ -511,20 +511,7 @@ export default function SelectionWizard() {
       setSubmissionStep('generating-pdf');
       let pdfBase64: string | null = null;
       try {
-        const pdfPricingConfig = { 
-          markupPercentage, 
-          gstRate, 
-          getMaterialCost, 
-          getGroutColorFee,
-          getAdditionalWindowPrice,
-          getPatioDoorPrice,
-          getAutomatedMotorPrice,
-          getHeatedFloorPrice,
-          getStairLvpUpgradePrice,
-          getStairPremiumLvpUpgradePrice,
-          getUnitAreaData,
-        };
-        
+        // The PDF prints the same lines as the rail (and the lines the server writes after the insert).
         const pdfResult = await generateBuyerPreviewPDF(
           {
             unitNumber: selections.unitNumber,
@@ -568,8 +555,7 @@ export default function SelectionWizard() {
             customTiledShower: selections.customTiledShower,
             upgradeInterests: selections.upgradeInterests,
           },
-          unitInfo?.unitType || null,
-          pdfPricingConfig,
+          { lines: quoteLines, gstRate: quotePricing.gstRate },
           { returnBase64: true, saveToFile: false }
         );
         pdfBase64 = typeof pdfResult === 'string' ? pdfResult : null;
@@ -1167,20 +1153,7 @@ export default function SelectionWizard() {
               variant="outline"
               onClick={async () => {
                 try {
-              const pricingConfig = { 
-                markupPercentage, 
-                gstRate, 
-                getMaterialCost, 
-                getGroutColorFee,
-                getAdditionalWindowPrice,
-                getPatioDoorPrice,
-                getAutomatedMotorPrice,
-                getHeatedFloorPrice,
-                getStairLvpUpgradePrice,
-                getStairPremiumLvpUpgradePrice,
-                getUnitAreaData,
-              };
-              await generateBuyerPreviewPDF(selections, unitInfo?.typeCode || null, pricingConfig);
+              await generateBuyerPreviewPDF(selections, { lines: quoteLines, gstRate: quotePricing.gstRate });
                   toast.success('PDF downloaded successfully!');
                 } catch (error) {
                   console.error('Error generating PDF:', error);

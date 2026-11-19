@@ -1,62 +1,68 @@
 import { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, HeadingLevel, WidthType, AlignmentType } from 'docx';
-import { computeUpgradeTotals, parseCustomPricing, LINE_STATUS_LABELS } from '@/lib/upgradeTotals';
-import { totalsInputFromSelections } from '@/lib/buyerPdfGenerator';
-import { toBuyerPdfSelections } from '@/lib/buyerPdfSelections';
+import { parseCustomPricing } from '@/lib/upgradeTotals';
 import { internalAreaNotes } from '@/lib/areaNotes';
-import { buildWordSelectionRows } from '@/lib/submissionWordRows';
+import { buildLineRows, LINE_COLUMNS, INTERNAL_NOTES_HEADING } from '@/lib/lineRenderRows';
+import { buildWordDetailRows, buildWordLineTables, buildWordOpenQuestions } from '@/lib/submissionWordRows';
 import { loadSavedSubmissionContext } from '@/lib/savedSubmissionPdf';
+import { GENERATED_LINES_NOTE } from '@/lib/generateInputFromSelections';
 
-const money = (n: number) => `$${n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// A cell may hold a client note on a second line ("item\nnote"): one paragraph per line.
 const cell = (t: string, bold = false, right = false) => new TableCell({
-  children: [new Paragraph({ alignment: right ? AlignmentType.RIGHT : AlignmentType.LEFT, children: [new TextRun({ text: t, bold })] })],
+  children: (t || '').split('\n').map((line, i) => new Paragraph({
+    alignment: right ? AlignmentType.RIGHT : AlignmentType.LEFT,
+    children: [new TextRun({ text: line, bold: bold && i === 0, italics: i > 0 })],
+  })),
 });
-const table = (header: string[], rows: string[][], rightCols: number[] = []) => new Table({
+const table = (header: string[] | null, rows: string[][], rightCols: number[] = []) => new Table({
   width: { size: 100, type: WidthType.PERCENTAGE },
   rows: [
-    new TableRow({ tableHeader: true, children: header.map((h, i) => cell(h, true, rightCols.includes(i))) }),
+    ...(header ? [new TableRow({ tableHeader: true, children: header.map((h, i) => cell(h, true, rightCols.includes(i))) })] : []),
     ...rows.map(r => new TableRow({ children: r.map((c, i) => cell(c, false, rightCols.includes(i))) })),
   ],
 });
+const lineTable = (rows: string[][]) => table([...LINE_COLUMNS], rows, [3, 4, 5]);
 const h = (t: string) => new Paragraph({ text: t, heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 120 } });
 const p = (t: string, italics = false) => new Paragraph({ children: [new TextRun({ text: t, italics })] });
 
 /**
- * Editable Word copy of the saved selections and itemized quote.
- * Built from the same fresh record + totals as the PDF. `staff` adds internal follow-ups and basement notes.
+ * Editable Word copy of the saved selections and itemized quote, from the same fresh record and the same lines as
+ * the PDF (loadSavedSubmissionContext + buildLineRows). Buyer-safe content first; `staff` appends the internal block.
  */
 export async function downloadSubmissionWord(id: string, staff = true): Promise<void> {
-  const { s, pricing, unitCode } = await loadSavedSubmissionContext(id);
-  const sel = toBuyerPdfSelections(s);
-  const totals = computeUpgradeTotals(totalsInputFromSelections(sel, unitCode), pricing);
+  const { s, lines, linesSource, gstRate } = await loadSavedSubmissionContext(id);
+  const model = buildLineRows(lines, { buyerView: !staff, gstRate });
+  const t = buildWordLineTables(model, buildWordOpenQuestions(s));
   const cp = parseCustomPricing((s as any).custom_pricing);
-
-  const selRows = buildWordSelectionRows(s, pricing, unitCode);
-  const quoteRows = totals.lineItems.map(li => [li.group, [li.label, li.detail].filter(Boolean).join(' — '), money(li.amount)]);
-  const notIn = (totals.pieces.uncommittedItems || []).map(u => [[u.area, u.label, u.detail].filter(Boolean).join(' — '), LINE_STATUS_LABELS[u.status], u.amount === null ? 'Pending' : money(u.amount)]);
-  const followUps = (cp.followUps || []).filter(f => !f.done && (staff || f.clientVisible));
 
   const notes = [
     ['Flooring', s.lvp_comments], ['Tile', s.spc_tile_comments], ['Windows', s.window_comments], ['Upgrades', s.upgrade_comments],
   ].filter(([, v]) => v) as string[][];
-  // Buyer copy prints clientComment only (in the Selections table); staff also get the internal `comments`, labelled.
-  if (staff) internalAreaNotes(Array.isArray(s.area_upgrades) ? (s.area_upgrades as never[]) : []).forEach(n => notes.push([`Upgrade — ${n.areaId} (internal note)`, n.text]));
+
+  // Staff only, after all buyer-safe content (AGENTS.md rule 1).
+  const internal: string[] = [];
+  if (staff) {
+    model.internalNotes.forEach(n => internal.push(`${[n.location, n.item].filter(Boolean).join(' — ')}: ${n.note}`));
+    internalAreaNotes(Array.isArray(s.area_upgrades) ? (s.area_upgrades as never[]) : []).forEach(n => internal.push(`Upgrade — ${n.areaId} (internal note): ${n.text}`));
+    if (s.sales_comments?.trim()) internal.push(`Admin notes: ${s.sales_comments.trim()}`);
+    if ((s as any).admin_notes?.trim()) internal.push(`Internal notes: ${(s as any).admin_notes.trim()}`);
+    if (cp.basementNotes) internal.push(`Basement: ${cp.basementNotes}`);
+    (cp.followUps || []).filter(f => !f.done && !f.clientVisible && f.text?.trim()).forEach(f => internal.push(`Open question (internal): ${f.text.trim()}`));
+  }
 
   const doc = new Document({ sections: [{ children: [
     new Paragraph({ text: `Glendale Estates — Unit ${s.unit_number} Selections & Quote`, heading: HeadingLevel.HEADING_1 }),
     p(`${s.first_name} ${s.last_name} · ${s.unit_type || ''} · Status: ${s.status || 'submitted'}`),
     p(`Generated ${new Date().toLocaleDateString('en-CA')}. Prices exclude GST unless noted; PST included.`, true),
-    h('Selections'), table(['Item', 'Selection'], selRows),
-    h('Itemized Quote'), table(['Category', 'Item', 'Amount'], quoteRows, [2]),
+    h('Home details'), table(null, buildWordDetailRows(s)),
+    ...(t.standard.length ? [h('Standard selections'), lineTable(t.standard)] : []),
+    ...(t.upgrades.length ? [h('Premium upgrades'), lineTable(t.upgrades)] : []),
     p(''),
-    table(['', 'Amount'], [
-      ['Window coverings', money(totals.windowSubtotal)], ['Premium upgrades', money(totals.upgradesSubtotal)],
-      ['Subtotal before GST', money(totals.grandSubtotal)], ['GST (5%)', money(totals.gst)], ['Total', money(totals.grandTotal)],
-    ], [1]),
-    ...(notIn.length ? [h('Not Included in Total'), table(['Item', 'Status', 'Price'], notIn, [2]),
+    table(['', 'Amount'], t.totals, [1]),
+    ...(t.notInTotal.length ? [h('Not included in total'), lineTable(t.notInTotal),
       p('Pending, under review and deferred items are not priced or approved and are not part of the total.', true)] : []),
     ...(notes.length ? [h('Notes'), ...notes.map(([k, v]) => p(`${k}: ${v}`))] : []),
-    ...(staff && cp.basementNotes ? [h('Basement'), p(cp.basementNotes)] : []),
-    ...(followUps.length ? [h('Open Questions'), ...followUps.map(f => p(`• ${f.text}`))] : []),
+    ...(internal.length ? [h(INTERNAL_NOTES_HEADING), ...internal.map(x => p(`• ${x}`))] : []),
+    ...(staff && linesSource === 'generated' ? [p(''), p(GENERATED_LINES_NOTE, true)] : []),
   ] }] });
 
   const blob = await Packer.toBlob(doc);

@@ -2,6 +2,8 @@
 // cutover both printed the Phase 1 engine's totals; after it they print sumQuoteLines over the lines. This proves the
 // two agree to the cent on all nine live units, and pins the line-rendering rules (pending, notes, visibility).
 import { test, expect, describe } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import liveSubmissions from './fixtures/live-submissions.json';
 import pricingSnapshot from './fixtures/pricing-snapshot.json';
 import type { PricingSnapshot } from './lib/fixturePricing';
@@ -189,5 +191,65 @@ describe('saved-submission line source (fallback until the backfill runs)', () =
     expect(linesSource).toBe('db');
     expect(lines.map((l) => l.label)).toEqual(['A', 'B']);
     expect(lines[1].location).toBe('');
+  });
+});
+
+describe('the two renderers carry no arithmetic of their own', () => {
+  const src = (f: string) => readFileSync(join(import.meta.dir, '../src/lib', f), 'utf8');
+  for (const f of ['buyerPdfGenerator.ts', 'savedSubmissionPdf.ts', 'submissionWordExport.ts', 'submissionWordRows.ts']) {
+    test(f, () => {
+      const s = src(f);
+      for (const bad of ['computeUpgradeTotals', 'markup', '* 1.05', 'totalsInputFromSelections(', 'buildPremiumUpgradeRows', 'buildStandardSelectionRows']) {
+        expect(`${f}: ${s.includes(bad) ? bad : ''}`).toBe(`${f}: `);
+      }
+    });
+  }
+  test('both renderers read lines through buildLineRows and the shared context', () => {
+    expect(src('buyerPdfGenerator.ts')).toContain('buildLineRows(');
+    expect(src('submissionWordExport.ts')).toContain('buildLineRows(');
+    expect(src('submissionWordExport.ts')).toContain('loadSavedSubmissionContext(');
+    expect(src('savedSubmissionPdf.ts')).toContain("from('quote_lines')");
+  });
+});
+
+describe('the real PDF renderer (jsPDF, uncompressed text)', () => {
+  const { generateBuyerPreviewPDF } = require('../src/lib/buyerPdfGenerator') as typeof import('../src/lib/buyerPdfGenerator');
+  const sel = { unitNumber: '31', firstName: 'A', lastName: 'B', upgradeInterests: {}, areaUpgrades: [] } as never;
+  const lines = [
+    line({ label: 'Counted line', amount: 1005, client_note: 'Buyer-visible note', internal_note: 'SECRET-INTERNAL-NOTE' }),
+    line({ label: 'Awaiting price', status: 'pending', amount: 0 }),
+    line({ label: 'HIDDEN-LINE', client_visible: false, amount: 50 }),
+    line({ label: 'GONE-LINE', status: 'removed', amount: 75 }),
+    // A counted window line keeps every totals row non-zero, so any "$0.00" could only come from the pending line.
+    line({ label: 'Panel track', section: 'window_coverings', amount: 2680.5 }),
+  ];
+  const esc = (t: string) => t.replace(/[()]/g, (c) => `\\${c}`); // PDF string escaping
+  const render = async (staff: boolean) => {
+    const warn = console.warn; console.warn = () => {}; // no Image() in bun: the logo load fails quietly
+    try {
+      const b64 = await generateBuyerPreviewPDF(sel, { lines, gstRate: GST }, {
+        returnBase64: true, saveToFile: false,
+        ...(staff ? { staffRecord: { status: 'submitted' }, sourceNote: GENERATED_LINES_NOTE } : { sourceNote: GENERATED_LINES_NOTE }),
+      });
+      return Buffer.from(b64 as string, 'base64').toString('latin1');
+    } finally { console.warn = warn; }
+  };
+  test('buyer copy: no internal note, no hidden or removed line, Pending not $0.00, no source note', async () => {
+    const pdf = await render(false);
+    expect(pdf.includes('Counted line')).toBe(true);
+    expect(pdf.includes('Buyer-visible note')).toBe(true);
+    expect(pdf.includes('$1,005.00')).toBe(true);
+    expect(pdf.includes('Awaiting price')).toBe(true);
+    expect(pdf.includes('Pending')).toBe(true);
+    expect(pdf.includes('$0.00')).toBe(false);
+    for (const bad of ['SECRET-INTERNAL-NOTE', 'HIDDEN-LINE', 'GONE-LINE', 'Internal notes', 'not yet itemised']) expect(pdf.includes(bad)).toBe(false);
+  });
+  test('staff copy: hidden line, internal-notes block and the generated-lines footer note; never a removed line', async () => {
+    const pdf = await render(true);
+    for (const want of ['HIDDEN-LINE', 'SECRET-INTERNAL-NOTE', esc('Internal notes (never printed for the buyer)'), esc('Generated from selections (not yet itemised)')]) expect(pdf.includes(want)).toBe(true);
+    expect(pdf.includes('GONE-LINE')).toBe(false);
+    // The internal block comes after all buyer-safe content.
+    expect(pdf.indexOf('Total \\(incl. GST\\)')).toBeGreaterThan(0);
+    expect(pdf.indexOf('SECRET-INTERNAL-NOTE')).toBeGreaterThan(pdf.indexOf('Total \\(incl. GST\\)'));
   });
 });

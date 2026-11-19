@@ -82,21 +82,18 @@ test('notes mappers keep the original row index and ignore blank text', () => {
   expect(notes).toEqual([{ areaId: 'b', index: 1, text: 'x' }]);
 });
 
-// ---- Task 11: base-spec buyer wording ----
+// ---- Task 11: base-spec buyer wording (Phase 2 Task 10: PDF and Word rows now come from quote lines) ----
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildStandardSelectionRows, totalsInputFromSelections } from '../src/lib/buyerPdfGenerator';
-import { computeUpgradeTotals } from '../src/lib/upgradeTotals';
-import { buildWordSelectionRows } from '../src/lib/submissionWordRows';
+import pricingSnapshot from './fixtures/pricing-snapshot.json';
+import type { PricingSnapshot } from './lib/fixturePricing';
+import { buildGenerateInputFromRow, enginePricingFromRows } from './lib/generateInputFromRow';
+import { generateQuoteLines } from '../supabase/functions/_shared/quoteLines.ts';
+import { buildLineRows, INCLUDED_AMOUNT_TEXT, type LineRow } from '../src/lib/lineRenderRows';
+import { buildWordLineTables } from '../src/lib/submissionWordRows';
 import { LAUNDRY_STANDARD_LABEL, toBuyerWording } from '../src/lib/outputLabels';
 
-const stubPricing = {
-  markupPercentage: 0.6, gstRate: 0.05,
-  getMaterialCost: (t: string) => ({ lvp: 4, carpet: 20, tile: 8 } as Record<string, number>)[t] || 0,
-  getGroutColorFee: () => 300, getAdditionalWindowPrice: () => 673.5, getPatioDoorPrice: () => 2347.8,
-  getAutomatedMotorPrice: () => 495, getHeatedFloorPrice: () => 1650,
-  getStairLvpUpgradePrice: () => 2160, getStairCarpetUpgradePrice: () => 640,
-} as any;
+const linePricing = enginePricingFromRows(pricingSnapshot as unknown as PricingSnapshot).serverPricing;
 
 const typeC = {
   ...record, unit_type: 'Unit Type C', has_stairs: true,
@@ -104,41 +101,53 @@ const typeC = {
   spc_tile_colour: 'piccolo', bedroom_flooring_choice: 'carpet', bedroom_carpet_colour: 'Wolf River',
   area_upgrades: [{ areaId: 'laundry', materialType: 'lvp', productName: 'Coastal Oak', productColor: '', comments: '' }],
 } as unknown as Tables<'buyer_selections'>;
-const rowsFor = (r: Tables<'buyer_selections'>) => {
-  const sel = toBuyerPdfSelections(r);
-  return buildStandardSelectionRows(sel, stubPricing, computeUpgradeTotals(totalsInputFromSelections(sel, 'C'), stubPricing));
-};
-const get = (rows: string[][], label: string) => rows.find(r => r[0] === label)?.[1];
+const modelFor = (r: Tables<'buyer_selections'>) =>
+  buildLineRows(generateQuoteLines(buildGenerateInputFromRow(r as never, linePricing)), { buyerView: true, gstRate: linePricing.gstRate });
+const allOf = (m: ReturnType<typeof modelFor>): LineRow[] => [...m.standard, ...m.upgrades.bySection.flatMap(s => s.rows), ...m.notInTotal];
+const std = (r: Tables<'buyer_selections'>, item: string, location?: string) =>
+  modelFor(r).standard.find(x => x.item === item && (!location || x.location === location));
 
 test('PDF standard rows use base-spec labels for a Type C record', () => {
-  const rows = rowsFor(typeC);
-  expect(get(rows, 'Bathroom Tile')).toBeDefined();
-  expect(get(rows, 'Primary Bedroom Flooring')).toBe('Carpet');
-  expect(get(rows, 'Primary Bedroom Carpet Colour')).toBeDefined();
-  expect(get(rows, 'Stair Flooring – Carpet')).toBe('Standard Carpet (Included)');
-  expect(get(rows, 'Laundry Room')).toContain('Coastal Oak');
-  expect(rows.some(r => /Bathroom\/Laundry|Master Bedroom/.test(r[0]))).toBe(false);
+  const m = modelFor(typeC);
+  expect(std(typeC, 'Bathroom Tile')).toBeDefined();
+  expect(std(typeC, 'Bathroom Tile')!.product).not.toContain('piccolo'); // colour id resolved to its name
+  expect(std(typeC, 'Primary Bedroom Flooring', 'Primary Bedroom')!.product).toContain('carpet');
+  expect(std(typeC, 'Primary Bedroom Flooring')!.product).toContain('Wolf River');
+  expect(std(typeC, 'Stair Flooring – Carpet')!.amount).toBe('Included — $0.00');
+  expect(m.standard.find(x => x.location === 'Laundry Room')).toBeDefined();
+  // The laundry upgrade is a counted line in the Laundry Room.
+  expect(m.upgrades.bySection.flatMap(s => s.rows).find(x => x.location === 'Laundry Room')!.product).toContain('Coastal Oak');
+  expect(allOf(m).some(r => /Bathroom\/Laundry|Master Bedroom/.test(r.cells.join(' ')))).toBe(false);
 });
-test('laundry defaults to the single standard label when no laundry upgrade exists', () => {
-  const rows = rowsFor({ ...typeC, area_upgrades: [] } as any);
-  expect(get(rows, 'Laundry Room')).toBe('Ceratec Dante 2.0 LVT (standard)');
+test('every standard row prints Included — $0.00 with no unit price', () => {
+  const m = modelFor(typeC);
+  expect(m.standard.length).toBeGreaterThan(0);
+  for (const r of m.standard) { expect(r.amount).toBe(INCLUDED_AMOUNT_TEXT); expect(r.unitPrice).toBe(''); }
+});
+test('laundry keeps the standard Ceratec Dante 2.0 LVT line when no laundry upgrade exists', () => {
+  const r = { ...typeC, area_upgrades: [] } as any;
+  expect(std(r, 'Laundry Flooring', 'Laundry Room')!.product).toBe('Ceratec Dante 2.0 LVT');
   expect(LAUNDRY_STANDARD_LABEL).toBe('Ceratec Dante 2.0 LVT (standard)');
 });
-test('upgraded stair carpet keeps the upgrade text', () => {
-  const rows = rowsFor({ ...typeC, stair_premium_carpet_selected: true } as any);
-  expect(get(rows, 'Stair Flooring – Carpet')).toContain('Premium Carpet Upgrade');
+test('upgraded stair carpet prints as a counted stairs line', () => {
+  const m = modelFor({ ...typeC, stair_premium_carpet_selected: true } as any);
+  const stairs = m.upgrades.bySection.find(s => s.section === 'stairs')!;
+  expect(stairs.rows.some(r => /Premium carpet/i.test(r.item))).toBe(true);
 });
-test('no stairs row when the unit has no stairs', () => {
-  expect(get(rowsFor({ ...typeC, has_stairs: false } as any), 'Stair Flooring – Carpet')).toBeUndefined();
+test('standard stairs with a chosen colour print product — colour', () => {
+  expect(std({ ...typeC, stair_carpet_colour: 'Wolf River' } as any, 'Stair Flooring – Carpet')!.product).toBe('Standard carpet + underpad — Wolf River');
 });
-test('Word rows use the same labels and resolve colour ids to names', () => {
-  const rows = buildWordSelectionRows(typeC, stubPricing, 'C');
-  expect(get(rows, 'Bathroom Tile')).not.toBe('piccolo');
-  expect(get(rows, 'Primary Bedroom Flooring')).toBe('Carpet');
-  expect(get(rows, 'Primary Bedroom Carpet Colour')).toBeDefined();
-  expect(get(rows, 'Stair Flooring – Carpet')).toBe('Standard Carpet (Included)');
-  expect(get(rows, 'Laundry Room')).toContain('Coastal Oak');
-  expect(rows.some(r => /Bathroom\/Laundry|Master Bedroom/.test(r[0] + r[1]))).toBe(false);
+test('Word line tables carry the same rows and labels as the PDF', () => {
+  const m = modelFor(typeC);
+  const t = buildWordLineTables(m);
+  expect(t.standard).toEqual(m.standard.map(r => r.cells));
+  expect(t.standard.some(c => c[0] === 'Primary Bedroom')).toBe(true);
+  expect(t.standard.some(c => c[1] === 'Bathroom Tile')).toBe(true);
+  expect(t.standard.some(c => c[0] === 'Laundry Room')).toBe(true);
+  expect(t.standard.some(c => c[1] === 'Stair Flooring – Carpet' && c[5] === 'Included — $0.00')).toBe(true);
+  expect(t.totals.map(r => r[0])).toEqual(['Upgrades', 'Window coverings', 'Subtotal', 'GST 5%', 'Total']);
+  expect(t.upgrades.some(c => c[1] === 'Flooring subtotal')).toBe(true);
+  expect(JSON.stringify(t).includes('Master Bedroom') || JSON.stringify(t).includes('Bathroom/Laundry')).toBe(false);
 });
 test('toBuyerWording renames Master Bedroom to Primary Bedroom', () => {
   expect(toBuyerWording('Master Bedroom (Carpet)')).toBe('Primary Bedroom (Carpet)');
@@ -157,9 +166,6 @@ test('resend-confirmation-email carries the same base-spec labels', () => {
   expect(edge).toContain("const LAUNDRY_STANDARD_LABEL = 'Ceratec Dante 2.0 LVT (standard)'");
   for (const l of ["'Bathroom Tile'", "'Primary Bedroom Flooring'", "'Primary Bedroom Carpet Colour'", "'Stair Flooring – Carpet'", "'Standard Carpet (Included)'", "'Laundry Room'"]) expect(edge).toContain(l);
   expect(edge.includes('Bathroom/Laundry') || edge.includes('Master Bedroom')).toBe(false);
-});
-test('standard stairs with a chosen colour pin the format', () => {
-  expect(get(rowsFor({ ...typeC, stair_carpet_colour: 'Wolf River' } as any), 'Stair Flooring – Carpet')).toBe('Standard Carpet (Included) — Wolf River');
 });
 test('edge buyerWording mirrors src toBuyerWording and is applied to engine labels', async () => {
   const shared = await import('../supabase/functions/_shared/buyerWording');

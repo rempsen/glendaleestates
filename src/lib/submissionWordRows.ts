@@ -1,25 +1,41 @@
 import type { Tables } from '@/integrations/supabase/types';
-import { AREA_DEFINITIONS } from '@/lib/upgradeCostData';
-import { computeUpgradeTotals } from '@/lib/upgradeTotals';
-import { buildStandardSelectionRows, totalsInputFromSelections, type PdfPricingConfig } from '@/lib/buyerPdfGenerator';
+import { buildHomeDetailRows, buyerOpenQuestions } from '@/lib/buyerPdfGenerator';
 import { toBuyerPdfSelections } from '@/lib/buyerPdfSelections';
-import { toBuyerWording } from '@/lib/outputLabels';
+import type { LineRenderModel } from '@/lib/lineRenderRows';
 
 /**
- * Selections table rows for the Word export (label/value pairs, no docx dependency so they are testable).
- * Same wording and option-name resolution as the buyer PDF; area upgrade rows use buyer-facing area names.
+ * Word export tables, docx-free so they are testable. Line tables come from the same buildLineRows model as the PDF
+ * (seven columns: location · item · product/colour · qty · unit price · amount · status); no arithmetic here.
  */
-export function buildWordSelectionRows(
-  s: Tables<'buyer_selections'>,
-  pricing: PdfPricingConfig,
-  unitCode: string | null,
-): string[][] {
-  const sel = toBuyerPdfSelections(s);
-  const totals = computeUpgradeTotals(totalsInputFromSelections(sel, unitCode), pricing);
-  const rows = buildStandardSelectionRows(sel, pricing, totals);
-  (sel.areaUpgrades || []).forEach(u => {
-    const areaName = toBuyerWording(AREA_DEFINITIONS.find(a => a.id === u.areaId)?.name || u.areaId);
-    rows.push([`Upgrade — ${areaName}`, [u.productName, u.productColor, u.clientComment?.trim()].filter(Boolean).join(' — ')]);
-  });
-  return rows;
+export interface WordLineTables {
+  standard: string[][];
+  /** Section title rows, line rows and "<Section> subtotal" rows, all seven cells wide. */
+  upgrades: string[][];
+  notInTotal: string[][];
+  totals: string[][];
+}
+
+export function buildWordLineTables(model: LineRenderModel, openQuestions: string[] = []): WordLineTables {
+  const upgrades: string[][] = [];
+  for (const g of model.upgrades.bySection) {
+    upgrades.push([g.title, '', '', '', '', '', '']);
+    upgrades.push(...g.rows.map(r => r.cells));
+    upgrades.push(['', `${g.title} subtotal`, '', '', '', g.subtotalText, '']);
+  }
+  return {
+    standard: model.standard.map(r => r.cells),
+    upgrades,
+    notInTotal: [...model.notInTotal.map(r => r.cells), ...openQuestions.map(t => ['', t, '', '', '', '—', 'Open question'])],
+    totals: model.totals.rows.map(r => [r.label, r.amountText]),
+  };
+}
+
+/** Home detail rows (identity fields the line tables do not carry), same as the PDF. */
+export function buildWordDetailRows(s: Tables<'buyer_selections'>): string[][] {
+  return buildHomeDetailRows(toBuyerPdfSelections(s));
+}
+
+/** Client-visible open questions for the buyer-safe part of the Word export. */
+export function buildWordOpenQuestions(s: Tables<'buyer_selections'>): string[] {
+  return buyerOpenQuestions(toBuyerPdfSelections(s));
 }
