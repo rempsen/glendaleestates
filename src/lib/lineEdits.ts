@@ -11,7 +11,7 @@ export type EditResult = { ok: true; patch: EditPatch } | { ok: false; reason: s
 
 /**
  * Status change → patch. `reason` is the client note entered in the prompt (ignored unless the target needs one).
- * Moving to `pending` clears the amount.
+ * Moving to `pending` clears the amount; moving out of `pending` restores it (see below).
  */
 export function applyStatusChange(line: Line, to: LineStatus, reason?: string | null): EditResult {
   const v = validateStatusChange(line.status, to, needsReason(to) ? reason : line.client_note);
@@ -19,6 +19,9 @@ export function applyStatusChange(line: Line, to: LineStatus, reason?: string | 
   const patch: EditPatch = { status: to };
   if (needsReason(to)) patch.client_note = v.clientNote;
   if (to === 'pending') patch.amount = null;
+  // Leaving pending (request pricing → priced → Upgrade): restore qty × unit price, or 0 for an inclusion. With no
+  // qty/unit price the amount stays null and LineRow's amount cell is editable (it locks only while pending).
+  else if (line.status === 'pending') patch.amount = to === 'included' ? 0 : lineAmount(line.quantity, line.unit_price, null);
   return { ok: true, patch };
 }
 

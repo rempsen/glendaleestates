@@ -1,5 +1,6 @@
 // Task 8 fix round 1: pending lines carry no amount; under review / deferred keep their client reason.
 import { test, expect, describe } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { applyStatusChange, priceEditPatch, clientNoteEdit } from '../src/lib/lineEdits';
 
 const line = (over: Record<string, unknown> = {}) => ({
@@ -17,11 +18,41 @@ describe('applyStatusChange', () => {
     });
   });
   test('→ upgrade / included leave amount and note alone', () => {
-    expect(applyStatusChange(line({ status: 'pending', amount: null }), 'upgrade')).toEqual({ ok: true, patch: { status: 'upgrade' } });
+    expect(applyStatusChange(line({ status: 'deferred', amount: 500 }), 'upgrade')).toEqual({ ok: true, patch: { status: 'upgrade' } });
     expect(applyStatusChange(line(), 'included')).toEqual({ ok: true, patch: { status: 'included' } });
   });
   test('→ removed is refused', () => {
     expect(applyStatusChange(line(), 'removed').ok).toBe(false);
+  });
+});
+
+describe('fix round 2: leaving pending restores the amount', () => {
+  test('pending → upgrade with qty and unit price: amount = qty × unit price', () => {
+    expect(applyStatusChange(line({ status: 'pending', amount: null, quantity: 3, unit_price: 112.5 }), 'upgrade'))
+      .toEqual({ ok: true, patch: { status: 'upgrade', amount: 337.5 } });
+  });
+  test('pending → upgrade with no qty / unit price: amount stays null (cell becomes editable)', () => {
+    expect(applyStatusChange(line({ status: 'pending', amount: null, quantity: null, unit_price: null }), 'upgrade'))
+      .toEqual({ ok: true, patch: { status: 'upgrade', amount: null } });
+    expect(applyStatusChange(line({ status: 'pending', amount: null, quantity: 2, unit_price: null }), 'upgrade'))
+      .toEqual({ ok: true, patch: { status: 'upgrade', amount: null } });
+  });
+  test('pending → included: amount 0', () => {
+    expect(applyStatusChange(line({ status: 'pending', amount: null }), 'included')).toEqual({ ok: true, patch: { status: 'included', amount: 0 } });
+  });
+  test('pending → under_review / deferred: reason plus restored amount (shown as not in total)', () => {
+    expect(applyStatusChange(line({ status: 'pending', amount: null, quantity: 1, unit_price: 840 }), 'deferred', 'After possession'))
+      .toEqual({ ok: true, patch: { status: 'deferred', client_note: 'After possession', amount: 840 } });
+  });
+  test('after leaving pending, a typed amount is accepted again', () => {
+    const priced = line({ status: 'upgrade', amount: null, quantity: null, unit_price: null });
+    expect(priceEditPatch(priced, { amount: 1005 })).toEqual({ ok: true, patch: { amount: 1005, pricing_mode: 'manual' } });
+  });
+  test('LineRow locks the amount cell on status, not on a null amount', () => {
+    const src = readFileSync(new URL('../src/components/quote/LineRow.tsx', import.meta.url), 'utf8');
+    expect(src).toContain("const pending = line.status === 'pending';");
+    expect(src).toMatch(/\{computed \|\| included \|\| pending \? \(/);
+    expect(src).not.toMatch(/\{[^}]*amount == null \? \(/);
   });
 });
 
