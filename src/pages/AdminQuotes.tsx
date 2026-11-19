@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { pushRecent, rankQuotes, readRecents, type QuoteRow } from '@/lib/quoteSearch';
+import { firstQuoteFor, pushRecent, rankQuotes, readRecents, type QuoteRow } from '@/lib/quoteSearch';
 
 const STATUSES = ['draft', 'submitted', 'reviewed', 'quoted', 'completed'] as const;
 
@@ -80,12 +80,18 @@ export default function AdminQuotes() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             autoFocus
+            aria-label="Search quotes"
             className="pl-9"
             placeholder="Unit, last name, or email"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && results[0]) open(results[0].id);
+              if (e.key !== 'Enter') return;
+              e.preventDefault();
+              if (loading) return;
+              setQuery(input); // flush the debounce so the list matches
+              const first = firstQuoteFor(filtered, input, recents);
+              if (first) open(first.id);
             }}
           />
         </div>
@@ -95,6 +101,7 @@ export default function AdminQuotes() {
             <Button
               key={s}
               size="sm"
+              aria-pressed={status === s}
               variant={status === s ? 'default' : 'outline'}
               onClick={() => setStatus(s)}
               className="capitalize"

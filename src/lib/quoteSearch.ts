@@ -76,3 +76,8 @@ export function pushRecent(storage: StorageLike | null | undefined, id: string, 
   }
   return next;
 }
+
+/** First result for the live input (used by Enter so a stale debounced query never wins). */
+export function firstQuoteFor<T extends QuoteRow>(rows: T[], input: string, recents: string[] = []): T | undefined {
+  return rankQuotes(rows, input, recents)[0];
+}

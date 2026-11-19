@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { rankQuotes, readRecents, pushRecent, type QuoteRow, type StorageLike } from '../src/lib/quoteSearch';
+import { firstQuoteFor, rankQuotes, readRecents, pushRecent, type QuoteRow, type StorageLike } from '../src/lib/quoteSearch';
 
 const row = (o: Partial<QuoteRow> & { id: string }): QuoteRow => ({
   unit_number: '100', first_name: 'A', last_name: 'B', email: 'a@b.com', status: 'submitted',
@@ -97,5 +97,17 @@ describe('recents storage', () => {
   test('pushRecent never throws when storage fails', () => {
     expect(() => pushRecent({ getItem: () => null, setItem: () => { throw new Error('full'); } }, 'a')).not.toThrow();
     expect(() => pushRecent(null, 'a')).not.toThrow();
+  });
+});
+
+describe('firstQuoteFor', () => {
+  test('ranks the live input, not a stale query or the recents head', () => {
+    const r = [
+      row({ id: 'recent', unit_number: '111', last_name: 'Old' }),
+      row({ id: 'target', unit_number: '305', last_name: 'New' }),
+    ];
+    expect(firstQuoteFor(r, '305', ['recent'])?.id).toBe('target');
+    expect(firstQuoteFor(r, '', ['recent'])?.id).toBe('recent');
+    expect(firstQuoteFor(r, 'zzz', [])).toBeUndefined();
   });
 });
