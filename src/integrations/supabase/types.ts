@@ -284,6 +284,27 @@ export type Database = {
           },
         ]
       }
+      portal_settings: {
+        Row: {
+          key: string
+          updated_at: string | null
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string | null
+          updated_by?: string | null
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
       pricing_config: {
         Row: {
           config_key: string
@@ -575,6 +596,13 @@ export type Database = {
             foreignKeyName: "quote_line_reviews_line_id_fkey"
             columns: ["line_id"]
             isOneToOne: false
+            referencedRelation: "pricing_queue"
+            referencedColumns: ["line_id"]
+          },
+          {
+            foreignKeyName: "quote_line_reviews_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
             referencedRelation: "quote_lines"
             referencedColumns: ["id"]
           },
@@ -620,6 +648,7 @@ export type Database = {
           answered_by?: string | null
           client_note?: string | null
           client_visible?: boolean
+          counts_in_total?: boolean | null
           created_at?: string
           created_by?: string | null
           flagged_at?: string | null
@@ -652,6 +681,7 @@ export type Database = {
           answered_by?: string | null
           client_note?: string | null
           client_visible?: boolean
+          counts_in_total?: boolean | null
           created_at?: string
           created_by?: string | null
           flagged_at?: string | null
@@ -1364,10 +1394,7 @@ export type Database = {
         Args: { _premium_carpet: boolean; _premium_underpad: boolean }
         Returns: undefined
       }
-      buyer_can_see_line: {
-        Args: { _line_id: string }
-        Returns: boolean
-      }
+      buyer_can_see_line: { Args: { _line_id: string }; Returns: boolean }
       buyer_get_stair_addon: {
         Args: never
         Returns: {
@@ -1384,34 +1411,34 @@ export type Database = {
         Returns: {
           created_at: string
           email: string
-          estimated_possession_date: string | null
+          estimated_possession_date: string
           first_name: string
           last_name: string
-          phone_number: string | null
-          status: string | null
+          phone_number: string
+          status: string
           submission_id: string
           unit_number: string
-          unit_type: string | null
+          unit_type: string
         }[]
       }
       get_my_quote_lines: {
         Args: never
         Returns: {
-          amount: number | null
-          client_note: string | null
+          amount: number
+          client_note: string
           id: string
           label: string
-          location: string | null
-          product_colour: string | null
-          product_name: string | null
+          location: string
+          product_colour: string
+          product_name: string
           provisional: boolean
-          quantity: number | null
+          quantity: number
           section: string
           sort_order: number
           status: string
           submission_id: string
-          unit: string | null
-          unit_price: number | null
+          unit: string
+          unit_price: number
         }[]
       }
       has_role: {
@@ -1421,10 +1448,7 @@ export type Database = {
         }
         Returns: boolean
       }
-      is_staff: {
-        Args: { _user_id: string }
-        Returns: boolean
-      }
+      is_staff: { Args: { _user_id: string }; Returns: boolean }
       request_quote_change: {
         Args: { _submission_id?: string; _text: string }
         Returns: string
@@ -1432,9 +1456,9 @@ export type Database = {
       staff_directory: {
         Args: never
         Returns: {
-          email: string | null
-          first_name: string | null
-          last_name: string | null
+          email: string
+          first_name: string
+          last_name: string
           role: string
           user_id: string
         }[]
