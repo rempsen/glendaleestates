@@ -1,14 +1,14 @@
 // Dependency-free gate for functions that must not be callable with the public anon key.
 // Accepts: (a) Bearer <service role key>, (b) x-internal-secret = service role key,
 // (c) a user JWT whose user has the admin role. Optionally (d) any valid user JWT
-// (allowUser) for callers that then apply their own per-user rule.
+// (allowUser) for callers that then apply their own per-user rule, or (e) a staff JWT (allowStaff).
 import { bearerToken, type AuthedUser, type GetUser } from './authorizeSubmission.ts';
 
 export interface HeaderSource { headers: { get(name: string): string | null } }
 
 export type InternalAuthResult =
-  | { ok: true; kind: 'service' | 'internal' | 'admin'; email?: string }
-  | { ok: true; kind: 'user'; email: string }
+  | { ok: true; kind: 'service' | 'internal' | 'admin'; email?: string; userId?: string }
+  | { ok: true; kind: 'staff' | 'user'; email: string; userId?: string }
   | { ok: false; status: 401 };
 
 export function safeEqual(a: string, b: string): boolean {
@@ -22,7 +22,7 @@ export async function authorizeInternalOrAdmin(
   req: HeaderSource,
   env: { serviceRoleKey: string | undefined },
   getUser: GetUser,
-  opts: { allowUser?: boolean } = {},
+  opts: { allowUser?: boolean; allowStaff?: boolean } = {},
 ): Promise<InternalAuthResult> {
   const key = env.serviceRoleKey;
   const jwt = bearerToken(req.headers.get('Authorization'));
@@ -35,8 +35,10 @@ export async function authorizeInternalOrAdmin(
   let user: AuthedUser | null = null;
   try { user = await getUser(jwt); } catch { return { ok: false, status: 401 }; }
   if (!user || !user.email) return { ok: false, status: 401 };
-  if (user.isAdmin) return { ok: true, kind: 'admin', email: user.email };
-  if (opts.allowUser) return { ok: true, kind: 'user', email: user.email };
+  const id = user.id ? { userId: user.id } : {};
+  if (user.isAdmin) return { ok: true, kind: 'admin', email: user.email, ...id };
+  if (opts.allowStaff && user.isStaff) return { ok: true, kind: 'staff', email: user.email, ...id };
+  if (opts.allowUser) return { ok: true, kind: 'user', email: user.email, ...id };
   return { ok: false, status: 401 };
 }
 
@@ -55,10 +57,12 @@ export function makeGetUserFromJwt(supabaseUrl: string, serviceKey: string): Get
     const user = await userRes.json();
     if (!user?.id || typeof user.email !== 'string' || !user.email) return null;
     const roleRes = await fetch(
-      `${supabaseUrl}/rest/v1/user_roles?select=role&user_id=eq.${encodeURIComponent(user.id)}&role=eq.admin&limit=1`,
+      `${supabaseUrl}/rest/v1/user_roles?select=role&user_id=eq.${encodeURIComponent(user.id)}&role=in.(admin,staff)`,
       { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
     );
-    const roles = roleRes.ok ? await roleRes.json() : [];
-    return { email: user.email, isAdmin: Array.isArray(roles) && roles.length > 0 };
+    const roles: Array<{ role?: string }> = roleRes.ok ? await roleRes.json() : [];
+    const has = (r: string) => Array.isArray(roles) && roles.some((x) => x?.role === r);
+    const isAdmin = has('admin');
+    return { email: user.email, id: String(user.id), isAdmin, isStaff: isAdmin || has('staff') };
   };
 }
