@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { DateRange } from '@/components/dashboard/types';
 import { isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
 import { useSubmissionLineTotals } from '@/hooks/useSubmissionLineTotals';
+import { lineTotalsGate } from '@/lib/lineTotalsGate';
 
 interface BuyerSelection {
   id: string;
@@ -204,6 +205,8 @@ export function useDashboardData(dateRange: DateRange) {
     allPipeline: pipeline,
     stats,
     loading,
+    /** Window revenue figures come from quote lines; the CSV export waits for them (never $0.00 while loading). */
+    totalsGate: lineTotalsGate(lineTotals),
     refreshing,
     refetch,
     totalUnits: TOTAL_UNITS,

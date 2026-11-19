@@ -7,6 +7,7 @@ import { Download, FileText, FileSpreadsheet, Printer, RefreshCw } from 'lucide-
 import { toast } from 'sonner';
 import type { Tables } from '@/integrations/supabase/types';
 import { useSubmissionLineTotals } from '@/hooks/useSubmissionLineTotals';
+import { gatedFigure, lineTotalsGate } from '@/lib/lineTotalsGate';
 
 type BuyerSelection = Tables<'buyer_selections'>;
 
@@ -25,6 +26,13 @@ export default function AdminReports() {
   const [submissions, setSubmissions] = useState<BuyerSelection[]>([]);
   // Window coverings figures per submission: sumQuoteLines over its window_coverings lines.
   const lineTotals = useSubmissionLineTotals(submissions);
+  // Every report and export below carries window totals: none runs until the lines are loaded (never $0.00 rows).
+  const totalsGate = lineTotalsGate(lineTotals);
+  const totalsNotReady = () => {
+    if (totalsGate.ready) return false;
+    toast.error('Totals are not ready', { description: totalsGate.message ?? undefined });
+    return true;
+  };
   const windowTotalsOf = (s: BuyerSelection) => lineTotals.sectionTotalsOf(s.id, 'window_coverings');
   const windowSubtotalOf = (s: BuyerSelection) => windowTotalsOf(s).subtotal;
   const stats: ReportStats = useMemo(() => {
@@ -65,6 +73,7 @@ export default function AdminReports() {
   }, []);
 
   const generateSelectionsSummaryCSV = () => {
+    if (totalsNotReady()) return;
     if (submissions.length === 0) {
       toast.error('No submissions to export');
       return;
@@ -132,6 +141,7 @@ export default function AdminReports() {
   };
 
   const generateAllSelectionsPDFReport = async () => {
+    if (totalsNotReady()) return;
     if (submissions.length === 0) {
       toast.error('No submissions to export');
       return;
@@ -188,6 +198,7 @@ export default function AdminReports() {
   };
 
   const generateQuantitiesReport = () => {
+    if (totalsNotReady()) return;
     if (submissions.length === 0) {
       toast.error('No submissions to analyze');
       return;
@@ -303,13 +314,19 @@ export default function AdminReports() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">With Window Add-ons</p>
-                <p className="text-2xl font-serif font-semibold">{stats.windowExtensionHomes}</p>
+                <p className="text-2xl font-serif font-semibold">{gatedFigure(totalsGate, () => String(stats.windowExtensionHomes))}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Revenue</p>
-                <p className="text-2xl font-serif font-semibold text-primary">${stats.totalWindowRevenue.toLocaleString()}</p>
+                <p className="text-2xl font-serif font-semibold text-primary">{gatedFigure(totalsGate, () => `$${stats.totalWindowRevenue.toLocaleString()}`)}</p>
               </div>
             </div>
+          )}
+          {!loading && totalsGate.message && (
+            <p role={totalsGate.state === 'error' ? 'alert' : 'status'}
+              className={`mt-3 text-sm ${totalsGate.state === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
+              {totalsGate.message}
+            </p>
           )}
         </div>
 
@@ -331,7 +348,7 @@ export default function AdminReports() {
                   </p>
                   <Button
                     onClick={generateAllSelectionsPDFReport}
-                    disabled={generating === 'all-pdf' || loading || submissions.length === 0}
+                    disabled={generating === 'all-pdf' || loading || !totalsGate.ready || submissions.length === 0}
                     className="gap-2"
                   >
                     <Download className="w-4 h-4" />
@@ -375,7 +392,7 @@ export default function AdminReports() {
                   <Button
                     variant="outline"
                     onClick={generateSelectionsSummaryCSV}
-                    disabled={generating === 'selections-csv' || loading || submissions.length === 0}
+                    disabled={generating === 'selections-csv' || loading || !totalsGate.ready || submissions.length === 0}
                     className="gap-2"
                   >
                     <Download className="w-4 h-4" />
@@ -396,7 +413,7 @@ export default function AdminReports() {
                   <Button
                     variant="outline"
                     onClick={generateQuantitiesReport}
-                    disabled={generating === 'quantities' || loading || submissions.length === 0}
+                    disabled={generating === 'quantities' || loading || !totalsGate.ready || submissions.length === 0}
                     className="gap-2"
                   >
                     <Download className="w-4 h-4" />

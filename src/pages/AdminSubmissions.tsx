@@ -50,6 +50,7 @@ import { format } from 'date-fns';
 import { SECTION_ORDER } from '@/lib/quoteLines';
 import { SECTION_LABELS } from '@/lib/addLinePresets';
 import { useSubmissionLineTotals } from '@/hooks/useSubmissionLineTotals';
+import { gatedFigure, lineTotalsGate } from '@/lib/lineTotalsGate';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { StatusWorkflowControl } from '@/components/admin/StatusWorkflowControl';
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
@@ -180,6 +181,8 @@ export default function AdminSubmissions() {
 
   // Every figure on this page comes from quote lines (stored, else generated), summed by sumQuoteLines.
   const lineTotals = useSubmissionLineTotals(submissions);
+  // The detail dialog's pricing figures wait for the lines: no "$0.00 / standard selections only" while loading.
+  const totalsGate = lineTotalsGate(lineTotals);
 
   const fetchSubmissions = async () => {
     setLoading(true);
@@ -815,7 +818,12 @@ export default function AdminSubmissions() {
                 })()}
 
                 {/* Pricing Summary - FIRST (from quote lines) */}
-                {(() => {
+                {!totalsGate.ready ? (
+                  <div role={totalsGate.state === 'error' ? 'alert' : 'status'}
+                    className={`p-4 rounded-xl border border-border text-sm ${totalsGate.state === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    {totalsGate.message}
+                  </div>
+                ) : (() => {
                   const grand = lineTotals.totalsOf(selectedSubmission.id);
                   const hasAnyUpgrades = grand.total > 0;
                   const sections = SECTION_ORDER
@@ -1045,7 +1053,7 @@ export default function AdminSubmissions() {
                       </div>
                       <div>
                         <span className="text-muted-foreground">Total (before GST):</span>
-                        <span className="ml-2 font-medium">${lineTotals.sectionTotalsOf(selectedSubmission.id, 'window_coverings').subtotal.toFixed(2)}</span>
+                        <span className="ml-2 font-medium">{gatedFigure(totalsGate, () => `$${lineTotals.sectionTotalsOf(selectedSubmission.id, 'window_coverings').subtotal.toFixed(2)}`)}</span>
                       </div>
                     </div>
                     {selectedSubmission.window_comments && (

@@ -3,6 +3,7 @@ import { AdminLayout } from '@/components/AdminLayout';
 import { StatCard } from '@/components/StatCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useSubmissionLineTotals } from '@/hooks/useSubmissionLineTotals';
+import { gatedFigure, lineTotalsGate } from '@/lib/lineTotalsGate';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -70,6 +71,8 @@ const TOTAL_UNITS = 70;
 export default function AdminSalesAnalytics() {
   const [selections, setSelections] = useState<BuyerSelection[]>([]);
   const lineTotals = useSubmissionLineTotals(selections);
+  // Window revenue comes from quote lines: shown as a placeholder (never $0) until they load, '—' on an error.
+  const totalsGate = lineTotalsGate(lineTotals);
   const [pipeline, setPipeline] = useState<PipelineRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -167,7 +170,8 @@ export default function AdminSalesAnalytics() {
   const revenueBreakdown = [
     { name: 'Contract Revenue', value: pipelineStats.totalContractValue },
     { name: 'GST Collected', value: pipeline.reduce((sum, p) => sum + (p.tax_amount || 0), 0) },
-    { name: 'Window Revenue (pre-GST)', value: selectionStats.windowRevenue },
+    // Left out of the chart until the lines are loaded, rather than drawn as $0.
+    ...(totalsGate.ready ? [{ name: 'Window Revenue (pre-GST)', value: selectionStats.windowRevenue }] : []),
   ];
 
   if (loading) {
@@ -374,8 +378,8 @@ export default function AdminSalesAnalytics() {
             <p className="text-xs text-muted-foreground">Selections Made</p>
           </div>
           <div className="p-4 rounded-xl border border-border bg-card text-center">
-            <p className="text-2xl font-serif font-semibold text-foreground">${(selectionStats.windowRevenue / 1000).toFixed(1)}k</p>
-            <p className="text-xs text-muted-foreground">Window Revenue (pre-GST)</p>
+            <p className="text-2xl font-serif font-semibold text-foreground">{gatedFigure(totalsGate, () => `$${(selectionStats.windowRevenue / 1000).toFixed(1)}k`)}</p>
+            <p className="text-xs text-muted-foreground" title={totalsGate.message ?? undefined}>Window Revenue (pre-GST)</p>
           </div>
         </div>
       </div>
