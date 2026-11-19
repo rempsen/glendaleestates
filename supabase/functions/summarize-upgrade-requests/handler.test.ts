@@ -50,14 +50,14 @@ if (denoTest) {
       details: { model: MODEL_ID, prompt_tokens: 900, completion_tokens: 120, submission_id: SID },
     }]);
   });
-  denoTest('monthly cap reached → 429 before any model call', async () => {
+  denoTest('monthly cap (used + MAX_OUTPUT_TOKENS > cap) → 402 before any model call', async () => {
     let since = '';
     const { deps, calls, logs } = makeDeps({
       readTokenCapSetting: () => Promise.resolve(5000),
-      tokensUsedSince: (s) => { since = s; return Promise.resolve(5000); },
+      tokensUsedSince: (s) => { since = s; return Promise.resolve(5000 - MAX_OUTPUT_TOKENS + 1); },
     });
     const out = await handleSummarize('Bearer t', { submissionId: SID }, deps);
-    eq([out.status, out.body, calls.length, logs.length], [429, { error: 'ai_monthly_cap_reached' }, 0, 0]);
+    eq([out.status, out.body, calls.length, logs.length], [402, { error: 'ai_monthly_cap_reached' }, 0, 0]);
     eq(since, '2026-11-01T00:00:00.000Z');
   });
   denoTest('auth: 401 without bearer, 403 non-admin, both before loading data', async () => {
@@ -75,12 +75,13 @@ if (denoTest) {
   denoTest('buildSummaryPrompt: buyer_request label delimited; internal fields never read', () => {
     const p = buildSummaryPrompt({
       selection: { admin_notes: 'INTERNAL admin', area_upgrades: [{ areaId: 'k', comments: 'INTERNAL area', clientComment: 'hi' }] },
-      changeLog: [{ action_type: 'update', changes: { sales_comments: { old: null, new: 'INTERNAL sc' }, lvp_colour: { old: 'a', new: 'b' } } }],
+      changeLog: [{ action_type: 'update', changed_by_email: 'noni@bmdmaterials.com', changed_by: 'staff', changes: { sales_comments: { old: null, new: 'INTERNAL sc' }, lvp_colour: { old: 'a', new: 'b' } } }],
       lines: [{ id: 'l1', source: 'buyer_request', label: 'Add <i>shelf</i> http://x.test', internal_note: 'INTERNAL n' }],
       reviews: [{ line_id: 'l1', response: 'questioned', comment: 'Why so much?' }],
     });
     const text = p.instructions + p.input;
-    ok(!/INTERNAL|internal_note|sales_comments|admin_notes/.test(text), text);
+    ok(!/INTERNAL|internal_note|sales_comments|admin_notes|@/.test(text), text);
+    ok(text.includes('"changed_by":"staff"'), text);
     ok(text.includes('<<<buyer_text field="quote_lines[L1].label">>>\nAdd shelf [link removed]\n<<<end buyer_text>>>'), text);
     ok(text.includes('<<<buyer_text field="reviews[R1].comment">>>\nWhy so much?\n<<<end buyer_text>>>'), text);
     ok(text.includes('[R1] {"line":"L1","response":"questioned"}'), text);

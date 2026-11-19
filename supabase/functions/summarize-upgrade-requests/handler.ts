@@ -1,5 +1,5 @@
 // summarize-upgrade-requests logic (spec §6.15). I/O is injected (deps) so the order is testable:
-// admin check → load (whitelisted columns) → monthly token cap (refuse 429 before any model call) → model → usage log.
+// admin check → load (whitelisted columns) → monthly token cap (refuse 402 before any model call) → model → usage log.
 // The usage log carries counts only ({ model, prompt_tokens, completion_tokens, submission_id }), never prompt text.
 import { buildSummaryPrompt, type SummaryPromptInput } from './prompt.ts';
 
@@ -10,6 +10,12 @@ export const MAX_OUTPUT_TOKENS = 2000;
 export const AI_TOKEN_CAP_KEY = 'ai_monthly_token_cap';
 export const DEFAULT_AI_MONTHLY_TOKEN_CAP = 2_000_000;
 export const AI_USAGE_ACTION = 'ai_summary';
+/** HTTP status for the monthly cap: 402, so the UI can tell it apart from the gateway's 429 rate limit. */
+export const AI_CAP_STATUS = 402;
+export const AI_CAP_ERROR = 'ai_monthly_cap_reached';
+export const USAGE_PAGE_SIZE = 1000;
+/** Upper bound on pages read (1,000,000 summaries a month); beyond it the sum throws and the caller fails closed. */
+export const USAGE_MAX_PAGES = 1000;
 
 export type ModelPayload = {
   model: typeof MODEL_ID;
@@ -46,6 +52,22 @@ export function parseTokenCap(value: unknown): number {
 /** Start of the current calendar month, UTC. */
 export function monthStartUtc(now: Date): string {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+}
+
+/** Sum prompt + completion tokens over every page of usage rows; a short page ends the scan. Errors propagate. */
+export async function sumUsagePages(fetchPage: (offset: number) => Promise<unknown>): Promise<number> {
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
+  let total = 0;
+  for (let page = 0; page < USAGE_MAX_PAGES; page++) {
+    const rows = await fetchPage(page * USAGE_PAGE_SIZE);
+    if (!Array.isArray(rows)) throw new Error('usage page is not an array');
+    for (const r of rows) {
+      const d = (r as { details?: Record<string, unknown> | null })?.details;
+      total += n(d?.prompt_tokens) + n(d?.completion_tokens);
+    }
+    if (rows.length < USAGE_PAGE_SIZE) return total;
+  }
+  throw new Error('usage scan exceeded the page limit');
 }
 
 const count = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
@@ -85,7 +107,9 @@ export async function handleSummarize(authorization: string, body: unknown, deps
 
   const cap = parseTokenCap(await deps.readTokenCapSetting());
   const used = await deps.tokensUsedSince(monthStartUtc(deps.now()));
-  if (used >= cap) return { status: 429, body: { error: 'ai_monthly_cap_reached' } };
+  // Reserve this call's worst-case output. Concurrent admin calls read the same `used`, so the month can still overshoot
+  // the cap by up to one request per concurrent caller.
+  if (used + MAX_OUTPUT_TOKENS > cap) return { status: AI_CAP_STATUS, body: { error: AI_CAP_ERROR } };
 
   const prompt = buildSummaryPrompt(input);
   const res = await deps.callModel({

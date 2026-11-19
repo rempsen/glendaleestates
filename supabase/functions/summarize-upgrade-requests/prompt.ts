@@ -9,7 +9,10 @@ import { cleanScalar, delimitUntrusted, stripUnsafe, untrustedPreamble } from '.
 type Row = Record<string, unknown>;
 export type SummaryPromptInput = {
   selection: Row;
-  /** submission_audit_logs rows, newest first: created_at, action_type, changed_by_email, change_summary, changes. */
+  /**
+   * submission_audit_logs rows, newest first: created_at, action_type, changed_by ('buyer' | 'staff' | 'unknown', see
+   * actorFor), change_summary, changes. Emails and user ids are never read.
+   */
   changeLog: Row[];
   /** quote_lines rows in sort order (status 'removed' already excluded by the loader). */
   lines: Row[];
@@ -48,6 +51,24 @@ const LINE_FIELDS = [
 ] as const;
 const CUSTOM_ITEM_FIELDS = ['label', 'detail', 'area', 'quantity', 'unit', 'unitPrice', 'amount', 'status'] as const;
 const MAX_ITEMS = 100;
+
+export type Actor = 'buyer' | 'staff' | 'unknown';
+const ACTORS: readonly Actor[] = ['buyer', 'staff', 'unknown'];
+/** user_roles rows → ids that count as staff for change-log labels (same roles as public.is_staff). Not an auth check. */
+export function staffIdsFromRoles(rows: unknown): Set<string> {
+  const staffRoles = new Set(['admin', 'staff']);
+  return new Set((Array.isArray(rows) ? rows : [])
+    .filter(r => isObj(r) && typeof r.user_id === 'string' && staffRoles.has(String(r.role)))
+    .map(r => (r as Row).user_id as string));
+}
+
+/** Who made a change, from changed_by_user_id: staff (admin/staff role) first, then the submission's buyer. */
+export function actorFor(userId: unknown, ctx: { staffUserIds: ReadonlySet<string>; buyerUserIds: ReadonlySet<string> }): Actor {
+  const id = typeof userId === 'string' ? userId : '';
+  if (id && ctx.staffUserIds.has(id)) return 'staff';
+  if (id && ctx.buyerUserIds.has(id)) return 'buyer';
+  return 'unknown';
+}
 
 const isObj = (v: unknown): v is Row => !!v && typeof v === 'object' && !Array.isArray(v);
 
@@ -116,7 +137,9 @@ function lineForAi(row: unknown, ref: string, prefix: string): { line: Row; bloc
 }
 
 function changeEntry(log: Row, ref: string, lineRefs: Map<string, { ref: string; source: unknown }>): string[] {
-  const head: Row = pick(log, ['created_at', 'action_type', 'changed_by_email', 'change_summary']);
+  const head: Row = pick(log, ['created_at', 'action_type']);
+  head.changed_by = ACTORS.includes(log.changed_by as Actor) ? log.changed_by : 'unknown';
+  if (log.change_summary !== undefined) head.change_summary = cleanDeep(log.change_summary);
   const blocks: string[] = [];
   const changes = isObj(log.changes) ? log.changes : {};
   const action = typeof log.action_type === 'string' ? log.action_type : '';

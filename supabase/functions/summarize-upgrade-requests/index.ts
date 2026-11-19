@@ -4,10 +4,12 @@
 // golden prompts in scripts/fixtures/ai-golden/.
 // SETTINGS: portal_settings.ai_monthly_token_cap (migration 0015, default 2,000,000). USAGE: user_activity_logs rows with
 // action_type 'ai_summary', details { model, prompt_tokens, completion_tokens, submission_id } — counts only, never text.
-import { generateResponse, GatewayError } from 'npm:@lovable.dev/ai-gateway@0.1.13';
+import { generateResponse, GatewayError, type OpenAIAstraResponsesFields } from 'npm:@lovable.dev/ai-gateway@0.1.13';
 import { sanitizeAuditLogsForAi } from '../_shared/sanitizeChangesForAi.ts';
-import { LINE_SELECT, SELECTION_SELECT } from './prompt.ts';
-import { AI_TOKEN_CAP_KEY, AI_USAGE_ACTION, handleSummarize, type ModelPayload, type SummarizeDeps } from './handler.ts';
+import { LINE_SELECT, SELECTION_SELECT, actorFor, staffIdsFromRoles } from './prompt.ts';
+import {
+  AI_TOKEN_CAP_KEY, AI_USAGE_ACTION, USAGE_PAGE_SIZE, handleSummarize, sumUsagePages, type ModelPayload, type SummarizeDeps,
+} from './handler.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -24,10 +26,13 @@ const rest = async (path: string) => {
   if (!r.ok) throw new Error(`DB ${r.status}`);
   return r.json();
 };
-// PostgREST's default max-rows; a full page means the month's usage may be undercounted, so the cap fails closed.
-const USAGE_PAGE = 1000;
+const UUID = /^[0-9a-f-]{36}$/i;
 
-// The SDK types request payloads as `never` until `ai-gateway generate` has run; the payload shape is pinned by ModelPayload.
+// The SDK types request payloads as `never` until `ai-gateway generate` has run, so the call is cast once. The compile-time
+// check below keeps ModelPayload (minus `model`) assignable to the gateway's exported request fields for the pinned model:
+// a field the gateway rejects for gpt-6-astra (temperature, effort 'minimal', …) fails `deno check`.
+type PayloadFitsGateway = Omit<ModelPayload, 'model'> extends OpenAIAstraResponsesFields ? true : never;
+const _payloadFitsGateway: PayloadFitsGateway = true;
 const callGateway = generateResponse as unknown as (payload: ModelPayload) => Promise<unknown>;
 
 const deps: SummarizeDeps = {
@@ -42,31 +47,42 @@ const deps: SummarizeDeps = {
     return Array.isArray(roles) && roles.length > 0;
   },
   async loadInput(id) {
+    // `email` is read only to recognise the buyer's own changes; it is split off and never reaches the prompt.
     const [rows, logs, lines] = await Promise.all([
-      rest(`buyer_selections?select=${SELECTION_SELECT.join(',')}&id=eq.${id}`),
-      rest(`submission_audit_logs?select=created_at,action_type,changed_by_email,change_summary,changes&submission_id=eq.${id}&order=created_at.desc&limit=25`),
+      rest(`buyer_selections?select=${SELECTION_SELECT.join(',')},email&id=eq.${id}`),
+      rest(`submission_audit_logs?select=created_at,action_type,changed_by_user_id,change_summary,changes&submission_id=eq.${id}&order=created_at.desc&limit=25`),
       rest(`quote_lines?select=${LINE_SELECT.join(',')}&submission_id=eq.${id}&status=neq.removed&order=sort_order.asc&limit=100`),
-    ]);
+    ]) as [Record<string, unknown>[], Record<string, unknown>[], { id: string }[]];
     if (!rows.length) return null;
-    const ids = (lines as { id: string }[]).map(l => l.id).filter(x => /^[0-9a-f-]{36}$/i.test(x));
-    const reviews = ids.length
-      ? await rest(`quote_line_reviews?select=line_id,response,comment,created_at&line_id=in.(${ids.join(',')})&order=created_at.desc&limit=50`)
-      : [];
+    const { email: buyerEmail, ...selection } = rows[0];
+    const lineIds = lines.map(l => l.id).filter(x => UUID.test(x));
+    const actorIds = [...new Set(logs.map(l => l.changed_by_user_id).filter((x): x is string => typeof x === 'string' && UUID.test(x)))];
+    const [reviews, staff, profiles] = await Promise.all([
+      lineIds.length
+        ? rest(`quote_line_reviews?select=line_id,response,comment,created_at&line_id=in.(${lineIds.join(',')})&order=created_at.desc&limit=50`)
+        : Promise.resolve([]),
+      actorIds.length ? rest(`user_roles?select=user_id,role&user_id=in.(${actorIds.join(',')})`) : Promise.resolve([]),
+      actorIds.length ? rest(`profiles?select=user_id,email&user_id=in.(${actorIds.join(',')})`) : Promise.resolve([]),
+    ]) as [Record<string, unknown>[], unknown, { user_id: string; email: string | null }[]];
+    const owner = typeof buyerEmail === 'string' ? buyerEmail.trim().toLowerCase() : '';
+    const ctx = {
+      // Labels only (who changed what); the admin gate is isAdmin above.
+      staffUserIds: staffIdsFromRoles(staff),
+      buyerUserIds: new Set(profiles.filter(p => owner && (p.email ?? '').trim().toLowerCase() === owner).map(p => p.user_id)),
+    };
     // The prompt builder whitelists change keys; the blacklist sanitiser stays as a second layer.
-    return { selection: rows[0], changeLog: sanitizeAuditLogsForAi(logs), lines, reviews };
+    const changeLog = sanitizeAuditLogsForAi(logs).map(({ changed_by_user_id, ...entry }) => ({ ...entry, changed_by: actorFor(changed_by_user_id, ctx) }));
+    return { selection, changeLog, lines, reviews };
   },
   async readTokenCapSetting() {
     const rows = await rest(`portal_settings?select=value&key=eq.${AI_TOKEN_CAP_KEY}`);
     return Array.isArray(rows) && rows.length ? rows[0].value : null;
   },
-  async tokensUsedSince(since) {
-    const rows = await rest(
-      `user_activity_logs?select=details&action_type=eq.${AI_USAGE_ACTION}&created_at=gte.${encodeURIComponent(since)}&limit=${USAGE_PAGE}`,
-    ) as { details: Record<string, unknown> | null }[];
-    if (rows.length >= USAGE_PAGE) return Number.POSITIVE_INFINITY;
-    const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
-    return rows.reduce((s, r) => s + n(r.details?.prompt_tokens) + n(r.details?.completion_tokens), 0);
-  },
+  // Pages through every row of the month (stable order); any page error throws, so the caller fails closed.
+  tokensUsedSince: (since) => sumUsagePages((offset) => rest(
+    `user_activity_logs?select=details&action_type=eq.${AI_USAGE_ACTION}&created_at=gte.${encodeURIComponent(since)}`
+      + `&order=created_at.asc,id.asc&limit=${USAGE_PAGE_SIZE}&offset=${offset}`,
+  )),
   callModel: (payload) => callGateway(payload),
   async logUsage(row) {
     const r = await fetch(`${URL_}/rest/v1/user_activity_logs`, {
