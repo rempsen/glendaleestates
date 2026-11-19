@@ -1,7 +1,13 @@
-// Admin-only: AI summary of a buyer's upgrade requests and recent changes
-// (incl. lower-level stair carpet/underpad add-ons) for quick staff review.
+// Admin-only: AI summary of a buyer's upgrade requests, quote lines, buyer reviews and recent changes for staff review.
+// Logic: ./handler.ts (pinned MODEL_ID, max_output_tokens, monthly token cap, usage log); prompt: ./prompt.ts (whitelisted
+// fields, buyer text delimited via _shared/promptSafety.ts). Tests: handler.test.ts, scripts/summarize-*.test.ts,
+// golden prompts in scripts/fixtures/ai-golden/.
+// SETTINGS: portal_settings.ai_monthly_token_cap (migration 0015, default 2,000,000). USAGE: user_activity_logs rows with
+// action_type 'ai_summary', details { model, prompt_tokens, completion_tokens, submission_id } — counts only, never text.
 import { generateResponse, GatewayError } from 'npm:@lovable.dev/ai-gateway@0.1.13';
 import { sanitizeAuditLogsForAi } from '../_shared/sanitizeChangesForAi.ts';
+import { LINE_SELECT, SELECTION_SELECT } from './prompt.ts';
+import { AI_TOKEN_CAP_KEY, AI_USAGE_ACTION, handleSummarize, type ModelPayload, type SummarizeDeps } from './handler.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -12,79 +18,73 @@ const json = (b: unknown, status = 200) =>
 
 const URL_ = Deno.env.get('SUPABASE_URL')!;
 const SRK = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const srHeaders = { apikey: SRK, Authorization: `Bearer ${SRK}` };
 const rest = async (path: string) => {
-  const r = await fetch(`${URL_}/rest/v1/${path}`, { headers: { apikey: SRK, Authorization: `Bearer ${SRK}` } });
+  const r = await fetch(`${URL_}/rest/v1/${path}`, { headers: srHeaders });
   if (!r.ok) throw new Error(`DB ${r.status}`);
   return r.json();
 };
+// PostgREST's default max-rows; a full page means the month's usage may be undercounted, so the cap fails closed.
+const USAGE_PAGE = 1000;
 
-// Only selection/pricing fields go to the model — no admin/sales notes.
-const FIELDS = [
-  'unit_number', 'unit_type', 'status', 'created_at', 'updated_at', 'has_stairs', 'lvp_colour', 'spc_tile_colour',
-  'backsplash_orientation', 'backsplash_grout_enabled', 'backsplash_grout_color', 'stair_upgrade_type',
-  'stair_lvp_upgrade_selected', 'stair_premium_carpet_selected', 'premium_underpad_stairs', 'stair_carpet_colour',
-  'bedroom_flooring_choice', 'bedroom_carpet_colour', 'premium_carpet_bedroom', 'premium_underpad_bedroom',
-  'additional_windows_qty', 'patio_doors_qty', 'automated_windows_qty', 'bathroom_tile_selected',
-  'heated_floor_bathrooms', 'custom_tiled_shower', 'hardwood_upgrade_selected', 'area_upgrades', 'custom_pricing',
-  'upgrade_interests', 'upgrade_comments', 'upgrade_interests_notes', 'lvp_comments', 'spc_tile_comments', 'window_comments',
-];
+// The SDK types request payloads as `never` until `ai-gateway generate` has run; the payload shape is pinned by ModelPayload.
+const callGateway = generateResponse as unknown as (payload: ModelPayload) => Promise<unknown>;
+
+const deps: SummarizeDeps = {
+  async getUser(authorization) {
+    const u = await fetch(`${URL_}/auth/v1/user`, { headers: { apikey: SRK, Authorization: authorization } });
+    if (!u.ok) return null;
+    const user = await u.json();
+    return user?.id ? { id: String(user.id), email: typeof user.email === 'string' ? user.email : null } : null;
+  },
+  async isAdmin(userId) {
+    const roles = await rest(`user_roles?select=role&user_id=eq.${encodeURIComponent(userId)}&role=eq.admin`);
+    return Array.isArray(roles) && roles.length > 0;
+  },
+  async loadInput(id) {
+    const [rows, logs, lines] = await Promise.all([
+      rest(`buyer_selections?select=${SELECTION_SELECT.join(',')}&id=eq.${id}`),
+      rest(`submission_audit_logs?select=created_at,action_type,changed_by_email,change_summary,changes&submission_id=eq.${id}&order=created_at.desc&limit=25`),
+      rest(`quote_lines?select=${LINE_SELECT.join(',')}&submission_id=eq.${id}&status=neq.removed&order=sort_order.asc&limit=100`),
+    ]);
+    if (!rows.length) return null;
+    const ids = (lines as { id: string }[]).map(l => l.id).filter(x => /^[0-9a-f-]{36}$/i.test(x));
+    const reviews = ids.length
+      ? await rest(`quote_line_reviews?select=line_id,response,comment,created_at&line_id=in.(${ids.join(',')})&order=created_at.desc&limit=50`)
+      : [];
+    // The prompt builder whitelists change keys; the blacklist sanitiser stays as a second layer.
+    return { selection: rows[0], changeLog: sanitizeAuditLogsForAi(logs), lines, reviews };
+  },
+  async readTokenCapSetting() {
+    const rows = await rest(`portal_settings?select=value&key=eq.${AI_TOKEN_CAP_KEY}`);
+    return Array.isArray(rows) && rows.length ? rows[0].value : null;
+  },
+  async tokensUsedSince(since) {
+    const rows = await rest(
+      `user_activity_logs?select=details&action_type=eq.${AI_USAGE_ACTION}&created_at=gte.${encodeURIComponent(since)}&limit=${USAGE_PAGE}`,
+    ) as { details: Record<string, unknown> | null }[];
+    if (rows.length >= USAGE_PAGE) return Number.POSITIVE_INFINITY;
+    const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
+    return rows.reduce((s, r) => s + n(r.details?.prompt_tokens) + n(r.details?.completion_tokens), 0);
+  },
+  callModel: (payload) => callGateway(payload),
+  async logUsage(row) {
+    const r = await fetch(`${URL_}/rest/v1/user_activity_logs`, {
+      method: 'POST',
+      headers: { ...srHeaders, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify(row),
+    });
+    if (!r.ok) throw new Error(`usage log ${r.status}`);
+  },
+  now: () => new Date(),
+};
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   try {
-    const auth = req.headers.get('Authorization') || '';
-    if (!auth.startsWith('Bearer ')) return json({ error: 'Unauthorized' }, 401);
-    const u = await fetch(`${URL_}/auth/v1/user`, { headers: { apikey: SRK, Authorization: auth } });
-    if (!u.ok) return json({ error: 'Unauthorized' }, 401);
-    const user = await u.json();
-    const roles = await rest(`user_roles?select=role&user_id=eq.${user.id}&role=eq.admin`);
-    if (!roles.length) return json({ error: 'Forbidden' }, 403);
-
     const body = await req.json().catch(() => ({}));
-    const id = typeof body?.submissionId === 'string' ? body.submissionId : '';
-    if (!/^[0-9a-f-]{36}$/i.test(id)) return json({ error: 'submissionId is required' }, 400);
-
-    const [rows, logs] = await Promise.all([
-      rest(`buyer_selections?select=${FIELDS.join(',')}&id=eq.${id}`),
-      rest(`submission_audit_logs?select=created_at,changed_by_email,change_summary,changes&submission_id=eq.${id}&order=created_at.desc&limit=25`),
-    ]);
-    if (!rows.length) return json({ error: 'Not found' }, 404);
-
-    // Staff-typed internal `comments` on area rows are not sent to the model; clientComment is.
-    const selectionForModel = {
-      ...rows[0],
-      area_upgrades: Array.isArray(rows[0].area_upgrades)
-        ? rows[0].area_upgrades.map(({ comments: _internal, ...keep }: Record<string, unknown>) => keep)
-        : rows[0].area_upgrades,
-    };
-    // Change log entries carry Admin Notes (sales_comments) and full area_upgrades diffs; strip the internal text.
-    const logsForModel = sanitizeAuditLogsForAi(logs);
-
-    const prompt = `You help condo finishing staff review buyer upgrade requests.
-Summarize for staff in plain, concise English (no emojis):
-1. "New / recent requests" — changes from the change log, newest first, with dates. Clearly call out any buyer-added lower-level stair carpet or underpad upgrade (stairs from main level to basement/lower level).
-2. "Current upgrades" — short bullet list of every upgrade currently selected (flooring area upgrades with product/colour, bathroom, shower, heated floors, backsplash/grout, stairs, window coverings, office custom line items and office prices).
-3. "Needs staff attention" — anything unclear, conflicting, missing a colour, or mentioned only in comments.
-Do not invent prices; only mention prices that appear in the data (office prices are GST-exclusive). Use short bullets under each heading.
-
-SELECTION RECORD:
-${JSON.stringify(selectionForModel)}
-
-CHANGE LOG (newest first):
-${JSON.stringify(logsForModel)}`;
-
-    const res = await generateResponse({
-      model: 'openai/gpt-6-astra',
-      input: prompt,
-      reasoning: { effort: 'low' },
-    });
-    // deno-lint-ignore no-explicit-any
-    const r = res as any;
-    let text: string = r.output_text || '';
-    if (!text && Array.isArray(r.output)) {
-      for (const item of r.output) for (const c of item?.content || []) if (c?.type === 'output_text') text += c.text;
-    }
-    return json({ summary: text.trim(), generatedAt: new Date().toISOString() });
+    const out = await handleSummarize(req.headers.get('Authorization') || '', body, deps);
+    return json(out.body, out.status);
   } catch (e) {
     if (e instanceof GatewayError) {
       const status = e.httpStatus === 429 ? 429 : e.httpStatus === 402 ? 402 : 502;
@@ -93,7 +93,7 @@ ${JSON.stringify(logsForModel)}`;
       console.error('gateway error', e.code, e.ids);
       return json({ error: msg }, status);
     }
-    console.error(e);
+    console.error(e instanceof Error ? e.message : e);
     return json({ error: 'Could not build summary' }, 500);
   }
 });
