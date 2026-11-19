@@ -16,6 +16,8 @@
 // IDEMPOTENCY — one notification per flagging: the key line:assignee:flagged_at (flagged_at is stamped by the
 // quote_lines_flag_stamp trigger, migration 0011) is claimed by inserting a submission_audit_logs row with
 // action_type 'pricing_request_notified'; a unique index on changes->>'dedupe_key' makes a re-delivery a no-op.
+// When Teams AND the Resend fallback both fail, the claim is released (the row is re-typed 'pricing_request_failed',
+// outside the partial unique index, kept for audit) and the function answers 502 so a retry can deliver.
 //
 // SETTINGS (portal_settings, admin-edited at /admin/settings/notifications): teams_webhook_url.
 // ENV: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY, optional PORTAL_BASE_URL.
@@ -83,6 +85,15 @@ Deno.serve(async (req) => {
         const text = await res.text();
         if (res.status === 409 || text.includes('23505')) return false; // unique dedupe_key: already sent
         throw new Error(`claim: HTTP ${res.status} ${text}`);
+      },
+      async release(key) {
+        const filter = `action_type=eq.pricing_request_notified&changes->>dedupe_key=eq.${encodeURIComponent(key)}`;
+        const res = await fetch(`${supabaseUrl}/rest/v1/submission_audit_logs?${filter}`, {
+          method: 'PATCH',
+          headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ action_type: 'pricing_request_failed', change_summary: 'Pricing request notification failed' }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${await res.text()}`);
       },
       postTeams,
       sendEmail: (m) => sendResendEmail(resendKey, m),

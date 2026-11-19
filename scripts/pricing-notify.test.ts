@@ -19,13 +19,14 @@ const ctx: LineContext = {
 };
 
 function deps(over: Partial<NotifyDeps> = {}) {
-  const calls = { teams: [] as unknown[], email: [] as Array<{ to: string[]; subject: string }>, claims: [] as string[] };
+  const calls = { teams: [] as unknown[], email: [] as Array<{ to: string[]; subject: string }>, claims: [] as string[], released: [] as string[] };
   const claimed = new Set<string>();
   const d: NotifyDeps = {
     portalBase: 'https://portal.test',
     getTeamsUrl: async () => 'https://prod.logic.azure.com/workflows/x',
     loadLine: async () => ctx,
     claim: async (key) => { calls.claims.push(key); if (claimed.has(key)) return false; claimed.add(key); return true; },
+    release: async (key) => { calls.released.push(key); claimed.delete(key); },
     postTeams: async (_url, body) => { calls.teams.push(body); return { ok: true }; },
     sendEmail: async (m) => { calls.email.push(m); return { ok: true }; },
     ...over,
@@ -106,6 +107,38 @@ describe('notify-pricing-request', () => {
     const r = await handleNotify(payload(), service, d);
     expect(r.status).toBe(502);
     expect(r.body).toMatchObject({ ok: false, channel: 'none' });
+  });
+
+  test('both channels fail → claim released, so the webhook retry delivers (not "duplicate")', async () => {
+    let fail = true;
+    const { d, calls } = deps({
+      postTeams: async (_u, body) => { if (fail) return { ok: false, error: 'HTTP 500' }; calls.teams.push(body); return { ok: true }; },
+      sendEmail: async () => ({ ok: false, error: 'no key' }),
+    });
+    expect((await handleNotify(payload(), service, d)).status).toBe(502);
+    expect(calls.released).toEqual([`pricing_request:l1:u-brian:${FLAGGED_AT}`]);
+    fail = false;
+    expect(await handleNotify(payload(), service, d)).toEqual({ status: 200, body: { ok: true, channel: 'teams' } });
+    expect(calls.teams).toHaveLength(1);
+    // Delivered now: a third delivery is a duplicate again, and the success did not release.
+    expect((await handleNotify(payload(), service, d)).body).toEqual({ ok: true, skipped: 'duplicate' });
+    expect(calls.released).toHaveLength(1);
+  });
+
+  test('a failing release is reported in the 502, not thrown', async () => {
+    const { d } = deps({
+      postTeams: async () => ({ ok: false, error: 'HTTP 500' }), sendEmail: async () => ({ ok: false, error: 'no key' }),
+      release: async () => { throw new Error('HTTP 503'); },
+    });
+    const r = await handleNotify(payload(), service, d);
+    expect(r.status).toBe(502);
+    expect(String(r.body.error)).toContain('release: HTTP 503');
+  });
+
+  test('index releases by re-typing the claim row out of the unique index', () => {
+    const src = readFileSync(join(import.meta.dir, '../supabase/functions/notify-pricing-request/index.ts'), 'utf8');
+    expect(src).toContain("action_type: 'pricing_request_failed'");
+    expect(src).toContain('changes->>dedupe_key=eq.');
   });
 
   test('a signed-in admin may only send the test card, not fake a webhook', async () => {

@@ -16,6 +16,7 @@ if (denoTest) {
         location: '', label: 'L', product: null, colour: null, internalNote: null, assigneeName: 'B', assigneeEmail: 'b@x.test',
       }),
       claim: (k) => Promise.resolve(claimed.has(k) ? false : (claimed.add(k), true)),
+      release: (k) => { claimed.delete(k); return Promise.resolve(); },
       postTeams: () => { cards++; return Promise.resolve({ ok: true }); },
       sendEmail: () => Promise.resolve({ ok: true }),
     };

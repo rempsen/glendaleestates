@@ -32,6 +32,8 @@ export interface NotifyDeps {
   loadLine(lineId: string): Promise<LineContext | null>;
   /** Records the dedupe key; false when it was already recorded (re-delivery). */
   claim(key: string, info: { lineId: string; submissionId: string; flaggedTo: string; flaggedAt: string | null }): Promise<boolean>;
+  /** Gives the claim back after every channel failed, so a webhook retry of the same flagging can deliver. */
+  release(key: string): Promise<void>;
   postTeams(url: string, body: unknown): Promise<SendResult>;
   sendEmail(msg: EmailMessage): Promise<SendResult>;
 }
@@ -120,7 +122,10 @@ export async function handleNotify(body: unknown, auth: InternalAuthResult, deps
   };
   const r = await deliver(deps, input, line.assigneeEmail);
   if (r.channel === 'none') {
-    return { status: 502, body: { ok: false, channel: 'none', error: [r.teamsError, r.emailError].filter(Boolean).join('; ') } };
+    // Nothing was delivered: release the claim, or a retry would answer 'duplicate' and the request would wait for the digest.
+    let releaseError: string | undefined;
+    try { await deps.release(key); } catch (e) { releaseError = `release: ${e instanceof Error ? e.message : String(e)}`; }
+    return { status: 502, body: { ok: false, channel: 'none', error: [r.teamsError, r.emailError, releaseError].filter(Boolean).join('; ') } };
   }
   return { status: 200, body: { ok: true, channel: r.channel, ...(r.teamsError ? { teamsError: r.teamsError } : {}) } };
 }
