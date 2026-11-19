@@ -3,11 +3,12 @@
 // parity tests, so lines generated in the browser, on the server and in the harness cannot drift.
 // Field rules mirror toBuyerPdfSelections (src/lib/buyerPdfSelections.ts) for every field the generator reads;
 // scripts/wizard-lines.test.ts proves the lines are identical on every fixture.
-// Dependency-free apart from ./quoteLines.ts (runs under Deno, bun and Vite).
+// Dependency-free apart from ./quoteLines.ts and ./optionNames.ts (runs under Deno, bun and Vite).
 import {
   normalizeUnitTypeCode, type GenerateInput, type QuoteAreaUpgrade, type QuoteBaseSpecRow, type QuotePricing,
   type QuoteSelections, type QuoteWindow,
 } from './quoteLines.ts';
+import { COLOUR_NAMES } from './optionNames.ts';
 
 // deno-lint-ignore no-explicit-any
 export type BuyerSelectionsRowLike = Record<string, any>;
@@ -66,6 +67,8 @@ export function generateInputFromRowCore(
     unitTypeCode: unitTypeCodeOfRow(row),
     pricing,
     baseSpec,
+    // Colour ids → names, so stored lines, the wizard rail, the email path and the backfill all print names.
+    colourNames: COLOUR_NAMES,
   };
   if (opts.source) input.source = opts.source;
   if (opts.windows) input.windows = opts.windows;

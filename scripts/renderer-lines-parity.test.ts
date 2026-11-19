@@ -11,7 +11,7 @@ import {
   buildGenerateInputFromRow, enginePricingFromRows, engineTotalsForRow, type SubmissionRow,
 } from './lib/generateInputFromRow';
 import { generateQuoteLines, countsInTotal, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
-import { buildLineRows, LINE_COLUMNS, INCLUDED_AMOUNT_TEXT, type LineRow } from '../src/lib/lineRenderRows';
+import { buildLineRows, CountedHiddenLineError, LINE_COLUMNS, INCLUDED_AMOUNT_TEXT, type LineRow } from '../src/lib/lineRenderRows';
 import { savedSubmissionLines, GENERATED_LINES_NOTE } from '../src/lib/generateInputFromSelections';
 
 const pricing = enginePricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
@@ -115,7 +115,7 @@ describe('rendering rules', () => {
   test('buyer copy: client-visible lines only, client_note under the line, no internal_note anywhere', () => {
     const lines = [
       line({ label: 'Shown', client_note: 'Matte finish please', internal_note: 'SECRET-INTERNAL-NOTE' }),
-      line({ label: 'HIDDEN-LINE', client_visible: false, amount: 50 }),
+      line({ label: 'HIDDEN-LINE', client_visible: false, status: 'under_review', amount: 50 }),
     ];
     const buyer = buildLineRows(lines, { buyerView: true, gstRate: GST });
     expect(JSON.stringify(buyer).includes('SECRET-INTERNAL-NOTE')).toBe(false);
@@ -127,16 +127,25 @@ describe('rendering rules', () => {
     expect(buyer.totals.subtotal).toBe(100);
   });
 
+  test('buyer copy refuses a counted line hidden from the buyer (CountedHiddenLineError names the line)', () => {
+    const lines = [line({ label: 'Shown' }), { ...line({ label: 'Counted but hidden', client_visible: false, amount: 50 }), id: 'line-42' }];
+    expect(() => buildLineRows(lines, { buyerView: true, gstRate: GST })).toThrow(CountedHiddenLineError);
+    expect(() => buildLineRows(lines, { buyerView: true, gstRate: GST })).toThrow(/line-42/);
+    // Hidden lines outside the total are fine, and so is a hidden removed line; the staff copy never throws.
+    expect(() => buildLineRows([line({ client_visible: false, status: 'pending', amount: null }), line({ client_visible: false, status: 'removed' })], { buyerView: true, gstRate: GST })).not.toThrow();
+    expect(buildLineRows(lines, { buyerView: false, gstRate: GST }).totals.subtotal).toBe(150);
+  });
+
   test('staff copy: all lines, internal notes in the separate block, never in the row cells', () => {
     const lines = [
       line({ label: 'Shown', internal_note: 'SECRET-INTERNAL-NOTE' }),
-      line({ label: 'HIDDEN-LINE', client_visible: false, amount: 50 }),
+      line({ label: 'HIDDEN-LINE', client_visible: false, status: 'under_review', amount: 50 }),
     ];
     const staff = buildLineRows(lines, { buyerView: false, gstRate: GST });
     expect(staff.internalNotes).toEqual([{ location: 'Kitchen', item: 'Shown', note: 'SECRET-INTERNAL-NOTE' }]);
     expect(JSON.stringify(allRows(staff)).includes('SECRET-INTERNAL-NOTE')).toBe(false);
     expect(allRows(staff).some((r) => r.item === 'HIDDEN-LINE')).toBe(true);
-    expect(staff.totals.subtotal).toBe(150);
+    expect(staff.totals.subtotal).toBe(100); // the hidden line is under review, not in the total
   });
 
   test('premium upgrades are grouped in SECTION_ORDER with a subtotal per section', () => {
@@ -194,6 +203,29 @@ describe('saved-submission line source (fallback until the backfill runs)', () =
   });
 });
 
+describe('all-removed stored lines (fix round 1)', () => {
+  const row = rows.find((r) => r.unit_number === '31')!;
+  test('an all-removed stored set is db with no lines — staff deletions are never resurrected', () => {
+    const stored = [
+      { ...line({ label: 'GONE-A', status: 'removed' }), id: 'a' },
+      { ...line({ label: 'GONE-B', status: 'removed', section: 'standard' }), id: 'b' },
+    ];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { lines, linesSource } = savedSubmissionLines(stored as any, row, pricing.serverPricing);
+    expect(linesSource).toBe('db');
+    expect(lines).toEqual([]);
+    const m = buildLineRows(lines, { buyerView: true, gstRate: GST });
+    expect(m.upgrades.bySection).toEqual([]);
+    expect(m.standard).toEqual([]);
+    expect(m.totals.total).toBe(0);
+  });
+  test('the context query does not filter by status', () => {
+    const src = readFileSync(join(import.meta.dir, '../src/lib/savedSubmissionPdf.ts'), 'utf8');
+    expect(src).toContain("from('quote_lines').select('*').eq('submission_id', id).order(");
+    expect(src.includes(".neq('status'")).toBe(false);
+  });
+});
+
 describe('the two renderers carry no arithmetic of their own', () => {
   const src = (f: string) => readFileSync(join(import.meta.dir, '../src/lib', f), 'utf8');
   for (const f of ['buyerPdfGenerator.ts', 'savedSubmissionPdf.ts', 'submissionWordExport.ts', 'submissionWordRows.ts']) {
@@ -204,6 +236,12 @@ describe('the two renderers carry no arithmetic of their own', () => {
       }
     });
   }
+  test('Word export fails closed: staff defaults to false; staff call sites pass true explicitly', () => {
+    expect(src('submissionWordExport.ts')).toContain('export async function downloadSubmissionWord(id: string, staff = false)');
+    const root = join(import.meta.dir, '..');
+    expect(readFileSync(join(root, 'src/components/admin/CustomPricingPanel.tsx'), 'utf8')).toContain('downloadSubmissionWord(submissionId, true)');
+    expect(readFileSync(join(root, 'src/lib/consoleActions.ts'), 'utf8')).toContain("case 'word_staff': await r.word(id, true)");
+  });
   test('both renderers read lines through buildLineRows and the shared context', () => {
     expect(src('buyerPdfGenerator.ts')).toContain('buildLineRows(');
     expect(src('submissionWordExport.ts')).toContain('buildLineRows(');
@@ -218,7 +256,7 @@ describe('the real PDF renderer (jsPDF, uncompressed text)', () => {
   const lines = [
     line({ label: 'Counted line', amount: 1005, client_note: 'Buyer-visible note', internal_note: 'SECRET-INTERNAL-NOTE' }),
     line({ label: 'Awaiting price', status: 'pending', amount: 0 }),
-    line({ label: 'HIDDEN-LINE', client_visible: false, amount: 50 }),
+    line({ label: 'HIDDEN-LINE', client_visible: false, status: 'under_review', amount: 50 }),
     line({ label: 'GONE-LINE', status: 'removed', amount: 75 }),
     // A counted window line keeps every totals row non-zero, so any "$0.00" could only come from the pending line.
     line({ label: 'Panel track', section: 'window_coverings', amount: 2680.5 }),
@@ -251,5 +289,34 @@ describe('the real PDF renderer (jsPDF, uncompressed text)', () => {
     // The internal block comes after all buyer-safe content.
     expect(pdf.indexOf('Total \\(incl. GST\\)')).toBeGreaterThan(0);
     expect(pdf.indexOf('SECRET-INTERNAL-NOTE')).toBeGreaterThan(pdf.indexOf('Total \\(incl. GST\\)'));
+  });
+});
+
+describe('colour names (fix round 1): stored ids print as names, as Phase 1 resolveOptionName did', () => {
+  const SLUG = /^[a-z0-9]+(-[a-z0-9]+)+$/;
+  test('no slug-shaped product/colour text in any buyer row across the 9 fixtures', () => {
+    for (const row of rows) {
+      const m = buildLineRows(generateQuoteLines(buildGenerateInputFromRow(row, pricing.serverPricing)), { buyerView: true, gstRate: GST });
+      for (const r of allRows(m)) for (const part of r.product.split(' — ')) expect(`${row.unit_number}: ${SLUG.test(part) ? part : ''}`).toBe(`${row.unit_number}: `);
+    }
+  });
+  test('the units that printed raw ids now print names', () => {
+    const product = (unit: string, item: string) => {
+      const m = buildLineRows(generateQuoteLines(buildGenerateInputFromRow(rows.find((r) => r.unit_number === unit)!, pricing.serverPricing)), { buyerView: true, gstRate: GST });
+      return allRows(m).filter((r) => r.item === item).map((r) => r.product);
+    };
+    expect(product('43', 'Bathroom Tile')).toEqual(['Ceratec Dante 2.0 — Venatino Auguste', 'Ceratec Dante 2.0 — Venatino Auguste']);
+    expect(product('7', 'Premium underpad')).toContain('Winterbrooke 898');
+  });
+  test('_shared/optionNames.ts mirrors mockData: every id, name and alias resolves as resolveOptionName', async () => {
+    const { lvpOptions, spcTileOptions, carpetOptions, resolveOptionName } = await import('../src/lib/mockData');
+    const { OPTION_NAMES, OPTION_ALIASES, COLOUR_NAMES, colourKey } = await import('../supabase/functions/_shared/optionNames.ts');
+    const all = [...lvpOptions, ...spcTileOptions, ...carpetOptions];
+    expect(OPTION_NAMES).toEqual(Object.fromEntries(all.map((o) => [o.id, o.name])));
+    for (const v of [...all.map((o) => o.id), ...all.map((o) => o.name), ...Object.keys(OPTION_ALIASES), 'Venatino Polished', 'Jet Stream']) {
+      expect(COLOUR_NAMES[colourKey(v)]).toBe(resolveOptionName(all, v)!);
+    }
+    expect(resolveOptionName(all, 'Linen')).toBe('Linen'); // unknown values kept as typed, both sides
+    expect(COLOUR_NAMES[colourKey('Linen')]).toBeUndefined();
   });
 });

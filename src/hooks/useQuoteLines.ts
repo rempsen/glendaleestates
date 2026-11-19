@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import {
-  quoteLinesReducer, initialQuoteLinesState, selectLines, selectIsDirty, fromRow, sameUpdatedAt,
+  quoteLinesReducer, initialQuoteLinesState, countedHiddenRefusal, selectLines, selectIsDirty, fromRow, sameUpdatedAt,
   conflictMessage, describeUnsaved,
   type QuoteLinesAction, type QuoteLinesState, type StoredLine, type LinePatch, type QuoteLineRow, type SaveState,
 } from '@/lib/quoteLinesReducer';
@@ -235,6 +235,8 @@ export function useQuoteLines(submissionId: string | null | undefined, opts: Use
   const createLine = useCallback((input: NewLineInput): string => {
     const sid = subRef.current;
     if (!sid) throw new Error('useQuoteLines: no submission');
+    const refused = countedHiddenRefusal(null, { ...LINE_DEFAULTS, ...input } as Partial<StoredLine>);
+    if (refused) { toast.error(refused); return ''; }
     const s = stateRef.current;
     const maxOrder = Object.values(s.lines).reduce((m, l) => Math.max(m, l.sort_order), 0);
     const id = newId();
@@ -254,6 +256,8 @@ export function useQuoteLines(submissionId: string | null | undefined, opts: Use
   const upsert = useCallback((line: Partial<StoredLine>): string => {
     const { id, ...rest } = line;
     if (id && stateRef.current.lines[id]) {
+      const refused = countedHiddenRefusal(stateRef.current.lines[id], rest as LinePatch);
+      if (refused) { toast.error(refused); return id; }
       dispatch({ type: 'edit', id, patch: rest as LinePatch });
       if (stateRef.current.dirty[id]) scheduler.schedule(id);
       return id;

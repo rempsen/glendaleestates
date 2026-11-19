@@ -38,6 +38,19 @@ export interface QuoteLinesState {
 
 export const CONFLICT_MESSAGE = 'Reloaded — someone else edited this line';
 
+/** Shown as a toast when an edit would leave a counted line hidden from the buyer (migration 0010 enforces it too). */
+export const COUNTED_HIDDEN_REASON = 'A priced line must be visible to the buyer — set it to Under review or Deferred instead';
+
+/**
+ * Invariant counted ⇒ client_visible (controller ruling, Task 10 fix round 1): a line that counts in the total
+ * (status 'upgrade' with an amount) must be visible, or the buyer's signed Total would differ from the staff total.
+ * Returns the refusal reason when `patch` applied to `cur` (null for a new line) would break it, else null.
+ */
+export function countedHiddenRefusal(cur: Partial<QuoteLine> | null | undefined, patch: Partial<QuoteLine>): string | null {
+  const next = { ...(cur ?? {}), ...patch };
+  return next.status === 'upgrade' && next.amount != null && next.client_visible === false ? COUNTED_HIDDEN_REASON : null;
+}
+
 export type QuoteLinesAction =
   | { type: 'loaded'; rows: StoredLine[] }
   | { type: 'edit'; id: string; patch: LinePatch }
@@ -124,6 +137,7 @@ export function quoteLinesReducer(state: QuoteLinesState, action: QuoteLinesActi
       const cur = state.lines[action.id];
       if (!cur) return state;
       const patch = cleanPatch(action.patch as Record<string, unknown>);
+      if (countedHiddenRefusal(cur, patch)) return state; // refused; useQuoteLines shows COUNTED_HIDDEN_REASON
       const changed: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(patch)) {
         if ((cur as unknown as Record<string, unknown>)[k] !== v) changed[k] = v;
@@ -142,6 +156,7 @@ export function quoteLinesReducer(state: QuoteLinesState, action: QuoteLinesActi
     case 'createLocal': {
       const line = action.line;
       if (state.lines[line.id]) return state;
+      if (countedHiddenRefusal(null, line)) return state;
       const lines = { ...state.lines, [line.id]: line };
       return {
         ...state,

@@ -9,13 +9,15 @@ import {
 
 /**
  * The one fresh-record service for saved-submission outputs (PDF and Word). Re-reads the complete saved row and its
- * `quote_lines` (status <> 'removed', in sort_order). A submission with no stored lines yet falls back to the
+ * `quote_lines` (all statuses, so an all-removed set still counts as stored; removed lines dropped in memory). A submission with no stored lines yet falls back to the
  * generator over the row with live prices (`linesSource: 'generated'`), so every existing submission stays renderable.
  */
 export async function loadSavedSubmissionContext(id: string) {
   const [submission, lineRows, configs, materials, areas] = await Promise.all([
     supabase.from('buyer_selections').select('*').eq('id', id).single(),
-    supabase.from('quote_lines').select('*').eq('submission_id', id).neq('status', 'removed').order('sort_order', { ascending: true }),
+    // No status filter: a submission whose lines are all removed HAS stored lines (staff deleted them) and must not
+    // fall back to the generator; savedSubmissionLines drops removed lines in memory.
+    supabase.from('quote_lines').select('*').eq('submission_id', id).order('sort_order', { ascending: true }),
     supabase.from('pricing_config').select('*'),
     supabase.from('upgrade_materials').select('*').eq('is_active', true),
     supabase.from('unit_area_data').select('*'),

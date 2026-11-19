@@ -283,3 +283,44 @@ describe('fix round 1: conflicts report what they dropped', () => {
     expect(describeUnsaved(s)).toEqual(['Hall LVP (Kitchen): quantity → 44', 'Bath tile']);
   });
 });
+
+// ---- Task 10 fix round 1: counted ⇒ client_visible at write time ----
+import { countedHiddenRefusal, COUNTED_HIDDEN_REASON } from '@/lib/quoteLinesReducer';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+describe('counted lines must stay visible to the buyer', () => {
+  test('the refusal reason is the console toast text', () => {
+    expect(COUNTED_HIDDEN_REASON).toBe('A priced line must be visible to the buyer — set it to Under review or Deferred instead');
+  });
+  test('hiding a counted line is refused and leaves state untouched', () => {
+    const s = loaded([row('a')]);
+    expect(countedHiddenRefusal(s.lines.a, { client_visible: false })).toBe(COUNTED_HIDDEN_REASON);
+    expect(quoteLinesReducer(s, { type: 'edit', id: 'a', patch: { client_visible: false } })).toBe(s);
+  });
+  test('pricing a hidden line (or making a hidden priced line count) is refused', () => {
+    const s = loaded([row('h', { client_visible: false, status: 'under_review', amount: null })]);
+    expect(quoteLinesReducer(s, { type: 'edit', id: 'h', patch: { status: 'upgrade', amount: 300 } })).toBe(s);
+    const priced = loaded([row('p', { client_visible: false, status: 'deferred', amount: 300 })]);
+    expect(quoteLinesReducer(priced, { type: 'edit', id: 'p', patch: { status: 'upgrade' } })).toBe(priced);
+    const pending = loaded([row('q', { client_visible: false, status: 'upgrade', amount: null })]);
+    expect(quoteLinesReducer(pending, { type: 'edit', id: 'q', patch: { amount: 10 } })).toBe(pending);
+  });
+  test('allowed: hiding a line outside the total, hiding while moving it out, and fixing a legacy violator', () => {
+    const s = loaded([row('a'), row('b', { status: 'pending', amount: null })]);
+    expect(quoteLinesReducer(s, { type: 'edit', id: 'b', patch: { client_visible: false } }).lines.b.client_visible).toBe(false);
+    expect(quoteLinesReducer(s, { type: 'edit', id: 'a', patch: { status: 'under_review', client_visible: false } }).lines.a.status).toBe('under_review');
+    const legacy = loaded([row('l', { client_visible: false })]);
+    expect(quoteLinesReducer(legacy, { type: 'edit', id: 'l', patch: { client_visible: true } }).lines.l.client_visible).toBe(true);
+    expect(quoteLinesReducer(legacy, { type: 'edit', id: 'l', patch: { status: 'deferred' } }).lines.l.status).toBe('deferred');
+  });
+  test('creating a counted hidden line is refused; a hidden pending one is allowed', () => {
+    const s = loaded([]);
+    expect(quoteLinesReducer(s, { type: 'createLocal', line: row('n', { client_visible: false, updated_at: '' }) })).toBe(s);
+    expect(quoteLinesReducer(s, { type: 'createLocal', line: row('m', { client_visible: false, status: 'pending', amount: null, updated_at: '' }) }).lines.m).toBeDefined();
+  });
+  test('useQuoteLines toasts the reason on a refused edit or create', () => {
+    const hook = readFileSync(join(import.meta.dir, '../src/hooks/useQuoteLines.ts'), 'utf8');
+    expect(hook.match(/if \(refused\) \{ toast\.error\(refused\);/g)?.length).toBe(2);
+  });
+});

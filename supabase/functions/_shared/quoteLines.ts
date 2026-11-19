@@ -192,6 +192,12 @@ export interface GenerateInput {
    * those integers and every count is within MAX_WINDOW_QTY.
    */
   windows?: QuoteWindow[] | null;
+  /**
+   * Colour option names (normalised key: lowercase alphanumerics of an id, name or legacy alias → display name), so
+   * stored ids ("venatino-auguste", "winterbrooke-898") print as Phase 1's resolveOptionName did. Supplied by
+   * generateInputFromRowCore from ./optionNames.ts (this module stays import-free). Names only; no prices.
+   */
+  colourNames?: Readonly<Record<string, string>> | null;
 }
 
 // ---- Copied constants (names only; no prices) ----
@@ -270,10 +276,17 @@ export function normalizeUnitTypeCode(typeCode: string | null | undefined): stri
 const norm = (x: number): number => Math.round(x * 1e6) / 1e6;
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-/** Wizard colour slugs ("sawgrass-701") → the base-spec option text ("Sawgrass 701"); unknown values kept as typed. */
-function colourText(value: string | null | undefined, options: string[] | undefined): string | null {
+/**
+ * Stored colour (option id, name or legacy alias) → display name: `colourNames` first (resolveOptionName's table),
+ * then the base-spec option text ("sawgrass-701" → "Sawgrass 701"); unknown values kept as typed.
+ */
+function colourText(
+  value: string | null | undefined, options: string[] | undefined, names?: Readonly<Record<string, string>> | null,
+): string | null {
   const v = (value || '').trim();
   if (!v) return null;
+  const named = names ? names[v.toLowerCase().replace(/[^a-z0-9]/g, '')] : undefined;
+  if (named) return named;
   const hit = (options || []).find((o) => slug(o) === slug(v));
   return hit || v;
 }
@@ -426,16 +439,16 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
     let product = row.defaultProduct;
     let colour: string | null = null;
     let field: string | null = null;
-    if (row.location === 'Main Living') { colour = colourText(s.lvpColour, row.defaultColourOptions); field = 'lvp_colour'; }
-    else if (row.section === 'tile') { colour = colourText(s.spcTileColour, row.defaultColourOptions); field = 'spc_tile_colour'; }
-    else if (row.section === 'stairs') { colour = colourText(s.stairCarpetColour, row.defaultColourOptions); field = 'stair_carpet_colour'; }
+    if (row.location === 'Main Living') { colour = colourText(s.lvpColour, row.defaultColourOptions, input.colourNames); field = 'lvp_colour'; }
+    else if (row.section === 'tile') { colour = colourText(s.spcTileColour, row.defaultColourOptions, input.colourNames); field = 'spc_tile_colour'; }
+    else if (row.section === 'stairs') { colour = colourText(s.stairCarpetColour, row.defaultColourOptions, input.colourNames); field = 'stair_carpet_colour'; }
     else if (row.section === 'backsplash') { field = 'backsplash_orientation'; }
     else if (row.section === 'flooring' && /Bedroom/.test(row.location)) {
       field = 'bedroom_flooring_choice';
-      if (bedroomChoice === 'carpet') { product = BEDROOM_CARPET_PRODUCT; colour = colourText(s.bedroomCarpetColour, row.defaultColourOptions); }
+      if (bedroomChoice === 'carpet') { product = BEDROOM_CARPET_PRODUCT; colour = colourText(s.bedroomCarpetColour, row.defaultColourOptions, input.colourNames); }
       else if (bedroomChoice === 'lvp') {
         product = BEDROOM_LVP_PRODUCT;
-        colour = colourText(s.bedroomLvpSameAsMain ? s.lvpColour : s.bedroomLvpColour, mainLivingOptions);
+        colour = colourText(s.bedroomLvpSameAsMain ? s.lvpColour : s.bedroomLvpColour, mainLivingOptions, input.colourNames);
       }
     }
     const note = field ? provisional[field] : undefined;
@@ -465,7 +478,7 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
   const stairCarpetActive = !!s.stairPremiumCarpetSelected && !isStairLvp;
   const stairCarpetPrice = cfg('premium_carpet_stairs_price');
   priced(ov('stairCarpet', stairCarpetActive ? stairCarpetPrice : 0, stairCarpetActive), 'stairCarpet', {
-    section: 'stairs', location: STAIRS_LOWER, label: 'Premium carpet', product_colour: text(s.stairCarpetColour),
+    section: 'stairs', location: STAIRS_LOWER, label: 'Premium carpet', product_colour: colourText(s.stairCarpetColour, undefined, input.colourNames),
     quantity: 1, unit: 'flat', unit_price: stairCarpetPrice, pricing_mode: 'flat_rate',
     price_source_ref: 'config:premium_carpet_stairs_price', wizard_field: 'stair_premium_carpet_selected',
   });
@@ -490,7 +503,7 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
     const active = bedroomIsCarpet && !!flag;
     const cost = mat(material);
     priced(ov(key, active ? bedroomCarpetSqyd * cost * (1 + m) : 0, active), key, {
-      section: 'flooring', location: bedroomLocation, label, product_colour: text(s.bedroomCarpetColour),
+      section: 'flooring', location: bedroomLocation, label, product_colour: colourText(s.bedroomCarpetColour, undefined, input.colourNames),
       material_key: material, quantity: bedroomCarpetSqyd, unit: 'sqyd', unit_price: cost * (1 + m),
       pricing_mode: 'catalog', price_source_ref: `material:${material}`, wizard_field: field,
     });

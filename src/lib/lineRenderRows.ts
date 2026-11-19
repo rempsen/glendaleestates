@@ -7,6 +7,17 @@ import { toBuyerWording } from '@/lib/outputLabels';
 
 export const LINE_COLUMNS = ['Location', 'Item', 'Product / colour', 'Qty', 'Unit price', 'Amount', 'Status'] as const;
 export const INCLUDED_AMOUNT_TEXT = 'Included — $0.00';
+/**
+ * Backstop for counted ⇒ client_visible (migration 0010, quoteLinesReducer): the buyer copy refuses to render a counted
+ * line hidden from the buyer, because dropping it would silently shrink the buyer's Total below the staff/QBO total.
+ */
+export class CountedHiddenLineError extends Error {
+  constructor(public readonly lineId: string) {
+    super(`Line ${lineId} counts in the total but is hidden from the buyer; make it visible or move it out of the total`);
+    this.name = 'CountedHiddenLineError';
+  }
+}
+
 export const INTERNAL_NOTES_HEADING = 'Internal notes (never printed for the buyer)';
 
 export const SECTION_TITLES: Record<Section, string> = {
@@ -70,6 +81,10 @@ function toRow(l: QuoteLine, i: number, kind: 'standard' | 'counted' | 'notInTot
 }
 
 export function buildLineRows(lines: QuoteLine[], opts: { buyerView: boolean; gstRate: number }): LineRenderModel {
+  if (opts.buyerView) {
+    const bad = lines.findIndex((l) => l.status !== 'removed' && countsInTotal(l) && l.client_visible === false);
+    if (bad >= 0) throw new CountedHiddenLineError(lines[bad].id ?? keyOf(lines[bad], bad));
+  }
   const visible = lines.filter((l) => l.status !== 'removed' && (!opts.buyerView || l.client_visible !== false));
   const sums = sumQuoteLines(visible, opts.gstRate);
   const ordered = visible

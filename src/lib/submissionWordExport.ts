@@ -28,7 +28,7 @@ const p = (t: string, italics = false) => new Paragraph({ children: [new TextRun
  * Editable Word copy of the saved selections and itemized quote, from the same fresh record and the same lines as
  * the PDF (loadSavedSubmissionContext + buildLineRows). Buyer-safe content first; `staff` appends the internal block.
  */
-export async function downloadSubmissionWord(id: string, staff = true): Promise<void> {
+export async function downloadSubmissionWord(id: string, staff = false): Promise<void> {
   const { s, lines, linesSource, gstRate } = await loadSavedSubmissionContext(id);
   const model = buildLineRows(lines, { buyerView: !staff, gstRate });
   const t = buildWordLineTables(model, buildWordOpenQuestions(s));
