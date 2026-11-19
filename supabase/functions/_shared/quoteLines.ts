@@ -62,6 +62,9 @@ export const markedUp = (cost: number, markup: number): number => cost * (1 + ma
 export const gstOn = (amount: number, gstRate: number): number => amount * gstRate;
 /** A pre-GST amount with GST added (display hints; quote totals come from `sumQuoteLines`). */
 export const withGst = (amount: number, gstRate: number): number => amount + gstOn(amount, gstRate);
+/** The GST total-row label for a rate: 0.05 → "GST 5%", 0.075 → "GST 7.5%" (at most two decimals). */
+export const gstLabel = (gstRate: number): `GST ${string}%` =>
+  `GST ${String(Math.round(Number(gstRate) * 10000) / 100)}%`;
 
 export const SECTION_ORDER: readonly Section[] = [
   'standard', 'flooring', 'tile', 'backsplash', 'stairs', 'window_coverings', 'bathroom', 'basement', 'other',

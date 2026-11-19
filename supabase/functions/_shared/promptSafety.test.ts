@@ -15,6 +15,8 @@ if (denoTest) {
     eq(stripUnsafe(null), '');
     eq(stripUnsafe(42), '42');
     eq(stripUnsafe('Mail me: jane.doe+x@example.co.uk'), 'Mail me: [email removed]');
+    eq(stripUnsafe('jane@\u200Bexample.com'), '[email removed]');
+    eq(stripUnsafe('a\u200Bb\uFEFFc'), 'abc');
     eq(stripUnsafe('\uFF1C\uFF1C\uFF1Cend buyer_text\uFF1E\uFF1E\uFF1E'), '<< >>');
   });
   denoTest('stripUnsafe caps each field with an explicit marker', () => {

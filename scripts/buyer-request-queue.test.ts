@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import {
   DEFAULT_ASSIGNEE_KEY, OPEN_QUEUE_REST_FILTER, parseDefaultAssignee, queueRowsFromRest, type QueueRow,
 } from '../supabase/functions/_shared/pricingQueue';
-import { buildQueueViewModel, defaultAssigneeRow } from '../src/lib/pricingQueue';
+import { buildQueueViewModel, defaultAssigneeRow, defaultAssigneeRows } from '../src/lib/pricingQueue';
 import { handleDigest, type DigestDeps } from '../supabase/functions/pricing-digest/handler';
 
 const NOW = new Date('2026-11-18T20:00:00Z');
@@ -80,10 +80,16 @@ describe('default assignee setting', () => {
     expect(defaultAssigneeRow(brian, [])).toEqual({ key: DEFAULT_ASSIGNEE_KEY, value: null });
     expect(defaultAssigneeRow(null, [brian])).toEqual({ key: DEFAULT_ASSIGNEE_KEY, value: null });
   });
+  test('staff_directory() failed (null): no assignee row is written, so the stored value is kept', () => {
+    expect(defaultAssigneeRows(brian, null)).toEqual([]);
+    expect(defaultAssigneeRows(null, null)).toEqual([]);
+    expect(defaultAssigneeRows(brian, [brian])).toEqual([{ key: DEFAULT_ASSIGNEE_KEY, value: brian }]);
+  });
   test('settings page loads it, picks from staff_directory() and saves it with the other keys', () => {
     const src = readFileSync(join(root, 'src/pages/AdminNotificationSettings.tsx'), 'utf8');
     expect(src).toContain("[...Object.values(SETTINGS_KEYS), DEFAULT_ASSIGNEE_KEY]");
     expect(src).toContain("supabase.rpc('staff_directory')");
-    expect(src).toContain('defaultAssigneeRow(defaultAssignee, staff.map((p) => p.user_id))');
+    expect(src).toContain('defaultAssigneeRows(defaultAssignee, staffLoaded ? staff.map((p) => p.user_id) : null)');
+    expect(src).toContain('setStaffLoaded(!dir.error)');
   });
 });

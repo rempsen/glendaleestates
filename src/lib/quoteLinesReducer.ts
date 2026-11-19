@@ -16,7 +16,7 @@ export type StoredLine = QuoteLine & {
 
 /** Columns the client must never write: identity, generated (`counts_in_total`), trigger-owned timestamps, audit-only. */
 export const FORBIDDEN_WRITE_KEYS = [
-  'id', 'submission_id', 'created_at', 'updated_at', 'counts_in_total', 'internal_note_changed',
+  'id', 'submission_id', 'created_at', 'updated_at', 'counts_in_total', 'internal_note_changed', 'updated_by',
 ] as const;
 
 export type LinePatch = Partial<Omit<StoredLine, 'id' | 'submission_id' | 'updated_at' | 'created_at' | 'counts_in_total'>>;

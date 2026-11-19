@@ -142,3 +142,11 @@ export function defaultAssigneeRow(id: string | null, staffIds: readonly string[
   const v = parseDefaultAssignee(id);
   return { key: DEFAULT_ASSIGNEE_KEY, value: v && staffIds.includes(v) ? v : null };
 }
+
+/**
+ * The assignee row to save, or none when staff_directory() failed to load (`staffIds` null): without the directory the
+ * stored value cannot be validated, and writing null would silently clear it, so the stored value is kept.
+ */
+export function defaultAssigneeRows(id: string | null, staffIds: readonly string[] | null): PricingSettingsRow[] {
+  return staffIds ? [defaultAssigneeRow(id, staffIds)] : [];
+}

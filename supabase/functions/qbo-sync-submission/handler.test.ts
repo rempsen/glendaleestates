@@ -171,12 +171,31 @@ if (denoTest) {
     ok(r.status === 200 && r.body.total_mismatch === true && r.body.amount_sum_mismatch === false, JSON.stringify(r.body));
   });
 
-  denoTest('sub-cent line amounts → amount_sum_mismatch: true (Σ 24.70 vs subtotal 24.69)', async () => {
+  denoTest('sub-cent line amounts → 409 amount_sum_mismatch (Σ 24.70 vs subtotal 24.69), QuickBooks never contacted', async () => {
     const logs: Array<Record<string, unknown>> = [];
+    const fake = new FakeQbo();
     const lines = [line({ id: 'a', material_key: 'carpet', amount: 12.345 }), line({ id: 'b', material_key: 'carpet', amount: 12.345 })];
-    const r = await quiet(() => handleQboSync({ submission_id: 's1' }, auto, deps(lines, new FakeQbo(), logs)));
-    ok(r.status === 200 && r.body.amount_sum_mismatch === true, JSON.stringify(r.body));
-    const payload = logs.find((l) => l.status === 'success')?.response_payload as Record<string, unknown>;
-    ok(payload?.amount_sum_mismatch === true && payload?.amount_sum === 24.7, JSON.stringify(payload));
+    const d = deps(lines, fake, logs);
+    const r = await quiet(() => handleQboSync({ submission_id: 's1' }, auto, d));
+    eq(r, { status: 409, body: { error: 'amount_sum_mismatch', expected: 24.69, actual: 24.7 } });
+    ok(d.qboCalls() === 0 && fake.posts.length === 0, 'QBO must not be called');
+    ok(logs[0]?.status === 'skipped', 'refusal is logged as skipped');
+  });
+
+  denoTest('an unmapped Estimate already in QBO for this submission (PrivateNote) is updated, not duplicated', async () => {
+    const fake = new FakeQbo();
+    const query = fake.query.bind(fake);
+    fake.query = (sql: string) => (sql.includes('FROM Estimate')
+      ? (fake.queries.push(sql), Promise.resolve({ Estimate: [
+        { Id: 'E-other', SyncToken: '1', PrivateNote: 'Glendale Portal submission s9 (Unit 9)' },
+        { Id: 'E-orphan', SyncToken: '3', PrivateNote: 'Glendale Portal submission s1 (Unit 24)' },
+      ] }))
+      : query(sql));
+    const map = new Map<string, MapRow>();
+    const r = await handleQboSync({ submission_id: 's1' }, auto, deps([line({ material_key: 'carpet' })], fake, [], map));
+    ok(r.status === 200, JSON.stringify(r));
+    const est = fake.posts.filter((p) => p.path === '/estimate');
+    ok(est.length === 1 && est[0].body.Id === 'E-orphan' && est[0].body.SyncToken === '3', JSON.stringify(est[0]?.body));
+    ok(fake.queries.some((q) => q.includes("FROM Estimate WHERE CustomerRef = '")), 'looked up by the unit Job');
   });
 }

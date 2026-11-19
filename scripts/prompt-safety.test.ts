@@ -9,7 +9,10 @@ import {
 
 test('stripUnsafe removes URLs, HTML, control / zero-width / bidi characters and collapses whitespace', () => {
   expect(stripUnsafe('See <b>this</b>\n\thttps://evil.test/x?y=1 or www.evil.test now\u0007‮!')).toBe(`See this ${LINK_REMOVED} or ${LINK_REMOVED} now !`);
-  expect(stripUnsafe('a​b javascript:alert(1) data:text/html,x')).toBe(`a b ${LINK_REMOVED} ${LINK_REMOVED}`);
+  // Zero-width / format characters are deleted (not spaced), so they cannot split a URL or an email address.
+  expect(stripUnsafe('a\u200bb javascript:alert(1) data:text/html,x')).toBe(`ab ${LINK_REMOVED} ${LINK_REMOVED}`);
+  expect(stripUnsafe('jane@\u200bexample.com')).toBe('[email removed]');
+  expect(stripUnsafe('mail jane\u2060@exam\u200dple.com or www\u200b.evil.test')).toBe(`mail [email removed] or ${LINK_REMOVED}`);
   expect(stripUnsafe('<!-- hidden --><img src=x onerror=y>ok')).toBe('ok');
   expect(stripUnsafe(undefined)).toBe('');
   expect(stripUnsafe('call bob@builder.example or ｆｏｏ＠ｅｘａｍｐｌｅ．ｃｏｍ')).toBe('call [email removed] or [email removed]');

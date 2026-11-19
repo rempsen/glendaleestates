@@ -4,7 +4,7 @@ import { test, expect, describe } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  buildPricingRequestCard, buildDigestCardOrText, teamsMessage, samplePricingRequestInput,
+  buildPricingRequestCard, buildDigestCardOrText, teamsMessage, samplePricingRequestInput, cardText, CARD_LINK_REMOVED,
 } from '../supabase/functions/_shared/adaptiveCard';
 
 const LINK = 'https://glendaleestates.lovable.app/admin/quotes/sub-1#line-line-9';
@@ -130,4 +130,31 @@ test('adaptiveCard.ts is import-free (runs in the browser, edge functions and bu
   const src = readFileSync(join(import.meta.dir, '../supabase/functions/_shared/adaptiveCard.ts'), 'utf8');
   expect(src).not.toMatch(/^\s*import\s/m);
   expect(src).not.toMatch(/\bDeno\./);
+});
+
+describe('buyer-typed text in cards (final fix wave): no markdown, no links', () => {
+  const evil = 'Make it **gold** [click](https://evil.test/x) see www.evil.test\n- item # head `code` |a| <b> \\ ~x~ _i_';
+  test('cardText drops markdown control characters, line breaks and URLs', () => {
+    const out = cardText(evil);
+    expect(out).not.toMatch(/[*_~`[\]<>#|\\\n]/);
+    expect(out).not.toMatch(/https?:|www\./);
+    expect(out).toContain(CARD_LINK_REMOVED);
+    expect(cardText('Bedroom (primary): 2 shades')).toBe('Bedroom (primary): 2 shades');
+    expect(cardText(null)).toBe('');
+  });
+  test('pricing request card and digest card carry only card-safe buyer text; the digest email text is unchanged', () => {
+    const card = JSON.stringify(buildPricingRequestCard({ ...input, label: evil, location: 'Buyer request' }));
+    expect(card).not.toContain('https://evil.test');
+    expect(card).not.toContain('**gold**');
+    const out = buildDigestCardOrText({
+      groups: [{ assigneeName: 'Brian', lines: [{ unit: '24', buyerName: 'Jane', location: 'Buyer request', label: evil, ageLabel: '2 h', overdue: false, link: LINK }] }],
+      responses: [{ unit: '24', buyerName: 'Jane', location: 'Kitchen', label: 'LVP', response: 'questioned', comment: evil, link: LINK }],
+      queueLink: 'https://glendaleestates.lovable.app/admin/pricing-queue', escalationHours: 24,
+    });
+    const cardJson = JSON.stringify(out.card);
+    expect(cardJson).not.toContain('evil.test');
+    expect(cardJson).not.toContain('[click]');
+    expect(cardJson).toContain(`](${LINK})`);
+    expect(out.text).toContain('Make it **gold**');
+  });
 });

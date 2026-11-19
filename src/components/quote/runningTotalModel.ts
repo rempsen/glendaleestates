@@ -1,8 +1,8 @@
 // RunningTotal view model (Phase 2 Task 4, spec §6.16). Pure: lines in, display model out.
 // No arithmetic here: every sum comes from sumQuoteLines, so the rail, PDF and exports share one function.
-import { sumQuoteLines, countsInTotal, SECTION_ORDER, type QuoteLine, type LineStatus } from '@/lib/quoteLines';
+import { sumQuoteLines, countsInTotal, gstLabel, SECTION_ORDER, type QuoteLine, type LineStatus } from '@/lib/quoteLines';
 
-export type RowLabel = 'Upgrades' | 'Window coverings' | 'Subtotal' | 'GST 5%' | 'Total';
+export type RowLabel = 'Upgrades' | 'Window coverings' | 'Subtotal' | `GST ${string}%` | 'Total';
 
 export interface CountedEntry { key: string; location: string; label: string; amount: number; amountText: string }
 export interface NotInTotalEntry { key: string; location: string; label: string; amountText: string; statusLabel: string }
@@ -46,7 +46,7 @@ export function buildRunningTotalModel(lines: QuoteLine[], gstRate: number, opts
     notInTotal,
     rows: [
       row('Upgrades', sums.upgrades), row('Window coverings', sums.windowCoverings),
-      row('Subtotal', sums.subtotal), row('GST 5%', sums.gst), row('Total', sums.total),
+      row('Subtotal', sums.subtotal), row(gstLabel(gstRate), sums.gst), row('Total', sums.total),
     ],
   };
 }

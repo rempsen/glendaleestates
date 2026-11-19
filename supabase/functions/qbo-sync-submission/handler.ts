@@ -53,7 +53,7 @@ export interface SyncDeps {
   loadSettings(): Promise<Partial<QboSettings> | null>;
   /** Stored quote_lines, else the generator over the row (savedSubmissionLines); plus the GST rate. */
   loadLines(submission: Submission): Promise<{
-    lines: QuoteLine[]; linesSource: 'db' | 'generated'; gstRate: number; pricingUnavailable: string | null;
+    lines: QuoteLine[]; linesSource: 'db' | 'generated' | 'mixed'; gstRate: number; pricingUnavailable: string | null;
   }>;
   /** Active connection with a fresh access token. Only called once the lines are known to be sendable. */
   qbo(): Promise<QboApi>;
@@ -156,6 +156,20 @@ export function salesItemLine(l: QboEstimateLine, itemId: string, taxCodeRef: st
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
+export const AMOUNT_SUM_MISMATCH = 'amount_sum_mismatch';
+
+/**
+ * An Estimate this portal already created for the submission but never mapped (e.g. the map write failed after the
+ * POST): found under the unit's Job by the submission id in PrivateNote (PrivateNote is not a QBO query filter, so
+ * the Job's estimates are read and matched here). Reused instead of creating a second Estimate.
+ */
+async function findEstimateBySubmission(api: QboApi, projectId: string, submissionId: string): Promise<MapRow | null> {
+  const res = await api.query(`SELECT Id, SyncToken, PrivateNote FROM Estimate WHERE CustomerRef = '${q(projectId)}' MAXRESULTS 1000`);
+  const hit = ((res?.Estimate ?? []) as Array<{ Id: string; SyncToken?: string; PrivateNote?: string }>)
+    .find((e) => typeof e.PrivateNote === 'string' && e.PrivateNote.includes(submissionId));
+  return hit ? { qbo_id: hit.Id, qbo_sync_token: hit.SyncToken ?? null } : null;
+}
+
 export async function handleQboSync(body: unknown, triggeredBy: TriggeredBy, deps: SyncDeps): Promise<SyncResult> {
   const submissionId = (body as { submission_id?: unknown } | null)?.submission_id;
   if (typeof submissionId !== 'string' || !submissionId) return { status: 400, body: { error: 'submission_id is required' } };
@@ -173,10 +187,16 @@ export async function handleQboSync(body: unknown, triggeredBy: TriggeredBy, dep
     const settings: QboSettings = { ...DEFAULT_SETTINGS, ...(await deps.loadSettings() ?? {}) };
 
     const { lines, linesSource, gstRate, pricingUnavailable } = await deps.loadLines(submission);
-    if (linesSource === 'generated' && pricingUnavailable) return await refuse(`pricing unavailable (${pricingUnavailable})`);
+    if (linesSource !== 'db' && pricingUnavailable) return await refuse(`pricing unavailable (${pricingUnavailable})`);
     const map = estimateLinesFromQuoteLines(lines, { gstRate, skuPrefix: settings.item_sku_prefix || 'GLEN-' });
     if (map.blocked) return await refuse(map.blocked.reason, { lineIds: map.blocked.lineIds });
     if (map.lines.length === 0) return await refuse(NOTHING_PRICED);
+    // Σ Amount must equal the subtotal QBO will tax; a sub-cent line amount can make them differ by a cent. Refused
+    // before QuickBooks is contacted (I4); the console writes cents (lineAmount), so this flags a legacy line to fix.
+    const amountSum = r2(map.lines.reduce((acc, l) => acc + Math.round(l.Amount * 100), 0) / 100);
+    if (amountSum !== r2(map.subtotal)) {
+      return await refuse(AMOUNT_SUM_MISMATCH, { expected: r2(map.subtotal), actual: amountSum });
+    }
 
     const api = await deps.qbo();
     const customerId = await upsertCustomer(api, deps, settings, submission);
@@ -185,10 +205,7 @@ export async function handleQboSync(body: unknown, triggeredBy: TriggeredBy, dep
     const cache = new Map<string, Promise<string>>();
     const Line = [];
     for (const l of map.lines) Line.push(salesItemLine(l, await resolveItem(api, deps, settings, l.sku, cache), settings.default_tax_code_ref));
-    // Σ Amount must equal the subtotal QBO will tax; a sub-cent line amount can make them differ by a cent.
-    const amountSum = r2(map.lines.reduce((acc, l) => acc + Math.round(l.Amount * 100), 0) / 100);
-    const amountSumMismatch = amountSum !== r2(map.subtotal);
-    if (amountSumMismatch) console.warn(`[qbo] submission ${submission.id}: Σ line Amount ${amountSum} ≠ quote subtotal ${r2(map.subtotal)} (sub-cent line amounts)`);
+    const amountSumMismatch = false; // refused above; kept in the response / log shape
     const estimateBody = {
       CustomerRef: { value: projectId },
       TxnDate: new Date().toISOString().slice(0, 10),
@@ -197,7 +214,8 @@ export async function handleQboSync(body: unknown, triggeredBy: TriggeredBy, dep
       CustomerMemo: { value: 'Itemized buyer upgrades. See attached selections summary.' },
       GlobalTaxCalculation: 'TaxExcluded',
     };
-    const existing = await deps.getMap('estimate', 'submission', submission.id);
+    const existing = await deps.getMap('estimate', 'submission', submission.id)
+      ?? await findEstimateBySubmission(api, projectId, submission.id);
     const res = await api.post('/estimate', existing
       ? { ...estimateBody, Id: existing.qbo_id, SyncToken: existing.qbo_sync_token ?? '0', sparse: false }
       : estimateBody);

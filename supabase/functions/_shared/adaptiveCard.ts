@@ -24,6 +24,25 @@ export interface PricingRequestCardInput {
 
 type Json = Record<string, unknown>;
 
+export const CARD_LINK_REMOVED = '(link removed)';
+const CARD_URL_RE = /\b(?:(?:https?|ftp|file|javascript|data|vbscript|mailto):\S+|www\.\S+)/gi;
+
+/**
+ * Buyer-typed text (a buyer_request label, a review comment) for Adaptive Card TextBlocks, which render markdown: URLs
+ * become "(link removed)" and markdown control characters (* _ ~ ` [ ] < > # | \) and line breaks are dropped, so the
+ * text cannot add a link, emphasis or a list, or break the card's own [summary](link). Email / text bodies are not
+ * affected (HTML is escaped there).
+ */
+export function cardText(s: string | null | undefined): string {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/\p{Cf}/gu, '')
+    .replace(CARD_URL_RE, CARD_LINK_REMOVED)
+    .replace(/[*_~`[\]<>#|\\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 const present = (s: string | null | undefined): s is string => typeof s === 'string' && s.trim() !== '';
 const orDash = (s: string | null | undefined) => (present(s) ? s.trim() : '—');
 
@@ -32,15 +51,15 @@ export function buildPricingRequestCard(input: PricingRequestCardInput): Json {
   const facts: Array<{ title: string; value: string }> = [
     { title: 'Unit', value: orDash(input.unit) },
     { title: 'Buyer', value: orDash(input.buyerName) },
-    { title: 'Location', value: orDash(input.location) },
-    { title: 'Item', value: orDash(input.label) },
+    { title: 'Location', value: orDash(cardText(input.location)) },
+    { title: 'Item', value: orDash(cardText(input.label)) },
   ];
   if (product) facts.push({ title: 'Product', value: product });
   facts.push({ title: 'Assigned to', value: orDash(input.assigneeName) });
 
   const body: Json[] = [
     { type: 'TextBlock', text: 'Pricing request', weight: 'Bolder', size: 'Medium', wrap: true },
-    { type: 'TextBlock', text: `Unit ${orDash(input.unit)} — ${orDash(input.label)}`, isSubtle: true, spacing: 'None', wrap: true },
+    { type: 'TextBlock', text: `Unit ${orDash(input.unit)} — ${orDash(cardText(input.label))}`, isSubtle: true, spacing: 'None', wrap: true },
     { type: 'FactSet', facts },
   ];
   if (present(input.note)) {
@@ -120,6 +139,9 @@ function escapeHtml(s: string): string {
 
 const lineSummary = (l: DigestLine) =>
   [`Unit ${orDash(l.unit)}`, l.buyerName, l.location, l.label].filter(present).join(' · ');
+/** The same summary with buyer-typed parts made card-safe (it sits inside the card's own [summary](link)). */
+const cardLineSummary = (l: { unit: string; buyerName: string; location: string; label: string }) =>
+  [`Unit ${orDash(l.unit)}`, cardText(l.buyerName), cardText(l.location), cardText(l.label)].filter(present).join(' · ');
 
 /** Grouped summary of open pricing requests as an email (text + html) and an Adaptive Card. Groups keep their order. */
 export function buildDigestCardOrText(input: DigestInput): DigestOutput {
@@ -164,7 +186,7 @@ export function buildDigestCardOrText(input: DigestInput): DigestOutput {
         );
         items.push({
           type: 'TextBlock', wrap: true, spacing: 'Small',
-          text: `[${lineSummary(l)}](${l.link}) · ${age}`,
+          text: `[${cardLineSummary(l)}](${l.link}) · ${age}`,
           ...(l.overdue ? { color: 'Attention' } : {}),
         });
       }
@@ -189,9 +211,9 @@ export function buildDigestCardOrText(input: DigestInput): DigestOutput {
         + (present(r.comment) ? `<br><span style="color:#6b7280">Buyer: ${escapeHtml(r.comment.trim())}</span>` : '')
         + '</li>',
       );
-      items.push({ type: 'TextBlock', wrap: true, spacing: 'Small', text: `${what}: [${summary}](${r.link})`,
+      items.push({ type: 'TextBlock', wrap: true, spacing: 'Small', text: `${what}: [${cardLineSummary(r)}](${r.link})`,
         ...(r.response === 'questioned' ? { color: 'Attention' } : {}) });
-      if (present(r.comment)) items.push({ type: 'TextBlock', wrap: true, isSubtle: true, spacing: 'None', text: `Buyer: ${r.comment.trim()}` });
+      if (present(r.comment)) items.push({ type: 'TextBlock', wrap: true, isSubtle: true, spacing: 'None', text: `Buyer: ${cardText(r.comment)}` });
     }
     html.push('</ul>');
     cardBody.push({ type: 'Container', separator: true, items });

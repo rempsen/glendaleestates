@@ -3,7 +3,7 @@
 // rounded for display only. Columns everywhere: location · item · product/colour · qty · unit price · amount · status.
 // Canonical copy (Phase 2 Task 11): lives in supabase/functions/_shared so the email edge functions render the same
 // rows as the PDF/Word; src/lib/lineRenderRows.ts re-exports it. Zero non-relative imports (Deno + bun + Vite).
-import { sumQuoteLines, countsInTotal, SECTION_ORDER, type QuoteLine, type LineStatus, type Section, type LineUnit } from './quoteLines.ts';
+import { sumQuoteLines, countsInTotal, gstLabel, SECTION_ORDER, type QuoteLine, type LineStatus, type Section, type LineUnit } from './quoteLines.ts';
 import { toBuyerWording } from './buyerWording.ts';
 
 export const PENDING_TEXT = 'Pending';
@@ -45,7 +45,7 @@ export interface LineRow {
   cells: string[];
 }
 export interface SectionGroup { section: Section; title: string; rows: LineRow[]; subtotal: number; subtotalText: string }
-export type TotalLabel = 'Upgrades' | 'Window coverings' | 'Subtotal' | 'GST 5%' | 'Total';
+export type TotalLabel = 'Upgrades' | 'Window coverings' | 'Subtotal' | `GST ${string}%` | 'Total';
 export interface LineTotals {
   upgrades: number; windowCoverings: number; subtotal: number; gst: number; total: number;
   rows: Array<{ label: TotalLabel; amount: number; amountText: string }>;
@@ -114,7 +114,7 @@ export function buildLineRows(lines: QuoteLine[], opts: { buyerView: boolean; gs
   const row = (label: TotalLabel, amount: number) => ({ label, amount, amountText: formatMoney(amount) });
   const totals: LineTotals = {
     upgrades: sums.upgrades, windowCoverings: sums.windowCoverings, subtotal: sums.subtotal, gst: sums.gst, total: sums.total,
-    rows: [row('Upgrades', sums.upgrades), row('Window coverings', sums.windowCoverings), row('Subtotal', sums.subtotal), row('GST 5%', sums.gst), row('Total', sums.total)],
+    rows: [row('Upgrades', sums.upgrades), row('Window coverings', sums.windowCoverings), row('Subtotal', sums.subtotal), row(gstLabel(opts.gstRate), sums.gst), row('Total', sums.total)],
   };
 
   const internalNotes: InternalNote[] = opts.buyerView ? [] : ordered

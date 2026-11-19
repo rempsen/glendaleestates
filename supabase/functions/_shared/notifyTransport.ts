@@ -40,9 +40,14 @@ export async function loadPricingSettings(rest: Rest): Promise<PricingSettings> 
   };
 }
 
+export const TEAMS_TIMEOUT_MS = 3500;
+
 export async function postTeams(url: string, body: unknown): Promise<SendResult> {
   try {
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    // Bounded: a hung Teams endpoint must not hold the function (or the email fallback) past the edge time limit.
+    const r = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(TEAMS_TIMEOUT_MS),
+    });
     if (r.ok) return { ok: true };
     return { ok: false, error: `Teams HTTP ${r.status}` };
   } catch (e) {

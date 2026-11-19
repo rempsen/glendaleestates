@@ -11,7 +11,7 @@ const line = (over: Partial<StoredLine> = {}): StoredLine => ({
   ...over,
 } as StoredLine);
 
-const SERVER_OWNED = ['counts_in_total', 'created_at', 'updated_at'];
+const SERVER_OWNED = ['counts_in_total', 'created_at', 'updated_at', 'updated_by']; // updated_by: trigger 0016
 
 describe('buildUpdate', () => {
   test('match carries id and the known updated_at (optimistic concurrency)', () => {

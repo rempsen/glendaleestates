@@ -54,7 +54,8 @@ export interface SendDeps {
   renderBuyerPdf(lines: QuoteLine[], gstRate: number, version: number): Promise<Blob>;
   newId(): string;
   insertDocument(row: { id: string; submission_id: string; snapshot_id: string; kind: DocumentKind; status: 'draft'; storage_path: string; signer_email: string | null }): Promise<void>;
-  deleteDocument(id: string): Promise<void>;
+  /** Retires the draft whose PDF did not upload: status → 'voided' (staff have no DELETE on documents since 0016). */
+  voidDraftDocument(id: string): Promise<void>;
   upload(path: string, pdf: Blob): Promise<void>;
   sendForSignature(documentId: string): Promise<{ embedded_signing_url: string }>;
 }
@@ -99,7 +100,7 @@ export async function sendForSignature(
   try {
     await deps.upload(path, pdf);
   } catch (e) {
-    await deps.deleteDocument(documentId).catch(() => undefined);
+    await deps.voidDraftDocument(documentId).catch(() => undefined);
     throw e;
   }
   const r = await deps.sendForSignature(documentId);

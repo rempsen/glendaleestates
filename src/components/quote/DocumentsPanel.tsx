@@ -70,9 +70,11 @@ export interface DocumentsPanelProps {
   flushSaved: () => Promise<{ ok: true } | { ok: false; reason: string }>;
   /** Reads lines / GST after the flush (store, not render state). */
   current: () => { lines: QuoteLine[]; gstRate: number | null | undefined };
+  /** Set while the quote is not itemised (or lines are loading): upload and send are disabled with this reason. */
+  lockedReason?: string | null;
 }
 
-export function DocumentsPanel({ submission, lines, gstRate, flushSaved, current }: DocumentsPanelProps) {
+export function DocumentsPanel({ submission, lines, gstRate, flushSaved, current, lockedReason = null }: DocumentsPanelProps) {
   const submissionId = submission?.id ?? null;
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -125,6 +127,8 @@ export function DocumentsPanel({ submission, lines, gstRate, flushSaved, current
         uploaded_by: await currentUserId(),
       });
       if (ins.error) {
+        // Best effort: since 0016 staff have no storage DELETE, so this is refused and the file stays at a path no
+        // documents row references (harmless; an admin can clear it in the dashboard).
         await supabase.storage.from(UNIT_DOCUMENTS_BUCKET).remove([path]);
         throw ins.error;
       }
@@ -175,9 +179,11 @@ export function DocumentsPanel({ submission, lines, gstRate, flushSaved, current
             const { error } = await supabase.from('documents').insert({ ...row, uploaded_by: userId });
             if (error) throw error;
           },
-          async deleteDocument(id) { await supabase.from('documents').delete().eq('id', id); },
+          // Staff may void an unsigned draft but never DELETE a document (0016).
+          async voidDraftDocument(id) { await supabase.from('documents').update({ status: 'voided' }).eq('id', id).eq('status', 'draft'); },
           async upload(path, pdf) {
-            const { error } = await supabase.storage.from(UNIT_DOCUMENTS_BUCKET).upload(path, pdf, { contentType: 'application/pdf', upsert: true });
+            // A fresh path per document: plain INSERT (staff have no storage UPDATE since 0016; upsert would need it).
+            const { error } = await supabase.storage.from(UNIT_DOCUMENTS_BUCKET).upload(path, pdf, { contentType: 'application/pdf', upsert: false });
             if (error) throw error;
           },
           sendForSignature: callSend,
@@ -221,8 +227,8 @@ export function DocumentsPanel({ submission, lines, gstRate, flushSaved, current
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-3 pb-2">
         <CardTitle className="text-sm">Documents</CardTitle>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" disabled={!submission || !!busy} onClick={() => setUploadOpen(true)}>Upload external PDF</Button>
-          <Button size="sm" disabled={!submission || !!busy} title={refusal ?? undefined} onClick={() => setSendOpen(true)}>
+          <Button size="sm" variant="outline" disabled={!submission || !!busy || !!lockedReason} title={lockedReason ?? undefined} onClick={() => setUploadOpen(true)}>Upload external PDF</Button>
+          <Button size="sm" disabled={!submission || !!busy || !!lockedReason} title={lockedReason ?? refusal ?? undefined} onClick={() => setSendOpen(true)}>
             {busy === 'send' ? 'Sending…' : 'Send for signature'}
           </Button>
         </div>

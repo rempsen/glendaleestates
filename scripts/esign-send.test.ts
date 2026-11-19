@@ -34,7 +34,7 @@ function harness(lines: QuoteLine[], opts: { versions?: number[]; gst?: number |
     async renderBuyerPdf(l) { ops.push('render'); rendered.push(l); return new Blob(['%PDF-'], { type: 'application/pdf' }); },
     newId: () => DOC,
     async insertDocument(row) { ops.push('insert documents'); docs.push(row); },
-    async deleteDocument() { ops.push('delete documents'); },
+    async voidDraftDocument() { ops.push('void documents'); },
     async upload(path) { ops.push(`upload ${path}`); if (opts.uploadFails) throw new Error('storage down'); },
     async sendForSignature(id) { ops.push(`send ${id}`); return { embedded_signing_url: 'https://sign.test/x' }; },
   };
@@ -106,11 +106,12 @@ describe('sendForSignature flow', () => {
     await sendForSignature(input, race.deps);
     expect(race.snapshots.map((s) => s.version)).toEqual([3]);
   });
-  test('the flow never updates or deletes a snapshot; a failed upload removes only the draft document row', async () => {
+  test('the flow never updates or deletes a snapshot; a failed upload voids only the draft document row (no DELETE)', async () => {
     const h = harness([line({})], { uploadFails: true });
     await expect(sendForSignature(input, h.deps)).rejects.toThrow('storage down');
     expect(h.ops.filter((o) => o.includes('quote_snapshots'))).toEqual(['select quote_snapshots', 'insert quote_snapshots']);
-    expect(h.ops).toContain('delete documents');
+    expect(h.ops).toContain('void documents');
+    expect(h.ops.some((o) => o.startsWith('delete'))).toBe(false);
     expect(h.ops).not.toContain(`send ${DOC}`);
   });
   test('purpose maps to the document kind', async () => {

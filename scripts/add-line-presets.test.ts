@@ -57,7 +57,8 @@ describe('catalog preset', () => {
         status: 'upgrade', source: 'office', client_visible: true,
       });
       expect(r.unit_price).toBeCloseTo(unitPrice, 9);
-      expect(r.amount).toBeCloseTo(unitPrice * src.unitAreas!.mainLiving!, 6);
+      // Amounts are written in cents (lineAmount, final fix wave I4): 20715.625 → 20715.63.
+      expect(r.amount).toBe(Math.round(unitPrice * src.unitAreas!.mainLiving! * 100 + 1e-6) / 100);
     });
   }
   test('carpet keeps the material unit (sqyd)', () => {

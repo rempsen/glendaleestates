@@ -15,7 +15,7 @@ import {
   DEFAULT_ASSIGNEE_KEY, DEFAULT_ESCALATION_HOURS, SETTINGS_KEYS, parseDefaultAssignee, parseDigestRecipients,
   parseEscalationHours, parseTeamsWebhookUrl,
 } from '@shared/pricingQueue';
-import { defaultAssigneeRow, pricingSettingsRows } from '@/lib/pricingQueue';
+import { defaultAssigneeRows, pricingSettingsRows } from '@/lib/pricingQueue';
 import { peopleFromDirectory, type PresetPerson } from '@/lib/addLinePresets';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -30,6 +30,8 @@ function PricingRequestSettings({ userId }: { userId: string | null }) {
   const [draft, setDraft] = useState('');
   const [defaultAssignee, setDefaultAssignee] = useState<string | null>(null);
   const [staff, setStaff] = useState<PresetPerson[]>([]);
+  // false when staff_directory() failed: the default assignee is then shown read-only and never written.
+  const [staffLoaded, setStaffLoaded] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -45,6 +47,7 @@ function PricingRequestSettings({ userId }: { userId: string | null }) {
         .in('key', [...Object.values(SETTINGS_KEYS), DEFAULT_ASSIGNEE_KEY]);
       const dir = await supabase.rpc('staff_directory');
       setStaff(dir.error ? [] : peopleFromDirectory(dir.data ?? []));
+      setStaffLoaded(!dir.error);
       if (error) {
         toast({ title: 'Could not load pricing-request settings', description: error.message, variant: 'destructive' });
       } else {
@@ -76,7 +79,7 @@ function PricingRequestSettings({ userId }: { userId: string | null }) {
     const { error } = await supabase
       .from('portal_settings' as never)
       .upsert(
-        [...r.rows, defaultAssigneeRow(defaultAssignee, staff.map((p) => p.user_id))]
+        [...r.rows, ...defaultAssigneeRows(defaultAssignee, staffLoaded ? staff.map((p) => p.user_id) : null)]
           .map((row) => ({ ...row, updated_at: at, updated_by: userId })) as never,
         { onConflict: 'key' },
       );
@@ -159,6 +162,7 @@ function PricingRequestSettings({ userId }: { userId: string | null }) {
             <div className="space-y-2">
               <Label htmlFor="default-assignee">Default assignee for buyer change requests</Label>
               <Select
+                disabled={!staffLoaded}
                 value={defaultAssignee ?? NO_DEFAULT}
                 onValueChange={(v) => { setDefaultAssignee(v === NO_DEFAULT ? null : v); touch(); }}
               >
@@ -168,6 +172,9 @@ function PricingRequestSettings({ userId }: { userId: string | null }) {
                   {staff.map((p) => <SelectItem key={p.user_id} value={p.user_id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {!loading && !staffLoaded && (
+                <p className="text-xs text-destructive">The staff list could not be loaded; the saved default assignee is kept unchanged.</p>
+              )}
               <p className="text-xs text-muted-foreground">
                 A buyer's “Request a change” on /my-quote goes to whoever last edited that unit's quote. If nobody has yet,
                 it goes to this person; with no default it waits under “Unassigned” in the pricing queue and the digest.
