@@ -42,7 +42,7 @@ test('REST fetcher hits the same endpoints the email/audit functions used, and t
     return t === 'unit_area_data' ? new Response('no', { status: 500 }) : new Response(JSON.stringify((raw as any)[t]));
   }) as unknown as typeof fetch;
   const p = await loadServerPricing(restPricingFetcher('https://x.supabase.co', 'k', fakeFetch));
-  expect(urls.sort()).toEqual(['https://x.supabase.co/rest/v1/pricing_config', 'https://x.supabase.co/rest/v1/unit_area_data', 'https://x.supabase.co/rest/v1/upgrade_materials?is_active=eq.true']);
+  expect(urls.sort()).toEqual(['https://x.supabase.co/rest/v1/pricing_config?is_active=eq.true', 'https://x.supabase.co/rest/v1/unit_area_data', 'https://x.supabase.co/rest/v1/upgrade_materials?is_active=eq.true']);
   expect(p.gstRate).toBe(0.05);
   expect(p.unitAreas).toEqual({});
 });

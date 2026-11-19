@@ -18,7 +18,7 @@ export async function loadSavedSubmissionContext(id: string) {
     // No status filter: a submission whose lines are all removed HAS stored lines (staff deleted them) and must not
     // fall back to the generator; savedSubmissionLines drops removed lines in memory.
     supabase.from('quote_lines').select('*').eq('submission_id', id).order('sort_order', { ascending: true }),
-    supabase.from('pricing_config').select('*'),
+    supabase.from('pricing_config').select('*').eq('is_active', true),
     supabase.from('upgrade_materials').select('*').eq('is_active', true),
     supabase.from('unit_area_data').select('*'),
   ]);

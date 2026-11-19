@@ -80,6 +80,18 @@ export interface SelectionData {
 
 /** Validated, clamped request body (the edge function's `data`). Mirrors the code that lived inline in index.ts. */
 // deno-lint-ignore no-explicit-any
+/** Largest `pdfBase64` forwarded to HubSpot (characters of base64; ~6 MB of PDF). Larger bodies are dropped, not refused. */
+export const MAX_PDF_BASE64_CHARS = 8 * 1024 * 1024;
+
+function parsePdfBase64(v: unknown): string | null {
+  if (typeof v !== 'string' || v === '') return null;
+  if (v.length > MAX_PDF_BASE64_CHARS) {
+    console.warn(`[submit] pdfBase64 dropped: ${v.length} chars exceeds the ${MAX_PDF_BASE64_CHARS} cap; HubSpot gets no PDF for this submission`);
+    return null;
+  }
+  return v;
+}
+
 export function parseSelectionBody(rawData: Record<string, any>): SelectionData {
   // Parse area upgrades — preserve partial entries so buyer comments are never dropped.
   // An entry is kept if ANY meaningful field is present (areaId, materialType, productName,
@@ -176,6 +188,8 @@ export function parseSelectionBody(rawData: Record<string, any>): SelectionData 
     backsplashGroutComments: rawData.backsplashGroutComments ? String(rawData.backsplashGroutComments).trim().slice(0, 2000) : null,
     upgradeComments: rawData.upgradeComments ? String(rawData.upgradeComments).trim().slice(0, 5000) : null,
     upgradeInterestsNotes: rawData.upgradeInterestsNotes ? String(rawData.upgradeInterestsNotes).trim().slice(0, 5000) : null,
+    // The buyer's PDF, forwarded to sync-hubspot (never stored on the row).
+    pdfBase64: parsePdfBase64(rawData.pdfBase64),
     // Document uploads
     documentUploads: Array.isArray(rawData.documentUploads) ? rawData.documentUploads.map((doc: unknown) => {
       const d = doc as Record<string, unknown>;

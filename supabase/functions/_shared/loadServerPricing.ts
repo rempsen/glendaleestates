@@ -18,8 +18,11 @@ export function serverPricingFromRows(rows: { pricing_config?: any[] | null; upg
   const unitAreas: ServerPricing["unitAreas"] = {};
   let markupPercentage = DEFAULT_MARKUP;
   let gstRate = DEFAULT_GST;
-  for (const m of rows.upgrade_materials ?? []) materials[m.material_key] = Number(m.cost_per_unit);
-  for (const c of rows.pricing_config ?? []) {
+  // Inactive rows never price anything, whichever fetcher (or browser hook) supplied them. Rows fetched without the
+  // column (narrow selects that already filtered server-side) count as active.
+  const active = (r: { is_active?: unknown }) => r && r.is_active !== false;
+  for (const m of (rows.upgrade_materials ?? []).filter(active)) materials[m.material_key] = Number(m.cost_per_unit);
+  for (const c of (rows.pricing_config ?? []).filter(active)) {
     config[c.config_key] = Number(c.config_value);
     if (c.config_key === "markup_percentage") markupPercentage = Number(c.config_value) / 100;
     if (c.config_key === "gst_rate") gstRate = Number(c.config_value) / 100;
@@ -62,7 +65,7 @@ export function restPricingFetcher(supabaseUrl: string, serviceKey: string, fetc
   const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
   const path: Record<PricingTable, string> = {
     upgrade_materials: "upgrade_materials?is_active=eq.true",
-    pricing_config: "pricing_config",
+    pricing_config: "pricing_config?is_active=eq.true",
     unit_area_data: "unit_area_data",
   };
   return async (table) => {
