@@ -2,7 +2,7 @@
 // rows and applies answer patches through useQuoteLines.upsert (the reducer path), never a raw write.
 import {
   formatAge, groupByAssignee, hoursSince, parseDigestRecipients, parseEscalationHours, parseTeamsWebhookUrl, personName,
-  SETTINGS_KEYS, type QueueRow,
+  SETTINGS_KEYS, DEFAULT_ASSIGNEE_KEY, parseDefaultAssignee, type QueueRow,
 } from '@shared/pricingQueue';
 import type { QuoteLine } from '@/lib/quoteLines';
 import { applyStatusChange, priceEditPatch, type EditPatch } from '@/lib/lineEdits';
@@ -132,4 +132,13 @@ export function pricingSettingsRows(d: PricingSettingsDraft): { ok: true; rows: 
       { key: SETTINGS_KEYS.digestRecipients, value: recipients },
     ],
   };
+}
+
+/**
+ * The buyer change-request fallback assignee (migration 0012) → its portal_settings row. Must be one of `staffIds`
+ * (from staff_directory()); anything else, or none, stores JSON null.
+ */
+export function defaultAssigneeRow(id: string | null, staffIds: readonly string[]): PricingSettingsRow {
+  const v = parseDefaultAssignee(id);
+  return { key: DEFAULT_ASSIGNEE_KEY, value: v && staffIds.includes(v) ? v : null };
 }

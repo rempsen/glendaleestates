@@ -5,7 +5,7 @@
 // ENV: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY, INTERNAL_SECRET, optional PORTAL_BASE_URL.
 // Logic: ./handler.ts (tested in scripts/pricing-notify.test.ts).
 import { corsHeaders } from '../_shared/cors.ts';
-import { queueRowsFromRest } from '../_shared/pricingQueue.ts';
+import { OPEN_QUEUE_REST_FILTER, queueRowsFromRest } from '../_shared/pricingQueue.ts';
 import {
   DEFAULT_PORTAL_BASE, loadPricingSettings, postTeams, restClient, sendResendEmail,
 } from '../_shared/notifyTransport.ts';
@@ -30,12 +30,13 @@ Deno.serve(async (req) => {
       now: () => new Date(),
       loadSettings: () => loadPricingSettings(rest),
       async loadOpen() {
-        // Not the pricing_queue view: it filters on is_staff(auth.uid()), which is null for the service role.
+        // Not the pricing_queue view: it filters on is_staff(auth.uid()), which is null for the service role. Same
+        // predicate as the view (0012): flagged lines plus unassigned buyer requests ("Unassigned" in the summary).
         const select = 'id,submission_id,section,location,label,internal_note,flagged_to,flagged_at,'
           + 'buyer:buyer_selections(unit_number,first_name,last_name),'
           + 'assignee:profiles!quote_lines_flagged_to_fkey(email,first_name,last_name)';
         const rows = await rest.get<Array<Record<string, unknown>>>(
-          `quote_lines?select=${select}&status=eq.pending&flagged_to=not.is.null&order=flagged_at.asc&limit=1000`,
+          `quote_lines?select=${select}&${OPEN_QUEUE_REST_FILTER}&order=flagged_at.asc&limit=1000`,
         );
         return queueRowsFromRest(rows);
       },

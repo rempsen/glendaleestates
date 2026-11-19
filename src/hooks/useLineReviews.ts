@@ -1,6 +1,6 @@
 // Latest buyer response per line for the meeting console (Phase 2 Task 13, spec §6.7). Staff read quote_line_reviews
 // under "Staff manage quote line reviews" (migration 0006). Kept apart from useQuoteLines so line editing is untouched.
-// Refreshes through Realtime when the table is in the publication, and whenever the window regains focus.
+// Refreshes when the window regains focus (quote_line_reviews is not in the Realtime publication yet).
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { latestReviewByLine, type LineReview } from '@/lib/myQuoteModel';
@@ -21,13 +21,9 @@ export function useLineReviews(submissionId: string | undefined): Map<string, Li
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     if (!submissionId) return;
-    const channel = supabase
-      .channel(`line-reviews-${submissionId}-${crypto.randomUUID()}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quote_line_reviews' }, () => { void load(); })
-      .subscribe();
     const onFocus = () => { if (document.visibilityState === 'visible') void load(); };
     document.addEventListener('visibilitychange', onFocus);
-    return () => { supabase.removeChannel(channel); document.removeEventListener('visibilitychange', onFocus); };
+    return () => document.removeEventListener('visibilitychange', onFocus);
   }, [submissionId, load]);
   return reviews;
 }

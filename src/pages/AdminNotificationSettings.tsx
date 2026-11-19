@@ -12,9 +12,14 @@ import {
   RECIPIENTS_KEY, addRecipient, removeRecipient, parseStoredRecipients,
 } from '@/lib/notificationRecipients';
 import {
-  DEFAULT_ESCALATION_HOURS, SETTINGS_KEYS, parseDigestRecipients, parseEscalationHours, parseTeamsWebhookUrl,
+  DEFAULT_ASSIGNEE_KEY, DEFAULT_ESCALATION_HOURS, SETTINGS_KEYS, parseDefaultAssignee, parseDigestRecipients,
+  parseEscalationHours, parseTeamsWebhookUrl,
 } from '@shared/pricingQueue';
-import { pricingSettingsRows } from '@/lib/pricingQueue';
+import { defaultAssigneeRow, pricingSettingsRows } from '@/lib/pricingQueue';
+import { peopleFromDirectory, type PresetPerson } from '@/lib/addLinePresets';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+const NO_DEFAULT = '__none';
 
 /** Pricing requests (Phase 2 Task 12): Teams webhook, escalation hours, digest recipients, test card. */
 function PricingRequestSettings({ userId }: { userId: string | null }) {
@@ -23,6 +28,8 @@ function PricingRequestSettings({ userId }: { userId: string | null }) {
   const [hours, setHours] = useState(String(DEFAULT_ESCALATION_HOURS));
   const [recipients, setRecipients] = useState<string[]>([]);
   const [draft, setDraft] = useState('');
+  const [defaultAssignee, setDefaultAssignee] = useState<string | null>(null);
+  const [staff, setStaff] = useState<PresetPerson[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -35,7 +42,9 @@ function PricingRequestSettings({ userId }: { userId: string | null }) {
       const { data, error } = await supabase
         .from('portal_settings' as never)
         .select('key,value')
-        .in('key', Object.values(SETTINGS_KEYS));
+        .in('key', [...Object.values(SETTINGS_KEYS), DEFAULT_ASSIGNEE_KEY]);
+      const dir = await supabase.rpc('staff_directory');
+      setStaff(dir.error ? [] : peopleFromDirectory(dir.data ?? []));
       if (error) {
         toast({ title: 'Could not load pricing-request settings', description: error.message, variant: 'destructive' });
       } else {
@@ -44,6 +53,7 @@ function PricingRequestSettings({ userId }: { userId: string | null }) {
         setTeamsUrl(parseTeamsWebhookUrl(get(SETTINGS_KEYS.teamsWebhookUrl)) ?? '');
         setHours(String(parseEscalationHours(get(SETTINGS_KEYS.escalationHours))));
         setRecipients(parseDigestRecipients(get(SETTINGS_KEYS.digestRecipients)));
+        setDefaultAssignee(parseDefaultAssignee(get(DEFAULT_ASSIGNEE_KEY)));
       }
       setLoading(false);
     })();
@@ -65,7 +75,11 @@ function PricingRequestSettings({ userId }: { userId: string | null }) {
     const at = new Date().toISOString();
     const { error } = await supabase
       .from('portal_settings' as never)
-      .upsert(r.rows.map((row) => ({ ...row, updated_at: at, updated_by: userId })) as never, { onConflict: 'key' });
+      .upsert(
+        [...r.rows, defaultAssigneeRow(defaultAssignee, staff.map((p) => p.user_id))]
+          .map((row) => ({ ...row, updated_at: at, updated_by: userId })) as never,
+        { onConflict: 'key' },
+      );
     setSaving(false);
     if (error) { toast({ title: 'Save failed', description: error.message, variant: 'destructive' }); return; }
     setDirty(false);
@@ -141,6 +155,23 @@ function PricingRequestSettings({ userId }: { userId: string | null }) {
                 />
                 <Button type="button" variant="outline" onClick={handleAdd}><Plus className="w-4 h-4 mr-1" /> Add</Button>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="default-assignee">Default assignee for buyer change requests</Label>
+              <Select
+                value={defaultAssignee ?? NO_DEFAULT}
+                onValueChange={(v) => { setDefaultAssignee(v === NO_DEFAULT ? null : v); touch(); }}
+              >
+                <SelectTrigger id="default-assignee" className="w-72"><SelectValue placeholder="No default (Unassigned)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_DEFAULT}>No default (Unassigned)</SelectItem>
+                  {staff.map((p) => <SelectItem key={p.user_id} value={p.user_id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                A buyer's “Request a change” on /my-quote goes to whoever last edited that unit's quote. If nobody has yet,
+                it goes to this person; with no default it waits under “Unassigned” in the pricing queue and the digest.
+              </p>
             </div>
             {formError && <p className="text-sm text-destructive">{formError}</p>}
             <div className="flex flex-wrap gap-2">

@@ -1,6 +1,7 @@
 // =====================================================================
 // Pricing queue — pure rules shared by the admin page, notify-pricing-request and pricing-digest
-// (Phase 2 Task 12, spec §6.5–6.6). A pricing request is a quote line with status 'pending' and flagged_to set.
+// (Phase 2 Task 12, spec §6.5–6.6). A pricing request is a quote line with status 'pending' and flagged_to set, or a
+// pending buyer change request (source 'buyer_request') not yet flagged to anyone (Task 13: shown as "Unassigned").
 //
 // ZERO IMPORTS, no Deno/Node/browser globals (same bytes in the browser via @shared, edge functions and bun).
 // =====================================================================
@@ -24,6 +25,21 @@ export interface QueueRow {
 }
 
 export const DEFAULT_ESCALATION_HOURS = 4;
+/**
+ * portal_settings key (migration 0012): profiles.user_id that request_quote_change() flags a buyer change request to
+ * when no staff member has edited the unit's lines yet. Separate from SETTINGS_KEYS (the notifier's own keys).
+ */
+export const DEFAULT_ASSIGNEE_KEY = 'pricing_default_assignee';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** The stored default assignee, or null when unset or not a uuid (same rule as the RPC). */
+export function parseDefaultAssignee(v: unknown): string | null {
+  return typeof v === 'string' && UUID_RE.test(v.trim()) ? v.trim() : null;
+}
+/**
+ * Open queue predicate, shared by the pricing_queue view (migration 0012) and the service-role digest query: pending
+ * lines flagged to someone, plus buyer change requests nobody is flagged to (grouped under "Unassigned").
+ */
+export const OPEN_QUEUE_REST_FILTER = 'status=eq.pending&or=(flagged_to.not.is.null,source.eq.buyer_request)';
 export const SETTINGS_KEYS = {
   teamsWebhookUrl: 'teams_webhook_url',
   escalationHours: 'pricing_escalation_hours',

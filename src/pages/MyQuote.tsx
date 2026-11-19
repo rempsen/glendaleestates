@@ -21,11 +21,12 @@ import { downloadBuyerQuoteWord } from '@/lib/submissionWordExport';
 
 interface Loaded { headers: MyQuoteHeader[]; lines: MyQuoteRpcLine[]; reviews: LineReview[] }
 
-async function loadMyQuote(): Promise<Loaded> {
+async function loadMyQuote(userId: string): Promise<Loaded> {
   const [header, lines, reviews] = await Promise.all([
     supabase.rpc('get_my_quote_header'),
     supabase.rpc('get_my_quote_lines'),
-    supabase.from('quote_line_reviews').select('id,line_id,response,comment,created_at').order('created_at', { ascending: false }),
+    supabase.from('quote_line_reviews').select('id,line_id,response,comment,created_at').eq('buyer_user_id', userId)
+      .order('created_at', { ascending: false }),
   ]);
   for (const r of [header, lines, reviews]) if (r.error) throw r.error;
   return {
@@ -43,16 +44,18 @@ export default function MyQuote() {
   const [loadError, setLoadError] = useState(false);
   const [downloading, setDownloading] = useState<'pdf' | 'word' | null>(null);
 
+  const userId = user?.id;
   const refresh = useCallback(async () => {
+    if (!userId) return;
     try {
-      setData(await loadMyQuote());
+      setData(await loadMyQuote(userId));
       setLoadError(false);
     } catch {
       setLoadError(true);
     }
-  }, []);
+  }, [userId]);
 
-  useEffect(() => { void refresh(); }, [refresh, user?.id]);
+  useEffect(() => { void refresh(); }, [refresh]);
   // Buyers get no Realtime on quote_lines (no base-table SELECT); pick up staff edits when the tab regains focus.
   useEffect(() => {
     const onFocus = () => { if (document.visibilityState === 'visible') void refresh(); };
@@ -67,7 +70,8 @@ export default function MyQuote() {
   const onReview = async (lineId: string, response: ReviewResponse, comment: string | null) => {
     if (!user) return;
     const { error } = await supabase.from('quote_line_reviews').insert({ line_id: lineId, buyer_user_id: user.id, response, comment });
-    if (error) { toast.error('Your response was not saved', { description: OFFICE_CONTACT_TEXT }); return; }
+    // Throw so ReviewControls keeps the buyer's comment for a retry.
+    if (error) { toast.error('Your response was not saved', { description: OFFICE_CONTACT_TEXT }); throw error; }
     toast.success(response === 'accepted' ? 'Accepted — thank you' : 'Question sent to your sales representative');
     await refresh();
   };

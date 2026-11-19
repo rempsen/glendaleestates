@@ -215,6 +215,11 @@ describe('console Buyer column and sign-in redirect', () => {
     expect(page).toContain("supabase.rpc('get_my_quote_lines')");
     expect(page).toContain("supabase.rpc('get_my_quote_header')");
     expect(page).toContain("supabase.rpc('request_quote_change'");
+    // Own reviews only; a failed insert throws so the buyer's comment is kept.
+    expect(page).toContain(".eq('buyer_user_id', userId)");
+    expect(page).toMatch(/Your response was not saved[^\n]*throw error;/);
+    // Console hook: no unfiltered Realtime subscription (table not in the publication).
+    expect(readFileSync(join(root, 'src/hooks/useLineReviews.ts'), 'utf8')).not.toMatch(/\.channel\(|postgres_changes/);
     const app = readFileSync(join(root, 'src/App.tsx'), 'utf8');
     expect(app).toContain('<Route path="/my-quote" element={<BuyerRoute><MyQuote /></BuyerRoute>} />');
   });

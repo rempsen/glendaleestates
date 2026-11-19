@@ -13,7 +13,7 @@ export interface DigestDeps {
   portalBase: string;
   now(): Date;
   loadSettings(): Promise<DigestSettings>;
-  /** Open pricing requests: status 'pending' with flagged_to set. */
+  /** Open pricing requests: OPEN_QUEUE_REST_FILTER (flagged pending lines and unassigned buyer requests). */
   loadOpen(): Promise<QueueRow[]>;
   sendEmail(msg: Omit<EmailMessage, 'html'> & { html: string }): Promise<SendResult>;
   postTeams(url: string, body: unknown): Promise<SendResult>;
@@ -58,6 +58,7 @@ export async function handleDigest(deps: DigestDeps): Promise<HandlerResult> {
 
   // 1. Each assignee gets their own overdue lines.
   for (const g of groupByAssignee(overdueRows, now)) {
+    if (!g.assigneeId) continue; // unassigned buyer requests: nobody to escalate to; they are in the summary
     if (!g.assigneeEmail) { errors.push(`${g.assigneeName}: no email`); continue; }
     const out = buildDigestCardOrText({
       groups: toGroups(g.rows, deps, hours, now), queueLink, escalationHours: hours, title: 'Your overdue pricing requests',

@@ -53,6 +53,8 @@ function ReviewControls({ row, review, onReview }: { row: LineRow; review?: Line
     try {
       await onReview(row.key, response, v.comment);
       setComment(''); setOpen(false); setError(null);
+    } catch {
+      // The page has already told the buyer; keep the comment for a retry.
     } finally {
       setSending(false);
     }
