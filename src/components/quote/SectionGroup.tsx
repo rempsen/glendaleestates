@@ -5,6 +5,7 @@ import type { LinePatch, StoredLine } from '@/lib/quoteLinesReducer';
 import { SECTION_LABELS, type PresetPerson } from '@/lib/addLinePresets';
 import { LineRow } from '@/components/quote/LineRow';
 import { sectionAnchor } from '@/components/quote/consoleCells';
+import type { LineReview } from '@/lib/myQuoteModel';
 
 export interface SectionGroupProps {
   section: Section;
@@ -16,9 +17,11 @@ export interface SectionGroupProps {
   onRemove: (line: StoredLine) => void;
   onMove: (line: StoredLine, dir: -1 | 1) => void;
   addMenu: ReactNode;
+  /** Latest buyer response per line id. */
+  reviews?: Map<string, LineReview>;
 }
 
-export function SectionGroup({ section, lines, people, onPatch, onStatusChange, onRemove, onMove, addMenu }: SectionGroupProps) {
+export function SectionGroup({ section, lines, people, onPatch, onStatusChange, onRemove, onMove, addMenu, reviews }: SectionGroupProps) {
   return (
     <section id={sectionAnchor(section)} aria-labelledby={`${sectionAnchor(section)}-h`} className="scroll-mt-4 rounded-lg border border-border bg-card p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -41,6 +44,7 @@ export function SectionGroup({ section, lines, people, onPatch, onStatusChange, 
               onMove={(dir) => onMove(l, dir)}
               canMoveUp={i > 0}
               canMoveDown={i < lines.length - 1}
+              review={reviews?.get(l.id)}
             />
           ))}
         </ul>

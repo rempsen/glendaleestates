@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { AdminLayout } from '@/components/AdminLayout';
 import { useQuoteLines } from '@/hooks/useQuoteLines';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
+import { useLineReviews } from '@/hooks/useLineReviews';
 import { SECTION_ORDER, type LineStatus, type Section } from '@/lib/quoteLines';
 import type { LinePatch, StoredLine } from '@/lib/quoteLinesReducer';
 import { baseSpecFor } from '@/lib/baseSpec';
@@ -73,6 +74,7 @@ export default function QuoteConsole() {
   const unitLabel = row ? `Unit ${row.unit_number}` : undefined;
   const q = useQuoteLines(id, { unitLabel });
   const dyn = useDynamicPricing();
+  const reviews = useLineReviews(id);
 
   const loadRow = useCallback(async () => {
     if (!id) return;
@@ -252,6 +254,7 @@ export default function QuoteConsole() {
                 onStatusChange={changeStatus}
                 onRemove={removeLine}
                 onMove={moveLine}
+                reviews={reviews}
                 addMenu={(
                   <AddLineMenu
                     section={s} source={presetSource} baseSpec={baseSpec} people={people} recipients={recipients}

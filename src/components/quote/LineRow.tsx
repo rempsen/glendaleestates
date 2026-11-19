@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { formatMoney, PENDING_TEXT } from '@/components/quote/runningTotalModel';
 import { StatusSelect } from '@/components/quote/StatusSelect';
 import { UNIT_OPTIONS, focusNextCell, isSaveKey, lineAnchor, parseNumber } from '@/components/quote/consoleCells';
+import { BuyerResponseCell } from '@/components/quote/BuyerResponseCell';
+import type { LineReview } from '@/lib/myQuoteModel';
 
 const NO_ONE = '__none';
 import { Button } from '@/components/ui/button';
@@ -103,9 +105,11 @@ export interface LineRowProps {
   onMove: (dir: -1 | 1) => void;
   canMoveUp: boolean;
   canMoveDown: boolean;
+  /** Latest buyer response (/my-quote), shown in the narrow Buyer column. */
+  review?: LineReview;
 }
 
-export function LineRow({ line, people, onPatch, onStatusChange, onRemove, onMove, canMoveUp, canMoveDown }: LineRowProps) {
+export function LineRow({ line, people, onPatch, onStatusChange, onRemove, onMove, canMoveUp, canMoveDown, review }: LineRowProps) {
   const [notesOpen, setNotesOpen] = useState(false);
   const included = line.status === 'included';
   const pending = line.status === 'pending';
@@ -208,6 +212,7 @@ export function LineRow({ line, people, onPatch, onStatusChange, onRemove, onMov
             {people.map((p) => <SelectItem key={p.user_id} value={p.user_id}>{p.name}</SelectItem>)}
           </SelectContent>
         </Select>
+        <BuyerResponseCell review={review} />
         <Button
           type="button" variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground"
           aria-expanded={notesOpen} onClick={() => setNotesOpen((o) => !o)}
