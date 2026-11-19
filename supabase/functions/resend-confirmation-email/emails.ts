@@ -64,7 +64,7 @@ export function buildAdminHtml(sub: SubmissionRow, q: EmailLines, editedBy: stri
   });
 }
 
-/** The figure the admin UI shows after a resend: the lines' Total, or null when no prices were printed. */
+/** The figure the admin UI shows after a resend: the Total the buyer was sent, or null when the buyer copy printed none. */
 export function linesGrandTotal(q: EmailLines): number | null {
-  return renderLinesEmailHtml(q.lines, { buyerView: false, gstRate: q.gstRate, pricesAvailable: q.pricesAvailable }).totals?.total ?? null;
+  return renderLinesEmailHtml(q.lines, { buyerView: true, gstRate: q.gstRate, pricesAvailable: q.pricesAvailable }).totals?.total ?? null;
 }

@@ -1,9 +1,9 @@
-import { getCorsHeaders, corsHeaders } from "../_shared/cors.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 import { authorizeInternalOrAdmin, makeGetUserFromJwt } from "../_shared/internalAuth.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { clientPricingFetcher, loadServerPricing } from "../_shared/loadServerPricing.ts";
+import { clientPricingFetcher, loadServerPricing, pricingUnavailableReason } from "../_shared/loadServerPricing.ts";
 import { loadSubmissionLinesClient, savedSubmissionLinesCore } from "../_shared/savedSubmissionLines.ts";
-import { hubspotQuoteValues, type HubspotQuoteValues } from "./quoteValues.ts";
+import { hubspotPricingProperties } from "./quoteValues.ts";
 
 interface AreaUpgradeSelection {
   areaId: string;
@@ -113,16 +113,21 @@ function formatUpgradeInterests(interests: Record<string, boolean> | null): stri
 
 // Pricing properties for the CRM from the submission's quote lines (stored; generator over the saved row when none
 // exist yet), at the same prices the PDF/emails print. Never the stale submit-time window column on the row.
-async function quoteValuesForSubmission(submission: BuyerSelection): Promise<HubspotQuoteValues> {
+async function pricingPropertiesForSubmission(submission: BuyerSelection): Promise<Record<string, string> | null> {
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   const pricing = await loadServerPricing(clientPricingFetcher(admin));
+  const pricingUnavailable = pricingUnavailableReason(pricing);
+  let result: { lines: ReturnType<typeof savedSubmissionLinesCore>['lines']; linesSource: 'db' | 'generated' };
   if (!submission.id) {
-    return hubspotQuoteValues(savedSubmissionLinesCore([], submission, pricing).lines, pricing.gstRate);
+    result = savedSubmissionLinesCore([], submission, pricing);
+  } else {
+    // The saved row (custom_pricing etc.) is the generator's input when no lines are stored; the body is the fallback.
+    const { data: row } = await admin.from('buyer_selections').select('*').eq('id', submission.id).maybeSingle();
+    result = await loadSubmissionLinesClient(admin, submission.id, row ?? submission, pricing);
   }
-  // The saved row (custom_pricing etc.) is the generator's input when no lines are stored; the body is the fallback.
-  const { data: row } = await admin.from('buyer_selections').select('*').eq('id', submission.id).maybeSingle();
-  const { lines } = await loadSubmissionLinesClient(admin, submission.id, row ?? submission, pricing);
-  return hubspotQuoteValues(lines, pricing.gstRate);
+  const props = hubspotPricingProperties(result.lines, pricing.gstRate, { linesSource: result.linesSource, pricingUnavailable });
+  if (!props) console.warn(`[hubspot] pricing unavailable (${pricingUnavailable}) and no stored lines for ${submission.id ?? submission.email}; pricing properties left unchanged`);
+  return props;
 }
 
 // Upload PDF to HubSpot Files and return URL
@@ -257,9 +262,9 @@ Deno.serve(async (req) => {
     const submission: BuyerSelection = await req.json();
     console.log('Syncing submission to HubSpot:', submission.email);
 
-    // Pricing from quote lines (sumQuoteLines only)
-    const pricing = await quoteValuesForSubmission(submission);
-    console.log('Quote-line pricing for HubSpot:', { subtotal: pricing.subtotal, window: pricing.windowTotal });
+    // Pricing from quote lines (sumQuoteLines only); null = leave the CRM's pricing properties as they are
+    const pricingProps = await pricingPropertiesForSubmission(submission);
+    console.log('Quote-line pricing for HubSpot:', pricingProps ? { subtotal: pricingProps.bmd_upgrade_subtotal, window: pricingProps.bmd_window_total } : 'omitted');
 
     // Upload PDF if provided
     let pdfUrl: string | null = null;
@@ -322,7 +327,6 @@ Deno.serve(async (req) => {
       bmd_additional_windows: String(submission.additional_windows_qty || 0),
       bmd_patio_doors: String(submission.patio_doors_qty || 0),
       bmd_automated_windows: String(submission.automated_windows_qty || 0),
-      bmd_window_total: pricing.windowTotal.toFixed(2), // property name unchanged for CRM history; value = sumQuoteLines(lines).windowCoverings (pre-GST)
       bmd_window_comments: submission.window_comments || '',
       bmd_hardwood_upgrade: submission.hardwood_upgrade_selected ? 'Yes' : 'No',
       bmd_tile_upgrade: submission.bathroom_tile_selected ? 'Yes' : 'No',
@@ -337,15 +341,8 @@ Deno.serve(async (req) => {
       bmd_upgrade_comments: submission.upgrade_comments || '',
       bmd_upgrade_interests_notes: submission.upgrade_interests_notes || '',
       bmd_submission_status: submission.status,
-      // Upgrade pricing breakdown
-      bmd_window_coverings_cost: pricing.windowCoveringsCost.toFixed(2),
-      bmd_heated_floor_cost: pricing.heatedFloorCost.toFixed(2),
-      bmd_stair_lvp_cost: pricing.stairLvpCost.toFixed(2),
-      bmd_grout_color_cost: pricing.groutColorCost.toFixed(2),
-      bmd_upgrade_subtotal: pricing.subtotal.toFixed(2),
-      bmd_upgrade_gst: pricing.gst.toFixed(2),
-      bmd_upgrade_grand_total: pricing.grandTotal.toFixed(2),
-      bmd_upgrade_breakdown: pricing.breakdown,
+      // Upgrade pricing (window total, costs, subtotal/GST/total, breakdown) — omitted when unpriceable
+      ...(pricingProps ?? {}),
     };
 
     // Add possession date if provided

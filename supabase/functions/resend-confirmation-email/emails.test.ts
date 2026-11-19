@@ -48,4 +48,11 @@ if (denoTest) {
     ok(!buyer.includes('INTERNAL-ONLY') && !buyer.includes('SALES-ONLY') && !buyer.includes('ADMIN-ONLY'), 'leak');
     ok(buildAdminHtml(sub, q, 'Admin').includes('INTERNAL-ONLY'), 'staff copy lost the internal note');
   });
+  denoTest('grandTotal follows the buyer copy: null when it printed no prices', () => {
+    ok(linesGrandTotal({ lines: stored, gstRate: 0.05, pricesAvailable: false }) === null, 'expected null without prices');
+    const hidden: QuoteLine = { ...stored[0], id: 'l3', client_visible: false };
+    const err = console.error; console.error = () => {};
+    try { ok(linesGrandTotal({ lines: [...stored, hidden], gstRate: 0.05, pricesAvailable: true }) === null, 'expected null for a hidden counted line'); }
+    finally { console.error = err; }
+  });
 }

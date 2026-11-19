@@ -78,8 +78,6 @@ export interface SelectionData {
   documentUploads?: DocumentUpload[];
 }
 
-/** Validated, clamped request body (the edge function's `data`). Mirrors the code that lived inline in index.ts. */
-// deno-lint-ignore no-explicit-any
 /** Largest `pdfBase64` forwarded to HubSpot (characters of base64; ~6 MB of PDF). Larger bodies are dropped, not refused. */
 export const MAX_PDF_BASE64_CHARS = 8 * 1024 * 1024;
 
@@ -92,6 +90,8 @@ function parsePdfBase64(v: unknown): string | null {
   return v;
 }
 
+/** Validated, clamped request body (the edge function's `data`). Mirrors the code that lived inline in index.ts. */
+// deno-lint-ignore no-explicit-any
 export function parseSelectionBody(rawData: Record<string, any>): SelectionData {
   // Parse area upgrades — preserve partial entries so buyer comments are never dropped.
   // An entry is kept if ANY meaningful field is present (areaId, materialType, productName,

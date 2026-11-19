@@ -6,7 +6,7 @@
 import { type EmailLines, escapeHtml, linesCsvRows, renderLinesEmailHtml } from "../_shared/linesEmailHtml.ts";
 import { buyerSelectionsInsertRow, type AreaUpgrade, type SelectionData } from "../_shared/submissionRow.ts";
 import { savedSubmissionLinesCore } from "../_shared/savedSubmissionLines.ts";
-import type { QuoteLine, QuotePricing } from "../_shared/quoteLines.ts";
+import type { QuotePricing } from "../_shared/quoteLines.ts";
 
 export { escapeHtml, type EmailLines };
 

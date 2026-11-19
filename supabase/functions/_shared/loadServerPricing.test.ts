@@ -12,11 +12,11 @@ if (denoTest) {
     unit_area_data: [],
   };
   denoTest('markup 60 / GST 5 become 0.6 / 0.05', async () => {
-    const p = await loadServerPricing(async t => rows[t]);
+    const p = await loadServerPricing(t => Promise.resolve(rows[t]));
     eq([p.markupPercentage, p.gstRate, p.materials.carpet], [0.6, 0.05, 25]);
   });
   denoTest('missing tables fall back to 0.6 / 0.05 and empty maps', async () => {
-    const p = await loadServerPricing(async () => null);
+    const p = await loadServerPricing(() => Promise.resolve(null));
     eq(p, { materials: {}, config: {}, unitAreas: {}, markupPercentage: 0.6, gstRate: 0.05 });
   });
   denoTest('is_active: REST fetcher filters both priced tables and inactive rows never price', async () => {
@@ -26,7 +26,7 @@ if (denoTest) {
       upgrade_materials: [{ material_key: 'carpet', cost_per_unit: 25, is_active: true }, { material_key: 'hardwood', cost_per_unit: 77, is_active: false }],
       unit_area_data: [],
     };
-    const f = (async (u: string) => { urls.push(u); return new Response(JSON.stringify(all[u.split('/rest/v1/')[1].split('?')[0]])); }) as unknown as typeof fetch;
+    const f = ((u: string) => { urls.push(u); return Promise.resolve(new Response(JSON.stringify(all[u.split('/rest/v1/')[1].split('?')[0]]))); }) as unknown as typeof fetch;
     const p = await loadServerPricing(restPricingFetcher('https://x', 'k', f));
     eq(urls.filter((u) => u.includes('is_active=eq.true')).length, 2);
     eq([p.config.additional_window_price, p.materials.hardwood, p.config.patio_door_price, p.materials.carpet], [undefined, undefined, 2347.8, 25]);

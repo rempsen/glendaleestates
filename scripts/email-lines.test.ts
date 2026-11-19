@@ -15,7 +15,7 @@ import { writeWizardLines } from '../supabase/functions/_shared/wizardSubmission
 import {
   buildAdminEmailHtml, buildPreviewSampleData, generateBuyerConfirmationEmail, generateCSV, renderPreviewAdminHtml, renderPreviewBuyerHtml,
 } from '../supabase/functions/send-selections-email/emails.ts';
-import { buildAdminHtml, buildBuyerHtml } from '../supabase/functions/resend-confirmation-email/emails.ts';
+import { buildAdminHtml, buildBuyerHtml, linesGrandTotal } from '../supabase/functions/resend-confirmation-email/emails.ts';
 
 const pricing = enginePricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
 const rows = liveSubmissions as unknown as SubmissionRow[];
@@ -101,6 +101,15 @@ describe('rendering rules', () => {
     expect(r.html).toContain(QUOTE_TO_FOLLOW_TEXT);
     expect(r.html).not.toMatch(/\$\d/);
     expect(r.html).not.toContain('Secret counted');
+  });
+
+  test('resend grandTotal is the buyer copy\'s Total: null when the buyer copy printed no prices', () => {
+    const { client } = engineTotalsForRow(rows[0], pricing);
+    expect(linesGrandTotal(q(base))!.toFixed(2)).toBe(client.grandTotal.toFixed(2));
+    expect(linesGrandTotal(q(base, false))).toBeNull();
+    const err = spyOn(console, 'error').mockImplementation(() => {});
+    expect(linesGrandTotal(q([...base, line({ amount: 500, client_visible: false })]))).toBeNull();
+    err.mockRestore();
   });
 
   test('the office CSV lists every line once and ends with the five totals', () => {

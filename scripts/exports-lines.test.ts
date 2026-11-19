@@ -7,11 +7,13 @@ import pricingSnapshot from './fixtures/pricing-snapshot.json';
 import type { PricingSnapshot } from './lib/fixturePricing';
 import { buildGenerateInputFromRow, enginePricingFromRows, engineTotalsForRow, type SubmissionRow } from './lib/generateInputFromRow';
 import { generateQuoteLines, countsInTotal, type QuoteLine } from '../supabase/functions/_shared/quoteLines.ts';
+import { formatMoney } from '../supabase/functions/_shared/lineRenderRows.ts';
 import { buildSubmissionSectionRows, EXPORT_SECTIONS, type BuyerSelection } from '../src/lib/submissionExportBuilder';
 import { buildFlatExport } from '../src/lib/submissionFlatExport';
 import { buildPmCanonicalLines, legacyLineKey } from '../src/lib/submissionLineItems';
 import { derivePMData } from '../src/lib/projectManagementData';
-import { hubspotQuoteValues } from '../supabase/functions/sync-hubspot/quoteValues.ts';
+import { hubspotPricingProperties, hubspotQuoteValues, HUBSPOT_PRICING_PROPERTIES } from '../supabase/functions/sync-hubspot/quoteValues.ts';
+import { pricingUnavailableReason, serverPricingFromRows } from '../supabase/functions/_shared/loadServerPricing.ts';
 
 const pricing = enginePricingFromRows(pricingSnapshot as unknown as PricingSnapshot);
 const rows = liveSubmissions as unknown as SubmissionRow[];
@@ -148,4 +150,33 @@ describe('HubSpot', () => {
       expect(v.grandTotal.toFixed(2)).toBe(client.grandTotal.toFixed(2));
     });
   }
+});
+
+describe('HubSpot: pricing unavailable never overwrites CRM values', () => {
+  const empty = serverPricingFromRows({ pricing_config: [], upgrade_materials: [], unit_area_data: [] });
+  const reason = pricingUnavailableReason(empty);
+  test('generated lines + pricing unavailable: pricing properties omitted (no $0.00 pushed)', () => {
+    expect(reason).not.toBeNull();
+    const generated = generateQuoteLines(buildGenerateInputFromRow(rows[0], empty));
+    expect(hubspotPricingProperties(generated, 0.05, { linesSource: 'generated', pricingUnavailable: reason })).toBeNull();
+  });
+  test('stored lines are sent even when the pricing tables failed (they carry their own prices)', () => {
+    const { client } = engineTotalsForRow(rows[0], pricing);
+    const p = hubspotPricingProperties(linesFor(rows[0]), GST, { linesSource: 'db', pricingUnavailable: reason })!;
+    expect(Object.keys(p).sort()).toEqual([...HUBSPOT_PRICING_PROPERTIES].sort());
+    // Same rounding as the PDF/emails (formatMoney), not toFixed (which rounds binary halves down).
+    const doc = (n: number) => formatMoney(n).replace(/[$,]/g, '');
+    expect(p.bmd_upgrade_grand_total).toBe(doc(client.grandTotal));
+    expect(p.bmd_window_total).toBe(doc(client.windowSubtotal));
+  });
+  test('CRM money text rounds like the documents (707.175 → 707.18, not toFixed\'s 707.17)', () => {
+    const one: QuoteLine = { id: 'w', sort_order: 1, section: 'window_coverings', location: 'Living', label: 'Window', unit: 'each',
+      quantity: 1, unit_price: 673.5, amount: 673.5, pricing_mode: 'flat_rate', status: 'upgrade', client_visible: true, source: 'wizard', provisional: false };
+    const p = hubspotPricingProperties([one], 0.05, { linesSource: 'db', pricingUnavailable: null })!;
+    expect(p.bmd_upgrade_grand_total).toBe('707.18');
+    expect(p.bmd_upgrade_breakdown).toContain('$707.18');
+  });
+  test('generated lines with pricing loaded are sent', () => {
+    expect(hubspotPricingProperties(linesFor(rows[0]), GST, { linesSource: 'generated', pricingUnavailable: null })).not.toBeNull();
+  });
 });

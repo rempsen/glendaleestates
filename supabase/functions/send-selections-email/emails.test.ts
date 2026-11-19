@@ -50,7 +50,7 @@ if (denoTest) {
     const empty = serverPricingFromRows({ pricing_config: [], upgrade_materials: [], unit_area_data: [] });
     const quiet = { info: () => {}, warn: () => {}, error: () => {} };
     const r = await writeWizardLines({ savedRow: { ...buyerSelectionsInsertRow(data), id: 'p' }, rawWindows: null, rawSubtotal: 1,
-      pricing: empty, insertRows: async () => ({ error: null }), log: quiet });
+      pricing: empty, insertRows: () => Promise.resolve({ error: null }), log: quiet });
     ok(r.status === 'skipped' && !r.pricesAvailable && r.lines.length > 0, `status ${r.status}`);
     const eq = { lines: r.lines, gstRate: 0.05, pricesAvailable: r.pricesAvailable };
     for (const out of [generateBuyerConfirmationEmail(data, 'p', eq), buildAdminEmailHtml(data, 'p', eq), generateCSV(data, 'p', eq)]) {

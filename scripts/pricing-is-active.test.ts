@@ -30,13 +30,16 @@ const restDouble = (urls: string[]) => (async (u: string) => {
   return new Response(JSON.stringify(data));
 }) as unknown as typeof fetch;
 
-// A supabase-js double whose .eq() filters.
+// A supabase-js double whose .eq() filters server-side and, like the real narrow select, returns rows WITHOUT the
+// is_active column — so only the fetcher's own .eq('is_active', true) can keep the inactive rows out.
+const eqCalls: string[] = [];
 const clientDouble = {
   from: (t: string) => ({
     select: () => {
       const all = (rows as Record<string, Array<Record<string, unknown>>>)[t];
-      const q = Promise.resolve({ data: all }) as Promise<{ data: unknown[] }> & { eq: (k: string, v: unknown) => Promise<{ data: unknown[] }> };
-      q.eq = (k, v) => Promise.resolve({ data: all.filter((r) => r[k] === v) });
+      const strip = (rs: Array<Record<string, unknown>>) => rs.map(({ is_active: _drop, ...r }) => r);
+      const q = Promise.resolve({ data: strip(all) }) as Promise<{ data: unknown[] }> & { eq: (k: string, v: unknown) => Promise<{ data: unknown[] }> };
+      q.eq = (k, v) => { eqCalls.push(`${t}:${k}=${v}`); return Promise.resolve({ data: strip(all.filter((r) => r[k] === v)) }); };
       return q;
     },
   }),
@@ -60,8 +63,10 @@ test('REST fetcher filters pricing_config and upgrade_materials to is_active = t
   expectInactiveSkipped(p);
 });
 
-test('supabase-js fetcher skips the inactive rows', async () => {
+test('supabase-js fetcher filters is_active = true on both priced tables', async () => {
+  eqCalls.length = 0;
   expectInactiveSkipped(await loadServerPricing(clientPricingFetcher(clientDouble)));
+  expect(eqCalls.sort()).toEqual(['pricing_config:is_active=true', 'upgrade_materials:is_active=true']);
 });
 
 test('serverPricingFromRows / quotePricingFromRows skip is_active = false rows even when a caller fetched them', () => {
