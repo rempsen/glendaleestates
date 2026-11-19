@@ -1379,6 +1379,21 @@ export type Database = {
           unit_number: string
         }[]
       }
+      get_my_quote_header: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string
+          estimated_possession_date: string | null
+          first_name: string
+          last_name: string
+          phone_number: string | null
+          status: string | null
+          submission_id: string
+          unit_number: string
+          unit_type: string | null
+        }[]
+      }
       get_my_quote_lines: {
         Args: never
         Returns: {
@@ -1410,6 +1425,7 @@ export type Database = {
         Args: { _user_id: string }
         Returns: boolean
       }
+      request_quote_change: { Args: { _text: string }; Returns: string }
       staff_directory: {
         Args: never
         Returns: {

@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { Mail, Lock, ArrowRight, UserPlus, LogIn, ArrowLeft, KeyRound } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { z } from 'zod';
+import { safeBuyerNext } from '@/lib/buyerNext';
 
 const authSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -21,6 +22,7 @@ type AuthMode = 'signin' | 'signup' | 'forgot' | 'reset';
 export default function BuyerAuth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const nextPath = safeBuyerNext(searchParams.get('next'));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -45,18 +47,18 @@ export default function BuyerAuth() {
         return;
       }
       if (session && mode !== 'reset') {
-        navigate('/select');
+        navigate(nextPath);
       }
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session && mode !== 'reset') {
-        navigate('/select');
+        navigate(nextPath);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, mode]);
+  }, [navigate, mode, nextPath]);
 
   const validateForm = () => {
     if (mode === 'forgot') {

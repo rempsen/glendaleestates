@@ -25,7 +25,9 @@ import AdminProjectManagement from "./pages/AdminProjectManagement";
 import AdminQuickBooksSettings from "./pages/AdminQuickBooksSettings";
 import AdminNotificationSettings from "./pages/AdminNotificationSettings";
 import NotFound from "./pages/NotFound";
+import MyQuote from "./pages/MyQuote";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { BuyerRoute } from "./components/BuyerRoute";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +47,7 @@ const App = () => (
           <Route path="/buyer-auth" element={<BuyerAuth />} />
           <Route path="/select" element={<SelectionWizard />} />
           <Route path="/draft-saved" element={<DraftSaved />} />
+          <Route path="/my-quote" element={<BuyerRoute><MyQuote /></BuyerRoute>} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
           <Route path="/admin/pipeline" element={<ProtectedRoute><AdminPipeline /></ProtectedRoute>} />

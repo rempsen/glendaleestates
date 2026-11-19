@@ -5,6 +5,9 @@ import { buildLineRows, LINE_COLUMNS, INTERNAL_NOTES_HEADING } from '@/lib/lineR
 import { buildWordDetailRows, buildWordLineTables, buildWordOpenQuestions } from '@/lib/submissionWordRows';
 import { loadSavedSubmissionContext } from '@/lib/savedSubmissionPdf';
 import { GENERATED_LINES_NOTE } from '@/lib/generateInputFromSelections';
+import { buildHomeDetailRows } from '@/lib/buyerPdfGenerator';
+import { buyerPdfSelectionsFromHeader, type MyQuoteHeader } from '@/lib/myQuoteModel';
+import type { QuoteLine } from '@/lib/quoteLines';
 
 // A cell may hold a client note on a second line ("item\nnote"): one paragraph per line.
 const cell = (t: string, bold = false, right = false) => new TableCell({
@@ -24,6 +27,43 @@ const lineTable = (rows: string[][]) => table([...LINE_COLUMNS], rows, [3, 4, 5]
 const h = (t: string) => new Paragraph({ text: t, heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 120 } });
 const p = (t: string, italics = false) => new Paragraph({ children: [new TextRun({ text: t, italics })] });
 
+interface WordQuoteInput {
+  title: string;
+  subtitle: string;
+  detailRows: string[][];
+  tables: ReturnType<typeof buildWordLineTables>;
+  notes: string[][];
+  /** Staff only; printed after all buyer-safe content (AGENTS.md rule 1). */
+  internal: string[];
+  sourceNote?: string;
+  fileName: string;
+}
+
+async function saveWordQuote(i: WordQuoteInput): Promise<void> {
+  const t = i.tables;
+  const doc = new Document({ sections: [{ children: [
+    new Paragraph({ text: i.title, heading: HeadingLevel.HEADING_1 }),
+    p(i.subtitle),
+    p(`Generated ${new Date().toLocaleDateString('en-CA')}. Prices exclude GST unless noted; PST included.`, true),
+    h('Home details'), table(null, i.detailRows),
+    ...(t.standard.length ? [h('Standard selections'), lineTable(t.standard)] : []),
+    ...(t.upgrades.length ? [h('Premium upgrades'), lineTable(t.upgrades)] : []),
+    p(''),
+    table(['', 'Amount'], t.totals, [1]),
+    ...(t.notInTotal.length ? [h('Not included in total'), lineTable(t.notInTotal),
+      p('Pending, under review and deferred items are not priced or approved and are not part of the total.', true)] : []),
+    ...(i.notes.length ? [h('Notes'), ...i.notes.map(([k, v]) => p(`${k}: ${v}`))] : []),
+    ...(i.internal.length ? [h(INTERNAL_NOTES_HEADING), ...i.internal.map(x => p(`• ${x}`))] : []),
+    ...(i.sourceNote ? [p(''), p(i.sourceNote, true)] : []),
+  ] }] });
+
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = i.fileName; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
 /**
  * Editable Word copy of the saved selections and itemized quote, from the same fresh record and the same lines as
  * the PDF (loadSavedSubmissionContext + buildLineRows). Buyer-safe content first; `staff` appends the internal block.
@@ -31,7 +71,6 @@ const p = (t: string, italics = false) => new Paragraph({ children: [new TextRun
 export async function downloadSubmissionWord(id: string, staff = false): Promise<void> {
   const { s, lines, linesSource, gstRate } = await loadSavedSubmissionContext(id);
   const model = buildLineRows(lines, { buyerView: !staff, gstRate });
-  const t = buildWordLineTables(model, buildWordOpenQuestions(s));
   const cp = parseCustomPricing((s as any).custom_pricing);
 
   const notes = [
@@ -49,25 +88,31 @@ export async function downloadSubmissionWord(id: string, staff = false): Promise
     (cp.followUps || []).filter(f => !f.done && !f.clientVisible && f.text?.trim()).forEach(f => internal.push(`Open question (internal): ${f.text.trim()}`));
   }
 
-  const doc = new Document({ sections: [{ children: [
-    new Paragraph({ text: `Glendale Estates — Unit ${s.unit_number} Selections & Quote`, heading: HeadingLevel.HEADING_1 }),
-    p(`${s.first_name} ${s.last_name} · ${s.unit_type || ''} · Status: ${s.status || 'submitted'}`),
-    p(`Generated ${new Date().toLocaleDateString('en-CA')}. Prices exclude GST unless noted; PST included.`, true),
-    h('Home details'), table(null, buildWordDetailRows(s)),
-    ...(t.standard.length ? [h('Standard selections'), lineTable(t.standard)] : []),
-    ...(t.upgrades.length ? [h('Premium upgrades'), lineTable(t.upgrades)] : []),
-    p(''),
-    table(['', 'Amount'], t.totals, [1]),
-    ...(t.notInTotal.length ? [h('Not included in total'), lineTable(t.notInTotal),
-      p('Pending, under review and deferred items are not priced or approved and are not part of the total.', true)] : []),
-    ...(notes.length ? [h('Notes'), ...notes.map(([k, v]) => p(`${k}: ${v}`))] : []),
-    ...(internal.length ? [h(INTERNAL_NOTES_HEADING), ...internal.map(x => p(`• ${x}`))] : []),
-    ...(staff && linesSource === 'generated' ? [p(''), p(GENERATED_LINES_NOTE, true)] : []),
-  ] }] });
+  await saveWordQuote({
+    title: `Glendale Estates — Unit ${s.unit_number} Selections & Quote`,
+    subtitle: `${s.first_name} ${s.last_name} · ${s.unit_type || ''} · Status: ${s.status || 'submitted'}`,
+    detailRows: buildWordDetailRows(s),
+    tables: buildWordLineTables(model, buildWordOpenQuestions(s)),
+    notes,
+    internal,
+    sourceNote: staff && linesSource === 'generated' ? GENERATED_LINES_NOTE : undefined,
+    fileName: `Unit-${s.unit_number}-selections.docx`,
+  });
+}
 
-  const blob = await Packer.toBlob(doc);
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `Unit-${s.unit_number}-selections.docx`; a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+/**
+ * Buyer copy for /my-quote: from the buyer-safe RPC lines and header only (never `staff`, never an internal note).
+ * Same buildLineRows model and tables as the staff path, so the totals match the PDF and the rail.
+ */
+export async function downloadBuyerQuoteWord(header: MyQuoteHeader, lines: QuoteLine[], gstRate: number): Promise<void> {
+  const model = buildLineRows(lines, { buyerView: true, gstRate });
+  await saveWordQuote({
+    title: `Glendale Estates — Unit ${header.unit_number} Quote`,
+    subtitle: `${header.first_name} ${header.last_name} · ${header.unit_type || ''} · Status: ${header.status || 'submitted'}`,
+    detailRows: buildHomeDetailRows(buyerPdfSelectionsFromHeader(header)),
+    tables: buildWordLineTables(model),
+    notes: [],
+    internal: [],
+    fileName: `Unit-${header.unit_number}-quote.docx`,
+  });
 }

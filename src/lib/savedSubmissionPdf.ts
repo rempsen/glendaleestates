@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { generateBuyerPreviewPDF } from '@/lib/buyerPdfGenerator';
 import { toBuyerPdfSelections } from '@/lib/buyerPdfSelections';
 import { normalizeUnitTypeCode } from '@/lib/upgradeCostData';
+import { buyerPdfSelectionsFromHeader, type MyQuoteHeader } from '@/lib/myQuoteModel';
+import type { QuoteLine } from '@/lib/quoteLines';
 import {
   GENERATED_LINES_NOTE, quotePricingFromRows, savedSubmissionLines, type StoredQuoteLineRow,
 } from '@/lib/generateInputFromSelections';
@@ -51,4 +53,14 @@ export async function generateSavedSubmissionPdf(id: string, saveToFile = false,
   });
   if (typeof result !== 'string') throw new Error('PDF generation returned no file');
   return result;
+}
+
+/**
+ * Buyer copy for /my-quote. Buyers cannot read buyer_selections or quote_lines, so this renders from the buyer-safe
+ * RPC rows (get_my_quote_header / get_my_quote_lines) the page already holds: never `staff`, no staff record.
+ */
+export async function generateBuyerQuotePdf(header: MyQuoteHeader, lines: QuoteLine[], gstRate: number): Promise<void> {
+  await generateBuyerPreviewPDF(buyerPdfSelectionsFromHeader(header), { lines, gstRate }, {
+    saveToFile: true, footerLabel: `Live quote — ${header.status || 'submitted'}`,
+  });
 }

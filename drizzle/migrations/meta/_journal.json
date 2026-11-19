@@ -85,6 +85,13 @@
       "when": 1795700000000,
       "tag": "0011_portal_settings_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795800000000,
+      "tag": "0012_buyer_change_request",
+      "breakpoints": true
     }
   ]
 }
