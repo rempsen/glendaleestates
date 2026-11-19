@@ -28,7 +28,6 @@ import { isSaveKey, lineAnchor, sectionAnchor } from '@/components/quote/console
 import { AddLineMenu } from '@/components/quote/AddLineMenu';
 import { NotesPanels } from '@/components/quote/NotesPanels';
 import { DocumentsPanel } from '@/components/quote/DocumentsPanel';
-import type { Tables } from '@/integrations/supabase/types';
 import { RunningTotal } from '@/components/quote/RunningTotal';
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
 import { Button } from '@/components/ui/button';
@@ -278,7 +277,7 @@ export default function QuoteConsole() {
             <NotesPanels lines={q.lines} followUps={followUps} />
 
             <DocumentsPanel
-              submission={row as unknown as Tables<'buyer_selections'> | null}
+              submission={row ? { id: row.id, unit_number: row.unit_number, email: row.email ?? null } : null}
               lines={q.lines}
               gstRate={dyn.loaded && !dyn.error ? dyn.gstRate : null}
               flushSaved={flushSaved}

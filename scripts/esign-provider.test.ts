@@ -20,12 +20,16 @@ function signWellStub() {
   const calls: Call[] = [];
   const fetch: FetchLike = async (url, init) => {
     calls.push({ url, init });
-    if (url.endsWith('/documents/') && init?.method === 'POST') {
+    if (url === 'https://www.signwell.com/api/v1/documents' && init?.method === 'POST') {
       return new Response(JSON.stringify({ id: 'sw-1', recipients: [{ id: '1', email: 'jane@example.com', embedded_signing_url: 'https://www.signwell.com/docs/embed/abc' }] }), { status: 201 });
     }
-    if (url.endsWith('/documents/sw-1/')) return new Response(JSON.stringify({ id: 'sw-1', status: 'Declined' }), { status: 200 });
-    if (url.includes('/documents/sw-1/completed_pdf/')) return new Response(JSON.stringify({ file_url: 'https://files.signwell.test/sw-1.pdf' }), { status: 200, headers: { 'content-type': 'application/json' } });
-    if (url === 'https://files.signwell.test/sw-1.pdf') return new Response(PDF, { status: 200, headers: { 'content-type': 'application/pdf' } });
+    if (url === 'https://www.signwell.com/api/v1/documents/sw-1') return new Response(JSON.stringify({ id: 'sw-1', status: 'Declined' }), { status: 200 });
+    if (url === 'https://www.signwell.com/api/v1/documents/sw-1/completed_pdf?url_only=false&audit_page=true') {
+      return new Response(PDF, { status: 200, headers: { 'content-type': 'application/pdf' } });
+    }
+    if (url === 'https://www.signwell.com/api/v1/documents/sw-2/completed_pdf?url_only=false&audit_page=true') {
+      return new Response(JSON.stringify({ error: 'not a pdf' }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
     return new Response('not found', { status: 404 });
   };
   return { calls, fetch };
@@ -113,7 +117,7 @@ describe('SignWell specifics', () => {
     const p = createSignWellProvider({ apiKey: 'live-key', webhookSecret: SECRET, testMode: true, fetch: stub.fetch });
     await p.createDocument(input);
     const c = stub.calls[0];
-    expect(c.url).toBe('https://www.signwell.com/api/v1/documents/');
+    expect(c.url).toBe('https://www.signwell.com/api/v1/documents');
     expect(c.init?.headers?.['X-Api-Key']).toBe('live-key');
     const body = JSON.parse(c.init?.body ?? '{}');
     expect(body).toMatchObject({
@@ -158,11 +162,19 @@ describe('SignWell specifics', () => {
     expect(p.parseWebhook(await signWellEvent('document_viewed')).event).toBe('other');
     expect(p.parseWebhook(await signWellEvent('document_signed')).event).toBe('other'); // one signer signed; not completed
   });
+  test('downloadSignedPdf: one GET completed_pdf?url_only=false&audit_page=true, raw bytes, %PDF- magic enforced', async () => {
+    const stub = signWellStub();
+    const p = createSignWellProvider({ apiKey: 'k', webhookSecret: SECRET, testMode: true, fetch: stub.fetch });
+    expect(await p.downloadSignedPdf('sw-1')).toEqual(PDF);
+    expect(stub.calls).toHaveLength(1);
+    expect(stub.calls[0].init?.headers?.['X-Api-Key']).toBe('k');
+    await expect(p.downloadSignedPdf('sw-2')).rejects.toThrow('not a PDF');
+  });
   test('confirmStatus reads GET /documents/{id}/ status', async () => {
     const stub = signWellStub();
     const p = createSignWellProvider({ apiKey: 'k', webhookSecret: SECRET, testMode: true, fetch: stub.fetch });
     expect(await p.confirmStatus?.('sw-1')).toBe('declined');
-    expect(stub.calls[0].url).toBe('https://www.signwell.com/api/v1/documents/sw-1/');
+    expect(stub.calls[0].url).toBe('https://www.signwell.com/api/v1/documents/sw-1');
     expect(stub.calls[0].init?.headers?.['X-Api-Key']).toBe('k');
   });
   test('SIGNWELL_TEST_MODE defaults to true; only "false" turns it off', () => {

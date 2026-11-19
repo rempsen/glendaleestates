@@ -1,7 +1,8 @@
 // esign-webhook (Phase 2 Task 14, spec §6.8): public SignWell webhook (verify_jwt = false). Logic: ./handler.ts (tested).
 // The signature is verified on the raw body before anything is parsed or read from the database.
-// SignWell dashboard: Settings → API → Webhooks → URL https://<project>.supabase.co/functions/v1/esign-webhook ;
-// the webhook's id/secret goes in SIGNWELL_WEBHOOK_SECRET (edge secret).
+// Register the webhook URL https://<project-ref>.supabase.co/functions/v1/esign-webhook with SignWell
+// (POST /api/v1/hooks or the dashboard). SIGNWELL_WEBHOOK_SECRET is the Webhook ID that POST /api/v1/hooks returns
+// (also shown in the dashboard's webhook list); SignWell keys each event hash with it.
 // ENV: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SIGNWELL_API_KEY, SIGNWELL_WEBHOOK_SECRET.
 // SETTINGS: portal_settings.esign_status_after_signed (default "completed"; JSON null = leave the status alone).
 import { ESIGN_SETTINGS_KEYS } from '../_shared/esign/documents.ts';

@@ -52,8 +52,18 @@ async function invokeErrorMessage(error: unknown): Promise<string> {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Identity only: the PDF header is re-read from buyer_selections at send time (fresh record, AGENTS rule 1). */
+export interface DocumentsPanelSubmission { id: string; unit_number: string; email: string | null }
+
+/** Fresh buyer_selections row for the snapshot PDF header (never the console's render-state copy). */
+async function loadSubmissionRow(id: string): Promise<Tables<'buyer_selections'>> {
+  const { data, error } = await supabase.from('buyer_selections').select('*').eq('id', id).single();
+  if (error || !data) throw error ?? new Error('Submission not found');
+  return data;
+}
+
 export interface DocumentsPanelProps {
-  submission: Tables<'buyer_selections'> | null;
+  submission: DocumentsPanelSubmission | null;
   lines: QuoteLine[];
   gstRate: number | null | undefined;
   /** The console's guard: commit the focused cell, flush autosave, refuse when anything is unsaved. */
@@ -142,8 +152,9 @@ export function DocumentsPanel({ submission, lines, gstRate, flushSaved, current
     setBusy('send');
     try {
       const userId = await currentUserId();
+      const fresh = await loadSubmissionRow(submission.id);
       const r = await sendForSignature(
-        { submissionId: submission.id, unitNumber: submission.unit_number, buyerEmail: submission.email ?? null, purpose },
+        { submissionId: fresh.id, unitNumber: fresh.unit_number, buyerEmail: fresh.email ?? null, purpose },
         {
           flushSaved,
           current,
@@ -158,7 +169,7 @@ export function DocumentsPanel({ submission, lines, gstRate, flushSaved, current
             if (error) throw error;
             return data;
           },
-          renderBuyerPdf: (l, rate, version) => generateSnapshotBuyerPdf(submission, l, rate, version),
+          renderBuyerPdf: (l, rate, version) => generateSnapshotBuyerPdf(fresh, l, rate, version),
           newId: () => crypto.randomUUID(),
           async insertDocument(row) {
             const { error } = await supabase.from('documents').insert({ ...row, uploaded_by: userId });
@@ -234,7 +245,7 @@ export function DocumentsPanel({ submission, lines, gstRate, flushSaved, current
                     <td className="pr-3">{fmt(d.signed_at)}</td>
                     <td className="whitespace-nowrap text-right">
                       {d.status === 'draft' && d.snapshot_id && d.storage_path && (
-                        <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => void resend(d)}>Send</Button>
+                        <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => void resend(d)}>{busy === d.id ? 'Sending…' : 'Send'}</Button>
                       )}
                       <Button size="sm" variant="ghost" disabled={!d.storage_path} onClick={() => void download(d)}>Download</Button>
                     </td>

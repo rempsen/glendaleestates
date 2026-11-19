@@ -12,6 +12,8 @@ if (denoTest) {
     providerName: () => Promise.resolve('fake'),
     provider: () => new FakeEsignProvider(),
     signedUrl: (p) => Promise.resolve(`https://s.test/${p}`),
+    claim: () => Promise.resolve(true),
+    release: () => Promise.resolve(),
     markSent: () => Promise.resolve(true),
     audit: () => Promise.resolve(),
   });

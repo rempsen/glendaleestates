@@ -1,13 +1,15 @@
 // SignWell implementation of EsignProvider (spec ADR-1). REST: https://www.signwell.com/api/v1, header X-Api-Key.
 // Secrets come from env only (SIGNWELL_API_KEY, SIGNWELL_WEBHOOK_SECRET); never portal_settings.
 //
-// VERIFY AT DEPLOY (written from SignWell's documented shapes; the docs site was not reachable from the build agent):
-//  - Create: POST /documents/ with files[{name, file_url|file_base64}], recipients[{id,name,email}], embedded_signing,
+// Controller-verified: webhook hash and completed_pdf (url_only=false → raw PDF); documented paths have no trailing
+// slashes. Still VERIFY AT DEPLOY: create-document field names and the GET /documents/{id} status strings.
+//  - Create: POST /documents with files[{name, file_url|file_base64}], recipients[{id,name,email}], embedded_signing,
 //    with_signature_page (no placed fields), test_mode, metadata. Response: id, recipients[].embedded_signing_url.
-//  - Webhook "Event Hash Verification": event.hash = hex HMAC-SHA256(key = webhook secret/id, message =
+//  - Webhook "Event Hash Verification": event.hash = hex HMAC-SHA256(key = the Webhook ID returned by
+//    POST /api/v1/hooks (SIGNWELL_WEBHOOK_SECRET), message =
 //    `${event.type}@${event.time}`). The hash does not cover the body, so the webhook handler never trusts a body's
-//    status alone: a 'signed' event is acted on only after GET /documents/{id}/completed_pdf/ returns the file.
-//  - GET /documents/{id}/ → status "Completed" | "Declined" | "Canceled" | "Expired" | … (confirmStatus).
+//    status alone: a 'signed' event is acted on only after GET /documents/{id}/completed_pdf returns the file.
+//  - GET /documents/{id} → status "Completed" | "Declined" | "Canceled" | "Expired" | … (confirmStatus).
 //  - Events: document_completed → signed; document_declined → declined; document_canceled / document_expired → voided.
 import {
   EsignProviderError,
@@ -100,7 +102,7 @@ export function createSignWellProvider(cfg: SignWellConfig): EsignProvider {
         draft: false,
         metadata: input.metadata,
       };
-      const r = await doFetch(`${base}/documents/`, { method: 'POST', headers: headers(), body: JSON.stringify(body) });
+      const r = await doFetch(`${base}/documents`, { method: 'POST', headers: headers(), body: JSON.stringify(body) });
       const text = await r.text();
       if (!r.ok) throw new EsignProviderError(`SignWell create document: HTTP ${r.status} ${text.slice(0, 300)}`, r.status);
       let j: { id?: unknown; recipients?: Array<{ email?: unknown; embedded_signing_url?: unknown }> };
@@ -130,7 +132,7 @@ export function createSignWellProvider(cfg: SignWellConfig): EsignProvider {
     },
 
     async confirmStatus(providerDocumentId: string): Promise<EsignEventKind | 'open'> {
-      const r = await doFetch(`${base}/documents/${encodeURIComponent(providerDocumentId)}/`, { headers: headers() });
+      const r = await doFetch(`${base}/documents/${encodeURIComponent(providerDocumentId)}`, { headers: headers() });
       if (!r.ok) throw new EsignProviderError(`SignWell get document: HTTP ${r.status}`, r.status);
       const j = await r.json().catch(() => ({})) as { status?: unknown };
       const st = typeof j.status === 'string' ? j.status.trim().toLowerCase() : '';
@@ -141,17 +143,11 @@ export function createSignWellProvider(cfg: SignWellConfig): EsignProvider {
     },
 
     async downloadSignedPdf(providerDocumentId: string): Promise<Uint8Array> {
-      const h = headers();
-      const r = await doFetch(`${base}/documents/${encodeURIComponent(providerDocumentId)}/completed_pdf/?url_only=true&audit_page=true`, { headers: h });
+      // Documented: url_only=false returns the PDF itself (audit_page appends the audit trail page).
+      const r = await doFetch(`${base}/documents/${encodeURIComponent(providerDocumentId)}/completed_pdf?url_only=false&audit_page=true`, { headers: { ...headers(), Accept: 'application/pdf' } });
       if (!r.ok) throw new EsignProviderError(`SignWell completed_pdf: HTTP ${r.status}`, r.status);
-      const type = r.headers.get('content-type') ?? '';
-      if (type.includes('application/pdf')) return new Uint8Array(await r.arrayBuffer());
-      const j = await r.json().catch(() => ({})) as { file_url?: unknown };
-      if (typeof j.file_url !== 'string' || !/^https:\/\//.test(j.file_url)) throw new EsignProviderError('SignWell completed_pdf: no file_url');
-      const f = await doFetch(j.file_url);
-      if (!f.ok) throw new EsignProviderError(`SignWell completed file: HTTP ${f.status}`, f.status);
-      const bytes = new Uint8Array(await f.arrayBuffer());
-      if (bytes.length < 5 || String.fromCharCode(...bytes.subarray(0, 5)) !== '%PDF-') throw new EsignProviderError('SignWell completed file is not a PDF');
+      const bytes = new Uint8Array(await r.arrayBuffer());
+      if (bytes.length < 5 || String.fromCharCode(...bytes.subarray(0, 5)) !== '%PDF-') throw new EsignProviderError('SignWell completed_pdf is not a PDF');
       return bytes;
     },
   };

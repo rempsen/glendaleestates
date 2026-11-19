@@ -2,7 +2,7 @@
 // The console has already: inserted the quote_snapshot, rendered the buyer PDF from the snapshot lines, created the
 // documents row (status 'draft') and uploaded the PDF to unit-documents/{unit}/{document_id}.pdf.
 import type { InternalAuthResult } from '../_shared/internalAuth.ts';
-import type { EsignProvider } from '../_shared/esign/provider.ts';
+import type { CreatedDocument, EsignProvider } from '../_shared/esign/provider.ts';
 import { documentTitle, isUuid, unitDocumentPath } from '../_shared/esign/documents.ts';
 
 export interface SendDocumentContext {
@@ -24,8 +24,16 @@ export interface SendDeps {
   provider(name: string): EsignProvider | null;
   /** Short-lived signed URL for a path in the unit-documents bucket. */
   signedUrl(path: string, expiresInSeconds: number): Promise<string>;
-  /** Marks the row sent; false when the row was no longer 'draft' (a concurrent send). */
-  markSent(id: string, patch: { provider: string; provider_envelope_id: string; status: 'sent'; signer_email: string }): Promise<boolean>;
+  /**
+   * Claims the draft before the provider is called: conditional update `status = 'draft' AND provider IS NULL` →
+   * provider = name. false when 0 rows matched (another send holds or finished it), so two concurrent sends cannot
+   * create two provider documents.
+   */
+  claim(id: string, provider: string): Promise<boolean>;
+  /** Releases a claim after a failed provider call (provider back to NULL while still draft with no envelope). */
+  release(id: string): Promise<void>;
+  /** Marks the claimed row sent. */
+  markSent(id: string, patch: { provider_envelope_id: string; status: 'sent'; signer_email: string }): Promise<boolean>;
   audit(row: { submission_id: string; changed_by_user_id: string | null; changed_by_email: string | null; action_type: string; change_summary: string; changes: Record<string, unknown> }): Promise<void>;
 }
 
@@ -52,20 +60,26 @@ export async function handleSendForSignature(body: unknown, auth: InternalAuthRe
   const provider = deps.provider(providerName);
   if (!provider) return { status: 501, body: { error: `E-sign provider "${providerName}" is not available` } };
 
-  const pdfUrl = await deps.signedUrl(expectedPath, SIGNED_URL_SECONDS);
-  const title = documentTitle(doc.unitNumber, doc.kind);
-  const created = await provider.createDocument({
-    pdfUrl,
-    fileName: `Unit-${doc.unitNumber ?? 'unit'}-${doc.kind}.pdf`,
-    title,
-    signer: { name: doc.buyerName || email, email },
-    metadata: { document_id: doc.id, submission_id: doc.submissionId },
-  });
+  if (!(await deps.claim(doc.id, provider.name))) return { status: 409, body: { error: 'This document is already being sent' } };
 
-  const updated = await deps.markSent(doc.id, {
-    provider: provider.name, provider_envelope_id: created.providerDocumentId, status: 'sent', signer_email: email,
-  });
-  if (!updated) return { status: 409, body: { error: 'Document was sent by someone else meanwhile' } };
+  const title = documentTitle(doc.unitNumber, doc.kind);
+  let created: CreatedDocument;
+  try {
+    const pdfUrl = await deps.signedUrl(expectedPath, SIGNED_URL_SECONDS);
+    created = await provider.createDocument({
+      pdfUrl,
+      fileName: `Unit-${doc.unitNumber ?? 'unit'}-${doc.kind}.pdf`,
+      title,
+      signer: { name: doc.buyerName || email, email },
+      metadata: { document_id: doc.id, submission_id: doc.submissionId },
+    });
+  } catch (e) {
+    await deps.release(doc.id).catch(() => undefined);
+    throw e;
+  }
+
+  const updated = await deps.markSent(doc.id, { provider_envelope_id: created.providerDocumentId, status: 'sent', signer_email: email });
+  if (!updated) return { status: 409, body: { error: 'Document changed while it was being sent' } };
 
   await deps.audit({
     submission_id: doc.submissionId,

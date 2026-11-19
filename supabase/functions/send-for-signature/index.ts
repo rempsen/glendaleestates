@@ -51,14 +51,20 @@ Deno.serve(async (req) => {
       },
       provider: (name) => providerFromEnv(name, (k) => Deno.env.get(k)),
       signedUrl: (path, seconds) => rest.signedUrl(path, seconds),
+      async claim(id, provider) {
+        return (await rest.patch(`documents?id=eq.${encodeURIComponent(id)}&status=eq.draft&provider=is.null`, { provider })) > 0;
+      },
+      async release(id) {
+        await rest.patch(`documents?id=eq.${encodeURIComponent(id)}&status=eq.draft&provider_envelope_id=is.null`, { provider: null });
+      },
       async markSent(id, patch) {
-        return (await rest.patch(`documents?id=eq.${encodeURIComponent(id)}&status=eq.draft`, patch)) > 0;
+        return (await rest.patch(`documents?id=eq.${encodeURIComponent(id)}&status=eq.draft&provider_envelope_id=is.null`, patch)) > 0;
       },
       audit: (row) => rest.post('submission_audit_logs', row),
     });
     return json(r.status, r.body);
   } catch (e) {
-    console.error('send-for-signature failed', e);
-    return json(502, { error: e instanceof Error ? e.message : String(e) });
+    console.error('send-for-signature failed:', e instanceof Error ? e.message : String(e));
+    return json(502, { error: 'Could not send for signature — try again or contact the office' });
   }
 });

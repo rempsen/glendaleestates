@@ -17,17 +17,21 @@ function harness(over: Partial<SendDocumentContext> | null = {}) {
     unitNumber: '24', buyerName: 'Jane Buyer', buyerEmail: 'jane@example.com', ...over,
   };
   const sent: unknown[] = [];
+  const order: string[] = [];
+  let claimedBy: string | null = null;
   const audits: Array<Record<string, unknown>> = [];
   const signed: string[] = [];
   const deps: SendDeps = {
     loadDocument: async () => doc,
     providerName: async () => 'fake',
     provider: (n) => (n === 'fake' ? provider : null),
-    signedUrl: async (p, s) => { signed.push(`${p}:${s}`); return `https://signed.test/${p}`; },
-    markSent: async (_id, patch) => { sent.push(patch); return true; },
+    signedUrl: async (p, s) => { order.push('signedUrl'); signed.push(`${p}:${s}`); return `https://signed.test/${p}`; },
+    claim: async (_id, p) => { order.push('claim'); if (claimedBy) return false; claimedBy = p; return true; },
+    release: async () => { order.push('release'); claimedBy = null; },
+    markSent: async (_id, patch) => { order.push('markSent'); sent.push(patch); return true; },
     audit: async (row) => { audits.push(row); },
   };
-  return { deps, provider, sent, audits, signed };
+  return { deps, provider, sent, audits, signed, order };
 }
 
 describe('send-for-signature handler', () => {
@@ -42,7 +46,8 @@ describe('send-for-signature handler', () => {
       signer: { name: 'Jane Buyer', email: 'jane@example.com' },
       metadata: { document_id: DOC, submission_id: 's1' },
     });
-    expect(h.sent).toEqual([{ provider: 'fake', provider_envelope_id: 'fake-doc-1', status: 'sent', signer_email: 'jane@example.com' }]);
+    expect(h.sent).toEqual([{ provider_envelope_id: 'fake-doc-1', status: 'sent', signer_email: 'jane@example.com' }]);
+    expect(h.order).toEqual(['claim', 'signedUrl', 'markSent']);
     expect(h.audits[0]).toMatchObject({ submission_id: 's1', action_type: 'esign_sent', changed_by_user_id: 'u-noni', changed_by_email: 'noni@bmdmaterials.com' });
   });
   test('admin allowed; unauthenticated 401; plain user / service role 403', async () => {
@@ -64,7 +69,7 @@ describe('send-for-signature handler', () => {
       expect(h.provider.created).toHaveLength(0);
     }
   });
-  test('unknown provider setting → 501; concurrent send → 409 without audit', async () => {
+  test('unknown provider setting → 501; markSent no longer matching → 409 without audit', async () => {
     const h = harness();
     h.deps.providerName = async () => 'docusign';
     expect((await handleSendForSignature({ document_id: DOC }, staff, h.deps)).status).toBe(501);
@@ -72,6 +77,22 @@ describe('send-for-signature handler', () => {
     c.deps.markSent = async () => false;
     expect((await handleSendForSignature({ document_id: DOC }, staff, c.deps)).status).toBe(409);
     expect(c.audits).toHaveLength(0);
+  });
+  test('two concurrent sends create exactly one provider document', async () => {
+    const h = harness();
+    const [a, b] = await Promise.all([
+      handleSendForSignature({ document_id: DOC }, staff, h.deps),
+      handleSendForSignature({ document_id: DOC }, staff, h.deps),
+    ]);
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+    expect(h.provider.created).toHaveLength(1);
+  });
+  test('a failed provider call releases the claim so the draft can be retried', async () => {
+    const h = harness();
+    h.provider.createDocument = () => Promise.reject(new Error('SignWell down'));
+    await expect(handleSendForSignature({ document_id: DOC }, staff, h.deps)).rejects.toThrow('SignWell down');
+    expect(h.order).toEqual(['claim', 'signedUrl', 'release']);
+    expect(h.sent).toHaveLength(0);
   });
 });
 
