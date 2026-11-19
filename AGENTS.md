@@ -21,3 +21,9 @@
 - `portal_settings` table (migration `drizzle/migrations/0005_portal_settings.sql`): admin-editable notification recipients, read by `send-selections-email` at request time.
 - `supabase/functions/_shared/loadServerPricing.ts`: the only edge loader for `ServerPricing` (divides `markup_percentage` / `gst_rate` by 100); every edge engine caller uses it.
 - `supabase/functions/_shared/sanitizeChangesForAi.ts`: strips `sales_comments`, `admin_notes` and area `comments` from audit-log `changes` before any AI prompt.
+
+## Phase 2 Task 14 (e-sign)
+
+- `supabase/functions/_shared/esign/provider.ts`: the `EsignProvider` seam; `signwell.ts` is the only implementation and `providerFromEnv.ts` the only place one is built. SignWell secrets (`SIGNWELL_API_KEY`, `SIGNWELL_WEBHOOK_SECRET`, `SIGNWELL_TEST_MODE`) are edge env only, never `portal_settings`.
+- `quote_snapshots` are insert-only (trigger in 0006; `scripts/esign-send.test.ts` fails on any client `.update`/`.delete`/`.upsert`). The signature PDF is the buyer render of the snapshot lines (`generateSnapshotBuyerPdf`, internal notes stripped); unit files live at `unit-documents/{unit_number}/{document_id}.pdf` (`unitDocumentPath`).
+- `esign-webhook` verifies the signature before any parse or DB call, acts on `signed` only after the provider returns the completed PDF, confirms declined/voided via the provider API, and only moves `buyer_selections.status` forward (`esign_status_after_signed`, default `completed`).

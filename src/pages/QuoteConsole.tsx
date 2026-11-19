@@ -27,6 +27,8 @@ import { SectionGroup } from '@/components/quote/SectionGroup';
 import { isSaveKey, lineAnchor, sectionAnchor } from '@/components/quote/consoleCells';
 import { AddLineMenu } from '@/components/quote/AddLineMenu';
 import { NotesPanels } from '@/components/quote/NotesPanels';
+import { DocumentsPanel } from '@/components/quote/DocumentsPanel';
+import type { Tables } from '@/integrations/supabase/types';
 import { RunningTotal } from '@/components/quote/RunningTotal';
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
 import { Button } from '@/components/ui/button';
@@ -147,6 +149,15 @@ export default function QuoteConsole() {
     }
   }, [q.flush, q.snapshot]);
 
+  /** Send for signature: the same flush gate as the outputs, but the caller shows the refusal. */
+  const flushSaved = useCallback(async (): Promise<{ ok: true } | { ok: false; reason: string }> => {
+    const r = await guardedAction({ commitFocused: blurFocused, flush: q.flush, snapshot: q.snapshot }, () => undefined);
+    if (r.ok === false) return { ok: false, reason: r.reason };
+    return { ok: true };
+  }, [q.flush, q.snapshot]);
+  const { currentLines } = q;
+  const currentQuote = useCallback(() => ({ lines: currentLines(), gstRate: dyn.loaded && !dyn.error ? dyn.gstRate : null }), [currentLines, dyn.loaded, dyn.error, dyn.gstRate]);
+
   const onAction = (action: OutputAction) => {
     if (!id) return;
     // Open the preview tab now (user gesture) so Safari does not block it after the await.
@@ -265,6 +276,14 @@ export default function QuoteConsole() {
             ))}
 
             <NotesPanels lines={q.lines} followUps={followUps} />
+
+            <DocumentsPanel
+              submission={row as unknown as Tables<'buyer_selections'> | null}
+              lines={q.lines}
+              gstRate={dyn.loaded && !dyn.error ? dyn.gstRate : null}
+              flushSaved={flushSaved}
+              current={currentQuote}
+            />
           </div>
 
           {/* Rail on wide screens; at iPad landscape (1024) and below it collapses to the bottom total bar. */}

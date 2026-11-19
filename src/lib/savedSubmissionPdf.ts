@@ -64,3 +64,19 @@ export async function generateBuyerQuotePdf(header: MyQuoteHeader, lines: QuoteL
     saveToFile: true, footerLabel: `Live quote — ${header.status || 'submitted'}`,
   });
 }
+
+/**
+ * Buyer copy rendered FROM A QUOTE SNAPSHOT (Task 14, send for signature): the same buyer renderer and buyer-safe
+ * mapper as the client PDF, but the lines are the frozen snapshot lines, not a fresh read. Never `staff`; internal
+ * notes are stripped by the caller (esignSend.buyerSafeLines) and the buyer view prints none anyway.
+ */
+export async function generateSnapshotBuyerPdf(
+  submission: Parameters<typeof toBuyerPdfSelections>[0], lines: QuoteLine[], gstRate: number, version: number,
+): Promise<Blob> {
+  const b64 = await generateBuyerPreviewPDF(toBuyerPdfSelections(submission), { lines, gstRate }, {
+    saveToFile: false, returnBase64: true, footerLabel: `Quote version ${version} — for signature`,
+  });
+  if (typeof b64 !== 'string' || !b64) throw new Error('PDF generation returned no file');
+  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  return new Blob([bytes], { type: 'application/pdf' });
+}

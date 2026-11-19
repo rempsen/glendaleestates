@@ -35,6 +35,8 @@ export interface UseQuoteLines {
   refresh: () => Promise<void>;
   /** Synchronous read of the store (not render state): safe to call right after `await flush()`. */
   snapshot: () => { isDirty: boolean; saveState: SaveState; loading: boolean };
+  /** Synchronous read of the store's lines (not render state): what was just flushed. */
+  currentLines: () => StoredLine[];
 }
 
 const LINE_DEFAULTS = {
@@ -223,6 +225,7 @@ export function useQuoteLines(submissionId: string | null | undefined, opts: Use
   const snapshot = useCallback(() => ({
     isDirty: selectIsDirty(stateRef.current), saveState: stateRef.current.saveState, loading: loadingRef.current,
   }), []);
+  const currentLines = useCallback(() => selectLines(stateRef.current), []);
 
   // No silent data loss on navigation.
   useEffect(() => {
@@ -281,5 +284,5 @@ export function useQuoteLines(submissionId: string | null | undefined, opts: Use
 
   const lines = useMemo(() => selectLines(state), [state]);
 
-  return { lines, loading, loadError, saveState: state.saveState, isDirty, upsert, createLine, remove, reorder, flush, refresh, snapshot };
+  return { lines, loading, loadError, saveState: state.saveState, isDirty, upsert, createLine, remove, reorder, flush, refresh, snapshot, currentLines };
 }
