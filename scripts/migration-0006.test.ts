@@ -329,8 +329,8 @@ describe('migration 0006 quote_lines', () => {
       expect(new RegExp(`\\n      ${t}: \\{\\n        Row: \\{`).test(types), t).toBe(true);
     expect(types.includes('app_role: "admin" | "user" | "staff"'), 'Enums.app_role').toBe(true);
     expect(types.includes('app_role: ["admin", "user", "staff"]'), 'Constants.app_role').toBe(true);
-    expect(/is_staff: \{\n\s+Args: \{ _user_id: string \}\n\s+Returns: boolean/.test(types), 'is_staff fn').toBe(true);
-    expect(/buyer_can_see_line: \{\n\s+Args: \{ _line_id: string \}\n\s+Returns: boolean/.test(types), 'buyer_can_see_line fn').toBe(true);
+    expect(/is_staff:\s*\{\s*Args:\s*\{\s*_user_id:\s*string;?\s*\}\s*;?\s*Returns:\s*boolean/.test(types), 'is_staff fn').toBe(true);
+    expect(/buyer_can_see_line:\s*\{\s*Args:\s*\{\s*_line_id:\s*string;?\s*\}\s*;?\s*Returns:\s*boolean/.test(types), 'buyer_can_see_line fn').toBe(true);
     const rpc = /get_my_quote_lines: \{\n\s+Args: never\n\s+Returns: \{\n([\s\S]*?)\n\s+\}\[\]/.exec(types);
     expect(rpc !== null, 'get_my_quote_lines fn').toBe(true);
     const rpcCols = rpc![1].split('\n').map((l) => l.trim().split(':')[0]);

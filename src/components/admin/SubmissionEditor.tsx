@@ -41,6 +41,10 @@ import { useUpgradePricing } from '@/hooks/useUpgradePricing';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { getUnitInfo } from '@/lib/unitData';
 import { buildSubmissionUpdatePayload, isPricingField, countHeatedTileRows, type SubmissionEditState, type AreaUpgrade } from '@/lib/submissionUpdatePayload';
+import {
+  areaClientCommentEdits, areaNoteLabel, BuyerDetailsPartialSaveError, CLIENT_NOTE_KEYS, CLIENT_NOTES_CONFLICT_MESSAGE, clientNoteLabel,
+  isClientNotesConflict, saveBuyerDetailsEdit,
+} from '@/lib/clientNotes';
 
 type BuyerSelection = SubmissionEditState;
 
@@ -75,10 +79,15 @@ interface SubmissionEditorProps {
    * pricing (quote lines replace it in the console) and downstream tracking.
    */
   buyerDetailsOnly?: boolean;
+  /** The row moved on since the dialog opened (buyerDetailsOnly saves are conditional on updated_at): reload it. */
+  onConflict?: () => void;
 }
 
-export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerDetailsOnly = false }: SubmissionEditorProps) {
+export function SubmissionEditor({ submission, onSave, onSaved, onCancel, onConflict, buyerDetailsOnly = false }: SubmissionEditorProps) {
   const [editData, setEditData] = useState<BuyerSelection>({ ...submission });
+  // Console dialog: area_upgrades is a pricing field, so only each row's client note is editable here; it is saved
+  // through src/lib/clientNotes.ts (clientComment only), never through the update payload.
+  const [areaNoteDrafts, setAreaNoteDrafts] = useState<string[]>(() => (submission.area_upgrades || []).map(u => u?.clientComment ?? ''));
   const [saving, setSaving] = useState(false);
   // Payments / ownership / procurement tables are admin-only RLS: staff do not see that panel.
   const { isAdmin } = useRole();
@@ -187,38 +196,76 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
     if (stairValidationError) throw Object.assign(new Error(stairValidationError), { isValidation: true });
 
     const updatePayload = buildSubmissionUpdatePayload(editData, { buyerDetailsOnly });
-    const { error } = await supabase
-      .from('buyer_selections')
-      .update(updatePayload)
-      .eq('id', submission.id);
-    if (error) throw error;
+    const last = savedRef.current ?? submission;
 
-    // Calculate changes for audit log
-    const originalData = (savedRef.current ?? submission) as unknown as Record<string, unknown>;
-    const newData = (buyerDetailsOnly ? { ...updatePayload } : { ...updatePayload, area_upgrades: editData.area_upgrades }) as unknown as Record<string, unknown>;
-    const { changes, changedFields } = calculateChanges(originalData, newData);
+    // Audit row + parent row / savedRef for a write that is in the database (step 1 of the dialog, or the full save).
+    const recordSaved = async (updatedAt: string | undefined, areaUpgrades: AreaUpgrade[] | undefined): Promise<BuyerSelection> => {
+      const originalData = (savedRef.current ?? submission) as unknown as Record<string, unknown>;
+      // Console dialog: area_upgrades is not in the payload (its client notes are audited by saveClientNotes), so it
+      // is compared as unchanged rather than logged as cleared.
+      const newData = (buyerDetailsOnly ? { ...updatePayload, area_upgrades: originalData.area_upgrades } : { ...updatePayload, area_upgrades: editData.area_upgrades }) as unknown as Record<string, unknown>;
+      // Console dialog: the six scalar client notes are audited by saveBuyerDetailsEdit as client_notes_update rows
+      // (the same shape as the inline panel), so they are left out of this generic diff (no duplicate History).
+      const diffOf = (r: Record<string, unknown>) => {
+        if (!buyerDetailsOnly) return r;
+        const out = { ...r };
+        for (const k of CLIENT_NOTE_KEYS) delete out[k];
+        return out;
+      };
+      const { changes, changedFields } = calculateChanges(diffOf(originalData), diffOf(newData));
+      if (changedFields.length > 0) {
+        await createAuditLog({
+          submission_id: submission.id,
+          action_type: 'update',
+          changes,
+          previous_values: originalData,
+          new_values: newData,
+          change_summary: generateChangeSummary(changedFields),
+        });
+      }
+      const updatedSubmission: BuyerSelection = {
+        ...submission,
+        ...(savedRef.current ?? {}),
+        ...updatePayload,
+        area_upgrades: areaUpgrades,
+        upgrade_interests: editData.upgrade_interests,
+        ...(updatedAt ? { updated_at: updatedAt } : {}),
+      } as BuyerSelection;
+      savedRef.current = updatedSubmission;
+      onSaved?.(updatedSubmission);
+      return updatedSubmission;
+    };
 
-    if (changedFields.length > 0) {
-      const changeSummary = generateChangeSummary(changedFields);
-      await createAuditLog({
-        submission_id: submission.id,
-        action_type: 'update',
-        changes,
-        previous_values: originalData,
-        new_values: newData,
-        change_summary: changeSummary,
-      });
+    if (buyerDetailsOnly) {
+      // Two steps, both conditional on updated_at (src/lib/clientNotes.ts saveBuyerDetailsEdit): the details, whose
+      // audit row and row state are recorded before step 2; then the area client notes (clientComment only).
+      const lastSavedAreas = last.area_upgrades || [];
+      const r = await saveBuyerDetailsEdit(
+        supabase as never, submission.id, updatePayload as Record<string, unknown>,
+        areaClientCommentEdits(lastSavedAreas, areaNoteDrafts),
+        {
+          expectedUpdatedAt: last.updated_at,
+          before: last,
+          afterDetails: async (updatedAt) => { await recordSaved(updatedAt, lastSavedAreas); },
+        },
+      );
+      if (r.auditFailed) toast.warning('Client notes saved, but a history entry was not recorded');
+      if (r.area_upgrades === undefined) return savedRef.current!;
+      const withAreas = { ...savedRef.current!, area_upgrades: r.area_upgrades as AreaUpgrade[], updated_at: r.updated_at };
+      savedRef.current = withAreas;
+      onSaved?.(withAreas);
+      return withAreas;
     }
 
-    const updatedSubmission: BuyerSelection = {
-      ...submission,
-      ...updatePayload,
-      area_upgrades: editData.area_upgrades,
-      upgrade_interests: editData.upgrade_interests,
-    };
-    savedRef.current = updatedSubmission;
-    onSaved?.(updatedSubmission);
-    return updatedSubmission;
+    const { data, error } = await supabase
+      .from('buyer_selections')
+      .update(updatePayload)
+      .eq('id', submission.id)
+      .select('updated_at')
+      .maybeSingle();
+    if (error) throw error;
+    // Keep the caller's row current so the client-notes panel's updated_at check does not see our own save.
+    return recordSaved(data?.updated_at ?? undefined, editData.area_upgrades);
   };
 
   const handleSave = async () => {
@@ -228,9 +275,18 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
       toast.success('Submission updated successfully');
       onSave(updatedSubmission);
     } catch (error: any) {
-      toast.error(error?.isValidation ? 'Validation Error' : 'Failed to save changes', {
-        description: error.message,
-      });
+      if (isClientNotesConflict(error)) {
+        // Step 1 found a newer row: nothing was written. Same message and reload as the client-notes panel.
+        toast.warning(CLIENT_NOTES_CONFLICT_MESSAGE);
+        onConflict?.();
+      } else if (error instanceof BuyerDetailsPartialSaveError) {
+        toast.error('Area client notes not saved', { description: error.message });
+        if (error.conflict) onConflict?.();
+      } else {
+        toast.error(error?.isValidation ? 'Validation Error' : 'Failed to save changes', {
+          description: error.message,
+        });
+      }
     } finally {
       setSaving(false);
     }
@@ -405,6 +461,17 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
                   value={editData.lvp_comments || ''}
                   onChange={(e) => handleChange('lvp_comments', e.target.value || null)}
                   placeholder="Any notes about LVP selection..."
+                  rows={2}
+                />
+              </div>
+
+              {/* Bathroom tile note (printed for the buyer) */}
+              <div className="space-y-2 col-span-2">
+                <Label>{clientNoteLabel('spc_tile_comments')} — client note (printed)</Label>
+                <Textarea
+                  value={editData.spc_tile_comments || ''}
+                  onChange={(e) => handleChange('spc_tile_comments', e.target.value || null)}
+                  placeholder="Any notes about the bathroom tile selection..."
                   rows={2}
                 />
               </div>
@@ -694,6 +761,49 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
                   rows={2}
                 />
               </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Upgrade notes printed for the buyer (and, in the console dialog, each area upgrade's client note) */}
+        <AccordionItem value="upgrade-notes" className="border rounded-lg px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="w-4 h-4" />
+              <span>Upgrade notes (printed for the buyer)</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="pt-4 pb-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>{clientNoteLabel('upgrade_interests_notes')}</Label>
+                <Textarea
+                  value={editData.upgrade_interests_notes || ''}
+                  onChange={(e) => handleChange('upgrade_interests_notes', e.target.value || null)}
+                  placeholder="Notes about the upgrades the buyer is interested in..."
+                  rows={2}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{clientNoteLabel('upgrade_comments')}</Label>
+                <Textarea
+                  value={editData.upgrade_comments || ''}
+                  onChange={(e) => handleChange('upgrade_comments', e.target.value || null)}
+                  placeholder="Comments on the upgrade pricing summary..."
+                  rows={2}
+                />
+              </div>
+              {buyerDetailsOnly && (editData.area_upgrades || []).map((upgrade, index) => (
+                <div key={index} className="space-y-2">
+                  <Label>{areaNoteLabel(upgrade.areaId || '', index)} — client note (printed)</Label>
+                  <Textarea
+                    value={areaNoteDrafts[index] ?? ''}
+                    onChange={(e) => setAreaNoteDrafts(prev => { const next = [...prev]; next[index] = e.target.value; return next; })}
+                    placeholder="Shown to the buyer on their PDF, Word copy and email"
+                    rows={2}
+                  />
+                </div>
+              ))}
             </div>
           </AccordionContent>
         </AccordionItem>

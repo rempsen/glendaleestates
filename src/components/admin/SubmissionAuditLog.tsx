@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { getAuditLogs } from '@/lib/auditLog';
+import { auditActionLabel, auditChangeRows } from '@/lib/auditDisplay';
 
 interface AuditLogEntry {
   id: string;
@@ -29,6 +30,7 @@ const ACTION_COLORS: Record<string, string> = {
   update: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
   delete: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
   status_change: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
+  client_notes_update: 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300',
 };
 
 function formatValue(value: unknown): string {
@@ -85,7 +87,7 @@ export function SubmissionAuditLog({ submissionId }: SubmissionAuditLogProps) {
     <ScrollArea className="h-[400px]">
       <div className="space-y-3 pr-4">
         {logs.map((log) => {
-          const changedFields = Object.keys(log.changes);
+          const changeRows = auditChangeRows(log);
           const isExpanded = expandedLogId === log.id;
 
           return (
@@ -108,11 +110,11 @@ export function SubmissionAuditLog({ submissionId }: SubmissionAuditLogProps) {
                               {log.changed_by_email || 'System'}
                             </span>
                             <Badge className={ACTION_COLORS[log.action_type] || ACTION_COLORS.update}>
-                              {log.action_type.replace('_', ' ')}
+                              {auditActionLabel(log.action_type)}
                             </Badge>
                           </div>
                           <p className="text-xs text-muted-foreground mt-1">
-                            {log.change_summary || `Changed ${changedFields.length} field(s)`}
+                            {log.change_summary || `Changed ${changeRows.length} field(s)`}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {format(new Date(log.created_at), 'MMM d, yyyy at h:mm a')}
@@ -136,12 +138,11 @@ export function SubmissionAuditLog({ submissionId }: SubmissionAuditLogProps) {
                       Changed Fields
                     </h4>
                     <div className="space-y-2">
-                      {changedFields.map((field) => {
-                        const change = log.changes[field];
+                      {changeRows.map((change) => {
                         return (
-                          <div key={field} className="text-sm">
+                          <div key={change.key} className="text-sm">
                             <span className="font-medium text-foreground">
-                              {field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                              {change.label}
                             </span>
                             <div className="flex items-center gap-2 mt-1 text-xs">
                               <span className="px-2 py-0.5 rounded bg-destructive/10 text-destructive line-through">

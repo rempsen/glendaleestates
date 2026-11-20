@@ -90,3 +90,8 @@
   before contacting QuickBooks and reuses an unmapped Estimate found by its PrivateNote.
 - Buyer-typed text in Teams cards goes through `cardText` (`_shared/adaptiveCard.ts`: no markdown, no URLs);
   `promptSafety.stripUnsafe` deletes `\p{Cf}` before collapsing whitespace and redacts emails/URLs after.
+
+## Client-facing notes (2026-11-20)
+
+- The seven client-facing notes are exactly what the buyer PDF prints under "Your Comments & Notes": `lvp_comments`, `spc_tile_comments`, `window_comments`, `backsplash_grout_comments`, `upgrade_interests_notes`, `upgrade_comments` and each `area_upgrades[i].clientComment`. `clientNoteEntries` (`src/lib/clientNotes.ts`) is their one definition (PDF, Word copy and the staff `ClientNotesPanel`).
+- `src/lib/clientNotes.ts` is the only writer of these notes apart from the buyer wizard's submit and the full Submissions editor's payload (`saveClientNotes`; guarded by `scripts/callers.test.ts`, proven by `scripts/client-notes.test.ts`). The console "Edit buyer details" dialog may change `area_upgrades` only through it and only `clientComment` (`saveBuyerDetailsEdit`: details first, then area notes, each conditional on `updated_at`). Writes are conditional on `updated_at` and throw `ClientNotesConflictError` on a stale row (unlike `followUps.saveNotes`, which returns `{ ok: false, conflict: true }`); each changed note writes a `client_notes_update` audit row `{ field, label, from, to }`. Anything that writes `buyer_selections` from these pages must hand the new `updated_at` back to the page state.

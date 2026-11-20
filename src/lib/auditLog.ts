@@ -20,7 +20,8 @@ const TRACKED_FIELDS = [
   'bedroom_lvp_colour', 'bedroom_lvp_same_as_main', 'additional_windows_qty',
   'patio_doors_qty', 'window_comments', 'backsplash_grout_enabled',
   'backsplash_grout_color', 'backsplash_grout_comments', 'upgrade_floor_selection',
-  'heated_floor_bathrooms', 'sales_comments', 'status', 'area_upgrades'
+  'heated_floor_bathrooms', 'sales_comments', 'status', 'area_upgrades',
+  'upgrade_interests_notes', 'upgrade_comments',
 ];
 
 // Field display names for human-readable summaries
@@ -54,6 +55,8 @@ const FIELD_DISPLAY_NAMES: Record<string, string> = {
   sales_comments: 'Admin Notes',
   status: 'Status',
   area_upgrades: 'Area Upgrades',
+  upgrade_interests_notes: 'Upgrade Interests Notes',
+  upgrade_comments: 'Upgrade Pricing Summary Comments',
 };
 
 /**
@@ -184,3 +187,4 @@ export function generateChangeSummary(changedFields: string[]): string {
   if (changedFields.length === 2) return `Updated ${changedFields[0]} and ${changedFields[1]}`;
   return `Updated ${changedFields.slice(0, -1).join(', ')}, and ${changedFields[changedFields.length - 1]}`;
 }
+

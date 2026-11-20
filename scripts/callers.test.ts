@@ -186,3 +186,22 @@ describe('custom_pricing has one writer (follow-ups / basement notes)', () => {
     expect(t).toContain('const next = applyNotesPatch(before, patch);');
   });
 });
+
+// Client-facing notes (buyer PDF "Your Comments & Notes") have one narrow writer, src/lib/clientNotes.ts: the six
+// comment columns plus area `clientComment` (read-modify-write of area_upgrades), conditional on updated_at, with a
+// `client_notes_update` audit row (scripts/client-notes.test.ts proves the column allowlist).
+const CLIENT_NOTES_WRITERS = new Set(['src/lib/clientNotes.ts']);
+describe('client_notes_update audit rows come only from the client-notes writer', () => {
+  test('no other file writes action_type client_notes_update', () => {
+    const bad = sources
+      .filter((f) => !/\.test\.tsx?$/.test(f.rel) && !CLIENT_NOTES_WRITERS.has(f.rel))
+      .filter((f) => /action_type\s*:\s*['"]client_notes_update['"]/.test(f.text))
+      .map((f) => f.rel);
+    expect(bad).toEqual([]);
+  });
+  test('the allowlisted writer exists and is not a custom_pricing writer', () => {
+    const t = sources.find((f) => f.rel === 'src/lib/clientNotes.ts')!.text;
+    expect(t).toContain("action_type: 'client_notes_update'");
+    expect(CUSTOM_PRICING_WRITERS.has('src/lib/clientNotes.ts')).toBe(false);
+  });
+});

@@ -1,6 +1,7 @@
 import { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, HeadingLevel, WidthType, AlignmentType } from 'docx';
 import { parseCustomPricing } from '@/lib/customPricing';
 import { internalAreaNotes } from '@/lib/areaNotes';
+import { clientNoteRows } from '@/lib/clientNotes';
 import { buildLineRows, LINE_COLUMNS, INTERNAL_NOTES_HEADING } from '@/lib/lineRenderRows';
 import { buildWordDetailRows, buildWordLineTables, buildWordOpenQuestions } from '@/lib/submissionWordRows';
 import { loadSavedSubmissionContext } from '@/lib/savedSubmissionPdf';
@@ -73,9 +74,8 @@ export async function downloadSubmissionWord(id: string, staff = false): Promise
   const model = buildLineRows(lines, { buyerView: !staff, gstRate });
   const cp = parseCustomPricing((s as any).custom_pricing);
 
-  const notes = [
-    ['Flooring', s.lvp_comments], ['Tile', s.spc_tile_comments], ['Windows', s.window_comments], ['Upgrades', s.upgrade_comments],
-  ].filter(([, v]) => v) as string[][];
+  // Client-facing notes: the buyer PDF's "Your Comments & Notes" rows (same labels, order and text).
+  const notes = clientNoteRows(s);
 
   // Staff only, after all buyer-safe content (AGENTS.md rule 1).
   const internal: string[] = [];

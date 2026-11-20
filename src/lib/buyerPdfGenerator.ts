@@ -1,8 +1,8 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { AREA_DEFINITIONS, type AreaUpgradeSelection, type BacksplashGroutSelection } from '@/lib/upgradeCostData';
-import { toBuyerWording } from '@/lib/outputLabels';
-import { clientAreaNotes, type AreaNote } from '@/lib/areaNotes';
+import { type AreaUpgradeSelection, type BacksplashGroutSelection } from '@/lib/upgradeCostData';
+import { type AreaNote } from '@/lib/areaNotes';
+import { areaNoteLabel, clientNoteEntries, clientNoteSourceFromSelections } from '@/lib/clientNotes';
 import { parseCustomPricing, type CustomPricing } from '@/lib/customPricing';
 import type { QuoteLine } from '@/lib/quoteLines';
 import { buildLineRows, LINE_COLUMNS, INTERNAL_NOTES_HEADING, type LineRow } from '@/lib/lineRenderRows';
@@ -338,30 +338,8 @@ export async function generateBuyerPreviewPDF(
   }
 
   // ===== Buyer Comments & Notes =====
-  const commentEntries: Array<{ label: string; text: string }> = [];
-  if (selections.lvpComments) commentEntries.push({ label: 'Main Floor LVP', text: selections.lvpComments });
-  if (selections.spcTileComments) commentEntries.push({ label: 'Bathroom Tile', text: selections.spcTileComments });
-  if (selections.windowComments) commentEntries.push({ label: 'Window Coverings', text: selections.windowComments });
-  if (selections.backsplashGrout?.comments) commentEntries.push({ label: 'Backsplash Grout', text: selections.backsplashGrout.comments });
-  if (selections.upgradeInterestsNotes) commentEntries.push({ label: 'Upgrade Interests', text: selections.upgradeInterestsNotes });
-  if (selections.upgradeComments) commentEntries.push({ label: 'Upgrade Pricing Summary', text: selections.upgradeComments });
-  // Per-area upgrade comments — render every comment, even when the area
-  // identifier is missing or a placeholder, so the buyer's note is preserved.
-  const areaNoteLabel = (u: { areaId: string }, idx: number) => {
-    const areaDef = AREA_DEFINITIONS.find(a => a.id === u.areaId);
-    let label: string;
-    if (areaDef) {
-      label = `Area Upgrade — ${toBuyerWording(areaDef.name)}`;
-    } else if (!u.areaId || u.areaId.startsWith('unspecified_area')) {
-      label = `Area Upgrade — Unspecified Area #${idx + 1}`;
-    } else {
-      label = `Area Upgrade — ${u.areaId}`;
-    }
-    return label;
-  };
-  clientAreaNotes(selections.areaUpgrades).forEach(n => {
-    commentEntries.push({ label: areaNoteLabel(n, n.index), text: n.text });
-  });
+  // One definition of the client-facing notes (src/lib/clientNotes.ts), shared with the staff notes panel.
+  const commentEntries = clientNoteEntries(clientNoteSourceFromSelections(selections));
 
   if (commentEntries.length > 0) {
     if (yPos > pageHeight - 80) {
@@ -408,7 +386,7 @@ export async function generateBuyerPreviewPDF(
     if (staffRecord.adminNotes?.trim()) rows.push(['Internal Notes', staffRecord.adminNotes.trim()]);
     // Internal area notes (legacy `comments`): staff outputs only, labelled.
     (staffRecord.areaInternalNotes || []).forEach(n =>
-      rows.push([`${areaNoteLabel(n, n.index).replace('Area Upgrade — ', '')} (internal note)`, n.text]));
+      rows.push([`${areaNoteLabel(n.areaId, n.index).replace('Area Upgrade — ', '')} (internal note)`, n.text]));
     autoTable(doc, {
       startY: yPos, body: rows,
       margin: { left: margin, right: margin, bottom: 30 },

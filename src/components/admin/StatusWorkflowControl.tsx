@@ -32,7 +32,8 @@ interface StatusWorkflowControlProps {
   currentStatus: string;
   timestamps: StatusTimestamps;
   createdAt: string;
-  onStatusChange: (newStatus: string, timestamps: Partial<StatusTimestamps>) => void;
+  /** `updatedAt`: the row's new `updated_at` (the update trigger bumps it), so the caller's optimistic checks stay current. */
+  onStatusChange: (newStatus: string, timestamps: Partial<StatusTimestamps>, updatedAt?: string) => void;
 }
 
 const STATUS_CONFIG = [
@@ -101,17 +102,19 @@ export function StatusWorkflowControl({
           break;
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('buyer_selections')
         .update({
           status: newStatus,
           ...newTimestamps,
         })
-        .eq('id', submissionId);
+        .eq('id', submissionId)
+        .select('updated_at')
+        .maybeSingle();
 
       if (error) throw error;
 
-      onStatusChange(newStatus, newTimestamps);
+      onStatusChange(newStatus, newTimestamps, data?.updated_at ?? undefined);
       toast.success(`Status updated to ${newStatus}`);
 
       // Auto-sync to QuickBooks when entering 'quoted' state.
