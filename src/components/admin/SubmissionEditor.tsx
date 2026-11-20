@@ -42,7 +42,7 @@ import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { getUnitInfo } from '@/lib/unitData';
 import { buildSubmissionUpdatePayload, isPricingField, countHeatedTileRows, type SubmissionEditState, type AreaUpgrade } from '@/lib/submissionUpdatePayload';
 import {
-  areaClientCommentEdits, areaNoteLabel, BuyerDetailsPartialSaveError, CLIENT_NOTES_CONFLICT_MESSAGE, clientNoteLabel,
+  areaClientCommentEdits, areaNoteLabel, BuyerDetailsPartialSaveError, CLIENT_NOTE_KEYS, CLIENT_NOTES_CONFLICT_MESSAGE, clientNoteLabel,
   isClientNotesConflict, saveBuyerDetailsEdit,
 } from '@/lib/clientNotes';
 
@@ -204,7 +204,15 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, onConf
       // Console dialog: area_upgrades is not in the payload (its client notes are audited by saveClientNotes), so it
       // is compared as unchanged rather than logged as cleared.
       const newData = (buyerDetailsOnly ? { ...updatePayload, area_upgrades: originalData.area_upgrades } : { ...updatePayload, area_upgrades: editData.area_upgrades }) as unknown as Record<string, unknown>;
-      const { changes, changedFields } = calculateChanges(originalData, newData);
+      // Console dialog: the six scalar client notes are audited by saveBuyerDetailsEdit as client_notes_update rows
+      // (the same shape as the inline panel), so they are left out of this generic diff (no duplicate History).
+      const diffOf = (r: Record<string, unknown>) => {
+        if (!buyerDetailsOnly) return r;
+        const out = { ...r };
+        for (const k of CLIENT_NOTE_KEYS) delete out[k];
+        return out;
+      };
+      const { changes, changedFields } = calculateChanges(diffOf(originalData), diffOf(newData));
       if (changedFields.length > 0) {
         await createAuditLog({
           submission_id: submission.id,
@@ -234,10 +242,14 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, onConf
       const lastSavedAreas = last.area_upgrades || [];
       const r = await saveBuyerDetailsEdit(
         supabase as never, submission.id, updatePayload as Record<string, unknown>,
-        areaClientCommentEdits(lastSavedAreas, areaNoteDrafts), last.updated_at,
-        async (updatedAt) => { await recordSaved(updatedAt, lastSavedAreas); },
+        areaClientCommentEdits(lastSavedAreas, areaNoteDrafts),
+        {
+          expectedUpdatedAt: last.updated_at,
+          before: last,
+          afterDetails: async (updatedAt) => { await recordSaved(updatedAt, lastSavedAreas); },
+        },
       );
-      if (r.auditFailed) toast.warning('Area client note saved, but its history entry was not recorded');
+      if (r.auditFailed) toast.warning('Client notes saved, but a history entry was not recorded');
       if (r.area_upgrades === undefined) return savedRef.current!;
       const withAreas = { ...savedRef.current!, area_upgrades: r.area_upgrades as AreaUpgrade[], updated_at: r.updated_at };
       savedRef.current = withAreas;

@@ -56,6 +56,7 @@ import { StatusWorkflowControl } from '@/components/admin/StatusWorkflowControl'
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
 import { SubmissionComparisonView } from '@/components/admin/SubmissionComparisonView';
 import { SubmissionAuditLog } from '@/components/admin/SubmissionAuditLog';
+import { originalFromAuditLogs } from '@/lib/auditDisplay';
 import { ClientNotesPanel, type ClientNoteSaveOutcome } from '@/components/quote/ClientNotesPanel';
 import { CLIENT_NOTES_CONFLICT_MESSAGE, isClientNotesConflict, saveClientNotes, type ClientNotesPatch } from '@/lib/clientNotes';
 import { UpgradeRequestSummary } from '@/components/admin/UpgradeRequestSummary';
@@ -235,20 +236,11 @@ export default function AdminSubmissions() {
     // Rebuild the as-submitted record from the change history: the oldest "old"
     // value of each field is what the buyer originally submitted.
     setOriginalSubmission({ ...submission });
-    supabase.from('submission_audit_logs').select('changes, created_at')
+    // Both audit shapes count, including client_notes_update rows (see originalFromAuditLogs).
+    supabase.from('submission_audit_logs').select('action_type, changes, created_at')
       .eq('submission_id', submission.id).order('created_at', { ascending: true })
       .then(({ data }) => {
-        const orig: Record<string, unknown> = { ...submission };
-        const seen = new Set<string>();
-        for (const log of data || []) {
-          const ch = (log as any).changes || {};
-          for (const [field, v] of Object.entries(ch)) {
-            if (seen.has(field) || !v || typeof v !== 'object' || !('old' in (v as any))) continue;
-            seen.add(field);
-            orig[field] = (v as any).old;
-          }
-        }
-        setOriginalSubmission(orig as unknown as BuyerSelection);
+        setOriginalSubmission(originalFromAuditLogs(submission as unknown as Record<string, unknown>, data || []) as unknown as BuyerSelection);
       });
     setEditMode(false);
     setActiveTab('details');

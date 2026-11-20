@@ -155,7 +155,7 @@ export async function saveClientNotes(
   if (stored.updated_at !== expectedUpdatedAt) throw new ClientNotesConflictError();
 
   const update: Record<string, unknown> = {};
-  const audits: Array<{ field: string; label: string; from: string | null; to: string | null }> = [];
+  const audits: ClientNoteChange[] = [];
 
   for (const [key, value] of Object.entries(patch.fields ?? {})) {
     if (!isClientNoteKey(key)) throw new Error(`Not a client-facing note: ${key}`);
@@ -194,8 +194,20 @@ export async function saveClientNotes(
   if (upd.error) throw new Error(upd.error.message ?? String(upd.error));
   if (!upd.data) throw new ClientNotesConflictError();
 
+  const auditFailed = await insertClientNoteAudits(client, submissionId, audits);
+
+  const saved = upd.data as ClientNoteSource & { updated_at: string };
+  return { updated_at: String(saved.updated_at), values: pickValues(saved), changed: audits.map((c) => c.field), auditFailed };
+}
+
+/** One changed client note, as stored in a `client_notes_update` audit row's `changes`. */
+export interface ClientNoteChange { field: string; label: string; from: string | null; to: string | null }
+
+/** Writes one `client_notes_update` audit row per change (the only place they are written). Returns true on failure. */
+async function insertClientNoteAudits(client: Client, submissionId: string, changes: ClientNoteChange[]): Promise<boolean> {
+  if (!changes.length) return false;
   const { data: { user } } = await client.auth.getUser();
-  const audit = await client.from('submission_audit_logs').insert(audits.map((c) => ({
+  const audit = await client.from('submission_audit_logs').insert(changes.map((c) => ({
     submission_id: submissionId,
     changed_by_user_id: user?.id ?? null,
     changed_by_email: user?.email ?? null,
@@ -203,11 +215,19 @@ export async function saveClientNotes(
     changes: c,
     change_summary: `Client note updated: ${c.label}`,
   })));
-  const auditFailed = !!audit?.error;
-  if (auditFailed) console.error('client notes audit log failed', audit.error);
+  const failed = !!audit?.error;
+  if (failed) console.error('client notes audit log failed', audit.error);
+  return failed;
+}
 
-  const saved = upd.data as ClientNoteSource & { updated_at: string };
-  return { updated_at: String(saved.updated_at), values: pickValues(saved), changed: audits.map((c) => c.field), auditFailed };
+/** The scalar client notes a payload changes relative to `before` (compared trimmed, blank = null). */
+export function clientNoteFieldChanges(before: ClientNoteSource, payload: Record<string, unknown>): ClientNoteChange[] {
+  return CLIENT_NOTE_FIELDS.flatMap(({ key, label }) => {
+    if (!(key in payload)) return [];
+    const from = before[key] ?? null;
+    const to = normalise(payload[key] as string | null | undefined);
+    return normalise(from) === to ? [] : [{ field: key, label, from, to }];
+  });
 }
 
 function pickValues(row: ClientNoteSource): ClientNoteSource {
@@ -239,8 +259,10 @@ export class BuyerDetailsPartialSaveError extends Error {
 /**
  * Saves the buyer-details dialog in two steps, both conditional on `updated_at`:
  *   1. the non-pricing payload (built with `buyerDetailsOnly`, so it never carries `area_upgrades`), only if the row
- *      is still at `expectedUpdatedAt` (else `ClientNotesConflictError`, nothing written); then `afterDetails` runs
- *      (the caller's audit row and row-state update for step 1);
+ *      is still at `expectedUpdatedAt` (else `ClientNotesConflictError`, nothing written). The scalar client notes it
+ *      changes (diffed against `before`, the row the dialog last saw) get `client_notes_update` audit rows, the same
+ *      shape as the inline panel; then `afterDetails` runs (the caller's generic audit row, without those notes, and
+ *      its row-state update);
  *   2. any area `clientComment` edits through `saveClientNotes`, conditional on step 1's `updated_at`. If this step
  *      fails, step 1 stays saved and `BuyerDetailsPartialSaveError` says so.
  * Only `clientComment` changes inside `area_upgrades` reach the database.
@@ -248,9 +270,9 @@ export class BuyerDetailsPartialSaveError extends Error {
 export async function saveBuyerDetailsEdit(
   client: Client, submissionId: string, payload: Record<string, unknown>,
   areaEdits: Array<{ index: number; areaId: string; text: string }>,
-  expectedUpdatedAt: string | null | undefined,
-  afterDetails?: (updatedAt: string) => Promise<void> | void,
+  opts: { expectedUpdatedAt: string | null | undefined; before: ClientNoteSource; afterDetails?: (updatedAt: string) => Promise<void> | void },
 ): Promise<{ updated_at: string; area_upgrades?: unknown; auditFailed?: boolean }> {
+  const { expectedUpdatedAt, before, afterDetails } = opts;
   if ('area_upgrades' in payload || 'custom_pricing' in payload) throw new Error('buyer details payload may not carry area_upgrades or custom_pricing');
   if (!expectedUpdatedAt) throw new Error('saveBuyerDetailsEdit needs the row\'s updated_at (no unchecked writes)');
   const upd = await client.from('buyer_selections').update(payload)
@@ -259,11 +281,13 @@ export async function saveBuyerDetailsEdit(
   if (upd.error) throw new Error(upd.error.message ?? String(upd.error));
   if (!upd.data) throw new ClientNotesConflictError();
   const updatedAt = String(upd.data.updated_at);
+  let auditFailed = await insertClientNoteAudits(client, submissionId, clientNoteFieldChanges(before, payload));
   await afterDetails?.(updatedAt);
-  if (!areaEdits.length) return { updated_at: updatedAt };
+  if (!areaEdits.length) return { updated_at: updatedAt, auditFailed };
   try {
     const r = await saveClientNotes(client, submissionId, { areas: areaEdits }, updatedAt);
-    return { updated_at: r.updated_at, area_upgrades: r.values.area_upgrades, auditFailed: r.auditFailed };
+    auditFailed = auditFailed || r.auditFailed;
+    return { updated_at: r.updated_at, area_upgrades: r.values.area_upgrades, auditFailed };
   } catch (e) {
     const conflict = isClientNotesConflict(e);
     throw new BuyerDetailsPartialSaveError(updatedAt, conflict, conflict ? CLIENT_NOTES_CONFLICT_MESSAGE : e instanceof Error ? e.message : String(e));

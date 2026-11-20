@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import liveSubmissions from './fixtures/live-submissions.json';
 import {
-  applyAreaClientComment, areaClientCommentEdits, BuyerDetailsPartialSaveError, clientNoteRows, CLIENT_NOTE_COLUMNS, CLIENT_NOTE_FIELDS, CLIENT_NOTES_CONFLICT_MESSAGE,
+  applyAreaClientComment, areaClientCommentEdits, BuyerDetailsPartialSaveError, clientNoteFieldChanges, clientNoteRows, CLIENT_NOTE_COLUMNS, CLIENT_NOTE_FIELDS, CLIENT_NOTES_CONFLICT_MESSAGE,
   ClientNotesConflictError, clientNoteEntries, clientNoteSourceFromSelections, isClientNotesConflict, saveBuyerDetailsEdit,
   saveClientNotes,
 } from '../src/lib/clientNotes';
@@ -14,7 +14,7 @@ import { clientAreaNotes } from '../src/lib/areaNotes';
 import { AREA_DEFINITIONS } from '../src/lib/upgradeCostData';
 import { toBuyerWording } from '../src/lib/outputLabels';
 import { buildSubmissionUpdatePayload, PRICING_FIELDS, type SubmissionEditState } from '../src/lib/submissionUpdatePayload';
-import { auditActionLabel, auditChangeRows } from '../src/lib/auditDisplay';
+import { auditActionLabel, auditChangeRows, originalFromAuditLogs } from '../src/lib/auditDisplay';
 import type { Tables } from '../src/integrations/supabase/types';
 
 const ROOT = join(import.meta.dir, '..');
@@ -290,7 +290,7 @@ describe('SubmissionEditor buyerDetailsOnly', () => {
     const edits = areaClientCommentEdits(row.area_upgrades, ['Matte tile', 'old note']);
     expect(edits).toEqual([{ index: 0, areaId: 'masterEnsuite', text: 'Matte tile' }]);
     const order: string[] = [];
-    const r = await saveBuyerDetailsEdit(f.client as never, 's1', payload, edits, 't0', (u) => { order.push(`details audit @${u}`); });
+    const r = await saveBuyerDetailsEdit(f.client as never, 's1', payload, edits, { expectedUpdatedAt: 't0', before: stored(), afterDetails: (u) => { order.push(`details audit @${u}`); } });
     expect(order).toEqual(['details audit @t1']); // step 1's audit runs before step 2
     expect(f.updates).toHaveLength(2);
     expect('area_upgrades' in f.updates[0]).toBe(false);
@@ -299,22 +299,25 @@ describe('SubmissionEditor buyerDetailsOnly', () => {
     expect(saved[0].manualPrice).toBe(8400); // the payload's stale area row never reached the database
     expect(saved[0].clientComment).toBe('Matte tile');
     expect(r.updated_at).toBe('t2');
-    expect(f.audits.map(a => a.action_type)).toEqual(['client_notes_update']);
+    expect(f.audits.map(a => (a.changes as { field: string }).field)).toEqual([
+      'spc_tile_comments', 'upgrade_interests_notes', 'upgrade_comments', 'area_upgrades[0].clientComment',
+    ]);
+    expect(new Set(f.audits.map(a => a.action_type))).toEqual(new Set(['client_notes_update']));
   });
   test('no area edits → one payload write only; a payload carrying area_upgrades or custom_pricing is refused', async () => {
     const f = fakeClient(stored());
-    await saveBuyerDetailsEdit(f.client as never, 's1', { first_name: 'Z' }, [], 't0');
+    await saveBuyerDetailsEdit(f.client as never, 's1', { first_name: 'Z' }, [], { expectedUpdatedAt: 't0', before: stored() });
     expect(f.updates).toEqual([{ first_name: 'Z' }]);
-    await expect(saveBuyerDetailsEdit(f.client as never, 's1', { area_upgrades: [] }, [], 't1')).rejects.toThrow();
-    await expect(saveBuyerDetailsEdit(f.client as never, 's1', { custom_pricing: {} }, [], 't1')).rejects.toThrow();
-    await expect(saveBuyerDetailsEdit(f.client as never, 's1', { first_name: 'Y' }, [], null)).rejects.toThrow(/updated_at/);
+    await expect(saveBuyerDetailsEdit(f.client as never, 's1', { area_upgrades: [] }, [], { expectedUpdatedAt: 't1', before: stored() })).rejects.toThrow();
+    await expect(saveBuyerDetailsEdit(f.client as never, 's1', { custom_pricing: {} }, [], { expectedUpdatedAt: 't1', before: stored() })).rejects.toThrow();
+    await expect(saveBuyerDetailsEdit(f.client as never, 's1', { first_name: 'Y' }, [], { expectedUpdatedAt: null, before: stored() })).rejects.toThrow(/updated_at/);
     expect(f.updates).toHaveLength(1);
   });
   test('step 1 is conditional on updated_at: a stale dialog writes nothing and throws the panel\'s conflict', async () => {
     const f = fakeClient(stored());
     let called = false;
     let err: unknown;
-    try { await saveBuyerDetailsEdit(f.client as never, 's1', { first_name: 'Z' }, [{ index: 0, areaId: 'masterEnsuite', text: 'x' }], 'stale', () => { called = true; }); } catch (e) { err = e; }
+    try { await saveBuyerDetailsEdit(f.client as never, 's1', { first_name: 'Z' }, [{ index: 0, areaId: 'masterEnsuite', text: 'x' }], { expectedUpdatedAt: 'stale', before: stored(), afterDetails: () => { called = true; } }); } catch (e) { err = e; }
     expect(isClientNotesConflict(err)).toBe(true);
     expect((err as Error).message).toBe(CLIENT_NOTES_CONFLICT_MESSAGE);
     expect(called).toBe(false);
@@ -325,7 +328,7 @@ describe('SubmissionEditor buyerDetailsOnly', () => {
     const order: string[] = [];
     let err: unknown;
     try {
-      await saveBuyerDetailsEdit(f.client as never, 's1', { first_name: 'Z' }, [{ index: 1, areaId: 'masterEnsuite', text: 'moved' }], 't0', (u) => { order.push(u); });
+      await saveBuyerDetailsEdit(f.client as never, 's1', { first_name: 'Z' }, [{ index: 1, areaId: 'masterEnsuite', text: 'moved' }], { expectedUpdatedAt: 't0', before: stored(), afterDetails: (u) => { order.push(u); } });
     } catch (e) { err = e; }
     expect(err).toBeInstanceOf(BuyerDetailsPartialSaveError);
     expect((err as BuyerDetailsPartialSaveError).conflict).toBe(true);
@@ -345,8 +348,9 @@ describe('SubmissionEditor buyerDetailsOnly', () => {
   test('source pin: the editor routes buyerDetailsOnly saves through saveBuyerDetailsEdit and has every note input', () => {
     const t = src('src/components/admin/SubmissionEditor.tsx');
     expect(t).toContain('saveBuyerDetailsEdit(');
-    expect(t).toContain('areaClientCommentEdits(lastSavedAreas, areaNoteDrafts), last.updated_at');
-    expect(t).toContain('async (updatedAt) => { await recordSaved(updatedAt, lastSavedAreas); }');
+    expect(t).toContain('areaClientCommentEdits(lastSavedAreas, areaNoteDrafts),');
+    expect(t).toContain('expectedUpdatedAt: last.updated_at,');
+    expect(t).toContain('afterDetails: async (updatedAt) => { await recordSaved(updatedAt, lastSavedAreas); },');
     expect(t).toContain('error instanceof BuyerDetailsPartialSaveError');
     expect(t).toContain('onConflict?.()');
     for (const col of ['lvp_comments', 'spc_tile_comments', 'window_comments', 'backsplash_grout_comments', 'upgrade_interests_notes', 'upgrade_comments']) {
@@ -416,5 +420,76 @@ describe('History tab', () => {
       .toEqual([{ key: 'upgrade_comments', label: 'Client note — Upgrade Pricing Summary', old: 'a', new: 'b' }]);
     expect(auditChangeRows({ action_type: 'update', changes: { lvp_comments: { old: 'a', new: 'b' } } }))
       .toEqual([{ key: 'lvp_comments', label: 'Lvp Comments', old: 'a', new: 'b' }]);
+  });
+});
+
+describe('PR #4 review: audit shapes', () => {
+  test('dialog scalar note edits get client_notes_update rows (panel shape) and leave the generic diff', async () => {
+    const row = stored();
+    const f = fakeClient(row);
+    const payload = { first_name: 'Z', lvp_comments: 'new lvp', spc_tile_comments: null, upgrade_comments: 'sum' };
+    expect(clientNoteFieldChanges(row, payload)).toEqual([
+      { field: 'lvp_comments', label: 'Main Floor LVP', from: 'old lvp', to: 'new lvp' },
+      { field: 'upgrade_comments', label: 'Upgrade Pricing Summary', from: null, to: 'sum' },
+    ]);
+    expect(clientNoteFieldChanges(row, { lvp_comments: ' old lvp ', window_comments: '' })).toEqual([]); // trimmed / blank = null
+    const order: string[] = [];
+    await saveBuyerDetailsEdit(f.client as never, 's1', payload, [], {
+      // `before` is the dialog's snapshot (the fake client mutates `row` in place on update).
+      expectedUpdatedAt: 't0', before: stored(), afterDetails: () => { order.push(`generic audit (${f.audits.length} note rows already)`); },
+    });
+    expect(f.audits.map(a => [a.action_type, (a.changes as { field: string }).field])).toEqual([
+      ['client_notes_update', 'lvp_comments'], ['client_notes_update', 'upgrade_comments'],
+    ]);
+    expect(order).toEqual(['generic audit (2 note rows already)']);
+    // The editor drops the six note keys from its generic `update` diff in this mode, so History has each note once.
+    const t = src('src/components/admin/SubmissionEditor.tsx');
+    expect(t).toContain('for (const k of CLIENT_NOTE_KEYS) delete out[k];');
+    expect(t).toContain('calculateChanges(diffOf(originalData), diffOf(newData))');
+    expect(t).toContain('before: last,');
+  });
+
+  test('originalFromAuditLogs reads both shapes: generic {old,new} and client_notes_update {field, from, to}', () => {
+    const current = {
+      id: 's1', lvp_comments: 'edited lvp', window_comments: 'edited w', first_name: 'Zed', spc_tile_comments: 'tile v3',
+      area_upgrades: [{ areaId: 'masterEnsuite', clientComment: 'edited area', manualPrice: 1 }, { areaId: 'laundry', clientComment: 'second' }],
+    };
+    const logs = [
+      { action_type: 'update', changes: { first_name: { old: 'Ann', new: 'Zed' }, window_comments: { old: 'orig w', new: 'mid w' } } },
+      { action_type: 'client_notes_update', changes: { field: 'lvp_comments', label: 'Main Floor LVP', from: null, to: 'edited lvp' } },
+      { action_type: 'client_notes_update', changes: { field: 'window_comments', label: 'Window Coverings', from: 'mid w', to: 'edited w' } },
+      { action_type: 'client_notes_update', changes: { field: 'area_upgrades[0].clientComment', label: 'x', from: null, to: 'first area' } },
+      { action_type: 'client_notes_update', changes: { field: 'area_upgrades[0].clientComment', label: 'x', from: 'first area', to: 'edited area' } },
+      { action_type: 'client_notes_update', changes: { field: 'spc_tile_comments', label: 'Bathroom Tile', from: 'tile v1', to: 'tile v2' } },
+      { action_type: 'update', changes: { spc_tile_comments: { old: 'tile v2', new: 'tile v3' } } },
+    ];
+    const orig = originalFromAuditLogs(current, logs);
+    expect(orig.first_name).toBe('Ann');
+    expect(orig.lvp_comments).toBeNull();
+    expect(orig.window_comments).toBe('orig w'); // oldest "before" wins across shapes
+    expect(orig.spc_tile_comments).toBe('tile v1');
+    expect(orig.area_upgrades).toEqual([{ areaId: 'masterEnsuite', manualPrice: 1 }, { areaId: 'laundry', clientComment: 'second' }]);
+    expect(current.area_upgrades[0].clientComment).toBe('edited area'); // input not mutated
+  });
+
+  test('an earlier whole-array area_upgrades "before" wins over a later area note; a later one does not', () => {
+    const current = { area_upgrades: [{ areaId: 'laundry', clientComment: 'now' }] };
+    const base = [{ areaId: 'laundry', clientComment: 'as submitted' }];
+    const arrayFirst = originalFromAuditLogs(current, [
+      { action_type: 'update', changes: { area_upgrades: { old: base, new: [] } } },
+      { action_type: 'client_notes_update', changes: { field: 'area_upgrades[0].clientComment', from: 'middle', to: 'now' } },
+    ]);
+    expect(arrayFirst.area_upgrades).toEqual(base);
+    const noteFirst = originalFromAuditLogs(current, [
+      { action_type: 'client_notes_update', changes: { field: 'area_upgrades[0].clientComment', from: 'very first', to: 'b' } },
+      { action_type: 'update', changes: { area_upgrades: { old: [{ areaId: 'laundry', clientComment: 'b' }], new: [] } } },
+    ]);
+    expect(noteFirst.area_upgrades).toEqual([{ areaId: 'laundry', clientComment: 'very first' }]);
+  });
+
+  test('openDetails uses originalFromAuditLogs and selects action_type', () => {
+    const t = src('src/pages/AdminSubmissions.tsx');
+    expect(t).toContain("select('action_type, changes, created_at')");
+    expect(t).toContain('originalFromAuditLogs(submission as unknown as Record<string, unknown>, data || [])');
   });
 });
