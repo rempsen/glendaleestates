@@ -27,6 +27,8 @@ import { SectionGroup } from '@/components/quote/SectionGroup';
 import { isSaveKey, lineAnchor, sectionAnchor } from '@/components/quote/consoleCells';
 import { AddLineMenu } from '@/components/quote/AddLineMenu';
 import { NotesPanels } from '@/components/quote/NotesPanels';
+import { ClientNotesPanel } from '@/components/quote/ClientNotesPanel';
+import { isClientNotesConflict, CLIENT_NOTES_CONFLICT_MESSAGE, saveClientNotes, type ClientNotesPatch } from '@/lib/clientNotes';
 import { FOLLOWUPS_CONFLICT_MESSAGE, saveNotes, type NotesPatch } from '@/lib/followUps';
 import { DocumentsPanel } from '@/components/quote/DocumentsPanel';
 import { ItemiseBanner } from '@/components/quote/ItemiseBanner';
@@ -114,6 +116,22 @@ export default function QuoteConsole() {
       else toast.error('Could not save notes', { description: r.error });
     } finally {
       setNotesSaving(false);
+    }
+  }, [row, loadRow]);
+
+  const [clientNotesSaving, setClientNotesSaving] = useState(false);
+  // Client-facing notes (buyer PDF "Your Comments & Notes"): src/lib/clientNotes.ts, conditional on updated_at.
+  const onSaveClientNotes = useCallback(async (patch: ClientNotesPatch) => {
+    if (!row) return;
+    setClientNotesSaving(true);
+    try {
+      const r = await saveClientNotes(supabase as never, row.id, patch, row.updated_at);
+      setRow((prev) => (prev ? { ...prev, ...r.values, area_upgrades: Array.isArray(r.values.area_upgrades) ? r.values.area_upgrades : [], updated_at: r.updated_at } as Row : prev));
+    } catch (e) {
+      if (isClientNotesConflict(e)) { toast.warning(CLIENT_NOTES_CONFLICT_MESSAGE); await loadRow(); }
+      else toast.error('Could not save the client note', { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setClientNotesSaving(false);
     }
   }, [row, loadRow]);
 
@@ -315,6 +333,8 @@ export default function QuoteConsole() {
                 )}
               />
             ))}
+
+            {row && <ClientNotesPanel row={row} onSave={(p) => { void onSaveClientNotes(p); }} saving={clientNotesSaving} />}
 
             <NotesPanels lines={q.lines} followUps={followUps} basementNotes={basementNotes} onSaveNotes={(p) => { void onSaveNotes(p); }} saving={notesSaving} />
 

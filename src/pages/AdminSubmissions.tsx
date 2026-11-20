@@ -56,6 +56,8 @@ import { StatusWorkflowControl } from '@/components/admin/StatusWorkflowControl'
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
 import { SubmissionComparisonView } from '@/components/admin/SubmissionComparisonView';
 import { SubmissionAuditLog } from '@/components/admin/SubmissionAuditLog';
+import { ClientNotesPanel } from '@/components/quote/ClientNotesPanel';
+import { CLIENT_NOTES_CONFLICT_MESSAGE, isClientNotesConflict, saveClientNotes, type ClientNotesPatch } from '@/lib/clientNotes';
 import { UpgradeRequestSummary } from '@/components/admin/UpgradeRequestSummary';
 import { EmailPreviewDialog } from '@/components/admin/EmailPreviewDialog';
 import { generateEmailPreviewHtml } from '@/lib/emailPreview';
@@ -292,6 +294,41 @@ export default function AdminSubmissions() {
       toast.error('Failed to re-sync comments', { description: error.message });
     } finally {
       setResyncingComments(false);
+    }
+  };
+
+  // Client-facing notes panel (view mode): one field per save through src/lib/clientNotes.ts, conditional on
+  // updated_at; a conflict reloads this one row.
+  const [clientNotesSaving, setClientNotesSaving] = useState(false);
+  const applyRowPatch = (id: string, patch: Partial<BuyerSelection>) => {
+    setSelectedSubmission((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
+    setSubmissions((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  };
+  const reloadSubmissionRow = async (id: string) => {
+    const { data, error } = await supabase.from('buyer_selections').select('*').eq('id', id).maybeSingle();
+    if (error || !data) { toast.error('Could not reload this submission', { description: error?.message }); return; }
+    applyRowPatch(id, {
+      ...data,
+      upgrade_interests: (data.upgrade_interests as unknown as Record<string, boolean>) || {},
+      area_upgrades: (data.area_upgrades as unknown as AreaUpgrade[]) || [],
+    } as unknown as BuyerSelection);
+  };
+  const saveClientNote = async (patch: ClientNotesPatch) => {
+    const sub = selectedSubmission;
+    if (!sub) return;
+    setClientNotesSaving(true);
+    try {
+      const r = await saveClientNotes(supabase as never, sub.id, patch, sub.updated_at);
+      applyRowPatch(sub.id, {
+        ...r.values,
+        area_upgrades: (Array.isArray(r.values.area_upgrades) ? r.values.area_upgrades : []) as AreaUpgrade[],
+        updated_at: r.updated_at,
+      } as Partial<BuyerSelection>);
+    } catch (e) {
+      if (isClientNotesConflict(e)) { toast.warning(CLIENT_NOTES_CONFLICT_MESSAGE); await reloadSubmissionRow(sub.id); }
+      else toast.error('Could not save the client note', { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setClientNotesSaving(false);
     }
   };
 
@@ -817,7 +854,9 @@ export default function AdminSubmissions() {
                   );
                 })()}
 
-                {/* Pricing Summary - FIRST (from quote lines) */}
+                <ClientNotesPanel row={selectedSubmission} onSave={(p) => { void saveClientNote(p); }} saving={clientNotesSaving} />
+
+                {/* Pricing Summary (from quote lines) */}
                 {!totalsGate.ready ? (
                   <div role={totalsGate.state === 'error' ? 'alert' : 'status'}
                     className={`p-4 rounded-xl border border-border text-sm ${totalsGate.state === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
