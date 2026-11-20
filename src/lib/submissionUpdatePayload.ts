@@ -48,6 +48,8 @@ export interface SubmissionEditState {
   patio_doors_qty: number;
   window_comments?: string | null;
   upgrade_interests: Record<string, boolean>;
+  upgrade_interests_notes?: string | null; // printed for the buyer ("Upgrade Interests")
+  upgrade_comments?: string | null; // printed for the buyer ("Upgrade Pricing Summary")
   status: string;
   sales_comments: string | null;
   area_upgrades?: AreaUpgrade[];
@@ -172,6 +174,10 @@ function buildFullPayload(editData: SubmissionEditState): TablesUpdate<'buyer_se
     custom_tiled_shower: !!editData.custom_tiled_shower,
     bathroom_tile_ensuite_selected: !!editData.bathroom_tile_ensuite_selected,
     bathroom_tile_guest_selected: !!editData.bathroom_tile_guest_selected,
+
+    // Upgrade notes printed for the buyer (omitted when the editor state never loaded them)
+    ...(editData.upgrade_interests_notes !== undefined ? { upgrade_interests_notes: editData.upgrade_interests_notes } : {}),
+    ...(editData.upgrade_comments !== undefined ? { upgrade_comments: editData.upgrade_comments } : {}),
 
     // Admin
     sales_comments: editData.sales_comments,
