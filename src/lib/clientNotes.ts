@@ -72,6 +72,9 @@ export function clientNoteEntries(row: ClientNoteSource, opts: { includeEmpty?: 
   return out;
 }
 
+/** The printed notes as `[label, text]` rows (the Word copy's Notes section). */
+export const clientNoteRows = (row: ClientNoteSource): string[][] => clientNoteEntries(row).map((e) => [e.label, e.text]);
+
 /** The PDF's camelCase selections → the row shape `clientNoteEntries` reads. */
 export function clientNoteSourceFromSelections(s: {
   lvpComments?: string | null; spcTileComments?: string | null; windowComments?: string | null;
@@ -130,6 +133,8 @@ export interface SaveClientNotesResult {
   values: ClientNoteSource;
   /** Fields that changed (`area_upgrades[i].clientComment` for area rows). */
   changed: string[];
+  /** The note was saved but its audit row was not (callers warn). */
+  auditFailed: boolean;
 }
 
 const SELECT = [...CLIENT_NOTE_COLUMNS, 'updated_at'].join(', ');
@@ -144,9 +149,10 @@ export async function saveClientNotes(
 ): Promise<SaveClientNotesResult> {
   const cur = await client.from('buyer_selections').select(SELECT).eq('id', submissionId).maybeSingle();
   if (cur.error) throw new Error(cur.error.message ?? String(cur.error));
+  if (!expectedUpdatedAt) throw new Error('saveClientNotes needs the row\'s updated_at (no unchecked writes)');
   if (!cur.data) throw new Error('Quote not found');
   const stored = cur.data as ClientNoteSource & { updated_at: string };
-  if (expectedUpdatedAt && stored.updated_at !== expectedUpdatedAt) throw new ClientNotesConflictError();
+  if (stored.updated_at !== expectedUpdatedAt) throw new ClientNotesConflictError();
 
   const update: Record<string, unknown> = {};
   const audits: Array<{ field: string; label: string; from: string | null; to: string | null }> = [];
@@ -179,7 +185,7 @@ export async function saveClientNotes(
   const stray = Object.keys(update).filter((k) => !(CLIENT_NOTE_COLUMNS as readonly string[]).includes(k));
   if (stray.length) throw new Error(`saveClientNotes refused columns: ${stray.join(', ')}`);
 
-  if (!audits.length) return { updated_at: stored.updated_at, values: pickValues(stored), changed: [] };
+  if (!audits.length) return { updated_at: stored.updated_at, values: pickValues(stored), changed: [], auditFailed: false };
 
   const upd = await client.from('buyer_selections')
     .update(update)
@@ -197,10 +203,11 @@ export async function saveClientNotes(
     changes: c,
     change_summary: `Client note updated: ${c.label}`,
   })));
-  if (audit?.error) console.error('client notes audit log failed', audit.error);
+  const auditFailed = !!audit?.error;
+  if (auditFailed) console.error('client notes audit log failed', audit.error);
 
   const saved = upd.data as ClientNoteSource & { updated_at: string };
-  return { updated_at: String(saved.updated_at), values: pickValues(saved), changed: audits.map((c) => c.field) };
+  return { updated_at: String(saved.updated_at), values: pickValues(saved), changed: audits.map((c) => c.field), auditFailed };
 }
 
 function pickValues(row: ClientNoteSource): ClientNoteSource {
@@ -221,21 +228,44 @@ export function areaClientCommentEdits(saved: unknown, drafts: readonly string[]
   });
 }
 
+/** Step 1 (buyer details) was saved; step 2 (area client notes) was not. `conflict`: step 2 lost the updated_at race. */
+export class BuyerDetailsPartialSaveError extends Error {
+  constructor(readonly detailsUpdatedAt: string, readonly conflict: boolean, reason: string) {
+    super(`Buyer details saved; area client notes not saved — ${reason}`);
+    this.name = 'BuyerDetailsPartialSaveError';
+  }
+}
+
 /**
- * Saves the buyer-details dialog: the non-pricing payload (built with `buyerDetailsOnly`, so it never carries
- * `area_upgrades`) and then any area `clientComment` edits through `saveClientNotes`, conditional on the
- * `updated_at` the payload write returned. Only `clientComment` changes inside `area_upgrades` reach the database.
+ * Saves the buyer-details dialog in two steps, both conditional on `updated_at`:
+ *   1. the non-pricing payload (built with `buyerDetailsOnly`, so it never carries `area_upgrades`), only if the row
+ *      is still at `expectedUpdatedAt` (else `ClientNotesConflictError`, nothing written); then `afterDetails` runs
+ *      (the caller's audit row and row-state update for step 1);
+ *   2. any area `clientComment` edits through `saveClientNotes`, conditional on step 1's `updated_at`. If this step
+ *      fails, step 1 stays saved and `BuyerDetailsPartialSaveError` says so.
+ * Only `clientComment` changes inside `area_upgrades` reach the database.
  */
 export async function saveBuyerDetailsEdit(
   client: Client, submissionId: string, payload: Record<string, unknown>,
   areaEdits: Array<{ index: number; areaId: string; text: string }>,
-): Promise<{ updated_at: string | null; area_upgrades?: unknown }> {
+  expectedUpdatedAt: string | null | undefined,
+  afterDetails?: (updatedAt: string) => Promise<void> | void,
+): Promise<{ updated_at: string; area_upgrades?: unknown; auditFailed?: boolean }> {
   if ('area_upgrades' in payload || 'custom_pricing' in payload) throw new Error('buyer details payload may not carry area_upgrades or custom_pricing');
-  const upd = await client.from('buyer_selections').update(payload).eq('id', submissionId).select('updated_at').maybeSingle();
+  if (!expectedUpdatedAt) throw new Error('saveBuyerDetailsEdit needs the row\'s updated_at (no unchecked writes)');
+  const upd = await client.from('buyer_selections').update(payload)
+    .eq('id', submissionId).eq('updated_at', expectedUpdatedAt)
+    .select('updated_at').maybeSingle();
   if (upd.error) throw new Error(upd.error.message ?? String(upd.error));
-  if (!upd.data) throw new Error('Quote not found');
-  const updatedAt: string | null = upd.data.updated_at ?? null;
+  if (!upd.data) throw new ClientNotesConflictError();
+  const updatedAt = String(upd.data.updated_at);
+  await afterDetails?.(updatedAt);
   if (!areaEdits.length) return { updated_at: updatedAt };
-  const r = await saveClientNotes(client, submissionId, { areas: areaEdits }, updatedAt);
-  return { updated_at: r.updated_at, area_upgrades: r.values.area_upgrades };
+  try {
+    const r = await saveClientNotes(client, submissionId, { areas: areaEdits }, updatedAt);
+    return { updated_at: r.updated_at, area_upgrades: r.values.area_upgrades, auditFailed: r.auditFailed };
+  } catch (e) {
+    const conflict = isClientNotesConflict(e);
+    throw new BuyerDetailsPartialSaveError(updatedAt, conflict, conflict ? CLIENT_NOTES_CONFLICT_MESSAGE : e instanceof Error ? e.message : String(e));
+  }
 }

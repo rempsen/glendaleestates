@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import liveSubmissions from './fixtures/live-submissions.json';
 import {
-  applyAreaClientComment, areaClientCommentEdits, CLIENT_NOTE_COLUMNS, CLIENT_NOTE_FIELDS, CLIENT_NOTES_CONFLICT_MESSAGE,
+  applyAreaClientComment, areaClientCommentEdits, BuyerDetailsPartialSaveError, clientNoteRows, CLIENT_NOTE_COLUMNS, CLIENT_NOTE_FIELDS, CLIENT_NOTES_CONFLICT_MESSAGE,
   ClientNotesConflictError, clientNoteEntries, clientNoteSourceFromSelections, isClientNotesConflict, saveBuyerDetailsEdit,
   saveClientNotes,
 } from '../src/lib/clientNotes';
@@ -127,7 +127,7 @@ describe('applyAreaClientComment', () => {
 });
 
 /** A PostgREST stand-in: one buyer_selections row, conditional update on updated_at, audit inserts. */
-function fakeClient(row: Record<string, unknown>, opts: { bumpBeforeUpdate?: boolean } = {}) {
+function fakeClient(row: Record<string, unknown>, opts: { bumpBeforeUpdate?: boolean; auditError?: boolean } = {}) {
   const audits: Array<Record<string, unknown>> = [];
   const updates: Array<Record<string, unknown>> = [];
   let n = 0;
@@ -135,7 +135,7 @@ function fakeClient(row: Record<string, unknown>, opts: { bumpBeforeUpdate?: boo
     auth: { getUser: async () => ({ data: { user: { id: 'u-noni', email: 'noni@bmdmaterials.com' } } }) },
     from(table: string) {
       if (table === 'submission_audit_logs') {
-        return { insert: async (r: Record<string, unknown> | Array<Record<string, unknown>>) => { audits.push(...(Array.isArray(r) ? r : [r])); return { error: null }; } };
+        return { insert: async (r: Record<string, unknown> | Array<Record<string, unknown>>) => { if (opts.auditError) return { error: { message: 'rls' } }; audits.push(...(Array.isArray(r) ? r : [r])); return { error: null }; } };
       }
       const filters: Record<string, unknown> = {};
       let payload: Record<string, unknown> | null = null;
@@ -188,7 +188,7 @@ describe('saveClientNotes', () => {
     const row = stored();
     row.area_upgrades[0].manualPrice = 9100; // someone else's newer edit the caller never saw
     const f = fakeClient(row);
-    await saveClientNotes(f.client as never, 's1', { areas: [{ index: 0, areaId: 'masterEnsuite', text: 'Matte tile' }] }, null);
+    await saveClientNotes(f.client as never, 's1', { areas: [{ index: 0, areaId: 'masterEnsuite', text: 'Matte tile' }] }, 't0');
     expect(Object.keys(f.updates[0])).toEqual(['area_upgrades']);
     const saved = f.updates[0].area_upgrades as Array<Record<string, unknown>>;
     expect(saved[0]).toEqual({ areaId: 'masterEnsuite', materialType: 'tile', comments: 'INTERNAL', manualPrice: 9100, heatedFloor: true, clientComment: 'Matte tile' });
@@ -227,6 +227,21 @@ describe('saveClientNotes', () => {
       expect(JSON.stringify(f.audits).includes('PRIVATE')).toBe(false);
       expect(JSON.stringify(f.audits).includes('INTERNAL')).toBe(false);
     }
+  });
+  test('no unchecked writes: a missing expectedUpdatedAt throws before any write', async () => {
+    for (const missing of [null, undefined, '']) {
+      const f = fakeClient(stored());
+      await expect(saveClientNotes(f.client as never, 's1', { fields: { lvp_comments: 'x' } }, missing)).rejects.toThrow(/updated_at/);
+      expect(f.updates).toEqual([]);
+    }
+  });
+  test('a failed audit insert still saves the note and reports auditFailed', async () => {
+    const f = fakeClient(stored(), { auditError: true });
+    const r = await saveClientNotes(f.client as never, 's1', { fields: { lvp_comments: 'new' } }, 't0');
+    expect(f.updates).toEqual([{ lvp_comments: 'new' }]);
+    expect(r.auditFailed).toBe(true);
+    const ok = await saveClientNotes(fakeClient(stored()).client as never, 's1', { fields: { lvp_comments: 'new' } }, 't0');
+    expect(ok.auditFailed).toBe(false);
   });
   test('no change → no write and no audit row', async () => {
     const f = fakeClient(stored());
@@ -274,7 +289,9 @@ describe('SubmissionEditor buyerDetailsOnly', () => {
     expect(payload.spc_tile_comments).toBe('tile note');
     const edits = areaClientCommentEdits(row.area_upgrades, ['Matte tile', 'old note']);
     expect(edits).toEqual([{ index: 0, areaId: 'masterEnsuite', text: 'Matte tile' }]);
-    const r = await saveBuyerDetailsEdit(f.client as never, 's1', payload, edits);
+    const order: string[] = [];
+    const r = await saveBuyerDetailsEdit(f.client as never, 's1', payload, edits, 't0', (u) => { order.push(`details audit @${u}`); });
+    expect(order).toEqual(['details audit @t1']); // step 1's audit runs before step 2
     expect(f.updates).toHaveLength(2);
     expect('area_upgrades' in f.updates[0]).toBe(false);
     expect(Object.keys(f.updates[1])).toEqual(['area_upgrades']);
@@ -286,10 +303,36 @@ describe('SubmissionEditor buyerDetailsOnly', () => {
   });
   test('no area edits → one payload write only; a payload carrying area_upgrades or custom_pricing is refused', async () => {
     const f = fakeClient(stored());
-    await saveBuyerDetailsEdit(f.client as never, 's1', { first_name: 'Z' }, []);
+    await saveBuyerDetailsEdit(f.client as never, 's1', { first_name: 'Z' }, [], 't0');
     expect(f.updates).toEqual([{ first_name: 'Z' }]);
-    await expect(saveBuyerDetailsEdit(f.client as never, 's1', { area_upgrades: [] }, [])).rejects.toThrow();
-    await expect(saveBuyerDetailsEdit(f.client as never, 's1', { custom_pricing: {} }, [])).rejects.toThrow();
+    await expect(saveBuyerDetailsEdit(f.client as never, 's1', { area_upgrades: [] }, [], 't1')).rejects.toThrow();
+    await expect(saveBuyerDetailsEdit(f.client as never, 's1', { custom_pricing: {} }, [], 't1')).rejects.toThrow();
+    await expect(saveBuyerDetailsEdit(f.client as never, 's1', { first_name: 'Y' }, [], null)).rejects.toThrow(/updated_at/);
+    expect(f.updates).toHaveLength(1);
+  });
+  test('step 1 is conditional on updated_at: a stale dialog writes nothing and throws the panel\'s conflict', async () => {
+    const f = fakeClient(stored());
+    let called = false;
+    let err: unknown;
+    try { await saveBuyerDetailsEdit(f.client as never, 's1', { first_name: 'Z' }, [{ index: 0, areaId: 'masterEnsuite', text: 'x' }], 'stale', () => { called = true; }); } catch (e) { err = e; }
+    expect(isClientNotesConflict(err)).toBe(true);
+    expect((err as Error).message).toBe(CLIENT_NOTES_CONFLICT_MESSAGE);
+    expect(called).toBe(false);
+    expect(f.updates).toEqual([]);
+  });
+  test('step 2 failure: details stay saved and recorded; the error says area notes were not saved', async () => {
+    const f = fakeClient(stored());
+    const order: string[] = [];
+    let err: unknown;
+    try {
+      await saveBuyerDetailsEdit(f.client as never, 's1', { first_name: 'Z' }, [{ index: 1, areaId: 'masterEnsuite', text: 'moved' }], 't0', (u) => { order.push(u); });
+    } catch (e) { err = e; }
+    expect(err).toBeInstanceOf(BuyerDetailsPartialSaveError);
+    expect((err as BuyerDetailsPartialSaveError).conflict).toBe(true);
+    expect((err as BuyerDetailsPartialSaveError).detailsUpdatedAt).toBe('t1');
+    expect((err as Error).message).toMatch(/^Buyer details saved; area client notes not saved/);
+    expect(order).toEqual(['t1']);
+    expect(f.updates).toEqual([{ first_name: 'Z' }]);
   });
   test('full mode payload carries the three new note columns', () => {
     const p = buildSubmissionUpdatePayload(editState(stored())) as Record<string, unknown>;
@@ -302,7 +345,10 @@ describe('SubmissionEditor buyerDetailsOnly', () => {
   test('source pin: the editor routes buyerDetailsOnly saves through saveBuyerDetailsEdit and has every note input', () => {
     const t = src('src/components/admin/SubmissionEditor.tsx');
     expect(t).toContain('saveBuyerDetailsEdit(');
-    expect(t).toContain('areaClientCommentEdits(lastSavedAreas, areaNoteDrafts)');
+    expect(t).toContain('areaClientCommentEdits(lastSavedAreas, areaNoteDrafts), last.updated_at');
+    expect(t).toContain('async (updatedAt) => { await recordSaved(updatedAt, lastSavedAreas); }');
+    expect(t).toContain('error instanceof BuyerDetailsPartialSaveError');
+    expect(t).toContain('onConflict?.()');
     for (const col of ['lvp_comments', 'spc_tile_comments', 'window_comments', 'backsplash_grout_comments', 'upgrade_interests_notes', 'upgrade_comments']) {
       expect(t).toContain(`handleChange('${col}'`);
     }
@@ -320,6 +366,45 @@ describe('panel and page wiring', () => {
       expect(t).toContain('<ClientNotesPanel');
       expect(t).toContain('saveClientNotes(supabase as never');
     }
+  });
+});
+
+describe('payload normalisation', () => {
+  test('the six notes are trimmed (blank → null) and area clientComment trimmed, as saveClientNotes stores them', () => {
+    const st = editState(stored());
+    Object.assign(st, { lvp_comments: '  a  ', spc_tile_comments: '   ', window_comments: ' w', backsplash_grout_comments: 'g ', upgrade_interests_notes: ' i ', upgrade_comments: '\n' });
+    st.area_upgrades![1] = { ...st.area_upgrades![1], clientComment: '  note  ' } as never;
+    const p = buildSubmissionUpdatePayload(st) as Record<string, unknown>;
+    expect([p.lvp_comments, p.spc_tile_comments, p.window_comments, p.backsplash_grout_comments, p.upgrade_interests_notes, p.upgrade_comments])
+      .toEqual(['a', null, 'w', 'g', 'i', null]);
+    expect((p.area_upgrades as Array<Record<string, unknown>>)[1].clientComment).toBe('note');
+    expect('clientComment' in (p.area_upgrades as Array<Record<string, unknown>>)[0]).toBe(false);
+  });
+});
+
+describe('Word copy prints the PDF notes', () => {
+  test('nine fixtures (as stored and filled): Word note rows equal the PDF rows', () => {
+    for (const base of fixtures) {
+      for (const row of [base, withNotes(base)]) {
+        const pdf = legacyPdfEntries(toBuyerPdfSelections(row as unknown as Tables<'buyer_selections'>)).map(e => [e.label, e.text]);
+        expect(clientNoteRows(row)).toEqual(pdf);
+      }
+    }
+  });
+  test('source pin: downloadSubmissionWord builds its notes with clientNoteRows', () => {
+    const t = src('src/lib/submissionWordExport.ts');
+    expect(t).toContain('const notes = clientNoteRows(s);');
+    expect(t.includes("['Flooring', s.lvp_comments]")).toBe(false);
+  });
+});
+
+describe('row writers hand back updated_at', () => {
+  test('status changes return the new updated_at and the Submissions page applies it', () => {
+    const ctl = src('src/components/admin/StatusWorkflowControl.tsx');
+    expect(ctl).toContain(".select('updated_at')");
+    expect(ctl).toContain('onStatusChange(newStatus, newTimestamps, data?.updated_at ?? undefined);');
+    expect(src('src/pages/AdminSubmissions.tsx')).toContain('...(updatedAt ? { updated_at: updatedAt } : {})');
+    expect(src('src/pages/QuoteConsole.tsx')).toContain('onConflict={() => { setEditOpen(false); void loadRow(); }}');
   });
 });
 

@@ -81,7 +81,8 @@ export function countHeatedTileRows(areaUpgrades: AreaUpgrade[] | undefined): nu
  * - heated_floor_bathrooms = max(staff input, count of area rows flagged heatedFloor), so the
  *   saved value never drops below either source (the buyer's Section-4 count is preserved).
  * - area_upgrades rows keep every key (areaLabel included); only manualPrice,
- *   heatedFloor and manualPriceNote are normalised.
+ *   heatedFloor, manualPriceNote and clientComment (trimmed) are normalised.
+ * - The six client-facing note columns are trimmed, blank → null (as saveClientNotes stores them).
  * - Stair upgrade flags are forced off when the unit has no stairs.
  */
 /**
@@ -109,9 +110,13 @@ export function buildSubmissionUpdatePayload(
   return out as TablesUpdate<'buyer_selections'>;
 }
 
+/** Client-facing notes are stored trimmed, blank as null — the same as src/lib/clientNotes.ts saveClientNotes. */
+const note = (v: string | null | undefined): string | null => { const t = (v ?? '').trim(); return t ? t : null; };
+
 function buildFullPayload(editData: SubmissionEditState): TablesUpdate<'buyer_selections'> {
   const areaUpgradesJson = (editData.area_upgrades || []).map(upgrade => ({
     ...upgrade,
+    ...(typeof upgrade.clientComment === 'string' ? { clientComment: upgrade.clientComment.trim() } : {}),
     heatedFloor: upgrade.heatedFloor || false,
     manualPrice: Number(upgrade.manualPrice) > 0 ? Number(upgrade.manualPrice) : null,
     manualPriceNote: upgrade.manualPriceNote || '',
@@ -132,9 +137,9 @@ function buildFullPayload(editData: SubmissionEditState): TablesUpdate<'buyer_se
 
     // Flooring Selections
     lvp_colour: editData.lvp_colour,
-    lvp_comments: editData.lvp_comments,
+    lvp_comments: note(editData.lvp_comments),
     spc_tile_colour: editData.spc_tile_colour,
-    spc_tile_comments: editData.spc_tile_comments,
+    spc_tile_comments: note(editData.spc_tile_comments),
 
     // Bedroom Flooring
     bedroom_flooring_choice: editData.bedroom_flooring_choice,
@@ -159,13 +164,13 @@ function buildFullPayload(editData: SubmissionEditState): TablesUpdate<'buyer_se
     backsplash_orientation: editData.backsplash_orientation,
     backsplash_grout_enabled: editData.backsplash_grout_enabled,
     backsplash_grout_color: editData.backsplash_grout_color,
-    backsplash_grout_comments: editData.backsplash_grout_comments,
+    backsplash_grout_comments: note(editData.backsplash_grout_comments),
 
     // Window Coverings
     additional_windows_qty: editData.additional_windows_qty,
     patio_doors_qty: editData.patio_doors_qty,
     automated_windows_qty: editData.automated_windows_qty ?? 0,
-    window_comments: editData.window_comments,
+    window_comments: note(editData.window_comments),
 
     // Area Upgrades - cast to Json type
     area_upgrades: areaUpgradesJson as unknown as Json,
@@ -176,8 +181,8 @@ function buildFullPayload(editData: SubmissionEditState): TablesUpdate<'buyer_se
     bathroom_tile_guest_selected: !!editData.bathroom_tile_guest_selected,
 
     // Upgrade notes printed for the buyer (omitted when the editor state never loaded them)
-    ...(editData.upgrade_interests_notes !== undefined ? { upgrade_interests_notes: editData.upgrade_interests_notes } : {}),
-    ...(editData.upgrade_comments !== undefined ? { upgrade_comments: editData.upgrade_comments } : {}),
+    ...(editData.upgrade_interests_notes !== undefined ? { upgrade_interests_notes: note(editData.upgrade_interests_notes) } : {}),
+    ...(editData.upgrade_comments !== undefined ? { upgrade_comments: note(editData.upgrade_comments) } : {}),
 
     // Admin
     sales_comments: editData.sales_comments,

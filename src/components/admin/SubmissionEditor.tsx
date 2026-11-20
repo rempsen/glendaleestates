@@ -41,7 +41,10 @@ import { useUpgradePricing } from '@/hooks/useUpgradePricing';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { getUnitInfo } from '@/lib/unitData';
 import { buildSubmissionUpdatePayload, isPricingField, countHeatedTileRows, type SubmissionEditState, type AreaUpgrade } from '@/lib/submissionUpdatePayload';
-import { areaClientCommentEdits, areaNoteLabel, clientNoteLabel, saveBuyerDetailsEdit } from '@/lib/clientNotes';
+import {
+  areaClientCommentEdits, areaNoteLabel, BuyerDetailsPartialSaveError, CLIENT_NOTES_CONFLICT_MESSAGE, clientNoteLabel,
+  isClientNotesConflict, saveBuyerDetailsEdit,
+} from '@/lib/clientNotes';
 
 type BuyerSelection = SubmissionEditState;
 
@@ -76,9 +79,11 @@ interface SubmissionEditorProps {
    * pricing (quote lines replace it in the console) and downstream tracking.
    */
   buyerDetailsOnly?: boolean;
+  /** The row moved on since the dialog opened (buyerDetailsOnly saves are conditional on updated_at): reload it. */
+  onConflict?: () => void;
 }
 
-export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerDetailsOnly = false }: SubmissionEditorProps) {
+export function SubmissionEditor({ submission, onSave, onSaved, onCancel, onConflict, buyerDetailsOnly = false }: SubmissionEditorProps) {
   const [editData, setEditData] = useState<BuyerSelection>({ ...submission });
   // Console dialog: area_upgrades is a pricing field, so only each row's client note is editable here; it is saved
   // through src/lib/clientNotes.ts (clientComment only), never through the update payload.
@@ -191,56 +196,64 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
     if (stairValidationError) throw Object.assign(new Error(stairValidationError), { isValidation: true });
 
     const updatePayload = buildSubmissionUpdatePayload(editData, { buyerDetailsOnly });
-    let savedAreaUpgrades: AreaUpgrade[] | undefined = editData.area_upgrades;
-    let savedUpdatedAt: string | undefined;
-    if (buyerDetailsOnly) {
-      const lastSavedAreas = (savedRef.current ?? submission).area_upgrades || [];
-      const r = await saveBuyerDetailsEdit(
-        supabase as never, submission.id, updatePayload as Record<string, unknown>, areaClientCommentEdits(lastSavedAreas, areaNoteDrafts),
-      );
-      if (r.area_upgrades !== undefined) savedAreaUpgrades = r.area_upgrades as AreaUpgrade[];
-      if (r.updated_at) savedUpdatedAt = r.updated_at;
-    } else {
-      const { data, error } = await supabase
-        .from('buyer_selections')
-        .update(updatePayload)
-        .eq('id', submission.id)
-        .select('updated_at')
-        .maybeSingle();
-      if (error) throw error;
-      // Keep the caller's row current so the client-notes panel's updated_at check does not see our own save.
-      if (data?.updated_at) savedUpdatedAt = data.updated_at;
-    }
+    const last = savedRef.current ?? submission;
 
-    // Calculate changes for audit log
-    const originalData = (savedRef.current ?? submission) as unknown as Record<string, unknown>;
-    // Console dialog: area_upgrades is not in the payload (its client notes are audited by saveClientNotes), so it is
-    // compared as unchanged rather than logged as cleared.
-    const newData = (buyerDetailsOnly ? { ...updatePayload, area_upgrades: originalData.area_upgrades } : { ...updatePayload, area_upgrades: editData.area_upgrades }) as unknown as Record<string, unknown>;
-    const { changes, changedFields } = calculateChanges(originalData, newData);
-
-    if (changedFields.length > 0) {
-      const changeSummary = generateChangeSummary(changedFields);
-      await createAuditLog({
-        submission_id: submission.id,
-        action_type: 'update',
-        changes,
-        previous_values: originalData,
-        new_values: newData,
-        change_summary: changeSummary,
-      });
-    }
-
-    const updatedSubmission: BuyerSelection = {
-      ...submission,
-      ...updatePayload,
-      area_upgrades: savedAreaUpgrades,
-      upgrade_interests: editData.upgrade_interests,
-      ...(savedUpdatedAt ? { updated_at: savedUpdatedAt } : {}),
+    // Audit row + parent row / savedRef for a write that is in the database (step 1 of the dialog, or the full save).
+    const recordSaved = async (updatedAt: string | undefined, areaUpgrades: AreaUpgrade[] | undefined): Promise<BuyerSelection> => {
+      const originalData = (savedRef.current ?? submission) as unknown as Record<string, unknown>;
+      // Console dialog: area_upgrades is not in the payload (its client notes are audited by saveClientNotes), so it
+      // is compared as unchanged rather than logged as cleared.
+      const newData = (buyerDetailsOnly ? { ...updatePayload, area_upgrades: originalData.area_upgrades } : { ...updatePayload, area_upgrades: editData.area_upgrades }) as unknown as Record<string, unknown>;
+      const { changes, changedFields } = calculateChanges(originalData, newData);
+      if (changedFields.length > 0) {
+        await createAuditLog({
+          submission_id: submission.id,
+          action_type: 'update',
+          changes,
+          previous_values: originalData,
+          new_values: newData,
+          change_summary: generateChangeSummary(changedFields),
+        });
+      }
+      const updatedSubmission: BuyerSelection = {
+        ...submission,
+        ...(savedRef.current ?? {}),
+        ...updatePayload,
+        area_upgrades: areaUpgrades,
+        upgrade_interests: editData.upgrade_interests,
+        ...(updatedAt ? { updated_at: updatedAt } : {}),
+      } as BuyerSelection;
+      savedRef.current = updatedSubmission;
+      onSaved?.(updatedSubmission);
+      return updatedSubmission;
     };
-    savedRef.current = updatedSubmission;
-    onSaved?.(updatedSubmission);
-    return updatedSubmission;
+
+    if (buyerDetailsOnly) {
+      // Two steps, both conditional on updated_at (src/lib/clientNotes.ts saveBuyerDetailsEdit): the details, whose
+      // audit row and row state are recorded before step 2; then the area client notes (clientComment only).
+      const lastSavedAreas = last.area_upgrades || [];
+      const r = await saveBuyerDetailsEdit(
+        supabase as never, submission.id, updatePayload as Record<string, unknown>,
+        areaClientCommentEdits(lastSavedAreas, areaNoteDrafts), last.updated_at,
+        async (updatedAt) => { await recordSaved(updatedAt, lastSavedAreas); },
+      );
+      if (r.auditFailed) toast.warning('Area client note saved, but its history entry was not recorded');
+      if (r.area_upgrades === undefined) return savedRef.current!;
+      const withAreas = { ...savedRef.current!, area_upgrades: r.area_upgrades as AreaUpgrade[], updated_at: r.updated_at };
+      savedRef.current = withAreas;
+      onSaved?.(withAreas);
+      return withAreas;
+    }
+
+    const { data, error } = await supabase
+      .from('buyer_selections')
+      .update(updatePayload)
+      .eq('id', submission.id)
+      .select('updated_at')
+      .maybeSingle();
+    if (error) throw error;
+    // Keep the caller's row current so the client-notes panel's updated_at check does not see our own save.
+    return recordSaved(data?.updated_at ?? undefined, editData.area_upgrades);
   };
 
   const handleSave = async () => {
@@ -250,9 +263,18 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, buyerD
       toast.success('Submission updated successfully');
       onSave(updatedSubmission);
     } catch (error: any) {
-      toast.error(error?.isValidation ? 'Validation Error' : 'Failed to save changes', {
-        description: error.message,
-      });
+      if (isClientNotesConflict(error)) {
+        // Step 1 found a newer row: nothing was written. Same message and reload as the client-notes panel.
+        toast.warning(CLIENT_NOTES_CONFLICT_MESSAGE);
+        onConflict?.();
+      } else if (error instanceof BuyerDetailsPartialSaveError) {
+        toast.error('Area client notes not saved', { description: error.message });
+        if (error.conflict) onConflict?.();
+      } else {
+        toast.error(error?.isValidation ? 'Validation Error' : 'Failed to save changes', {
+          description: error.message,
+        });
+      }
     } finally {
       setSaving(false);
     }

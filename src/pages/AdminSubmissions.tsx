@@ -56,7 +56,7 @@ import { StatusWorkflowControl } from '@/components/admin/StatusWorkflowControl'
 import { SubmissionEditor } from '@/components/admin/SubmissionEditor';
 import { SubmissionComparisonView } from '@/components/admin/SubmissionComparisonView';
 import { SubmissionAuditLog } from '@/components/admin/SubmissionAuditLog';
-import { ClientNotesPanel } from '@/components/quote/ClientNotesPanel';
+import { ClientNotesPanel, type ClientNoteSaveOutcome } from '@/components/quote/ClientNotesPanel';
 import { CLIENT_NOTES_CONFLICT_MESSAGE, isClientNotesConflict, saveClientNotes, type ClientNotesPatch } from '@/lib/clientNotes';
 import { UpgradeRequestSummary } from '@/components/admin/UpgradeRequestSummary';
 import { EmailPreviewDialog } from '@/components/admin/EmailPreviewDialog';
@@ -299,7 +299,6 @@ export default function AdminSubmissions() {
 
   // Client-facing notes panel (view mode): one field per save through src/lib/clientNotes.ts, conditional on
   // updated_at; a conflict reloads this one row.
-  const [clientNotesSaving, setClientNotesSaving] = useState(false);
   const applyRowPatch = (id: string, patch: Partial<BuyerSelection>) => {
     setSelectedSubmission((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
     setSubmissions((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
@@ -313,10 +312,9 @@ export default function AdminSubmissions() {
       area_upgrades: (data.area_upgrades as unknown as AreaUpgrade[]) || [],
     } as unknown as BuyerSelection);
   };
-  const saveClientNote = async (patch: ClientNotesPatch) => {
+  const saveClientNote = async (patch: ClientNotesPatch): Promise<ClientNoteSaveOutcome> => {
     const sub = selectedSubmission;
-    if (!sub) return;
-    setClientNotesSaving(true);
+    if (!sub) return 'error';
     try {
       const r = await saveClientNotes(supabase as never, sub.id, patch, sub.updated_at);
       applyRowPatch(sub.id, {
@@ -324,11 +322,12 @@ export default function AdminSubmissions() {
         area_upgrades: (Array.isArray(r.values.area_upgrades) ? r.values.area_upgrades : []) as AreaUpgrade[],
         updated_at: r.updated_at,
       } as Partial<BuyerSelection>);
+      if (r.auditFailed) toast.warning('Client note saved, but its history entry was not recorded');
+      return 'saved';
     } catch (e) {
-      if (isClientNotesConflict(e)) { toast.warning(CLIENT_NOTES_CONFLICT_MESSAGE); await reloadSubmissionRow(sub.id); }
-      else toast.error('Could not save the client note', { description: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setClientNotesSaving(false);
+      if (isClientNotesConflict(e)) { toast.warning(CLIENT_NOTES_CONFLICT_MESSAGE); await reloadSubmissionRow(sub.id); return 'conflict'; }
+      toast.error('Could not save the client note', { description: e instanceof Error ? e.message : String(e) });
+      return 'error';
     }
   };
 
@@ -745,8 +744,9 @@ export default function AdminSubmissions() {
                         quoted_at: selectedSubmission.quoted_at ?? null,
                         completed_at: selectedSubmission.completed_at ?? null,
                       }}
-                      onStatusChange={(newStatus, timestamps) => {
-                        const patch: Partial<BuyerSelection> = { status: newStatus, ...timestamps };
+                      onStatusChange={(newStatus, timestamps, updatedAt) => {
+                        // Keep updated_at current so the client-notes panel does not false-conflict after a status change.
+                        const patch: Partial<BuyerSelection> = { status: newStatus, ...timestamps, ...(updatedAt ? { updated_at: updatedAt } : {}) };
                         setSubmissions(prev =>
                           prev.map(s => s.id === selectedSubmission.id ? { ...s, ...patch } : s)
                         );
@@ -854,7 +854,7 @@ export default function AdminSubmissions() {
                   );
                 })()}
 
-                <ClientNotesPanel row={selectedSubmission} onSave={(p) => { void saveClientNote(p); }} saving={clientNotesSaving} />
+                <ClientNotesPanel row={selectedSubmission} onSave={saveClientNote} />
 
                 {/* Pricing Summary (from quote lines) */}
                 {!totalsGate.ready ? (
