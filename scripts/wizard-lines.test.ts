@@ -350,16 +350,25 @@ describe('Windows step and rail shell render', () => {
     expect(html).toContain('Remove window 2');
     expect(html).toContain('Add another window');
   });
-  test('StepContainer is a two-column shell only when a rail is provided', async () => {
+  // Regression (2026-11-25): the rail used to be injected into StepContainer via context. Moving Flooring -> Bathroom
+  // made the rail appear while the Flooring step was animating out, StepContainer changed shape, its exit never
+  // finished, and AnimatePresence(mode="wait") froze the wizard on Flooring (no selections, no typing, no Continue).
+  test('StepContainer never hosts the rail, so a step mid-exit keeps its shape', async () => {
     const { createElement } = await import('react');
     const { renderToStaticMarkup } = await import('react-dom/server');
     const { StepContainer } = await import('../src/components/StepContainer');
-    const { StepRailContext } = await import('../src/components/stepRail');
-    const plain = renderToStaticMarkup(createElement(StepContainer, { title: 'T', children: 'body' }));
-    expect(plain).not.toContain('lg:grid-cols');
-    const withRail = renderToStaticMarkup(createElement(StepRailContext.Provider, { value: createElement('aside', null, 'rail') },
-      createElement(StepContainer, { title: 'T', children: 'body' })));
-    expect(withRail).toContain('lg:grid-cols-[minmax(0,1fr)_320px]');
-    expect(withRail).toContain('<aside>rail</aside>');
+    const html = renderToStaticMarkup(createElement(StepContainer, { title: 'T', children: 'body' }));
+    expect(html).not.toContain('lg:grid-cols');
+    expect(readFileSync(join(root, 'src/components/StepContainer.tsx'), 'utf8')).not.toContain('useContext');
+  });
+  test('the wizard renders the rail beside AnimatePresence, inside an always-present wrapper', () => {
+    const src = readFileSync(join(root, 'src/pages/SelectionWizard.tsx'), 'utf8');
+    const presence = src.slice(src.indexOf('<AnimatePresence mode="wait">'), src.indexOf('</AnimatePresence>'));
+    expect(presence).not.toContain('RunningTotal');
+    const after = src.slice(src.indexOf('</AnimatePresence>'));
+    expect(after.indexOf('<RunningTotal')).toBeGreaterThan(-1);
+    expect(after.indexOf('<RunningTotal')).toBeLessThan(after.indexOf('{/* Navigation */}'));
+    // The grid wrapper is unconditional; only its className toggles.
+    expect(src).toContain("<div className={showRail ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8' : undefined}>");
   });
 });

@@ -1,6 +1,5 @@
-import { ReactNode, useContext } from 'react';
+import { ReactNode } from 'react';
 import { motion } from 'framer-motion';
-import { StepRailContext } from './stepRail';
 
 interface StepContainerProps {
   title: string;
@@ -10,8 +9,11 @@ interface StepContainerProps {
 }
 
 export function StepContainer({ title, subtitle, badge, children }: StepContainerProps) {
-  const rail = useContext(StepRailContext);
-  const content = (
+  // The running-total rail is laid out by SelectionWizard OUTSIDE the AnimatePresence subtree. It must never be
+  // injected here: a step that is exiting is frozen by AnimatePresence(mode="wait"), and if the rail appears or
+  // disappears mid-exit the wrapper changes shape, this motion.div remounts, its exit never completes, and the
+  // wizard locks on the old step (2026-11-25 Flooring -> Bathroom freeze).
+  return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
@@ -39,13 +41,5 @@ export function StepContainer({ title, subtitle, badge, children }: StepContaine
         {children}
       </div>
     </motion.div>
-  );
-
-  if (!rail) return content;
-  return (
-    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8">
-      {content}
-      {rail}
-    </div>
   );
 }
