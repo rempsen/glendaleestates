@@ -5,7 +5,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { Logo } from '@/components/Logo';
 import { WizardProgress } from '@/components/WizardProgress';
 import { StepContainer } from '@/components/StepContainer';
-import { StepRailContext } from '@/components/stepRail';
 import { SelectionCard } from '@/components/SelectionCard';
 import { UpgradeTeaser } from '@/components/UpgradeTeaser';
 import { FloorPlanViewer } from '@/components/FloorPlanViewer';
@@ -2642,17 +2641,20 @@ export default function SelectionWizard() {
       {/* From the first priced step the main column widens at lg+ for the 320 px running-total rail; below lg the
           rail is a fixed bottom bar, so the page keeps room for it. */}
       <main className={`container mx-auto px-4 py-8 md:py-12 ${showRail ? 'max-w-3xl lg:max-w-6xl pb-28 lg:pb-12' : 'max-w-3xl'}`}>
-        <StepRailContext.Provider
-          value={showRail ? (
+        {/* The rail sits beside the animated step, never inside it: the wrapper below is always rendered (only its
+            classes change), so the step being animated out keeps the same tree shape and its exit can finish. */}
+        <div className={showRail ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8' : undefined}>
+          <div className="min-w-0">
+            <AnimatePresence mode="wait">
+              <motion.div key={currentStep}>
+                {renderStep()}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+          {showRail && (
             <RunningTotal lines={quoteLines} gstRate={quotePricing.gstRate} buyerView saveState={{ status: 'idle' }} headerHeight="5rem" />
-          ) : null}
-        >
-          <AnimatePresence mode="wait">
-            <motion.div key={currentStep}>
-              {renderStep()}
-            </motion.div>
-          </AnimatePresence>
-        </StepRailContext.Provider>
+          )}
+        </div>
 
         {/* Navigation */}
         <div className={`flex items-center justify-between mt-12 pt-6 border-t border-border ${showRail ? 'lg:mr-[352px]' : ''}`}>
