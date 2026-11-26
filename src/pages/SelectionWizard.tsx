@@ -13,6 +13,7 @@ import { PremiumLVPSynergyShowcase } from '@/components/upgrades/PremiumLVPSyner
 import { PremiumLVPShowcase } from '@/components/upgrades/PremiumLVPShowcase';
 import { PremiumCarpetShowcase } from '@/components/upgrades/PremiumCarpetShowcase';
 import { PremiumStylePicker } from '@/components/upgrades/PremiumStylePicker';
+import { incompletePremiumCarpetSteps } from '@/lib/premiumProducts';
 import { RunningTotal } from '@/components/quote/RunningTotal';
 import { LocatedWindowsList } from '@/components/buyer/LocatedWindowsList';
 import { Button } from '@/components/ui/button';
@@ -260,6 +261,13 @@ export default function SelectionWizard() {
 
   const steps = getSteps(selections.hasStairs);
   const showRail = currentStep >= steps.indexOf(FIRST_PRICED_STEP);
+  // A ticked premium carpet needs its style + colour before the buyer moves on or submits.
+  const premiumIncompleteSteps = incompletePremiumCarpetSteps(selections);
+  const premiumBlocksHere = premiumIncompleteSteps.includes(steps[currentStep]);
+  const goToStep = (index: number) => {
+    if (index > currentStep && premiumBlocksHere) return;
+    setCurrentStep(index);
+  };
 
   // The running total (spec §6.16): lines regenerated from the in-progress selections on every change, through the
   // same row mapping the server uses after the insert, so the buyer sees the lines that will be submitted.
@@ -462,6 +470,7 @@ export default function SelectionWizard() {
   }, [currentStep]);
 
   const nextStep = () => {
+    if (premiumBlocksHere) return;
     if (currentStep < steps.length - 1) {
       const newStep = currentStep + 1;
       setCurrentStep(newStep);
@@ -484,6 +493,7 @@ export default function SelectionWizard() {
   }, [selections, unitInfo, quotePricing]);
 
   const handleSubmit = async () => {
+    if (premiumIncompleteSteps.length > 0) return;
     setIsSubmitting(true);
     setSubmissionStep('preparing');
     
@@ -2683,7 +2693,7 @@ export default function SelectionWizard() {
           <WizardProgress
             steps={steps}
             currentStep={currentStep}
-            onStepClick={setCurrentStep}
+            onStepClick={goToStep}
             allStepsVisited={highestStepReached >= steps.length - 1}
             hasUnsavedChanges={hasUnsavedChanges}
           />
@@ -2709,6 +2719,33 @@ export default function SelectionWizard() {
           )}
         </div>
 
+        {premiumIncompleteSteps.length > 0 && (premiumBlocksHere || currentStep === steps.length - 1) && (
+          <div
+            role="alert"
+            data-testid="premium-carpet-required"
+            className={`mt-8 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-foreground ${showRail ? 'lg:mr-[352px]' : ''}`}
+          >
+            <AlertCircle className="w-4 h-4 text-warning mt-0.5 flex-shrink-0" />
+            <div>
+              {premiumBlocksHere
+                ? 'Choose a premium carpet style and colour above to continue, or untick the premium carpet upgrade.'
+                : 'Choose a premium carpet style and colour before submitting:'}
+              {!premiumBlocksHere && (
+                <span className="ml-1">
+                  {premiumIncompleteSteps.map((name, i) => (
+                    <span key={name}>
+                      {i > 0 && ', '}
+                      <button type="button" className="underline font-medium" onClick={() => setCurrentStep(steps.indexOf(name))}>
+                        {name}
+                      </button>
+                    </span>
+                  ))}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Navigation */}
         <div className={`flex items-center justify-between mt-12 pt-6 border-t border-border ${showRail ? 'lg:mr-[352px]' : ''}`}>
           <Button
@@ -2722,12 +2759,12 @@ export default function SelectionWizard() {
           </Button>
 
           {currentStep < steps.length - 1 ? (
-            <Button onClick={nextStep} className="gap-2">
+            <Button onClick={nextStep} disabled={premiumBlocksHere} className="gap-2">
               Continue
               <ArrowRight className="w-4 h-4" />
             </Button>
           ) : (
-            <Button variant="hero" onClick={handleSubmit} disabled={isSubmitting} className="gap-2">
+            <Button variant="hero" onClick={handleSubmit} disabled={isSubmitting || premiumIncompleteSteps.length > 0} className="gap-2">
               {isSubmitting ? (
                 <>
                   <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
