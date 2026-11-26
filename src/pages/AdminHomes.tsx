@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
-import { lvpOptions, spcTileOptions, carpetOptions, resolveOptionName } from '@/lib/mockData';
+import { lvpOptions, bathLaundryFloorOptions, carpetOptions, resolveOptionName } from '@/lib/mockData';
 import { generateSavedSubmissionPdf } from '@/lib/savedSubmissionPdf';
 import { Search, Download, CheckCircle2, XCircle, Eye, FileText } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -261,7 +261,7 @@ export default function AdminHomes() {
                       </div>
                       <div className="flex justify-between py-2 border-b border-border">
                         <span className="text-muted-foreground">Bathroom SPC</span>
-                        <span className="font-medium">{resolveOptionName(spcTileOptions, selectedSubmission.spc_tile_colour) || 'Not selected'}</span>
+                        <span className="font-medium">{resolveOptionName(bathLaundryFloorOptions, selectedSubmission.spc_tile_colour) || 'Not selected'}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b border-border">
                         <span className="text-muted-foreground">Backsplash</span>

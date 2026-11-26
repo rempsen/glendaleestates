@@ -1,4 +1,4 @@
-import { lvpOptions, spcTileOptions, carpetOptions, toOptionId } from '@/lib/mockData';
+import { lvpOptions, bathLaundryFloorOptions, carpetOptions, toOptionId } from '@/lib/mockData';
 import { useRole } from '@/hooks/useRole';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
@@ -52,7 +52,7 @@ type BuyerSelection = SubmissionEditState;
 // Colour options — single source of truth shared with the buyer wizard.
 // Values saved are the wizard ids (e.g. 'wolf-river') so every PDF/email resolves them.
 const LVP_COLORS = lvpOptions.map(o => ({ id: o.id, name: o.name }));
-const TILE_COLORS = spcTileOptions.map(o => ({ id: o.id, name: o.name }));
+const TILE_COLORS = bathLaundryFloorOptions.map(o => ({ id: o.id, name: o.name }));
 const CARPET_COLORS = carpetOptions.map(o => ({ id: o.id, name: o.name }));
 
 // Backsplash orientation options
@@ -438,7 +438,7 @@ export function SubmissionEditor({ submission, onSave, onSaved, onCancel, onConf
               
               {/* Bathroom SPC Tile */}
               <div className="space-y-2">
-                <Label>Bathroom SPC Tile Color</Label>
+                <Label>Bathroom &amp; Laundry Flooring (tile or plank)</Label>
                 <Select
                   value={toOptionId(editData.spc_tile_colour)}
                   onValueChange={(value) => handleChange('spc_tile_colour', value || null)}
