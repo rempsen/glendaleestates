@@ -28,6 +28,8 @@ import {
 } from '@/lib/upgradeCostData';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { useUnitAreaData } from '@/hooks/useUnitAreaData';
+import { PremiumStylePicker } from '@/components/upgrades/PremiumStylePicker';
+import { HIDDEN_AREA_IDS, pickerFamilyFor, premiumChoiceComplete } from '@/lib/premiumProducts';
 
 interface RoomUpgradePickerProps {
   unitTypeCode: string | null;
@@ -99,6 +101,7 @@ export function RoomUpgradePicker({
     };
 
     return AREA_DEFINITIONS.filter(area => {
+      if (HIDDEN_AREA_IDS.has(area.id) && !selections.some(s => s.areaId === area.id)) return false;
       // Special case for stairs - check if unit has stairs (G/H units have stairs field)
       if (area.id === 'stairs') {
         // Only show stairs for G-1 and H-1 (1st floor of townhouse units)
@@ -111,7 +114,7 @@ export function RoomUpgradePicker({
       const quantity = unitData[fieldName];
       return quantity > 0;
     });
-  }, [effectiveUnitCode, unitData]);
+  }, [effectiveUnitCode, unitData, selections]);
 
   // Helper to get stair upgrade pricing (uses flat rates, not per-sqft)
   const getStairUpgradePrice = (materialType: MaterialType): { markedUpCost: number; quantity: number; unit: string } => {
@@ -357,13 +360,16 @@ export function RoomUpgradePicker({
                           value={editingSelection?.materialType || selection?.materialType || area.upgradeTypes[0]}
                           onValueChange={(value: MaterialType) => {
                             const isTileType = value === 'tile' || value === 'nonstandard_tile';
-                            setEditingSelection(prev => prev ? { ...prev, materialType: value, heatedFloor: isTileType ? prev.heatedFloor : undefined } : {
-                              areaId: area.id,
-                              materialType: value,
-                              productName: '',
-                              productColor: '',
-                              comments: '',
-                              heatedFloor: undefined,
+                            setEditingSelection(prev => {
+                              const base: AreaUpgradeSelection = prev ?? selection ?? {
+                                areaId: area.id, materialType: value, productName: '', productColor: '', comments: '',
+                              };
+                              // Switching between carpet / LVP / other clears a product that belongs to the old family.
+                              const familyChanged = pickerFamilyFor(area.id, base.materialType) !== pickerFamilyFor(area.id, value);
+                              return {
+                                ...base, materialType: value, heatedFloor: isTileType ? base.heatedFloor : undefined,
+                                ...(familyChanged ? { productName: '', productColor: '' } : {}),
+                              };
                             });
                           }}
                         >
@@ -443,7 +449,29 @@ export function RoomUpgradePicker({
                         </div>
                       )}
 
-                      {/* Product Details */}
+                      {/* Product Details: premium carpet / LVP pick a catalogue style then colour; others type them. */}
+                      {(() => {
+                        const current = editingSelection ?? selection;
+                        const mt = current?.materialType || area.upgradeTypes[0];
+                        const family = pickerFamilyFor(area.id, mt);
+                        if (!family) return null;
+                        return (
+                          <PremiumStylePicker
+                            compact
+                            family={family}
+                            idPrefix={`area-${area.id}`}
+                            value={{ productName: current?.productName || '', colour: current?.productColor || '' }}
+                            onChange={({ productName, colour }) => {
+                              setEditingSelection(prev => ({
+                                ...(prev ?? selection ?? { areaId: area.id, materialType: mt, comments: '' }),
+                                productName,
+                                productColor: colour,
+                              }));
+                            }}
+                          />
+                        );
+                      })()}
+                      {!pickerFamilyFor(area.id, editingSelection?.materialType || selection?.materialType || area.upgradeTypes[0]) && (
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <Label className="text-sm">Product Name</Label>
@@ -480,6 +508,7 @@ export function RoomUpgradePicker({
                           />
                         </div>
                       </div>
+                      )}
 
                       {/* Comments */}
                       <div>
@@ -561,6 +590,11 @@ export function RoomUpgradePicker({
                           variant="default"
                           size="sm"
                           className="flex-1"
+                          disabled={(() => {
+                            const current = editingSelection ?? selection;
+                            const family = pickerFamilyFor(area.id, current?.materialType || area.upgradeTypes[0]);
+                            return !!family && !premiumChoiceComplete(family, current?.productName, current?.productColor);
+                          })()}
                           onClick={() => {
                             if (editingSelection) {
                               handleSaveSelection(editingSelection);
@@ -628,7 +662,9 @@ export function RoomUpgradePicker({
                       </span>
                     )}
                     {selection.productName && (
-                      <span className="text-xs text-muted-foreground">({selection.productName})</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({selection.productName}{selection.productColor ? ` — ${selection.productColor}` : ''})
+                      </span>
                     )}
                   </div>
                   <div className="flex items-center gap-2">

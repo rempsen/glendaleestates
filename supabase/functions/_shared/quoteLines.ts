@@ -130,6 +130,11 @@ export interface QuoteSelections {
   premiumUnderpadStairs?: boolean;
   bedroomFlooringChoice?: string | null;
   premiumCarpetBedroom?: boolean;
+  /** Premium carpet style / colour as stored text (0017), e.g. "Dream Weaver San Lucas 8623" / "East Cape 6130". */
+  premiumCarpetBedroomStyle?: string | null;
+  premiumCarpetBedroomColour?: string | null;
+  stairPremiumCarpetStyle?: string | null;
+  stairPremiumCarpetColour?: string | null;
   premiumUnderpadBedroom?: boolean;
   additionalWindowsQty?: number;
   patioDoorsQty?: number;
@@ -435,6 +440,13 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
   const heatedFloorPrice = cfg('heated_floor_per_bathroom');
   const sectionHeatedFloorCount = Number(s.heatedFloorBathrooms) || 0;
   const bedroomChoice = s.bedroomFlooringChoice || '';
+  // Premium carpet style chosen (2026-11-26). Without one (every row before 0017) lines are exactly as before.
+  const isStairLvpChoice = s.stairUpgradeType === 'premium_lvp' || s.stairUpgradeType === 'lvp' || !!s.stairLvpUpgradeSelected;
+  const premiumStairStyle = !!s.stairPremiumCarpetSelected && !isStairLvpChoice ? text(s.stairPremiumCarpetStyle) : null;
+  const premiumStairColour = premiumStairStyle ? text(s.stairPremiumCarpetColour) : null;
+  const secondBedroomHard = areaUpgrades.some((a) => a.areaId === 'secondBedroom' && /lvp|lvt|laminate|hardwood|tile/i.test(String(a.materialType)));
+  const premiumBedroomStyle = bedroomChoice === 'carpet' && !!s.premiumCarpetBedroom ? text(s.premiumCarpetBedroomStyle) : null;
+  const premiumBedroomColour = premiumBedroomStyle ? text(s.premiumCarpetBedroomColour) : null;
 
   // ---- Standard inclusions (base spec) ----
   // An office "included" window-like item for a room replaces the base-spec shade line for that room.
@@ -458,11 +470,19 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
     let field: string | null = null;
     if (row.location === 'Main Living') { colour = colourText(s.lvpColour, row.defaultColourOptions, input.colourNames); field = 'lvp_colour'; }
     else if (row.section === 'tile') { colour = colourText(s.spcTileColour, row.defaultColourOptions, input.colourNames); field = 'spc_tile_colour'; }
-    else if (row.section === 'stairs') { colour = colourText(s.stairCarpetColour, row.defaultColourOptions, input.colourNames); field = 'stair_carpet_colour'; }
+    else if (row.section === 'stairs') {
+      colour = colourText(s.stairCarpetColour, row.defaultColourOptions, input.colourNames); field = 'stair_carpet_colour';
+      if (premiumStairStyle && row.location === STAIRS_LOWER) { product = `${premiumStairStyle} (premium upgrade)`; colour = premiumStairColour; }
+    }
     else if (row.section === 'backsplash') { field = 'backsplash_orientation'; }
     else if (row.section === 'flooring' && /Bedroom/.test(row.location)) {
       field = 'bedroom_flooring_choice';
-      if (bedroomChoice === 'carpet') { product = BEDROOM_CARPET_PRODUCT; colour = colourText(s.bedroomCarpetColour, row.defaultColourOptions, input.colourNames); }
+      if (bedroomChoice === 'carpet') {
+        product = BEDROOM_CARPET_PRODUCT; colour = colourText(s.bedroomCarpetColour, row.defaultColourOptions, input.colourNames);
+        // The premium carpet replaces the Luxor carpet in every carpeted bedroom (not a hard-surface second bedroom).
+        const premiumHere = premiumBedroomStyle && !(secondBedroomHard && /Second/.test(row.location));
+        if (premiumHere) { product = `${premiumBedroomStyle} (premium upgrade) + standard underpad`; colour = premiumBedroomColour; }
+      }
       else if (bedroomChoice === 'lvp') {
         product = BEDROOM_LVP_PRODUCT;
         colour = colourText(s.bedroomLvpSameAsMain ? s.lvpColour : s.bedroomLvpColour, mainLivingOptions, input.colourNames);
@@ -495,7 +515,9 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
   const stairCarpetActive = !!s.stairPremiumCarpetSelected && !isStairLvp;
   const stairCarpetPrice = cfg('premium_carpet_stairs_price');
   priced(ov('stairCarpet', stairCarpetActive ? stairCarpetPrice : 0, stairCarpetActive), 'stairCarpet', {
-    section: 'stairs', location: STAIRS_LOWER, label: 'Premium carpet', product_colour: colourText(s.stairCarpetColour, undefined, input.colourNames),
+    section: 'stairs', location: STAIRS_LOWER, label: 'Premium carpet',
+    product_name: premiumStairStyle,
+    product_colour: premiumStairStyle ? premiumStairColour : colourText(s.stairCarpetColour, undefined, input.colourNames),
     quantity: 1, unit: 'flat', unit_price: stairCarpetPrice, pricing_mode: 'flat_rate',
     price_source_ref: 'config:premium_carpet_stairs_price', wizard_field: 'stair_premium_carpet_selected',
   });
@@ -508,7 +530,7 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
   });
 
   // ---- Bedroom premium carpet / underpad (carpet bedrooms only; hard-surface second bedroom excluded) ----
-  const secondBedroomIsHard = areaUpgrades.some((a) => a.areaId === 'secondBedroom' && /lvp|lvt|laminate|hardwood|tile/i.test(String(a.materialType)));
+  const secondBedroomIsHard = secondBedroomHard;
   const bedroomIsCarpet = bedroomChoice === 'carpet';
   const unitBase = (normalized || '').toUpperCase().split('-')[0];
   // Split-floor units G/H keep every bedroom on the 2nd floor, whatever floor the upgrades are on.
@@ -519,8 +541,11 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
   const bedroomPiece = (key: 'bedroomCarpet' | 'bedroomUnderpad', flag: boolean | undefined, material: string, label: string, field: string) => {
     const active = bedroomIsCarpet && !!flag;
     const cost = mat(material);
+    const premiumStyle = key === 'bedroomCarpet' ? premiumBedroomStyle : null;
     priced(ov(key, active ? bedroomCarpetSqyd * cost * (1 + m) : 0, active), key, {
-      section: 'flooring', location: bedroomLocation, label, product_colour: colourText(s.bedroomCarpetColour, undefined, input.colourNames),
+      section: 'flooring', location: bedroomLocation, label,
+      ...(premiumStyle ? { product_name: premiumStyle } : {}),
+      product_colour: premiumStyle ? premiumBedroomColour : colourText(s.bedroomCarpetColour, undefined, input.colourNames),
       material_key: material, quantity: bedroomCarpetSqyd, unit: 'sqyd', unit_price: cost * (1 + m),
       pricing_mode: 'catalog', price_source_ref: `material:${material}`, wizard_field: field,
     });

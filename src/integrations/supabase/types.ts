@@ -83,6 +83,8 @@ export type Database = {
           patio_doors_qty: number | null
           phone_number: string | null
           premium_carpet_bedroom: boolean | null
+          premium_carpet_bedroom_colour: string | null
+          premium_carpet_bedroom_style: string | null
           premium_underpad_bedroom: boolean | null
           premium_underpad_stairs: boolean | null
           quoted_at: string | null
@@ -93,6 +95,8 @@ export type Database = {
           stair_carpet_colour: string | null
           stair_lvp_upgrade_selected: boolean | null
           stair_premium_carpet_selected: boolean
+          stair_premium_carpet_style: string | null
+          stair_premium_carpet_colour: string | null
           stair_upgrade_type: string | null
           status: string | null
           unit_number: string
@@ -140,6 +144,8 @@ export type Database = {
           patio_doors_qty?: number | null
           phone_number?: string | null
           premium_carpet_bedroom?: boolean | null
+          premium_carpet_bedroom_colour?: string | null
+          premium_carpet_bedroom_style?: string | null
           premium_underpad_bedroom?: boolean | null
           premium_underpad_stairs?: boolean | null
           quoted_at?: string | null
@@ -150,6 +156,8 @@ export type Database = {
           stair_carpet_colour?: string | null
           stair_lvp_upgrade_selected?: boolean | null
           stair_premium_carpet_selected?: boolean
+          stair_premium_carpet_style?: string | null
+          stair_premium_carpet_colour?: string | null
           stair_upgrade_type?: string | null
           status?: string | null
           unit_number: string
@@ -197,6 +205,8 @@ export type Database = {
           patio_doors_qty?: number | null
           phone_number?: string | null
           premium_carpet_bedroom?: boolean | null
+          premium_carpet_bedroom_colour?: string | null
+          premium_carpet_bedroom_style?: string | null
           premium_underpad_bedroom?: boolean | null
           premium_underpad_stairs?: boolean | null
           quoted_at?: string | null
@@ -207,6 +217,8 @@ export type Database = {
           stair_carpet_colour?: string | null
           stair_lvp_upgrade_selected?: boolean | null
           stair_premium_carpet_selected?: boolean
+          stair_premium_carpet_style?: string | null
+          stair_premium_carpet_colour?: string | null
           stair_upgrade_type?: string | null
           status?: string | null
           unit_number?: string

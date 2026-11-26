@@ -12,6 +12,7 @@ import { RoomUpgradePicker } from '@/components/RoomUpgradePicker';
 import { PremiumLVPSynergyShowcase } from '@/components/upgrades/PremiumLVPSynergyShowcase';
 import { PremiumLVPShowcase } from '@/components/upgrades/PremiumLVPShowcase';
 import { PremiumCarpetShowcase } from '@/components/upgrades/PremiumCarpetShowcase';
+import { PremiumStylePicker } from '@/components/upgrades/PremiumStylePicker';
 import { RunningTotal } from '@/components/quote/RunningTotal';
 import { LocatedWindowsList } from '@/components/buyer/LocatedWindowsList';
 import { Button } from '@/components/ui/button';
@@ -106,9 +107,14 @@ interface SelectionState {
   bedroomFlooringChoice: 'carpet' | 'lvp' | '';
   bedroomCarpetColour: string;
   premiumCarpetBedroom: boolean;
+  /** Premium bedroom carpet style + colour (stored text, e.g. "Dream Weaver San Lucas 8623" / "East Cape 6130"). */
+  premiumCarpetBedroomStyle: string;
+  premiumCarpetBedroomColour: string;
   premiumUnderpadBedroom: boolean;
   premiumUnderpadStairs: boolean;
   stairPremiumCarpetSelected: boolean;
+  stairPremiumCarpetStyle: string;
+  stairPremiumCarpetColour: string;
   bedroomLvpColour: string;
   bedroomLvpSameAsMain: boolean;
   // Derived from `windows` (windowCounts) on every change; still written to buyer_selections for Phase 1 renderers.
@@ -138,6 +144,10 @@ interface SelectionState {
 
 // Thrown when send-selections-email answers non-2xx; `code` is the parsed body `error`
 // (e.g. save_failed, post_save_failed, internal_error).
+/** Review-step text for a premium carpet choice. */
+const premiumCarpetText = (style: string, colour: string): string =>
+  style && colour ? `${style} — ${colour}` : style ? `${style} — colour not chosen` : 'Yes — style and colour not chosen';
+
 class SubmitError extends Error {
   constructor(public status: number, public code?: string) {
     super(code || `submit failed (${status})`);
@@ -209,9 +219,13 @@ export default function SelectionWizard() {
     bedroomFlooringChoice: '',
     bedroomCarpetColour: '',
     premiumCarpetBedroom: false,
+    premiumCarpetBedroomStyle: '',
+    premiumCarpetBedroomColour: '',
     premiumUnderpadBedroom: false,
     premiumUnderpadStairs: false,
     stairPremiumCarpetSelected: false,
+    stairPremiumCarpetStyle: '',
+    stairPremiumCarpetColour: '',
     bedroomLvpColour: '',
     bedroomLvpSameAsMain: true,
     additionalWindowsQty: 0,
@@ -1001,7 +1015,9 @@ export default function SelectionWizard() {
             {selections.hasStairs && selections.stairUpgradeType === 'standard' && selections.stairPremiumCarpetSelected && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Premium Carpet (Stairs to Lower Level)</span>
-                <span className="font-medium text-primary">Yes</span>
+                <span className="font-medium text-primary text-right">
+                  {premiumCarpetText(selections.stairPremiumCarpetStyle, selections.stairPremiumCarpetColour)}
+                </span>
               </div>
             )}
             {selections.hasStairs && selections.stairUpgradeType === 'standard' && selections.premiumUnderpadStairs && (
@@ -1027,7 +1043,9 @@ export default function SelectionWizard() {
             {selections.bedroomFlooringChoice === 'carpet' && selections.premiumCarpetBedroom && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Premium Carpet (Bedrooms)</span>
-                <span className="font-medium text-primary">Yes</span>
+                <span className="font-medium text-primary text-right">
+                  {premiumCarpetText(selections.premiumCarpetBedroomStyle, selections.premiumCarpetBedroomColour)}
+                </span>
               </div>
             )}
             {selections.bedroomFlooringChoice === 'carpet' && selections.premiumUnderpadBedroom && (
@@ -2013,7 +2031,12 @@ export default function SelectionWizard() {
                         ? 'border-primary bg-primary/5'
                         : 'border-border bg-card hover:border-primary/50'
                     }`}
-                    onClick={() => updateSelection('premiumCarpetBedroom', !selections.premiumCarpetBedroom)}
+                    onClick={() => setSelections(prev => ({
+                      ...prev,
+                      premiumCarpetBedroom: !prev.premiumCarpetBedroom,
+                      // Unticking drops the premium style so it can never print against a standard carpet.
+                      ...(prev.premiumCarpetBedroom ? { premiumCarpetBedroomStyle: '', premiumCarpetBedroomColour: '' } : {}),
+                    }))}
                   >
                     <div className="flex items-start gap-4">
                       <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
@@ -2033,7 +2056,7 @@ export default function SelectionWizard() {
                           </span>
                         </div>
                         <p className="text-muted-foreground text-sm mb-3">
-                          Upgrade your bedroom carpet to a higher quality premium carpet for enhanced softness, durability, and luxury feel.
+                          Upgrade your bedroom carpet to a Dream Weaver premium carpet — choose San Lucas or Valter, then any colour, below.
                         </p>
                         <ul className="space-y-1 text-sm">
                           <li className="flex items-center gap-2 text-muted-foreground">
@@ -2053,6 +2076,18 @@ export default function SelectionWizard() {
                                 ${premiumCarpetWithGst.toFixed(2)}
                               </span>
                             </div>
+                          </div>
+                        )}
+                        {selections.premiumCarpetBedroom && (
+                          <div className="mt-4 pt-4 border-t border-border cursor-default">
+                            <PremiumStylePicker
+                              family="carpet"
+                              idPrefix="bedroom"
+                              value={{ productName: selections.premiumCarpetBedroomStyle, colour: selections.premiumCarpetBedroomColour }}
+                              onChange={({ productName, colour }) => setSelections(prev => ({
+                                ...prev, premiumCarpetBedroomStyle: productName, premiumCarpetBedroomColour: colour,
+                              }))}
+                            />
                           </div>
                         )}
                       </div>
@@ -2241,6 +2276,8 @@ export default function SelectionWizard() {
             if (type !== 'standard') {
               updateSelection('stairCarpetColour', '');
               updateSelection('stairPremiumCarpetSelected', false);
+              updateSelection('stairPremiumCarpetStyle', '');
+              updateSelection('stairPremiumCarpetColour', '');
               updateSelection('premiumUnderpadStairs', false);
             }
           };
@@ -2416,7 +2453,11 @@ export default function SelectionWizard() {
                     className={`p-5 rounded-xl border-2 transition-all cursor-pointer ${
                       selections.stairPremiumCarpetSelected ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/50'
                     }`}
-                    onClick={() => updateSelection('stairPremiumCarpetSelected', !selections.stairPremiumCarpetSelected)}
+                    onClick={() => setSelections(prev => ({
+                      ...prev,
+                      stairPremiumCarpetSelected: !prev.stairPremiumCarpetSelected,
+                      ...(prev.stairPremiumCarpetSelected ? { stairPremiumCarpetStyle: '', stairPremiumCarpetColour: '' } : {}),
+                    }))}
                   >
                     <div className="flex items-start gap-4">
                       <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
@@ -2432,12 +2473,24 @@ export default function SelectionWizard() {
                           </span>
                         </div>
                         <p className="text-muted-foreground text-sm">
-                          Premium carpet on the staircase from the main level down to the basement or lower level, in your selected colour.
+                          Premium carpet on the staircase from the main level down to the basement or lower level. Choose a San Lucas or Valter style and colour below.
                         </p>
                         {selections.stairPremiumCarpetSelected && (
                           <div className="mt-2 pt-3 border-t border-border flex justify-between items-center text-sm">
                             <span className="text-foreground font-medium">Total with GST:</span>
                             <span className="text-primary font-semibold text-lg">${withGst(stairCarpetUpgradePrice, gstRate).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {selections.stairPremiumCarpetSelected && (
+                          <div className="mt-4 pt-4 border-t border-border cursor-default">
+                            <PremiumStylePicker
+                              family="carpet"
+                              idPrefix="stairs"
+                              value={{ productName: selections.stairPremiumCarpetStyle, colour: selections.stairPremiumCarpetColour }}
+                              onChange={({ productName, colour }) => setSelections(prev => ({
+                                ...prev, stairPremiumCarpetStyle: productName, stairPremiumCarpetColour: colour,
+                              }))}
+                            />
                           </div>
                         )}
                       </div>
