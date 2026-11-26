@@ -194,6 +194,12 @@ describe('Continue / Submit gate (Codex P1 on PR #6)', () => {
     expect(incompletePremiumCarpetSteps({ ...st, stairUpgradeType: 'lvp' })).toEqual([]);
     expect(incompletePremiumCarpetSteps({ ...st, hasStairs: false })).toEqual([]);
   });
+  test('an upgrade the wizard does not offer (hidden checkbox) never blocks — e.g. an old draft after pricing changed', () => {
+    const both = { bedroomFlooringChoice: 'carpet', premiumCarpetBedroom: true, hasStairs: true, stairPremiumCarpetSelected: true };
+    expect(incompletePremiumCarpetSteps({ ...both, stairPremiumAvailable: false })).toEqual(['Bedrooms']);
+    expect(incompletePremiumCarpetSteps({ ...both, bedroomPremiumAvailable: false })).toEqual(['Stair Carpet']);
+    expect(incompletePremiumCarpetSteps({ ...both, bedroomPremiumAvailable: false, stairPremiumAvailable: false })).toEqual([]);
+  });
   test('both incomplete → both listed, in wizard order', () => {
     expect(incompletePremiumCarpetSteps({
       bedroomFlooringChoice: 'carpet', premiumCarpetBedroom: true, hasStairs: true, stairPremiumCarpetSelected: true,
@@ -201,7 +207,9 @@ describe('Continue / Submit gate (Codex P1 on PR #6)', () => {
   });
   test('the wizard wires the gate into Continue, the step bar and Submit', () => {
     const src = readFileSync(join(root, 'src/pages/SelectionWizard.tsx'), 'utf8');
-    expect(src).toContain('const premiumIncompleteSteps = incompletePremiumCarpetSteps(selections);');
+    expect(src).toContain('const premiumIncompleteSteps = incompletePremiumCarpetSteps({');
+    expect(src).toContain('bedroomPremiumAvailable: bedroomPremiumPrices.carpet > 0,');
+    expect(src).toContain('stairPremiumAvailable: isStairCarpetUpgradeEnabled && stairCarpetUpgradePrice > 0,');
     expect(src).toContain('<Button onClick={nextStep} disabled={premiumBlocksHere}');
     expect(src).toContain('if (premiumBlocksHere) return;');
     expect(src).toContain('onStepClick={goToStep}');

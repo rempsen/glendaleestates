@@ -261,13 +261,6 @@ export default function SelectionWizard() {
 
   const steps = getSteps(selections.hasStairs);
   const showRail = currentStep >= steps.indexOf(FIRST_PRICED_STEP);
-  // A ticked premium carpet needs its style + colour before the buyer moves on or submits.
-  const premiumIncompleteSteps = incompletePremiumCarpetSteps(selections);
-  const premiumBlocksHere = premiumIncompleteSteps.includes(steps[currentStep]);
-  const goToStep = (index: number) => {
-    if (index > currentStep && premiumBlocksHere) return;
-    setCurrentStep(index);
-  };
 
   // The running total (spec §6.16): lines regenerated from the in-progress selections on every change, through the
   // same row mapping the server uses after the insert, so the buyer sees the lines that will be submitted.
@@ -491,6 +484,19 @@ export default function SelectionWizard() {
     const amount = (field: string) => forced.find((l) => l.wizard_field === field)?.amount ?? 0;
     return { carpet: amount('premium_carpet_bedroom'), underpad: amount('premium_underpad_bedroom') };
   }, [selections, unitInfo, quotePricing]);
+
+  // A ticked premium carpet needs its style + colour before the buyer moves on or submits — but only where the
+  // upgrade is offered: if pricing hides the checkbox (price 0 / disabled), an old draft's flag must never trap the buyer.
+  const premiumIncompleteSteps = incompletePremiumCarpetSteps({
+    ...selections,
+    bedroomPremiumAvailable: bedroomPremiumPrices.carpet > 0,
+    stairPremiumAvailable: isStairCarpetUpgradeEnabled && stairCarpetUpgradePrice > 0,
+  });
+  const premiumBlocksHere = premiumIncompleteSteps.includes(steps[currentStep]);
+  const goToStep = (index: number) => {
+    if (index > currentStep && premiumBlocksHere) return;
+    setCurrentStep(index);
+  };
 
   const handleSubmit = async () => {
     if (premiumIncompleteSteps.length > 0) return;

@@ -202,6 +202,10 @@ export interface PremiumCarpetGateInput {
   stairPremiumCarpetSelected?: boolean;
   stairPremiumCarpetStyle?: string;
   stairPremiumCarpetColour?: string;
+  /** Whether the wizard currently offers each upgrade (price > 0 / enabled). Default true. A flag on an upgrade
+   * that is not offered is ignored: its checkbox and picker are hidden, so it could never be completed. */
+  bedroomPremiumAvailable?: boolean;
+  stairPremiumAvailable?: boolean;
 }
 
 /**
@@ -211,9 +215,9 @@ export interface PremiumCarpetGateInput {
  */
 export function incompletePremiumCarpetSteps(s: PremiumCarpetGateInput): string[] {
   const out: string[] = [];
-  if (s.bedroomFlooringChoice === 'carpet' && s.premiumCarpetBedroom
+  if (s.bedroomPremiumAvailable !== false && s.bedroomFlooringChoice === 'carpet' && s.premiumCarpetBedroom
     && !premiumChoiceComplete('carpet', s.premiumCarpetBedroomStyle, s.premiumCarpetBedroomColour)) out.push('Bedrooms');
-  if (s.hasStairs && (s.stairUpgradeType || 'standard') === 'standard' && s.stairPremiumCarpetSelected
+  if (s.stairPremiumAvailable !== false && s.hasStairs && (s.stairUpgradeType || 'standard') === 'standard' && s.stairPremiumCarpetSelected
     && !premiumChoiceComplete('carpet', s.stairPremiumCarpetStyle, s.stairPremiumCarpetColour)) out.push('Stair Carpet');
   return out;
 }
