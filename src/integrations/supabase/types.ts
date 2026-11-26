@@ -94,9 +94,9 @@ export type Database = {
           spc_tile_comments: string | null
           stair_carpet_colour: string | null
           stair_lvp_upgrade_selected: boolean | null
+          stair_premium_carpet_colour: string | null
           stair_premium_carpet_selected: boolean
           stair_premium_carpet_style: string | null
-          stair_premium_carpet_colour: string | null
           stair_upgrade_type: string | null
           status: string | null
           unit_number: string
@@ -155,9 +155,9 @@ export type Database = {
           spc_tile_comments?: string | null
           stair_carpet_colour?: string | null
           stair_lvp_upgrade_selected?: boolean | null
+          stair_premium_carpet_colour?: string | null
           stair_premium_carpet_selected?: boolean
           stair_premium_carpet_style?: string | null
-          stair_premium_carpet_colour?: string | null
           stair_upgrade_type?: string | null
           status?: string | null
           unit_number: string
@@ -216,9 +216,9 @@ export type Database = {
           spc_tile_comments?: string | null
           stair_carpet_colour?: string | null
           stair_lvp_upgrade_selected?: boolean | null
+          stair_premium_carpet_colour?: string | null
           stair_premium_carpet_selected?: boolean
           stair_premium_carpet_style?: string | null
-          stair_premium_carpet_colour?: string | null
           stair_upgrade_type?: string | null
           status?: string | null
           unit_number?: string
