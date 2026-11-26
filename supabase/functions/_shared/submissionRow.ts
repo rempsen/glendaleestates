@@ -60,6 +60,11 @@ export interface SelectionData {
   bathroomTileGuestSelected?: boolean;
   heatedFloorBathrooms?: number;
   premiumCarpetBedroom?: boolean;
+  /** Premium carpet style + colour as stored text (2026-11-26; columns from 0017). */
+  premiumCarpetBedroomStyle?: string | null;
+  premiumCarpetBedroomColour?: string | null;
+  stairPremiumCarpetStyle?: string | null;
+  stairPremiumCarpetColour?: string | null;
   premiumUnderpadBedroom?: boolean;
   premiumUnderpadStairs?: boolean;
   customTiledShower?: boolean;
@@ -161,6 +166,10 @@ export function parseSelectionBody(rawData: Record<string, any>): SelectionData 
     stairPremiumCarpetSelected: Boolean(rawData.stairPremiumCarpetSelected),
     stairUpgradeType: rawData.stairUpgradeType ? String(rawData.stairUpgradeType).trim().slice(0, 20) as 'standard' | 'lvp' | 'premium_lvp' : null,
     premiumCarpetBedroom: Boolean(rawData.premiumCarpetBedroom),
+    premiumCarpetBedroomStyle: shortText(rawData.premiumCarpetBedroomStyle),
+    premiumCarpetBedroomColour: shortText(rawData.premiumCarpetBedroomColour),
+    stairPremiumCarpetStyle: shortText(rawData.stairPremiumCarpetStyle),
+    stairPremiumCarpetColour: shortText(rawData.stairPremiumCarpetColour),
     premiumUnderpadBedroom: Boolean(rawData.premiumUnderpadBedroom),
     premiumUnderpadStairs: Boolean(rawData.premiumUnderpadStairs),
     bedroomFlooringChoice: rawData.bedroomFlooringChoice ? String(rawData.bedroomFlooringChoice).trim().slice(0, 100) : null,
@@ -203,6 +212,27 @@ export function parseSelectionBody(rawData: Record<string, any>): SelectionData 
     }) : [],
   };
   return data;
+}
+
+const shortText = (v: unknown): string | null => {
+  const t = v === null || v === undefined ? '' : String(v).trim().slice(0, 100);
+  return t || null;
+};
+
+/** The 0017 premium-carpet columns for a parsed body: present only when that upgrade is ticked and a style chosen. */
+export function premiumCarpetColumns(data: SelectionData): Record<string, string | null> {
+  const out: Record<string, string | null> = {};
+  const bedroom = !!data.premiumCarpetBedroom && data.bedroomFlooringChoice === 'carpet' && !!data.premiumCarpetBedroomStyle;
+  if (bedroom) {
+    out.premium_carpet_bedroom_style = data.premiumCarpetBedroomStyle || null;
+    out.premium_carpet_bedroom_colour = data.premiumCarpetBedroomColour || null;
+  }
+  const stairs = !!data.stairPremiumCarpetSelected && !!data.stairPremiumCarpetStyle;
+  if (stairs) {
+    out.stair_premium_carpet_style = data.stairPremiumCarpetStyle || null;
+    out.stair_premium_carpet_colour = data.stairPremiumCarpetColour || null;
+  }
+  return out;
 }
 
 /** The `buyer_selections` insert payload for a parsed body. */
@@ -249,6 +279,9 @@ export function buyerSelectionsInsertRow(data: SelectionData): Record<string, un
     premium_underpad_bedroom: data.premiumUnderpadBedroom || false,
     premium_underpad_stairs: data.premiumUnderpadStairs || false,
     stair_premium_carpet_selected: data.stairPremiumCarpetSelected || false,
+    // Premium carpet style / colour (0017). Only written when chosen, and only for a ticked upgrade, so a submission
+    // without a premium carpet inserts exactly the columns it did before 0017.
+    ...premiumCarpetColumns(data),
     automated_windows_qty: data.automatedWindowsQty || 0,
     custom_tiled_shower: data.customTiledShower || false,
     document_uploads: data.documentUploads || [],

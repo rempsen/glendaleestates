@@ -276,7 +276,10 @@ export default function AdminHomes() {
                           if (t === 'premium_lvp') return 'Premium LVP upgrade (custom nosings)';
                           if (t === 'lvp') return 'LVP upgrade (custom nosings)';
                           const c = resolveOptionName(carpetOptions, x.stair_carpet_colour) || 'Standard carpet';
-                          return x.stair_premium_carpet_selected ? `Premium carpet — ${c}` : c;
+                          if (!x.stair_premium_carpet_selected) return c;
+                          return x.stair_premium_carpet_style
+                            ? `Premium carpet — ${x.stair_premium_carpet_style}${x.stair_premium_carpet_colour ? ` — ${x.stair_premium_carpet_colour}` : ''}`
+                            : `Premium carpet — ${c}`;
                         })()}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b border-border">

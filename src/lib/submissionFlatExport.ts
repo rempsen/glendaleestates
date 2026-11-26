@@ -141,6 +141,8 @@ const STATIC_GROUPS: GroupDef[] = [
         if (!s.has_stairs || upgraded) return s.stair_carpet_colour ?? '';
         return s.stair_carpet_colour ? `${STAIR_STANDARD_VALUE} — ${s.stair_carpet_colour}` : STAIR_STANDARD_VALUE;
       } },
+      { label: 'Premium Carpet Style (Stairs)', get: ({ s }) => s.stair_premium_carpet_style ?? '' },
+      { label: 'Premium Carpet Colour (Stairs)', get: ({ s }) => s.stair_premium_carpet_colour ?? '' },
       { label: 'Premium Underpad (Stairs)', get: ({ s }) => yesNo(s.premium_underpad_stairs) },
     ],
   },
@@ -152,6 +154,8 @@ const STATIC_GROUPS: GroupDef[] = [
       { label: 'Primary Bedroom LVP Colour', get: ({ s }) => s.bedroom_lvp_colour ?? '' },
       { label: 'Primary Bedroom Carpet Colour', get: ({ s }) => s.bedroom_carpet_colour ?? '' },
       { label: 'Premium Carpet (Primary Bedroom)', get: ({ s }) => yesNo(s.premium_carpet_bedroom) },
+      { label: 'Premium Carpet Style (Bedrooms)', get: ({ s }) => s.premium_carpet_bedroom_style ?? '' },
+      { label: 'Premium Carpet Colour (Bedrooms)', get: ({ s }) => s.premium_carpet_bedroom_colour ?? '' },
       { label: 'Premium Underpad (Primary Bedroom)', get: ({ s }) => yesNo(s.premium_underpad_bedroom) },
     ],
   },
