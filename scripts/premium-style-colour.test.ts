@@ -13,7 +13,7 @@ import { quoteSelectionsFromRow } from '../supabase/functions/_shared/quoteSelec
 import { buyerSelectionsInsertRow, parseSelectionBody, premiumCarpetColumns } from '../supabase/functions/_shared/submissionRow.ts';
 import {
   HIDDEN_AREA_IDS, PREMIUM_CARPET_STYLES, PREMIUM_LVP_STYLES, colourLabel, findPremiumColour, findPremiumStyle,
-  pickerFamilyFor, premiumChoiceComplete, premiumFamilyForMaterial,
+  incompletePremiumCarpetSteps, pickerFamilyFor, premiumChoiceComplete, premiumFamilyForMaterial,
 } from '../src/lib/premiumProducts';
 
 const root = join(import.meta.dir, '..');
@@ -173,5 +173,47 @@ describe('Upgrades picker + migration', () => {
     const journal = JSON.parse(readFileSync(join(root, 'drizzle/migrations/meta/_journal.json'), 'utf8'));
     expect(journal.entries.at(-1)).toEqual({ idx: 17, version: '7', when: 1796300000000, tag: '0017_premium_carpet_style_colour', breakpoints: true });
     expect(createHash('sha256').update(readFileSync(sqlPath)).digest('hex')).toHaveLength(64);
+  });
+});
+
+describe('Continue / Submit gate (Codex P1 on PR #6)', () => {
+  const full = { productName: 'Dream Weaver San Lucas 8623', colour: 'East Cape 6130' };
+  test('bedroom premium ticked without a complete choice blocks Bedrooms', () => {
+    const bed = { bedroomFlooringChoice: 'carpet', premiumCarpetBedroom: true };
+    expect(incompletePremiumCarpetSteps(bed)).toEqual(['Bedrooms']);
+    expect(incompletePremiumCarpetSteps({ ...bed, premiumCarpetBedroomStyle: full.productName })).toEqual(['Bedrooms']);
+    expect(incompletePremiumCarpetSteps({ ...bed, premiumCarpetBedroomStyle: full.productName, premiumCarpetBedroomColour: full.colour })).toEqual([]);
+    expect(incompletePremiumCarpetSteps({ ...bed, bedroomFlooringChoice: 'lvp' })).toEqual([]); // LVP bedrooms: flag is ignored
+    expect(incompletePremiumCarpetSteps({ ...bed, premiumCarpetBedroom: false })).toEqual([]);
+  });
+  test('stair premium ticked without a complete choice blocks Stair Carpet; LVP stairs or no stairs never do', () => {
+    const st = { hasStairs: true, stairUpgradeType: 'standard', stairPremiumCarpetSelected: true };
+    expect(incompletePremiumCarpetSteps(st)).toEqual(['Stair Carpet']);
+    expect(incompletePremiumCarpetSteps({ ...st, stairPremiumCarpetStyle: 'Dream Weaver Valter 8655', stairPremiumCarpetColour: 'Cabo 2703' })).toEqual([]);
+    expect(incompletePremiumCarpetSteps({ ...st, stairPremiumCarpetStyle: 'Dream Weaver Valter 8655', stairPremiumCarpetColour: 'East Cape 6130' })).toEqual(['Stair Carpet']);
+    expect(incompletePremiumCarpetSteps({ ...st, stairUpgradeType: 'lvp' })).toEqual([]);
+    expect(incompletePremiumCarpetSteps({ ...st, hasStairs: false })).toEqual([]);
+  });
+  test('an upgrade the wizard does not offer (hidden checkbox) never blocks — e.g. an old draft after pricing changed', () => {
+    const both = { bedroomFlooringChoice: 'carpet', premiumCarpetBedroom: true, hasStairs: true, stairPremiumCarpetSelected: true };
+    expect(incompletePremiumCarpetSteps({ ...both, stairPremiumAvailable: false })).toEqual(['Bedrooms']);
+    expect(incompletePremiumCarpetSteps({ ...both, bedroomPremiumAvailable: false })).toEqual(['Stair Carpet']);
+    expect(incompletePremiumCarpetSteps({ ...both, bedroomPremiumAvailable: false, stairPremiumAvailable: false })).toEqual([]);
+  });
+  test('both incomplete → both listed, in wizard order', () => {
+    expect(incompletePremiumCarpetSteps({
+      bedroomFlooringChoice: 'carpet', premiumCarpetBedroom: true, hasStairs: true, stairPremiumCarpetSelected: true,
+    })).toEqual(['Bedrooms', 'Stair Carpet']);
+  });
+  test('the wizard wires the gate into Continue, the step bar and Submit', () => {
+    const src = readFileSync(join(root, 'src/pages/SelectionWizard.tsx'), 'utf8');
+    expect(src).toContain('const premiumIncompleteSteps = incompletePremiumCarpetSteps({');
+    expect(src).toContain('bedroomPremiumAvailable: bedroomPremiumPrices.carpet > 0,');
+    expect(src).toContain('stairPremiumAvailable: isStairCarpetUpgradeEnabled && stairCarpetUpgradePrice > 0,');
+    expect(src).toContain('<Button onClick={nextStep} disabled={premiumBlocksHere}');
+    expect(src).toContain('if (premiumBlocksHere) return;');
+    expect(src).toContain('onStepClick={goToStep}');
+    expect(src).toContain('disabled={isSubmitting || premiumIncompleteSteps.length > 0}');
+    expect(src).toContain('if (premiumIncompleteSteps.length > 0) return;');
   });
 });

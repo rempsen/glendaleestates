@@ -190,3 +190,34 @@ export const premiumChoiceComplete = (family: PremiumFamily, productName?: strin
   const style = findPremiumStyle(family, productName);
   return !!style && !!findPremiumColour(style, productColor);
 };
+
+/** The wizard fields that decide whether a ticked premium carpet upgrade still needs its style / colour. */
+export interface PremiumCarpetGateInput {
+  hasStairs?: boolean;
+  bedroomFlooringChoice?: string;
+  premiumCarpetBedroom?: boolean;
+  premiumCarpetBedroomStyle?: string;
+  premiumCarpetBedroomColour?: string;
+  stairUpgradeType?: string;
+  stairPremiumCarpetSelected?: boolean;
+  stairPremiumCarpetStyle?: string;
+  stairPremiumCarpetColour?: string;
+  /** Whether the wizard currently offers each upgrade (price > 0 / enabled). Default true. A flag on an upgrade
+   * that is not offered is ignored: its checkbox and picker are hidden, so it could never be completed. */
+  bedroomPremiumAvailable?: boolean;
+  stairPremiumAvailable?: boolean;
+}
+
+/**
+ * Wizard step names ('Bedrooms', 'Stair Carpet') where premium carpet is ticked but no catalogue style + colour is
+ * chosen. The wizard keeps Continue / Submit disabled while the current step (or, for Submit, any step) is listed,
+ * so a quote never carries a premium carpet line without the product to order (Codex P1 on PR #6).
+ */
+export function incompletePremiumCarpetSteps(s: PremiumCarpetGateInput): string[] {
+  const out: string[] = [];
+  if (s.bedroomPremiumAvailable !== false && s.bedroomFlooringChoice === 'carpet' && s.premiumCarpetBedroom
+    && !premiumChoiceComplete('carpet', s.premiumCarpetBedroomStyle, s.premiumCarpetBedroomColour)) out.push('Bedrooms');
+  if (s.stairPremiumAvailable !== false && s.hasStairs && (s.stairUpgradeType || 'standard') === 'standard' && s.stairPremiumCarpetSelected
+    && !premiumChoiceComplete('carpet', s.stairPremiumCarpetStyle, s.stairPremiumCarpetColour)) out.push('Stair Carpet');
+  return out;
+}
