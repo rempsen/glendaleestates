@@ -28,6 +28,10 @@ const MATERIAL_NAMES: Record<string, string> = {
 // Buyer-facing wording. MIRRORS src/lib/outputLabels.ts (cannot import from src/); change in both places together.
 // Base spec: Luxury Vinyl Plank throughout; Dante 2.0 tile in washrooms only (pending Dan's confirmation).
 const LAUNDRY_STANDARD_LABEL = 'Ceratec Dante 2.0 LVT (standard)';
+const LAUNDRY_PLANK_PRODUCT = 'XL Flooring LVP';
+const PLANK_NAMES: Record<string, string> = { cortland: 'Cortland', opal: 'Opal', wolfriver: 'Wolf River' };
+const plankBathChoiceName = (v: string | null | undefined): string | null =>
+  PLANK_NAMES[String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '')] ?? null;
 const LAUNDRY_ROW_LABEL = 'Laundry Room';
 const BATHROOM_TILE_LABEL = 'Bathroom Tile';
 const PRIMARY_BEDROOM_FLOORING_LABEL = 'Primary Bedroom Flooring';
@@ -35,13 +39,16 @@ const PRIMARY_BEDROOM_CARPET_COLOUR_LABEL = 'Primary Bedroom Carpet Colour';
 const STAIR_CARPET_LABEL = 'Stair Flooring – Carpet'; // en dash
 const STAIR_STANDARD_VALUE = 'Standard Carpet (Included)';
 
-// Laundry value: the upgraded material when an area_upgrades row for laundry exists, else the standard label.
-function laundryValue(areaUpgrades: AreaUpgrade[] | undefined): string {
+// Laundry value: the upgraded material when an area_upgrades row for laundry exists; else the standard plank when the
+// shared bathroom/laundry choice is a plank; else the standard tile label.
+function laundryValue(areaUpgrades: AreaUpgrade[] | undefined, spcTileColour?: string | null): string {
   const up = (areaUpgrades || []).find(u => u.areaId === 'laundry');
-  if (!up) return LAUNDRY_STANDARD_LABEL;
+  const plank = plankBathChoiceName(spcTileColour);
+  const standard = plank ? `${LAUNDRY_PLANK_PRODUCT} — ${plank} (standard)` : LAUNDRY_STANDARD_LABEL;
+  if (!up) return standard;
   const text = [MATERIAL_NAMES[up.materialType] || up.materialType, up.productName, up.productColor]
     .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(' — ');
-  return text || LAUNDRY_STANDARD_LABEL;
+  return text || standard;
 }
 
 // Stair flooring row for the office email and CSV (selection text only; the price is on the stair line).
@@ -85,7 +92,7 @@ export function generateCSV(data: SelectionData, savedId: string | undefined, q:
   rows.push(['Main Floor LVP', data.lvpColour || 'Not selected']);
   rows.push(['LVP Comments', data.lvpComments || '']);
   rows.push([BATHROOM_TILE_LABEL, data.spcTileColour || 'Not selected']);
-  rows.push([LAUNDRY_ROW_LABEL, laundryValue(data.areaUpgrades)]);
+  rows.push([LAUNDRY_ROW_LABEL, laundryValue(data.areaUpgrades, data.spcTileColour)]);
   rows.push(['SPC Tile Comments', data.spcTileComments || '']);
   rows.push([STAIR_CARPET_LABEL, data.hasStairs ? stairFlooringRow(data).value : 'N/A']);
   rows.push([PRIMARY_BEDROOM_FLOORING_LABEL, data.bedroomFlooringChoice || 'Not selected']);
@@ -209,7 +216,7 @@ export function buildAdminEmailHtml(data: SelectionData, savedId: string | undef
             <table>
               <tr><td class="label">Main Floor LVP:</td><td class="value">${escapeHtml(data.lvpColour) || 'Not selected'}</td></tr>
               <tr><td class="label">${BATHROOM_TILE_LABEL}:</td><td class="value">${escapeHtml(data.spcTileColour) || 'Not selected'}</td></tr>
-              <tr><td class="label">${LAUNDRY_ROW_LABEL}:</td><td class="value">${escapeHtml(laundryValue(data.areaUpgrades))}</td></tr>
+              <tr><td class="label">${LAUNDRY_ROW_LABEL}:</td><td class="value">${escapeHtml(laundryValue(data.areaUpgrades, data.spcTileColour))}</td></tr>
               ${data.hasStairs ? `<tr><td class="label">${STAIR_CARPET_LABEL}:</td><td class="value">${escapeHtml(stairFlooringRow(data).value)}</td></tr>` : ''}
               <tr><td class="label">${PRIMARY_BEDROOM_FLOORING_LABEL}:</td><td class="value">${data.bedroomFlooringChoice === 'lvp' ? 'Luxury Vinyl Plank' : escapeHtml(data.bedroomFlooringChoice) || 'Not selected'}</td></tr>
             </table>

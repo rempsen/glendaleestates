@@ -114,7 +114,7 @@ const STATIC_GROUPS: GroupDef[] = [
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { label: 'Guest Tile', get: ({ s }) => yesNo((s as any).bathroom_tile_guest_selected) },
       { label: 'Bathroom Tile', get: ({ s }) => s.spc_tile_colour ?? '' },
-      { label: LAUNDRY_ROW_LABEL, get: ({ s }) => laundryValue(Array.isArray(s.area_upgrades) ? (s.area_upgrades as never[]) : []) },
+      { label: LAUNDRY_ROW_LABEL, get: ({ s }) => laundryValue(Array.isArray(s.area_upgrades) ? (s.area_upgrades as never[]) : [], s.spc_tile_colour) },
       { label: 'Bathroom Tile Comments', get: ({ s }) => s.spc_tile_comments ?? '' },
       { label: 'Heated Floor Bathrooms', get: ({ s }) => s.heated_floor_bathrooms ?? 0 },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

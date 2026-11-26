@@ -267,6 +267,9 @@ const AREA_FIELD_MAP: Record<string, string> = {
 
 const BEDROOM_CARPET_PRODUCT = 'Luxor I carpet + standard underpad';
 const BEDROOM_LVP_PRODUCT = 'XL Flooring LVP';
+/** Standard planks (main-floor LVP ids) that may also be chosen for bathrooms and laundry. */
+const BATH_PLANK_SLUGS = new Set(['cortland', 'opal', 'wolf-river']);
+const LAUNDRY_LOCATION = 'Laundry Room';
 const STAIRS_LOWER = 'Stairs to Lower Level';
 
 /** Most window / patio door / motor lines itemised per quantity column (controller ruling). */
@@ -455,6 +458,8 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
     .map((i) => toBuyerWording(String(i.area || '').trim())).filter(Boolean));
   const spec: QuoteBaseSpecRow[] = Array.isArray(input.baseSpec) ? input.baseSpec : [];
   const mainLivingOptions = spec.find((r) => r && r.location === 'Main Living')?.defaultColourOptions;
+  // The shared bathroom/laundry choice may be a standard main-floor plank at no cost (Dan, 2026-11-26).
+  const bathPlank = BATH_PLANK_SLUGS.has(slug(s.spcTileColour || ''));
   for (const row of spec) {
     if (!row) continue;
     if (!row.isIncluded) {
@@ -469,7 +474,14 @@ export function generateQuoteLines(input: GenerateInput): QuoteLine[] {
     let colour: string | null = null;
     let field: string | null = null;
     if (row.location === 'Main Living') { colour = colourText(s.lvpColour, row.defaultColourOptions, input.colourNames); field = 'lvp_colour'; }
-    else if (row.section === 'tile') { colour = colourText(s.spcTileColour, row.defaultColourOptions, input.colourNames); field = 'spc_tile_colour'; }
+    else if (row.section === 'tile') {
+      field = 'spc_tile_colour';
+      if (bathPlank) { product = BEDROOM_LVP_PRODUCT; colour = colourText(s.spcTileColour, mainLivingOptions, input.colourNames); }
+      else colour = colourText(s.spcTileColour, row.defaultColourOptions, input.colourNames);
+    }
+    else if (row.location === LAUNDRY_LOCATION && bathPlank) {
+      product = BEDROOM_LVP_PRODUCT; colour = colourText(s.spcTileColour, mainLivingOptions, input.colourNames); field = 'spc_tile_colour';
+    }
     else if (row.section === 'stairs') {
       colour = colourText(s.stairCarpetColour, row.defaultColourOptions, input.colourNames); field = 'stair_carpet_colour';
       if (premiumStairStyle && row.location === STAIRS_LOWER) { product = `${premiumStairStyle} (premium upgrade)`; colour = premiumStairColour; }

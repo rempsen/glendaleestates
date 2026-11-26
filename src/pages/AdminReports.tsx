@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { AdminLayout } from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { lvpOptions, spcTileOptions, carpetOptions } from '@/lib/mockData';
+import { lvpOptions, bathLaundryFloorOptions, carpetOptions } from '@/lib/mockData';
 import { Download, FileText, FileSpreadsheet, Printer, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Tables } from '@/integrations/supabase/types';
@@ -242,8 +242,8 @@ export default function AdminReports() {
       'LVP COLOURS:',
       ...lvpOptions.map(o => `  ${o.name}: ${lvpCounts[o.id] || 0}`),
       '',
-      'SPC TILE:',
-      ...spcTileOptions.map(o => `  ${o.name}: ${spcCounts[o.id] || 0}`),
+      'BATHROOM / LAUNDRY FLOORING (tile or plank):',
+      ...bathLaundryFloorOptions.map(o => `  ${o.name}: ${spcCounts[o.id] || 0}`),
       '',
       'CARPET:',
       ...carpetOptions.map(o => `  ${o.name}: ${carpetCounts[o.id] || 0}`),

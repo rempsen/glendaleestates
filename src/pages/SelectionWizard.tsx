@@ -31,6 +31,7 @@ import {
   lvpSpecs,
   spcTileOptions, 
   spcTileSpecs,
+  bathLaundryFloorOptions,
   backsplashProduct,
   backsplashOrientations, 
   carpetOptions,
@@ -969,9 +970,9 @@ export default function SelectionWizard() {
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Bathroom/Laundry SPC</span>
+              <span className="text-muted-foreground">Bathroom/Laundry Flooring</span>
               <span className="font-medium">
-                {resolveOptionName(spcTileOptions, selections.spcTileColour) || 'Not selected'}
+                {resolveOptionName(bathLaundryFloorOptions, selections.spcTileColour) || 'Not selected'}
               </span>
             </div>
             {selections.bathroomTileSelected && (
@@ -1422,8 +1423,8 @@ export default function SelectionWizard() {
       case 3: // Bathroom SPC Tile
         return (
           <StepContainer
-            title="Bathroom & Laundry Flooring - LVT"
-            subtitle="Select your preferred SPC Vinyl Tile colour — included at no additional cost"
+            title="Bathroom & Laundry Flooring"
+            subtitle="Select a vinyl tile, or continue a main-floor plank — included at no additional cost"
             badge="Included"
           >
             <div className="space-y-6">
@@ -1435,11 +1436,15 @@ export default function SelectionWizard() {
                   <p className="text-muted-foreground">
                     {spcTileSpecs.size} • {spcTileSpecs.collection} Collection
                   </p>
+                  <p className="font-medium text-foreground mt-2">or {lvpSpecs.productType}</p>
+                  <p className="text-muted-foreground">
+                    {lvpSpecs.length} × {lvpSpecs.width} • same planks as the main floor
+                  </p>
                 </div>
               </div>
 
               <div className="grid sm:grid-cols-3 gap-4">
-                {spcTileOptions.map(option => (
+                {bathLaundryFloorOptions.map(option => (
                   <SelectionCard
                     key={option.id}
                     id={option.id}

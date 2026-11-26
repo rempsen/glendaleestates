@@ -78,6 +78,17 @@ export const spcTileSpecs = {
   collection: 'Dante 2.0',
 };
 
+// Bathroom & laundry flooring picker (Dan, 2026-11-26): the three Dante tiles plus the three standard
+// main-floor planks, all at no cost. One choice covers every bathroom and the laundry; it is stored in
+// `spc_tile_colour` (plank ids are the lvpOptions ids).
+export const bathLaundryFloorOptions = [...spcTileOptions, ...lvpOptions];
+
+/** True when a stored bathroom/laundry choice is one of the standard planks rather than a Dante tile. */
+export function isPlankBathChoice(value: string | null | undefined): boolean {
+  const id = toOptionId(value);
+  return lvpOptions.some(o => o.id === id);
+}
+
 // 2.4 Kitchen Backsplash - White Subway 2"×12"
 export const backsplashProduct = {
   name: 'Classic White Subway',
